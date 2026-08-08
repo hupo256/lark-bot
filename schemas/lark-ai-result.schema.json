@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Lark AI task result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status", "summary", "checks", "changedFiles", "blockers", "owner", "failureKind", "nextStep"],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["done", "blocked", "failed", "waiting_confirmation"]
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "checks": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "changedFiles": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "blockers": {
+      "type": ["array", "null"],
+      "items": { "type": "string", "minLength": 1 },
+      "description": "status=blocked/waiting_confirmation 时逐条列出缺什么 / 卡在哪个环节 / 需要谁补；其它状态填 null"
+    },
+    "owner": {
+      "type": ["string", "null"],
+      "description": "可推断到的责任人或角色（如 产品 / QA / 设计），用于回群 @ 提示；推断不到填 null"
+    },
+    "failureKind": {
+      "type": ["string", "null"],
+      "enum": ["tool", "env", "permission", "requirement", null],
+      "description": "status=failed 时的失败归因：tool 工具失败 / env 环境失败 / permission 权限失败 / requirement 需求不清；非 failed 填 null"
+    },
+    "nextStep": {
+      "type": ["string", "null"],
+      "description": "status=failed/blocked/waiting_confirmation 时给人的下一步建议（一句话，人能照做）；done 填 null"
+    }
+  }
+}
