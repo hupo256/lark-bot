@@ -25,7 +25,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { resolve, join, dirname } from 'node:path'
 
-import { resolveRoots } from '../agent-scripts/lib/roots.mjs'
+import { resolveRoots } from '../engine/agent-scripts/lib/roots.mjs'
 import { resolveAiExecutor } from './lib/lark-ai-executor.mjs'
 import {
   isForBot,

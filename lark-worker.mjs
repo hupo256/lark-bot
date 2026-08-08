@@ -3,7 +3,7 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join } from 'node:path'
-import { docsSystemRoot, resolveRoots } from '../agent-scripts/lib/roots.mjs'
+import { docsSystemRoot, resolveRoots } from '../engine/agent-scripts/lib/roots.mjs'
 import { scanDiffForViolations, formatViolations } from './lib/lark-lint-diff.mjs'
 import { buildFocusedRuleContext } from './lib/lark-rule-context.mjs'
 import { isReadOnlyCommand, parseCommandType } from './lib/lark-message.mjs'

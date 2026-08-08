@@ -20,7 +20,7 @@ import { buildResultCard } from '../lib/lark-cards.mjs'
 import { isProjectId, isReadOnlyCommand, matchProjectId, parseCommandType, parseProjectFromText } from '../lib/lark-message.mjs'
 import { classifyLarkTask, extractMarkdownSection } from '../lib/lark-rule-context.mjs'
 import { assessDoneResult, classifyWorkerFailure, crossCheckChangedFiles, detectChangeTier, pruneStaleAudits, resolveWorkContext, safeProject, splitViolations } from '../lark-worker.mjs'
-import { validateSource } from '../../agent-scripts/sync-lark-docs.mjs'
+import { validateSource } from '../../engine/agent-scripts/sync-lark-docs.mjs'
 
 const BOT = 'ou_bot'
 const ME = 'ou_me'
