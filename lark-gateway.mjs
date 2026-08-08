@@ -17,7 +17,7 @@
  *   · lib/lark-cli.mjs      lark-cli 子进程 + 发消息/附件/群名缓存/引用消息
  *   · lib/lark-task-store.mjs 文件队列 + 租约回收
  *
- * 硬规则来源：apps/web/docs_tdd/common/lark-bot-gateway.md、lark-active-notification.md。
+ * 硬规则来源：apps/web/docs_tdd/common/rules/lark-bot-gateway.md、lark-active-notification.md。
  */
 
 import { spawn } from 'node:child_process'

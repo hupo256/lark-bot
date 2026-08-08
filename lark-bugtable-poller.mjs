@@ -7,7 +7,7 @@
  * Bot Gateway 队列（POST /lark/tasks），复用 worker → AI → 回群 → 回写状态 的统一链路。
  * 鉴权走 lark-cli 已登录的 bot 身份，不在配置里放 app 级密钥。
  *
- * 规则来源：apps/web/docs_tdd/common/lark-bot-gateway.md、lark-doc-sync.md。
+ * 规则来源：apps/web/docs_tdd/common/rules/lark-bot-gateway.md、lark-doc-sync.md。
  */
 
 import { spawn } from 'node:child_process'
