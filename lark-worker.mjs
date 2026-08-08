@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join } from 'node:path'
 import { docsSystemRoot, resolveRoots } from '../agent-scripts/lib/roots.mjs'
 import { scanDiffForViolations, formatViolations } from './lib/lark-lint-diff.mjs'
@@ -47,7 +47,41 @@ export const safeProject = (raw) => {
 
 const safeAuditFilePart = (raw) => String(raw || 'task').replace(/[^\w.-]+/g, '_').slice(0, 120) || 'task'
 
+// 审计留存：lark-audits/ 每任务产 <id>.json + <id>.log 且只增不减（.log 是 AI 全量输出，可达数百 KB）。
+// worker 每跑一个任务时顺手扫所有项目的 lark-audits/，按 mtime 删掉超过留存期（默认 7 天）的文件，
+// 避免占满磁盘。纯本地审计痕迹、删除不影响运行；清理全程吞异常，绝不阻断任务本身。
+const auditRetentionMs = Math.max(0, Number(process.env.LARK_AUDIT_RETENTION_MS || 7 * 24 * 60 * 60 * 1000))
+export const pruneStaleAudits = (root = docsSystemRoot, retentionMs = auditRetentionMs) => {
+  if (!retentionMs) return
+  const cutoff = Date.now() - retentionMs
+  let projectDirs = []
+  try {
+    projectDirs = readdirSync(root, { withFileTypes: true })
+  } catch {
+    return
+  }
+  for (const entry of projectDirs) {
+    if (!entry.isDirectory()) continue
+    const auditDir = join(root, entry.name, 'agent/lark-audits')
+    let files = []
+    try {
+      files = readdirSync(auditDir)
+    } catch {
+      continue // 该项目没有审计目录
+    }
+    for (const name of files) {
+      const filePath = join(auditDir, name)
+      try {
+        if (statSync(filePath).mtimeMs < cutoff) rmSync(filePath, { force: true })
+      } catch {
+        // 单个文件清理失败（权限/并发删除）不影响其余文件与任务
+      }
+    }
+  }
+}
+
 const createTaskAudit = ({ workerConfig, task, workContext, executor }) => {
+  pruneStaleAudits()
   const auditProject = safeProject(workContext.projectId) || safeProject(workerConfig.projectId) || '_adhoc'
   const auditDir = join(docsSystemRoot, auditProject, 'agent/lark-audits')
   const basename = safeAuditFilePart(task.id)

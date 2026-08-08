@@ -8,7 +8,7 @@
  */
 
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
@@ -19,7 +19,7 @@ import { createTaskStore } from '../lib/lark-task-store.mjs'
 import { buildResultCard } from '../lib/lark-cards.mjs'
 import { isProjectId, isReadOnlyCommand, matchProjectId, parseCommandType, parseProjectFromText } from '../lib/lark-message.mjs'
 import { classifyLarkTask, extractMarkdownSection } from '../lib/lark-rule-context.mjs'
-import { assessDoneResult, classifyWorkerFailure, crossCheckChangedFiles, detectChangeTier, resolveWorkContext, safeProject, splitViolations } from '../lark-worker.mjs'
+import { assessDoneResult, classifyWorkerFailure, crossCheckChangedFiles, detectChangeTier, pruneStaleAudits, resolveWorkContext, safeProject, splitViolations } from '../lark-worker.mjs'
 import { validateSource } from '../../agent-scripts/sync-lark-docs.mjs'
 
 const BOT = 'ou_bot'
@@ -572,6 +572,58 @@ describe('classifyWorkerFailure', () => {
     const r = classifyWorkerFailure(new Error('something odd'))
     assert.equal(r.failureKind, 'tool')
     assert.ok(r.nextStep)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// pruneStaleAudits：按 mtime 龄清理各项目 lark-audits/，只删超期、保留新近与非审计目录
+// ---------------------------------------------------------------------------
+describe('pruneStaleAudits', () => {
+  const mkAudit = (root, project, name, ageMs) => {
+    const dir = join(root, project, 'agent/lark-audits')
+    mkdirSync(dir, { recursive: true })
+    const file = join(dir, name)
+    writeFileSync(file, 'x')
+    if (ageMs) {
+      const t = (Date.now() - ageMs) / 1000
+      utimesSync(file, t, t)
+    }
+    return file
+  }
+
+  it('删超过留存期的文件，保留新近文件', () => {
+    const root = mkdtempSync(join(tmpdir(), 'lark-audit-'))
+    try {
+      const stale = mkAudit(root, 'PR-01645', 'old.log', 8 * 24 * 60 * 60 * 1000) // 8 天前
+      const fresh = mkAudit(root, 'PR-01645', 'new.log', 60 * 1000) // 1 分钟前
+      pruneStaleAudits(root, 7 * 24 * 60 * 60 * 1000)
+      assert.throws(() => statSync(stale), '超期文件应被删除')
+      assert.ok(statSync(fresh), '新近文件应保留')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('retentionMs=0 时不删任何文件（关闭开关）', () => {
+    const root = mkdtempSync(join(tmpdir(), 'lark-audit-'))
+    try {
+      const stale = mkAudit(root, 'PR-01645', 'old.log', 30 * 24 * 60 * 60 * 1000)
+      pruneStaleAudits(root, 0)
+      assert.ok(statSync(stale), 'retention=0 应保留')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('无 lark-audits 目录 / 缺失 root 均不抛错', () => {
+    const root = mkdtempSync(join(tmpdir(), 'lark-audit-'))
+    try {
+      mkdirSync(join(root, 'PR-99999'), { recursive: true }) // 有项目目录但无 agent/lark-audits
+      assert.doesNotThrow(() => pruneStaleAudits(root, 1000))
+      assert.doesNotThrow(() => pruneStaleAudits(join(root, 'does-not-exist'), 1000))
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 })
 
