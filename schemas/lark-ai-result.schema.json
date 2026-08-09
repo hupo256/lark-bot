@@ -3,11 +3,11 @@
   "title": "Lark AI task result",
   "type": "object",
   "additionalProperties": false,
-  "required": ["status", "summary", "checks", "changedFiles", "blockers", "owner", "failureKind", "nextStep"],
+  "required": ["status", "summary", "checks", "changedFiles", "warnings", "blockers", "owner", "failureKind", "nextStep"],
   "properties": {
     "status": {
       "type": "string",
-      "enum": ["done", "blocked", "failed", "waiting_confirmation"]
+      "enum": ["done", "done_with_warnings", "blocked", "failed", "waiting_confirmation"]
     },
     "summary": {
       "type": "string",
@@ -20,6 +20,11 @@
     "changedFiles": {
       "type": "array",
       "items": { "type": "string", "minLength": 1 }
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "实现和风险分级必需检查已完成，但额外视觉验收、无关历史门禁等非阻塞验证未完成时逐条列出；仅 done_with_warnings 使用"
     },
     "blockers": {
       "type": ["array", "null"],
@@ -37,7 +42,7 @@
     },
     "nextStep": {
       "type": ["string", "null"],
-      "description": "status=failed/blocked/waiting_confirmation 时给人的下一步建议（一句话，人能照做）；done 填 null"
+      "description": "status=failed/blocked/waiting_confirmation 时给人的下一步建议（一句话，人能照做）；done/done_with_warnings 填 null"
     }
   }
 }

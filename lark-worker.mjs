@@ -23,8 +23,11 @@ export { safeProject, resolveWorkContext } from './lib/lark-work-context.mjs'
 export { pruneStaleAudits } from './lib/lark-worker-audit.mjs'
 export { assessDoneResult, crossCheckChangedFiles, detectChangeTier, splitViolations } from './lib/lark-quality-gate.mjs'
 export { classifyWorkerFailure } from './lib/lark-worker-results.mjs'
+export { gatewayStatusForAiStatus, isCompletedAiStatus } from './lib/lark-ai-result.mjs'
 export { requestJson } from './lib/lark-gateway-client.mjs'
 export { buildAnalysisPrompt, buildTaskPrompt, buildValidationRequirements } from './lib/lark-worker-prompts.mjs'
+export { normalizeAnalysisForTask } from './lib/lark-worker-run.mjs'
+export { shouldSyncProjectDocs } from './lib/lark-task-runner.mjs'
 
 function printHelp() {
   console.log(`usage: lark-worker.mjs [--once] [--help]

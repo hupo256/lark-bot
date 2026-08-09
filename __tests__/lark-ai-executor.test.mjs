@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 
 import assert from 'node:assert/strict'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
 import { parseAiExecutorDirective, resolveGatewayAiExecutor } from '../lark-gateway.mjs'
@@ -10,10 +13,20 @@ import {
   resolveAiExecutor,
   validateAiExecutor,
 } from '../lib/lark-ai-executor.mjs'
+import { parseStructuredAiResult } from '../lib/lark-ai-result.mjs'
 import { buildQueuedCard, buildResultCard, buildWaitingCard, resolveOwnerMention } from '../lib/lark-cards.mjs'
 import { scanDiffForViolations } from '../lib/lark-lint-diff.mjs'
 import { buildFocusedRuleContext } from '../lib/lark-rule-context.mjs'
-import { buildAnalysisPrompt, buildTaskPrompt, buildValidationRequirements, requestJson } from '../lark-worker.mjs'
+import {
+  buildAnalysisPrompt,
+  buildTaskPrompt,
+  buildValidationRequirements,
+  gatewayStatusForAiStatus,
+  isCompletedAiStatus,
+  normalizeAnalysisForTask,
+  requestJson,
+  shouldSyncProjectDocs,
+} from '../lark-worker.mjs'
 
 describe('AI executor selection', () => {
   it('只接受 claude/codex 固定枚举', () => {
@@ -30,9 +43,11 @@ describe('AI executor selection', () => {
     assert.equal(resolveAiExecutor({ aiExecutor: 'claude', localConfig: {} }, {}, {}), 'claude')
   })
 
-  it('群消息仅识别开头的安全选择指令', () => {
+  it('群消息识别开头的安全选择指令，标签后无需空格', () => {
     assert.equal(parseAiExecutorDirective('[codex] 修复登录页'), 'codex')
+    assert.equal(parseAiExecutorDirective('[codex]这里有明显颜色重叠'), 'codex')
     assert.equal(parseAiExecutorDirective(' [CLAUDE] 看这里'), 'claude')
+    assert.equal(parseAiExecutorDirective('[claude]直接处理'), 'claude')
     assert.equal(parseAiExecutorDirective('修复 [codex] 登录页'), undefined)
     assert.equal(parseAiExecutorDirective('[shell] whoami'), undefined)
   })
@@ -137,9 +152,12 @@ describe('risk-based validation policy', () => {
     assert.match(policy, /node_modules\/\.bin\/vitest run --no-cache/)
     assert.match(policy, /不要用会触发 Corepack\/registry 的 `pnpm exec`/)
     assert.match(policy, /同一检查最多执行一次/)
+    assert.match(policy, /自动视觉验收默认关闭/)
+    assert.match(policy, /不要启动 dev server/)
+    assert.match(policy, /默认跳过不是 warning/)
   })
 
-  it('任务 Prompt 只保留风险分级策略，不再强制每个 apps\/web 改动跑 tsc', () => {
+  it('任务 Prompt 只保留风险分级策略，不再强制每个 apps/web 改动跑 tsc', () => {
     const prompt = buildTaskPrompt(
       { projectId: 'PR-00001', projectName: 'test', projectDocs: [], cwd: '/tmp/repo', hotfixBranch: 'hotfix/test' },
       { id: 'task-1', text: '调整圆角', attachments: [] },
@@ -148,6 +166,120 @@ describe('risk-based validation policy', () => {
     assert.match(prompt, /按最终 diff 风险分级/)
     assert.doesNotMatch(prompt, /cd apps\/web && pnpm exec tsc --noEmit/)
     assert.match(prompt, /必需检查完成后立即结束/)
+    assert.match(prompt, /done_with_warnings/)
+    assert.match(prompt, /不得误判 failed/)
+    assert.match(prompt, /任务没有明确要求视觉验证/)
+    assert.match(prompt, /跳过 Browser \/ Playwright，禁止启动 dev server/)
+    assert.match(prompt, /必需检查通过就尽快返回 done/)
+  })
+
+  it('明确要求视觉验证时只复用现有页面，不在沙箱启动开发服务', () => {
+    const prompt = buildTaskPrompt(
+      { projectId: 'PR-01947', projectName: 'test', projectDocs: [], cwd: '/tmp/repo' },
+      { id: 'task-visual', source: 'lark', text: '修复后用 Playwright 做视觉验收', commandType: null, attachments: [] },
+      'codex',
+    )
+    assert.match(prompt, /任务明确要求视觉验证/)
+    assert.match(prompt, /只复用已经运行且可访问的页面/)
+    assert.match(prompt, /不要在 Codex 沙箱内启动 dev server/)
+  })
+
+  it('群内测试反馈不分 L1/L2/L3，范围明确就不重复跑同步或 G2 门禁', () => {
+    const task = {
+      id: 'task-feedback',
+      source: 'lark',
+      text: 'QA：提交后补充局部校验，并调整错误提示',
+      commandType: 'qa',
+      attachments: [],
+    }
+    const analysisPrompt = buildAnalysisPrompt(
+      { projectId: 'PR-01947', projectName: 'test', projectDocs: [], cwd: '/tmp/repo' },
+      task,
+      { scenario: 'write_ui', signals: ['ui'], sources: [], text: '已加载 UI 规则。' },
+    )
+    const prompt = buildTaskPrompt(
+      { projectId: 'PR-01947', projectName: 'test', projectDocs: [], cwd: '/tmp/repo' },
+      task,
+      'codex',
+      {
+        ruleContext: {
+          scenario: 'write_ui',
+          signals: ['ui'],
+          sources: [],
+          text: '已加载 UI 规则。',
+        },
+        analysis: {
+          status: 'ready',
+          summary: '目标已定位到现有提交表单。',
+          applicableRules: [],
+          requirements: ['只改当前表单校验与提示'],
+          blockers: [],
+        },
+      },
+    )
+    const docsList = prompt.slice(prompt.indexOf('请在 /tmp/repo 中完成任务'), prompt.indexOf('Worker 已按任务语义精准加载'))
+    assert.doesNotMatch(docsList, /lark-doc-sync\.md/)
+    assert.match(analysisPrompt, /修改范围/)
+    assert.match(analysisPrompt, /缺 G2、README、技术方案、rule session、历史 gate 证据/)
+    assert.match(analysisPrompt, /范围能从现有事实唯一确定时必须返回 ready/)
+    assert.match(prompt, /测试反馈直接实施路径/)
+    assert.match(prompt, /此路径不限于 L1/)
+    assert.match(prompt, /不要自行运行 Lark 同步/)
+    assert.match(prompt, /不要运行 docs-tdd context \/ changed \/ gate/)
+    assert.match(prompt, /唯一需要人工确认的需求问题是修改范围/)
+    assert.match(prompt, /不得仅因缺 G2、PRD、Figma、QA 文档、README、技术方案或历史 gate 证据返回 waiting_confirmation/)
+    assert.equal(shouldSyncProjectDocs(task), false)
+  })
+
+  it('群任务和 Bug 表的 G2 流程阻塞都会降级，真实范围歧义仍保留', () => {
+    const groupTask = { source: 'lark', commandType: null }
+    const bugTableTask = { source: 'lark-bugtable', commandType: null }
+    const g2Analysis = {
+      status: 'blocked',
+      summary: '缺少 G2 定稿证据',
+      applicableRules: [],
+      requirements: [],
+      blockers: ['当前项目缺少 G2、README 和技术方案，当前不能依规进入实施'],
+    }
+    const groupResult = normalizeAnalysisForTask(groupTask, g2Analysis)
+    const bugTableResult = normalizeAnalysisForTask(bugTableTask, g2Analysis)
+    assert.equal(groupResult.status, 'ready')
+    assert.deepEqual(groupResult.blockers, [])
+    assert.equal(bugTableResult.status, 'ready')
+    assert.deepEqual(bugTableResult.blockers, [])
+    assert.equal(shouldSyncProjectDocs({ ...bugTableTask, commandType: 'qa' }), false)
+
+    const bugTablePrompt = buildAnalysisPrompt(
+      { projectId: 'PR-01947', projectName: 'test', projectDocs: [], cwd: '/tmp/repo' },
+      { ...bugTableTask, id: 'record-1', text: '输入框错误态不对', attachments: [] },
+      { scenario: 'write_ui', signals: ['ui'], sources: [], text: '已加载 UI 规则。' },
+    )
+    assert.match(bugTablePrompt, /来自白名单项目群或 Bug 表/)
+    assert.match(bugTablePrompt, /范围能从现有事实唯一确定时必须返回 ready/)
+
+    const ambiguous = normalizeAnalysisForTask(bugTableTask, {
+      status: 'blocked',
+      summary: '存在两个候选页面',
+      applicableRules: [],
+      requirements: [],
+      blockers: ['消息无法定位目标页面：现货和合约页均有同名控件，需要确认修改范围'],
+    })
+    assert.equal(ambiguous.status, 'blocked')
+    assert.deepEqual(ambiguous.blockers, ['消息无法定位目标页面：现货和合约页均有同名控件，需要确认修改范围'])
+  })
+
+  it('非测试反馈来源保持原同步与 G2 判定，不被扩权', () => {
+    const externalTask = { source: 'manual-api', commandType: 'qa' }
+    const analysis = {
+      status: 'blocked',
+      summary: '缺少 G2',
+      applicableRules: [],
+      requirements: [],
+      blockers: ['缺少 G2 定稿证据'],
+    }
+    assert.equal(normalizeAnalysisForTask(externalTask, analysis), analysis)
+    assert.equal(shouldSyncProjectDocs(externalTask), true)
+    assert.equal(shouldSyncProjectDocs({ source: 'lark', commandType: 'docs' }), true)
   })
 })
 
@@ -191,6 +323,50 @@ describe('structured result and cards', () => {
     // 验证/文件等实现细节不上群卡
     assert.doesNotMatch(text, /button.test.tsx 通过/)
     assert.doesNotMatch(text, /文件：/)
+  })
+
+  it('实现完成但 Playwright 环境不可用时映射为 done，并在群卡保留验证提醒', () => {
+    const resultWithWarnings = {
+      status: 'done_with_warnings',
+      summary: '样式改动已完成且 L1 代码检查通过。',
+      checks: ['git diff --check 通过', 'Biome 通过'],
+      changedFiles: ['apps/web/src/apps/CopyTrading/components/CopySetting/KolProfile.tsx'],
+      warnings: ['Playwright 页面验证因本地端口权限不可用未执行'],
+      blockers: null,
+      owner: null,
+      failureKind: null,
+      nextStep: null,
+    }
+    const text = formatStructuredAiResult(resultWithWarnings, 'codex')
+    assert.equal(isCompletedAiStatus(resultWithWarnings.status), true)
+    assert.equal(gatewayStatusForAiStatus(resultWithWarnings.status), 'done')
+    assert.match(text, /^已完成（有验证提醒），待发布。/)
+    assert.match(text, /验证提醒：Playwright 页面验证因本地端口权限不可用未执行/)
+    assert.doesNotMatch(text, /处理失败/)
+  })
+
+  it('结构化结果解析接受 done_with_warnings，并拒绝缺少 warnings 的伪完成', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'lark-result-test-'))
+    const resultPath = join(dir, 'result.json')
+    const base = {
+      status: 'done_with_warnings',
+      summary: '页面已修复。',
+      checks: ['Biome 通过'],
+      changedFiles: ['apps/web/Page.tsx'],
+      warnings: ['Playwright 环境不可用'],
+      blockers: null,
+      owner: null,
+      failureKind: null,
+      nextStep: null,
+    }
+    try {
+      writeFileSync(resultPath, JSON.stringify(base))
+      assert.deepEqual(parseStructuredAiResult(resultPath), base)
+      writeFileSync(resultPath, JSON.stringify({ ...base, warnings: [] }))
+      assert.throws(() => parseStructuredAiResult(resultPath), /必须列出 warnings/)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 
   it('排队卡与结果卡展示实际执行器', () => {
