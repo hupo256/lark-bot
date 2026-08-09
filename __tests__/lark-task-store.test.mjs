@@ -76,6 +76,29 @@ describe('createTaskStore', () => {
     assert.equal(store.get('d').status, 'done')
   })
 
+  it('releaseRunning 把在跑任务交还队列：running→queued、清租约、bump epoch、不计 retry/requeue（优雅退出用）', () => {
+    const store = createTaskStore({ tasksDir: dir, leaseMs: 60_000 })
+    store.upsert({ id: 'r', status: 'running', epoch: 1, claimedAt: '2026-01-01T00:00:00Z', createdAt: '2026-01-01T00:00:00Z' })
+    const released = store.releaseRunning('r')
+    assert.equal(released.status, 'queued')
+    assert.equal(released.claimedAt, null)
+    assert.equal(released.epoch, 2) // bump 后，被中断执行的迟到回写（带旧 epoch=1）会被 fencing 掉
+    assert.equal(released.retryCount, undefined) // 运维重启不该推向死信，不占 retry/requeue 额度
+    assert.equal(released.requeueCount, undefined)
+    // 未过租约也能立刻被领走，无需等 40min 租约过期
+    assert.equal(store.claimNext().id, 'r')
+  })
+
+  it('releaseRunning 对非 running（queued/done/failed/缺失）返回 null，不改状态', () => {
+    const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+    store.upsert({ id: 'q', status: 'queued', createdAt: '2026-01-01T00:00:00Z' })
+    store.upsert({ id: 'd', status: 'done', createdAt: '2026-01-01T00:00:00Z' })
+    assert.equal(store.releaseRunning('q'), null)
+    assert.equal(store.releaseRunning('d'), null)
+    assert.equal(store.releaseRunning('missing'), null)
+    assert.equal(store.get('q').status, 'queued')
+  })
+
   it('resumeWithSupplement 续 waiting_confirmation：append 补料、复用同 id、回 queued、bump epoch', () => {
     const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
     store.upsert({ id: 'w', status: 'waiting_confirmation', text: '修复：hover tips', epoch: 2, attachments: [{ type: 'image', localPath: '/a.png' }], createdAt: '2026-01-01T00:00:00Z' })

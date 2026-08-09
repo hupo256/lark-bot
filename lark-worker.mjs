@@ -85,11 +85,38 @@ export async function runLarkWorker({
     return
   }
 
+  // 优雅退出：SIGTERM/SIGINT（launchd bootout 与 lark-bot stop 都发 SIGTERM）时，先把在飞任务
+  // 交还队列（releaseTask → queued + epoch++），再中断在跑的 AI 子进程，让重启后的 worker 立刻重领，
+  // 而非空等 40min 租约过期。必须「先释放再 abort」：被中断执行随后那条 failed 迟到回写会因 epoch
+  // 不匹配被 gateway 409 挡掉，任务干净停在 queued。中断 AI 子进程是必须的——Node 退出不杀子进程，
+  // 不杀会与重领后的新 AI 双跑同一 worktree。
+  const shutdownController = new AbortController()
+  const inFlight = new Map() // cwd -> { promise, taskId }
+  let shuttingDown = false
+  const gracefulShutdown = async (signal) => {
+    if (shuttingDown) return
+    shuttingDown = true
+    const entries = [...inFlight.values()]
+    console.log(`[lark-worker] 收到 ${signal}，优雅退出：交还 ${entries.length} 个在飞任务并中断 AI`)
+    await Promise.allSettled(
+      entries.map(({ taskId }) =>
+        client.releaseTask(taskId).catch((error) =>
+          console.error(`[lark-worker] 释放任务 ${taskId} 失败（回落到租约过期回收）：${String(error).slice(0, 120)}`),
+        ),
+      ),
+    )
+    shutdownController.abort()
+    // 给在飞任务一点收尾时间（worktree 清理等），但不超过 launchd SIGKILL 宽限（~5s）。
+    await Promise.race([Promise.allSettled(entries.map(({ promise }) => promise)), sleep(3000)])
+    process.exit(0)
+  }
+  process.on('SIGTERM', () => void gracefulShutdown('SIGTERM'))
+  process.on('SIGINT', () => void gracefulShutdown('SIGINT'))
+
   // 并行调度器：inFlight 以 workContext.cwd 为 key（同一 worktree 只允许一个在飞、天然串行；
   // 不同 worktree 并行）。git worktree add/remove 等走 spawnSync 同步执行，本就互不交错，无需额外锁。
-  const inFlight = new Map()
   for (;;) {
-    while (inFlight.size < defaultConcurrency) {
+    while (!shuttingDown && inFlight.size < defaultConcurrency) {
       const candidates = await client.listClaimable()
       // 挑第一个「目标 cwd 未在飞」的任务；其余留到下一轮（保证同 worktree 串行）
       let picked = null
@@ -113,10 +140,12 @@ export async function runLarkWorker({
       if (!claimed) continue // 被并发领走 / 状态已变，下一轮重新 list
 
       const key = pickedCtx.cwd
-      const running = runTask(claimed, pickedCtx).finally(() => inFlight.delete(key))
-      inFlight.set(key, running)
+      const running = runTask(claimed, pickedCtx, { signal: shutdownController.signal })
+        .finally(() => inFlight.delete(key))
+      inFlight.set(key, { promise: running, taskId: claimed.id })
     }
 
+    if (shuttingDown) return
     await sleep(pollMs)
   }
 }

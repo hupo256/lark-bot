@@ -2,7 +2,7 @@
 
 /**
  * Lark Bot Gateway（本地专用）。事件源用 `lark-cli event consume` 长连接，对外暴露与 worker/poller
- * 约定的本地 HTTP 契约（/lark/health、/lark/tasks[/next|/:id/claim|/:id/retry|/prune|/:id/status]）。
+ * 约定的本地 HTTP 契约（/lark/health、/lark/tasks[/next|/:id/claim|/:id/release|/:id/retry|/prune|/:id/status]）。
  *
  * 本文件只做「装配 + 生命周期」：装载配置、建 store/consumer、挂 HTTP 路由（lib/lark-routes）、
  * 起定时器（prune / 回写重试）与优雅退出。各职责已拆到 lib/lark-*：
