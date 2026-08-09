@@ -149,8 +149,8 @@ const loadWorkerLocalConfig = (configPath) => {
 // 项目文档：docs_tdd 在主仓下（软链到 ~/github/docs_tdd），按项目号取存在的文档
 const projectDocsFor = (projectId) =>
   [
-    `apps/web/docs_tdd/${projectId}/agent/lark-integration.md`,
-    `apps/web/docs_tdd/${projectId}/agent/README.md`,
+    `apps/web/docs_tdd/prds/${projectId}/agent/lark-integration.md`,
+    `apps/web/docs_tdd/prds/${projectId}/agent/README.md`,
   ].filter((rel) => existsSync(join(repoRoot, rel)))
 
 // 按 task.project 决定 worker 在哪个仓/目录干活：
