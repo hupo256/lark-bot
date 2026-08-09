@@ -15,26 +15,25 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve, join, dirname } from 'node:path'
 
 import { isProjectId } from './lib/lark-message.mjs'
+import { loadConfig, secretHeaders } from './lib/lark-config.mjs'
+import {
+  assigneeHasOpenId,
+  buildBugText,
+  classifyBugTaskStatus,
+  parseColumnarRecords,
+  readProjectId,
+} from './lib/lark-bugtable-parse.mjs'
+
+// 测试与既有调用方沿用从本文件导入 classifyBugTaskStatus（实现已下沉到 lib/）。
+export { classifyBugTaskStatus } from './lib/lark-bugtable-parse.mjs'
 
 const larkCliBin = process.env.LARK_CLI_BIN || 'lark-cli'
 const defaultGatewayUrl = process.env.LARK_GATEWAY_URL || 'http://127.0.0.1:3005'
-const ACTIVE_TASK_STATUSES = new Set(['received', 'queued', 'running', 'verifying', 'done_pending_writeback'])
-const WAITING_TASK_STATUSES = new Set(['blocked', 'waiting_confirmation'])
-
-export const classifyBugTaskStatus = (status) => {
-  if (status === 'done') return 'done'
-  if (ACTIVE_TASK_STATUSES.has(status)) return 'in-flight'
-  if (WAITING_TASK_STATUSES.has(status)) return 'waiting'
-  if (status === 'failed') return 'failed'
-  return 'new'
-}
 const defaultPollMs = Number(process.env.LARK_BUGTABLE_POLL_MS || 90000)
 // 空闲自动收工：连续这么久没有新 bug 就自动退出，忘了 poll-off 也无害（默认 4h）
 const defaultIdleOffMs = Number(process.env.LARK_BUGTABLE_IDLE_OFF_MS || 4 * 60 * 60 * 1000)
 // lark-cli 子进程超时兜底（默认 60s）
 const larkCliTimeoutMs = Number(process.env.LARK_CLI_TIMEOUT_MS || 60000)
-// 与 gateway 约定的本地 API 共享密钥（可选）
-const gatewaySecret = process.env.LARK_GATEWAY_SECRET || ''
 
 const runLarkCli = (args, { timeoutMs = larkCliTimeoutMs } = {}) =>
   new Promise((resolveFn) => {
@@ -70,14 +69,6 @@ const runLarkCli = (args, { timeoutMs = larkCliTimeoutMs } = {}) =>
     child.on('exit', (code) => finish({ code, stdout, stderr }))
   })
 
-const loadConfig = (configPath) => {
-  const absolute = resolve(configPath)
-  if (!existsSync(absolute)) {
-    throw new Error(`Missing config: ${absolute}`)
-  }
-  return JSON.parse(readFileSync(absolute, 'utf8'))
-}
-
 // 已处理 record_id 持久化，避免重复建 task
 const createSeenStore = (statePath) => {
   mkdirSync(dirname(statePath), { recursive: true })
@@ -89,51 +80,6 @@ const createSeenStore = (statePath) => {
       writeFileSync(statePath, JSON.stringify({ seen: [...seen] }, null, 2))
     },
   }
-}
-
-// 人员字段值形如 [{id/open_id, name}]；判断是否含目标 open_id
-const assigneeHasOpenId = (value, openId) => {
-  if (!openId || !Array.isArray(value)) return false
-  return value.some((person) => person?.id === openId || person?.open_id === openId)
-}
-
-// 单选/文本状态字段取文本值
-const readStatusText = (value) => {
-  if (typeof value === 'string') return value
-  if (Array.isArray(value)) return value.map((v) => v?.text || v?.name || '').join('')
-  return value?.text || value?.name || ''
-}
-
-// 项目ID 列值形如 "PR-01947" / "PM-1469\n"（探针见过尾部换行），取文本并去空白
-const readProjectId = ({ fields, bug }) => readStatusText(fields[bug.projectField || '项目ID']).trim()
-
-// 把记录正文拼成给 AI 的 task 文本
-const buildBugText = ({ record, bug }) => {
-  const fields = record.fields || {}
-  const title = readStatusText(fields[bug.titleField || '问题标题']) || '(无标题)'
-  const desc = readStatusText(fields[bug.descField || '问题描述（复现步骤）']) || ''
-  const projectId = readProjectId({ fields, bug })
-  return [
-    `修复：Lark bug 表待处理项 [${title}]`,
-    projectId ? `项目：${projectId}` : '项目：(表格未填项目ID，无法确定目标仓库，请在结果里说明)',
-    `记录 ID：${record.record_id}`,
-    `描述：${desc || '(表格未填描述，请结合标题与项目文档定位)'}`,
-  ].join('\n')
-}
-
-// base +record-list 返回列式结构：data.fields 是列名字符串数组，data.data 是行（单元格数组），
-// data.record_id_list 是并行的 record_id。这里 zip 回 { record_id, fields } 记录对象。
-const parseColumnarRecords = (data) => {
-  const cols = data.fields || []
-  const rows = data.data || []
-  const ids = data.record_id_list || []
-  return rows.map((row, rowIndex) => {
-    const fields = {}
-    cols.forEach((name, colIndex) => {
-      fields[name] = row[colIndex]
-    })
-    return { record_id: ids[rowIndex], fields }
-  })
 }
 
 // 服务端按状态过滤 + 翻页拉全（待处理可能 >200），仅投影需要的列以减小 payload
@@ -193,7 +139,7 @@ const enqueueTask = async ({ gatewayUrl, record, bug, chatId }) => {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(gatewaySecret ? { 'x-lark-gateway-secret': gatewaySecret } : {}),
+      ...secretHeaders(),
     },
     body: JSON.stringify({
       id: record.record_id,
@@ -212,7 +158,7 @@ const enqueueTask = async ({ gatewayUrl, record, bug, chatId }) => {
 // 读 gateway 当前所有任务的状态（record_id → status），作为去重与「是否在处理中」的权威依据
 const fetchGatewayTaskStatuses = async (gatewayUrl) => {
   const response = await fetch(`${gatewayUrl}/lark/tasks`, {
-    headers: gatewaySecret ? { 'x-lark-gateway-secret': gatewaySecret } : {},
+    headers: secretHeaders(),
   })
   if (!response.ok) throw new Error(`list tasks failed: ${response.status}`)
   const { tasks = [] } = await response.json()
