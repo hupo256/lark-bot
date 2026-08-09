@@ -185,7 +185,7 @@ describe('structured result and cards', () => {
 
   it('Worker 把结构化结果转成稳定回执（群卡精简：不列验证/文件明细）', () => {
     const text = formatStructuredAiResult(result, 'codex')
-    assert.match(text, /^已完成。/)
+    assert.match(text, /^已完成，待发布。/)
     assert.match(text, /执行器：codex/)
     assert.match(text, /修复登录按钮颜色。/)
     // 验证/文件等实现细节不上群卡
