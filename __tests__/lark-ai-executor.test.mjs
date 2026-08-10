@@ -43,12 +43,16 @@ describe('AI executor selection', () => {
     assert.equal(resolveAiExecutor({ aiExecutor: 'claude', localConfig: {} }, {}, {}), 'claude')
   })
 
-  it('群消息识别开头的安全选择指令，标签后无需空格', () => {
+  it('群消息识别首个文本位置的安全选择指令，标签后无需空格', () => {
     assert.equal(parseAiExecutorDirective('[codex] 修复登录页'), 'codex')
     assert.equal(parseAiExecutorDirective('[codex]这里有明显颜色重叠'), 'codex')
     assert.equal(parseAiExecutorDirective(' [CLAUDE] 看这里'), 'claude')
     assert.equal(parseAiExecutorDirective('[claude]直接处理'), 'claude')
+    assert.equal(parseAiExecutorDirective('![Image](img_v3_demo) [codex] 这个选项是接口还是写死的'), 'codex')
+    assert.equal(parseAiExecutorDirective('![Image](img_1)\n![Image](img_2)\n[CLAUDE] 看两个截图'), 'claude')
+    assert.equal(parseAiExecutorDirective('[Image: img_v3_fallback]\n[codex]排查这里'), 'codex')
     assert.equal(parseAiExecutorDirective('修复 [codex] 登录页'), undefined)
+    assert.equal(parseAiExecutorDirective('![Image](img_v3_demo) 先看截图 [codex] 再处理'), undefined)
     assert.equal(parseAiExecutorDirective('[shell] whoami'), undefined)
   })
 
