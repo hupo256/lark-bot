@@ -121,6 +121,9 @@ describe('bug table task status', () => {
     assert.equal(classifyBugTaskStatus('verifying'), 'in-flight')
     assert.equal(classifyBugTaskStatus(undefined), 'new')
   })
+  it('no_change_needed → no-change 终局，不重入队也不落 seen（转后端待人工重派）', () => {
+    assert.equal(classifyBugTaskStatus('no_change_needed'), 'no-change')
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -733,6 +736,21 @@ describe('handleStatusUpdate 的 parkedAt 锚点', () => {
     assert.equal(store.get('t').parkedAt, first, '同态重复回写不得重置挂起时长')
     await handleStatusUpdate({ config: parkedConfig, store, id: 't', status: 'running' })
     assert.equal(store.get('t').parkedAt, null, '离开挂起态应清掉锚点')
+  })
+})
+
+describe('handleStatusUpdate no_change_needed 终态', () => {
+  const freshStore = () => createTaskStore({ tasksDir: mkdtempSync(join(tmpdir(), 'lark-noop-')), leaseMs: 1000 })
+  // bug 表来源 + 配了 doneValue：no_change_needed 绝不能触发 writeBackBugRecord（只有 done 才写「已修复」）。
+  const config = { project: 'PR-99999', bugTable: { appToken: 'x', tableId: 'y', doneValue: '已修复' } }
+
+  it('被 VALID_STATUSES 接纳、落终态，且 bug 表来源不写 doneValue（不标已修复）', async () => {
+    const store = freshStore()
+    store.upsert({ id: 't', status: 'running', source: 'lark-bugtable', recordId: 'rec1', createdAt: '2026-01-01T00:00:00Z', chatId: null })
+    const outcome = await handleStatusUpdate({ config, store, id: 't', status: 'no_change_needed', result: '无需改动（不属本仓）。' })
+    assert.equal(outcome.ok, true) // 未落到 invalid status 分支
+    assert.equal(store.get('t').status, 'no_change_needed') // 直接落终态，未走 done→done_pending_writeback
+    assert.equal(store.get('t').parkedAt, null) // 非挂起态，不打锚点
   })
 })
 

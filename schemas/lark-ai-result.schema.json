@@ -7,7 +7,8 @@
   "properties": {
     "status": {
       "type": "string",
-      "enum": ["done", "done_with_warnings", "blocked", "failed", "waiting_confirmation"]
+      "enum": ["done", "done_with_warnings", "no_change_needed", "blocked", "failed", "waiting_confirmation"],
+      "description": "no_change_needed：经核对确认本仓（前端）无对应改动，需求属后台 API / 别的仓 / 别的职责；changedFiles 填 []，summary 说明为何不属本仓，owner 尽量指向承接方，nextStep 给「转 X 处理」"
     },
     "summary": {
       "type": "string",

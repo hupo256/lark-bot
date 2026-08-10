@@ -184,6 +184,7 @@ const runOnce = async ({ config, seen, gatewayUrl }) => {
   let enqueued = 0
   let inFlight = 0
   let waiting = 0
+  let noChange = 0
   let stuck = 0
   for (const record of mine) {
     const id = record.record_id
@@ -201,6 +202,10 @@ const runOnce = async ({ config, seen, gatewayUrl }) => {
       waiting += 1 // 阻塞/待确认必须等人工补料，禁止 poller 自动重跑覆盖状态
       continue
     }
+    if (disposition === 'no-change') {
+      noChange += 1 // 本仓无对应改动（转后端/别的仓）：终局，不自动重跑，留待人工重新分派
+      continue
+    }
     if (disposition === 'failed') {
       // 上次失败：群里已收到失败卡片，表格保持待处理待人工介入。此处不自动重跑（避免对
       // 真正修不动的 bug 无限重试 AI、刷群烧钱）；仅计数暴露，需人工在群里重触发或手动处理。
@@ -212,7 +217,7 @@ const runOnce = async ({ config, seen, gatewayUrl }) => {
     enqueued += 1
     console.log(`[bugtable-poller] enqueued ${id}`)
   }
-  console.log(`[bugtable-poller] pending=${records.length} mine=${mine.length} new=${enqueued} in-flight=${inFlight} waiting=${waiting} stuck-failed=${stuck}`)
+  console.log(`[bugtable-poller] pending=${records.length} mine=${mine.length} new=${enqueued} in-flight=${inFlight} waiting=${waiting} no-change=${noChange} stuck-failed=${stuck}`)
   return enqueued
 }
 

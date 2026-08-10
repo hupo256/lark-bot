@@ -468,6 +468,55 @@ describe('structured result and cards', () => {
   })
 })
 
+describe('no_change_needed 终态（本仓无对应改动，转后端/别的仓）', () => {
+  const base = {
+    status: 'no_change_needed',
+    summary: '该拉先项属后台 API，前端无对应改动。',
+    checks: ['已核对现有前端代码与接口层，无需改动'],
+    changedFiles: [],
+    warnings: [],
+    blockers: null,
+    owner: '后端',
+    failureKind: null,
+    nextStep: '转后端处理该接口',
+  }
+
+  it('非完成态：不触发规范闸/可信度评估，Gateway 落态原样透传', () => {
+    assert.equal(isCompletedAiStatus('no_change_needed'), false)
+    assert.equal(gatewayStatusForAiStatus('no_change_needed'), 'no_change_needed')
+  })
+
+  it('parseStructuredAiResult 接受 no_change_needed + changedFiles 空数组', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'lark-nochange-'))
+    const resultPath = join(dir, 'result.json')
+    try {
+      writeFileSync(resultPath, JSON.stringify(base))
+      assert.deepEqual(parseStructuredAiResult(resultPath), base)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('群卡结论首行为「无需改动」，不误报处理失败/已完成', () => {
+    const text = formatStructuredAiResult(base, 'codex')
+    assert.match(text, /^无需改动（不属本仓）。/)
+    assert.match(text, /该拉先项属后台 API/)
+    assert.doesNotMatch(text, /处理失败/)
+    assert.doesNotMatch(text, /已完成/)
+  })
+
+  it('结果卡用中性灰、不是绿 done 也不是红 failed', () => {
+    const card = JSON.parse(buildResultCard({
+      config: { project: 'PR-02135', title: 'Test' },
+      task: { project: 'PR-02135', summary: '后台 api', aiExecutor: 'codex' },
+      status: 'no_change_needed',
+      result: '无需改动（不属本仓）。',
+    }))
+    assert.equal(card.header.template, 'grey')
+    assert.match(card.elements[0].text.content, /无需改动（不属本仓）/)
+  })
+})
+
 describe('unattended diff quality gate', () => {
   it('只拦新增代码行里的 arbitrary value 与失效裸色类', () => {
     const violations = scanDiffForViolations([
