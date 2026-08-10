@@ -16,6 +16,8 @@ import { resolve, join, dirname } from 'node:path'
 
 import { isProjectId } from './lib/lark-message.mjs'
 import { loadConfig, secretHeaders } from './lib/lark-config.mjs'
+import { buildCardContent } from './lib/lark-cards.mjs'
+import { sendChatMessage } from './lib/lark-cli.mjs'
 import {
   assigneeHasOpenId,
   buildBugText,
@@ -34,6 +36,8 @@ const defaultPollMs = Number(process.env.LARK_BUGTABLE_POLL_MS || 90000)
 const defaultIdleOffMs = Number(process.env.LARK_BUGTABLE_IDLE_OFF_MS || 4 * 60 * 60 * 1000)
 // lark-cli 子进程超时兜底（默认 60s）
 const larkCliTimeoutMs = Number(process.env.LARK_CLI_TIMEOUT_MS || 60000)
+// 连续失败到这个轮次就发群告警（默认 3 轮 ≈ 4.5min）：失败期间新 bug 完全捞不到，必须让人知道。
+const errorAlertRounds = Number(process.env.LARK_BUGTABLE_ERROR_ALERT_ROUNDS || 3)
 
 const runLarkCli = (args, { timeoutMs = larkCliTimeoutMs } = {}) =>
   new Promise((resolveFn) => {
@@ -224,20 +228,56 @@ export async function runLarkBugtablePoller({
   const statePath = join(dirname(resolve(configPath)), '..', 'lark-bugtable-state.json')
   const seen = createSeenStore(statePath)
   const once = argv.includes('--once')
+  const chatId = config.bugTable?.chatId || config.allowedChatIds?.[0]
+  const notify = ({ kind, lines, idempotencyKey }) =>
+    sendChatMessage({ chatId, card: buildCardContent({ config, kind, lines }), logPrefix: 'poller notice', idempotencyKey })
 
   let idleMs = 0
+  let consecutiveErrors = 0
+  let alerted = false
   do {
     try {
       const enqueued = await runOnce({ config, seen, gatewayUrl })
       idleMs = enqueued > 0 ? 0 : idleMs
+      consecutiveErrors = 0
+      alerted = false
     } catch (error) {
-      console.error('[bugtable-poller]', error.message)
+      // 出错的这一轮**不计入空闲**：它根本没读到表，无从判断有没有新 bug。
+      // 曾经错误轮次照样 idleMs += pollMs，于是「表一直读不通」会伪装成「一直没新 bug」，
+      // 4h 后 poller 静默收工，bug 表入口整条链路无声消失。
+      consecutiveErrors += 1
+      console.error(`[bugtable-poller] 第 ${consecutiveErrors} 次连续失败：${error.message}`)
+      if (consecutiveErrors >= errorAlertRounds && !alerted) {
+        alerted = true // 只在跨过阈值时告警一次，恢复后重置，避免持续失败刷群
+        await notify({
+          kind: 'alert',
+          lines: [
+            `**详情**：bug 表轮询已连续 ${consecutiveErrors} 次失败，期间**新 bug 不会被自动捞取**。`,
+            '请检查 lark-cli 登录态 / 表格权限 / gateway 是否在跑。',
+            `原因：${error.message.slice(0, 200)}`,
+          ],
+          idempotencyKey: `poller-error-${new Date().toISOString().slice(0, 13)}`,
+        })
+      }
+      if (!once) await new Promise((r) => setTimeout(r, pollMs))
+      continue
     }
     if (!once) {
       await new Promise((r) => setTimeout(r, pollMs))
       idleMs += pollMs
       if (idleOffMs > 0 && idleMs >= idleOffMs) {
-        console.log(`[bugtable-poller] 空闲 ${Math.round(idleOffMs / 3600000)}h 无新 bug，poller 自动收工`)
+        const hours = Math.round(idleOffMs / 3600000)
+        console.log(`[bugtable-poller] 空闲 ${hours}h 无新 bug，poller 自动收工`)
+        // 收工必须说一声：poller 是手动常驻的（无 launchd 守护），不通知的话下一个新 bug
+        // 到了没人捞、群里也没有任何动静，只能靠人想起来查进程。
+        await notify({
+          kind: 'notice',
+          lines: [
+            `**详情**：bug 表轮询已连续 ${hours}h 无新 bug，已自动收工退出（群内 @ 机器人不受影响，仍正常工作）。`,
+            '需要重新自动捞 bug 表时执行 `lark-bot poll-on`。',
+          ],
+          idempotencyKey: `poller-idle-off-${new Date().toISOString().slice(0, 13)}`,
+        })
         break
       }
     }

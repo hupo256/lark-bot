@@ -17,6 +17,7 @@ import { createGatewayClient, sleep } from './lib/lark-gateway-client.mjs'
 import { loadWorkerLocalConfig } from './lib/lark-worker-run.mjs'
 import { resolveWorkContext } from './lib/lark-work-context.mjs'
 import { createTaskRunner } from './lib/lark-task-runner.mjs'
+import { startLogRotation } from './lib/lark-log-rotate.mjs'
 
 // 对外契约：测试与其它模块沿用从本文件导入这些符号（实现已下沉到 lib/，此处只再导出门面）。
 export { safeProject, resolveWorkContext } from './lib/lark-work-context.mjs'
@@ -88,6 +89,10 @@ export async function runLarkWorker({
     return
   }
 
+  // 日志轮转：worker.log 里带 AI 完整 transcript，实测一天就能到 10MB，且进程连跑数周不重启。
+  // 放在 --once 之后：一次性执行不需要定时器。只有 plist 注入了 LARK_LOG_FILE 才真的截断。
+  const logTimer = startLogRotation()
+
   // 优雅退出：SIGTERM/SIGINT（launchd bootout 与 lark-bot stop 都发 SIGTERM）时，先把在飞任务
   // 交还队列（releaseTask → queued + epoch++），再中断在跑的 AI 子进程，让重启后的 worker 立刻重领，
   // 而非空等 40min 租约过期。必须「先释放再 abort」：被中断执行随后那条 failed 迟到回写会因 epoch
@@ -99,6 +104,7 @@ export async function runLarkWorker({
   const gracefulShutdown = async (signal) => {
     if (shuttingDown) return
     shuttingDown = true
+    if (logTimer) clearInterval(logTimer)
     const entries = [...inFlight.values()]
     console.log(`[lark-worker] 收到 ${signal}，优雅退出：交还 ${entries.length} 个在飞任务并中断 AI`)
     await Promise.allSettled(

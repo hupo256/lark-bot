@@ -15,6 +15,8 @@
   <dict>
     <key>PATH</key>
     <string>/Applications/ChatGPT.app/Contents/Resources:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>LARK_LOG_FILE</key>
+    <string>/Users/aven/Library/Logs/fameex-lark/worker.log</string>
   </dict>
   <key>RunAtLoad</key>
   <true/>

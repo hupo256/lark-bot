@@ -28,6 +28,8 @@ import { createTaskStore } from './lib/lark-task-store.mjs'
 import { startConsumer } from './lib/lark-consumer.mjs'
 import { ingestLarkEvent } from './lib/lark-ingest.mjs'
 import { retryPendingWriteback } from './lib/lark-bugtable-writeback.mjs'
+import { remindParkedTasks } from './lib/lark-parked-reminder.mjs'
+import { startLogRotation } from './lib/lark-log-rotate.mjs'
 import { createRequestHandler } from './lib/lark-routes.mjs'
 
 // 沿用既有 import 路径的对外契约（单测 + 外部调用方无需改动）：pure 判定、执行器指令、状态回写处理。
@@ -78,7 +80,7 @@ export async function runLarkGateway({ configPath, port = defaultPort }) {
       sendAlertCard({
         config,
         chatId: config.bugTable?.chatId || config.allowedChatIds?.[0],
-        lines: [`**详情**：已连续 ${attempt} 次重连仍未恢复，可能暂时收不到群内 @；请检查网络或 lark-cli 登录态。`],
+        lines: [`**详情**：Lark 事件长连接已连续 ${attempt} 次重连仍未恢复，可能暂时收不到群内 @；请检查网络或 lark-cli 登录态。`],
         logPrefix: 'consumer-down alert',
         idempotencyKey: `consumer-down-${attempt}`,
       }),
@@ -106,9 +108,24 @@ export async function runLarkGateway({ configPath, port = defaultPort }) {
   }, 5 * 60 * 1000)
   writebackTimer.unref?.()
 
+  // 挂起催办：waiting_confirmation / blocked 的任务每 15min 盘一遍，超时未处理按轮次催办。
+  // 无此定时器时，挂起任务只有最初那一条回执，被群里讨论刷下去就再无人记得。
+  const parkedTimer = setInterval(() => {
+    remindParkedTasks({ config, store }).catch((error) =>
+      console.error(`[lark-gateway] 挂起催办异常：${String(error).slice(0, 120)}`),
+    )
+  }, 15 * 60 * 1000)
+  parkedTimer.unref?.()
+
+  // 日志轮转：launchd 把 stdout/stderr 定向到固定文件，进程可连跑数周不重启，日志无上限。
+  // 只有 plist 注入了 LARK_LOG_FILE 才生效（前台手跑不截断任何文件）。
+  const logTimer = startLogRotation()
+
   const shutdown = () => {
     clearInterval(pruneTimer)
     clearInterval(writebackTimer)
+    clearInterval(parkedTimer)
+    if (logTimer) clearInterval(logTimer)
     consumer.stop()
     server.close()
     process.exit(0)

@@ -16,6 +16,8 @@ import { describe, it } from 'node:test'
 import { handleStatusUpdate, isForBot, isWhitelisted, normalizeMessage } from '../lark-gateway.mjs'
 import { classifyBugTaskStatus } from '../lark-bugtable-poller.mjs'
 import { createTaskStore } from '../lib/lark-task-store.mjs'
+import { parkedReminderRound } from '../lib/lark-parked-reminder.mjs'
+import { rotateLogIfLarge } from '../lib/lark-log-rotate.mjs'
 import { buildResultCard } from '../lib/lark-cards.mjs'
 import { isProjectId, isReadOnlyCommand, matchProjectId, parseCommandType, parseProjectFromText } from '../lib/lark-message.mjs'
 import { classifyLarkTask, extractMarkdownSection } from '../lib/lark-rule-context.mjs'
@@ -627,3 +629,104 @@ describe('pruneStaleAudits', () => {
   })
 })
 
+
+// ---------------------------------------------------------------------------
+// 挂起催办轮次（waiting_confirmation / blocked 超时未处理）
+// ---------------------------------------------------------------------------
+describe('parkedReminderRound（挂起催办轮次）', () => {
+  const HOUR = 3600000
+  const at = (hoursAgo) => new Date(Date.parse('2026-01-02T00:00:00Z') - hoursAgo * HOUR).toISOString()
+  const now = Date.parse('2026-01-02T00:00:00Z')
+  const round = (task) => parkedReminderRound({ task, now, afterMs: 4 * HOUR, rounds: 3 })
+
+  it('未到一轮间隔 → 不催', () => {
+    assert.equal(round({ status: 'waiting_confirmation', parkedAt: at(3) }), 0)
+  })
+
+  it('挂起 4h / 9h → 第 1 / 2 轮', () => {
+    assert.equal(round({ status: 'waiting_confirmation', parkedAt: at(4) }), 1)
+    assert.equal(round({ status: 'blocked', parkedAt: at(9) }), 2)
+  })
+
+  it('本轮已催过 → 不重复催', () => {
+    assert.equal(round({ status: 'blocked', parkedAt: at(5), parkedRemindedRound: 1 }), 0)
+    assert.equal(round({ status: 'blocked', parkedAt: at(9), parkedRemindedRound: 1 }), 2)
+  })
+
+  it('超过最大轮次 → 停止催办（不无限刷群）', () => {
+    assert.equal(round({ status: 'blocked', parkedAt: at(100) }), 0)
+  })
+
+  it('非挂起态 / 无锚点 → 不催', () => {
+    assert.equal(round({ status: 'done', parkedAt: at(50) }), 0)
+    assert.equal(round({ status: 'blocked' }), 0)
+  })
+
+  it('锚点回落 updatedAt（老任务无 parkedAt）仍能催', () => {
+    assert.equal(round({ status: 'blocked', updatedAt: at(5) }), 1)
+  })
+})
+
+describe('handleStatusUpdate 的 parkedAt 锚点', () => {
+  const freshStore = () => createTaskStore({ tasksDir: mkdtempSync(join(tmpdir(), 'lark-parked-')), leaseMs: 1000 })
+  // 真实项目号占位：appendNotificationLog 走 docsDir(project)，空 project 会抛；日志文件不存在则自动跳过。
+  const parkedConfig = { project: 'PR-99999' }
+
+  it('进入挂起态打锚点；同态重复回写不重置；离开挂起态清掉', async () => {
+    const store = freshStore()
+    store.upsert({ id: 't', status: 'running', createdAt: '2026-01-01T00:00:00Z', chatId: null })
+    await handleStatusUpdate({ config: parkedConfig, store, id: 't', status: 'blocked', result: 'x' })
+    const first = store.get('t').parkedAt
+    assert.ok(first, '进入 blocked 应打上 parkedAt')
+    await handleStatusUpdate({ config: parkedConfig, store, id: 't', status: 'blocked', result: 'x' })
+    assert.equal(store.get('t').parkedAt, first, '同态重复回写不得重置挂起时长')
+    await handleStatusUpdate({ config: parkedConfig, store, id: 't', status: 'running' })
+    assert.equal(store.get('t').parkedAt, null, '离开挂起态应清掉锚点')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// rotateLogIfLarge：launchd 日志轮转必须是 copy-truncate，且稀疏文件不得触发反复轮转
+describe('rotateLogIfLarge（launchd 日志轮转）', () => {
+  const mkLog = (bytes) => {
+    const dir = mkdtempSync(join(tmpdir(), 'lark-log-'))
+    const file = join(dir, 'worker.log')
+    writeFileSync(file, 'x'.repeat(bytes))
+    return { dir, file }
+  }
+
+  it('未超限不动文件', () => {
+    const { dir, file } = mkLog(100)
+    assert.equal(rotateLogIfLarge({ file, maxBytes: 1024, keep: 1 }), false)
+    assert.equal(statSync(file).size, 100)
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('超限则原文件截零、内容留在 .1（copy-truncate，不改 inode）', () => {
+    const { dir, file } = mkLog(4096)
+    const inodeBefore = statSync(file).ino
+    assert.equal(rotateLogIfLarge({ file, maxBytes: 1024, keep: 1 }), true)
+    assert.equal(statSync(file).size, 0, '当前日志应被截零')
+    // inode 不变是关键：launchd 持有的那个 fd 指向 inode，rename 式轮转会让新日志永远为空。
+    assert.equal(statSync(file).ino, inodeBefore, '轮转不得更换 inode')
+    assert.equal(statSync(`${file}.1`).size, 4096, '旧内容应完整留在 .1')
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('历史代按 keep 上限滚动，超出的被丢弃', () => {
+    const { dir, file } = mkLog(4096)
+    rotateLogIfLarge({ file, maxBytes: 1024, keep: 2 })
+    writeFileSync(file, 'y'.repeat(4096))
+    rotateLogIfLarge({ file, maxBytes: 1024, keep: 2 })
+    assert.equal(statSync(`${file}.1`).size, 4096)
+    assert.equal(statSync(`${file}.2`).size, 4096, '第一代应被推到 .2')
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('maxBytes=0（关闭）或文件不存在时安全返回 false', () => {
+    const { dir, file } = mkLog(4096)
+    assert.equal(rotateLogIfLarge({ file, maxBytes: 0, keep: 1 }), false)
+    assert.equal(rotateLogIfLarge({ file: join(dir, 'nope.log'), maxBytes: 1, keep: 1 }), false)
+    rmSync(dir, { recursive: true, force: true })
+  })
+})
