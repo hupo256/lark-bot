@@ -56,6 +56,93 @@ describe('createTaskStore', () => {
     assert.equal(reopened.has('persisted'), true)
   })
 
+  it('前置分类判定 bug/需求后重新排队、清 required 并 bump epoch', () => {
+    const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+    store.upsert({
+      id: 'mentioned-bug',
+      status: 'received',
+      epoch: 2,
+      summary: '原消息',
+      intake: { required: true, trigger: 'task_mention' },
+      createdAt: '2026-01-01T00:00:00Z',
+    })
+    const claimed = store.claimNext()
+    const outcome = store.resolveIntake({
+      id: claimed.id,
+      epoch: claimed.epoch,
+      classification: { decision: 'bug', confidence: 'medium', summary: '修复登录页报错', reason: '明确报告报错' },
+    })
+    assert.equal(outcome.ok, true)
+    assert.equal(outcome.actionable, true)
+    assert.equal(outcome.task.status, 'queued')
+    assert.equal(outcome.task.epoch, 3)
+    assert.equal(outcome.task.intake.required, false)
+    assert.equal(outcome.task.summary, '修复登录页报错')
+    assert.equal(store.claimNext().id, 'mentioned-bug')
+  })
+
+  it('普通消息/低置信度结果静默 ignored；分类异常单列 intake_failed', () => {
+    const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+    const seedAndClaim = (id) => {
+      store.upsert({ id, status: 'received', intake: { required: true }, createdAt: new Date().toISOString() })
+      return store.claimById(id)
+    }
+    const ignored = seedAndClaim('chat')
+    const ignoredOutcome = store.resolveIntake({
+      id: ignored.id,
+      epoch: ignored.epoch,
+      classification: { decision: 'ignore', confidence: 'high', summary: '询问排期', reason: '没有软件变更动作' },
+    })
+    assert.equal(ignoredOutcome.actionable, false)
+    assert.equal(ignoredOutcome.task.status, 'ignored')
+
+    const low = seedAndClaim('low')
+    const lowOutcome = store.resolveIntake({
+      id: low.id,
+      epoch: low.epoch,
+      classification: { decision: 'requirement', confidence: 'low', summary: '可能要调整', reason: '语义有歧义' },
+    })
+    assert.equal(lowOutcome.task.status, 'ignored')
+
+    const failed = seedAndClaim('failed')
+    const failedOutcome = store.resolveIntake({ id: failed.id, epoch: failed.epoch, error: 'classifier timeout' })
+    assert.equal(failedOutcome.task.status, 'intake_failed')
+    assert.equal(failedOutcome.task.intake.error, 'classifier timeout')
+  })
+
+  it('前置分类拒绝 stale epoch 与非等待分类任务', () => {
+    const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+    store.upsert({ id: 'stale', status: 'running', epoch: 3, intake: { required: true }, createdAt: '2026-01-01T00:00:00Z' })
+    assert.equal(store.resolveIntake({ id: 'stale', epoch: 2, classification: {} }).code, 409)
+    store.upsert({ id: 'direct', status: 'running', epoch: 0, createdAt: '2026-01-01T00:00:00Z' })
+    assert.equal(store.resolveIntake({ id: 'direct', epoch: 0, classification: {} }).code, 409)
+  })
+
+  it('前置分类回写对同结果幂等，不允许二次覆盖分类', () => {
+    const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+    const classification = {
+      decision: 'bug',
+      confidence: 'high',
+      summary: '修复登录报错',
+      reason: '正文明确报错',
+    }
+    store.upsert({ id: 'intent-retry', status: 'received', intake: { required: true }, createdAt: new Date().toISOString() })
+    const claimed = store.claimById('intent-retry')
+    const claimedEpoch = claimed.epoch
+    const first = store.resolveIntake({ id: claimed.id, epoch: claimedEpoch, classification })
+    const retry = store.resolveIntake({ id: claimed.id, epoch: claimedEpoch, classification })
+    assert.equal(first.actionable, true)
+    assert.equal(retry.ok, true)
+    assert.equal(retry.actionable, true)
+    assert.equal(retry.alreadyResolved, true)
+    assert.equal(store.get(claimed.id).epoch, 1)
+    assert.equal(
+      store.resolveIntake({ id: claimed.id, epoch: claimedEpoch, classification: { ...classification, decision: 'ignore' } }).code,
+      409,
+    )
+    assert.equal(store.resolveIntake({ id: claimed.id, epoch: claimedEpoch - 1, classification }).code, 409)
+  })
+
   it('retry 把 failed/blocked 任务重置为 queued 并清租约、自增 retryCount', () => {
     const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
     store.upsert({ id: 'f', status: 'failed', claimedAt: '2026-01-01T00:00:00Z', createdAt: '2026-01-01T00:00:00Z' })
@@ -74,6 +161,66 @@ describe('createTaskStore', () => {
     assert.equal(store.retry('d'), null)
     assert.equal(store.retry('missing'), null)
     assert.equal(store.get('d').status, 'done')
+  })
+
+  it('QA 验退把旧终态作为新一轮重新排队，并完整保留上一轮执行历史', () => {
+    const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+    store.upsert({
+      id: 'rec-returned',
+      source: 'lark-bugtable',
+      recordId: 'rec-returned',
+      project: 'PR-12345',
+      status: 'done',
+      result: '上一轮只调整了间距',
+      branch: 'hotfix/PR-12345-returned',
+      owner: '前端',
+      aiExecutor: 'codex',
+      epoch: 2,
+      retryCount: 3,
+      requeueCount: 2,
+      createdAt: '2026-01-01T00:00:00Z',
+    })
+
+    const reopened = store.reopenFromQaReturn({
+      id: 'rec-returned',
+      text: '修复：Lark bug 表验退项 [按钮仍错位]',
+      summary: '验退：按钮仍错位',
+      project: 'PR-12345',
+      recordId: 'rec-returned',
+      chatId: 'oc_bug',
+      aiExecutor: 'codex',
+    })
+
+    assert.equal(reopened.status, 'queued')
+    assert.equal(reopened.epoch, 3)
+    assert.equal(reopened.qaReturnCount, 1)
+    assert.equal(reopened.result, null)
+    assert.equal(reopened.retryCount, 0)
+    assert.equal(reopened.requeueCount, 0)
+    assert.equal(reopened.branch, 'hotfix/PR-12345-returned')
+    assert.match(reopened.text, /当前进入第 2 轮修复/)
+    assert.match(reopened.text, /上一轮只调整了间距/)
+    assert.deepEqual(reopened.executionHistory, [
+      {
+        round: 1,
+        epoch: 2,
+        status: 'done',
+        result: '上一轮只调整了间距',
+        branch: 'hotfix/PR-12345-returned',
+        owner: '前端',
+        aiExecutor: 'codex',
+        finishedAt: reopened.executionHistory[0].finishedAt,
+      },
+    ])
+    assert.equal(store.claimNext().id, 'rec-returned')
+  })
+
+  it('QA 验退不覆盖正在执行或等待人工确认的任务', () => {
+    const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+    store.upsert({ id: 'running', source: 'lark-bugtable', status: 'running', createdAt: '2026-01-01T00:00:00Z' })
+    store.upsert({ id: 'waiting', source: 'lark-bugtable', status: 'waiting_confirmation', createdAt: '2026-01-01T00:00:00Z' })
+    assert.equal(store.reopenFromQaReturn({ id: 'running', text: 'x' }), null)
+    assert.equal(store.reopenFromQaReturn({ id: 'waiting', text: 'x' }), null)
   })
 
   it('releaseRunning 把在跑任务交还队列：running→queued、清租约、bump epoch、不计 retry/requeue（优雅退出用）', () => {

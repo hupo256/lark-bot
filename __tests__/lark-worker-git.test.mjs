@@ -85,6 +85,22 @@ describe('prepareTempWorktree（retry/resume 不得摧毁保留的现场）', ()
     assert.equal(run(wtPath(), ['rev-parse', 'HEAD']), head, 'worktree add -B 会把分支重置回 origin/online，丢掉这笔提交')
   })
 
+  it('上一轮成功收尾后 QA 验退 → 从原 hotfix 分支继续，不丢上一轮提交', () => {
+    writeFileSync(join(wtPath(), 'first-fix.txt'), 'first round\n')
+    const first = finalizeTempWorktree({ path: wtPath(), branch: BRANCH, task, allowCommit: true })
+    assert.equal(first.committed, true)
+    const firstHead = run(repo, ['rev-parse', BRANCH])
+
+    prepareTempWorktree({ path: wtPath(), branch: BRANCH })
+    assert.equal(run(wtPath(), ['rev-parse', 'HEAD']), firstHead)
+    assert.ok(existsSync(join(wtPath(), 'first-fix.txt')))
+
+    writeFileSync(join(wtPath(), 'second-fix.txt'), 'QA return round\n')
+    const second = finalizeTempWorktree({ path: wtPath(), branch: BRANCH, task, allowCommit: true })
+    assert.equal(second.committed, true)
+    assert.equal(run(repo, ['rev-list', '--count', `origin/online..${BRANCH}`]), '2')
+  })
+
   it('残留空壳目录（不是有效 worktree） → 重建', () => {
     const shell = join(sandbox, 'worktrees', 'shell')
     mkdirSync(shell, { recursive: true })

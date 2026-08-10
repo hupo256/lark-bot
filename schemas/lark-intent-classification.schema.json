@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Lark mentioned-message intent classification",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["decision", "confidence", "summary", "reason"],
+  "properties": {
+    "decision": {
+      "type": "string",
+      "enum": ["bug", "requirement", "ignore"]
+    },
+    "confidence": {
+      "type": "string",
+      "enum": ["high", "medium", "low"]
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

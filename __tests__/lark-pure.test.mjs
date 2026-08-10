@@ -13,8 +13,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
-import { handleStatusUpdate, isForBot, isWhitelisted, normalizeMessage } from '../lark-gateway.mjs'
-import { classifyBugTaskStatus } from '../lark-bugtable-poller.mjs'
+import { handleStatusUpdate, isForBot, isWhitelisted, normalizeMessage, resolveMessageTrigger } from '../lark-gateway.mjs'
+import {
+  buildBugStatusFilter,
+  buildBugText,
+  classifyBugPollAction,
+  classifyBugTaskStatus,
+} from '../lib/lark-bugtable-parse.mjs'
 import { createTaskStore } from '../lib/lark-task-store.mjs'
 import { parkedReminderRound } from '../lib/lark-parked-reminder.mjs'
 import { rotateLogIfLarge } from '../lib/lark-log-rotate.mjs'
@@ -124,6 +129,52 @@ describe('bug table task status', () => {
   it('no_change_needed → no-change 终局，不重入队也不落 seen（转后端待人工重派）', () => {
     assert.equal(classifyBugTaskStatus('no_change_needed'), 'no-change')
   })
+
+  it('同时查询待处理与验退；未配置验退值时保持单状态过滤', () => {
+    assert.deepEqual(
+      buildBugStatusFilter({ statusField: '处理状态', pendingValue: '待处理', rejectedValue: '验退' }),
+      {
+        logic: 'or',
+        conditions: [
+          ['处理状态', '==', '待处理'],
+          ['处理状态', '==', '验退'],
+        ],
+      },
+    )
+    assert.deepEqual(buildBugStatusFilter({ statusField: '处理状态', pendingValue: '待处理' }), {
+      logic: 'and',
+      conditions: [['处理状态', '==', '待处理']],
+    })
+  })
+
+  it('验退是新的人工轮次：忽略 seen，并重开旧终态；活动/等待态仍去重', () => {
+    const base = { recordStatus: '验退', rejectedValue: '验退', seen: true }
+    for (const taskStatus of ['done', 'done_pending_writeback', 'failed', 'no_change_needed']) {
+      assert.equal(classifyBugPollAction({ ...base, taskStatus }), 'reopen')
+    }
+    assert.equal(classifyBugPollAction({ ...base, taskStatus: 'queued' }), 'in-flight')
+    assert.equal(classifyBugPollAction({ ...base, taskStatus: 'waiting_confirmation' }), 'waiting')
+    assert.equal(classifyBugPollAction({ ...base, taskStatus: undefined }), 'enqueue')
+  })
+
+  it('普通待处理仍尊重 seen，failed 不自动重跑', () => {
+    const base = { recordStatus: '待处理', rejectedValue: '验退' }
+    assert.equal(classifyBugPollAction({ ...base, taskStatus: 'done', seen: true }), 'seen')
+    assert.equal(classifyBugPollAction({ ...base, taskStatus: 'failed', seen: false }), 'failed')
+  })
+
+  it('验退任务正文要求先分析上一轮未解决根因', () => {
+    const text = buildBugText({
+      bug: { statusField: '处理状态', rejectedValue: '验退', titleField: '问题标题', descField: '问题描述', projectField: '项目ID' },
+      record: {
+        record_id: 'rec1',
+        fields: { 处理状态: '验退', 问题标题: '按钮仍错位', 问题描述: 'test 环境复现', 项目ID: 'PR-12345' },
+      },
+    })
+    assert.match(text, /bug 表验退项/)
+    assert.match(text, /深入分析未解决的根因/)
+    assert.match(text, /不要原样重复上一轮方案/)
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -139,6 +190,25 @@ describe('isForBot', () => {
   })
   it('群里 mention 未命中 → false', () => {
     assert.equal(isForBot({ msg: { chatType: 'group', mentions: [{ id: 'ou_other' }] }, config }), false)
+  })
+  it('群里只 @ 配置的负责人 → 进入 task_mention 前置分类', () => {
+    const personConfig = { botOpenId: BOT, taskMentionOpenIds: [ME] }
+    const msg = { chatType: 'group', mentions: [{ id: ME }] }
+    assert.equal(resolveMessageTrigger({ msg, config: personConfig }), 'task_mention')
+    assert.equal(isForBot({ msg, config: personConfig }), true)
+  })
+  it('同时 @bot 与负责人 → 仍是 direct，不重复做前置分类', () => {
+    const personConfig = { botOpenId: BOT, taskMentionOpenIds: [ME] }
+    const msg = { chatType: 'group', mentions: [{ id: ME }, { id: BOT }] }
+    assert.equal(resolveMessageTrigger({ msg, config: personConfig }), 'direct')
+  })
+  it('普通群消息没有 mention → 不触发', () => {
+    assert.equal(resolveMessageTrigger({ msg: { chatType: 'group', mentions: [] }, config }), null)
+  })
+  it('bot 自己发的含 @负责人消息 → 不回流成任务', () => {
+    const personConfig = { botOpenId: BOT, taskMentionOpenIds: [ME] }
+    const msg = { chatType: 'group', senderType: 'bot', mentions: [{ id: ME }] }
+    assert.equal(resolveMessageTrigger({ msg, config: personConfig }), null)
   })
   it('群里 @所有人（key=@_all）→ true', () => {
     assert.equal(isForBot({ msg: { chatType: 'group', mentions: [{ key: '@_all' }] }, config }), true)

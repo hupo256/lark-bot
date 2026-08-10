@@ -21,9 +21,11 @@ import { sendChatMessage } from './lib/lark-cli.mjs'
 import {
   assigneeHasOpenId,
   buildBugText,
-  classifyBugTaskStatus,
+  buildBugStatusFilter,
+  classifyBugPollAction,
   parseColumnarRecords,
   readProjectId,
+  readStatusText,
 } from './lib/lark-bugtable-parse.mjs'
 
 // 测试与既有调用方沿用从本文件导入 classifyBugTaskStatus（实现已下沉到 lib/）。
@@ -86,12 +88,9 @@ const createSeenStore = (statePath) => {
   }
 }
 
-// 服务端按状态过滤 + 翻页拉全（待处理可能 >200），仅投影需要的列以减小 payload
+// 服务端按状态过滤 + 翻页拉全（待处理/验退可能 >200），仅投影需要的列以减小 payload
 const fetchPendingRecords = async ({ bug }) => {
-  const filterJson = JSON.stringify({
-    logic: 'and',
-    conditions: [[bug.statusField, '==', bug.pendingValue]],
-  })
+  const filterJson = JSON.stringify(buildBugStatusFilter(bug))
   const projected = [
     bug.statusField,
     bug.assigneeField,
@@ -134,12 +133,15 @@ const fetchPendingRecords = async ({ bug }) => {
   return all
 }
 
-const enqueueTask = async ({ gatewayUrl, record, bug, chatId }) => {
+const enqueueTask = async ({ gatewayUrl, record, bug, chatId, reopen = false }) => {
   // 校验项目号：只把合法 PR-#### / PM-#### 传给 gateway；异常单元格（如 ../../x）不作为 project，
   // 交由 worker 走 adhoc 临时 worktree，避免污染路径/分支名。
   const rawProject = readProjectId({ fields: record.fields || {}, bug })
   const project = isProjectId(rawProject) ? rawProject.toUpperCase() : undefined
-  const response = await fetch(`${gatewayUrl}/lark/tasks`, {
+  const endpoint = reopen
+    ? `${gatewayUrl}/lark/tasks/${encodeURIComponent(record.record_id)}/reopen`
+    : `${gatewayUrl}/lark/tasks`
+  const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -159,15 +161,15 @@ const enqueueTask = async ({ gatewayUrl, record, bug, chatId }) => {
   }
 }
 
-// 读 gateway 当前所有任务的状态（record_id → status），作为去重与「是否在处理中」的权威依据
-const fetchGatewayTaskStatuses = async (gatewayUrl) => {
+// 读 gateway 当前任务（record_id → task），作为去重、验退重开与「是否在处理中」的权威依据。
+const fetchGatewayTasks = async (gatewayUrl) => {
   const response = await fetch(`${gatewayUrl}/lark/tasks`, {
     headers: secretHeaders(),
   })
   if (!response.ok) throw new Error(`list tasks failed: ${response.status}`)
   const { tasks = [] } = await response.json()
   const byId = new Map()
-  for (const task of tasks) byId.set(task.id, task.status)
+  for (const task of tasks) byId.set(task.id, task)
   return byId
 }
 
@@ -180,16 +182,24 @@ const runOnce = async ({ config, seen, gatewayUrl }) => {
   const mine = records.filter((record) => assigneeHasOpenId(record.fields?.[bug.assigneeField], bug.myOpenId))
   // 用 gateway 任务状态（而非「入队即永久 seen」）判断去重：避免 failed 的 bug 既留在表里待处理、
   // 又被本地 seen 挡住永不再捞而静默消失。seen 只缓存已确认 done 的记录（跨重启防重入队）。
-  const statusById = await fetchGatewayTaskStatuses(gatewayUrl)
+  const taskById = await fetchGatewayTasks(gatewayUrl)
   let enqueued = 0
+  let reopened = 0
   let inFlight = 0
   let waiting = 0
   let noChange = 0
   let stuck = 0
   for (const record of mine) {
     const id = record.record_id
-    if (seen.has(id)) continue // 已知终态成功
-    const disposition = classifyBugTaskStatus(statusById.get(id))
+    const recordStatus = readStatusText(record.fields?.[bug.statusField])
+    const task = taskById.get(id)
+    const disposition = classifyBugPollAction({
+      recordStatus,
+      taskStatus: task?.status,
+      seen: seen.has(id),
+      rejectedValue: bug.rejectedValue,
+    })
+    if (disposition === 'seen') continue
     if (disposition === 'done') {
       seen.add(id) // 落地终态成功，之后不再处理（表格状态也应已回写为 doneValue）
       continue
@@ -212,13 +222,19 @@ const runOnce = async ({ config, seen, gatewayUrl }) => {
       stuck += 1
       continue
     }
+    if (disposition === 'reopen') {
+      await enqueueTask({ gatewayUrl, record, bug, chatId: bug.chatId || config.allowedChatIds?.[0], reopen: true })
+      reopened += 1
+      console.log(`[bugtable-poller] reopened QA-returned ${id}`)
+      continue
+    }
     // 全新记录 → 入队
     await enqueueTask({ gatewayUrl, record, bug, chatId: bug.chatId || config.allowedChatIds?.[0] })
     enqueued += 1
     console.log(`[bugtable-poller] enqueued ${id}`)
   }
-  console.log(`[bugtable-poller] pending=${records.length} mine=${mine.length} new=${enqueued} in-flight=${inFlight} waiting=${waiting} no-change=${noChange} stuck-failed=${stuck}`)
-  return enqueued
+  console.log(`[bugtable-poller] actionable=${records.length} mine=${mine.length} new=${enqueued} qa-returned=${reopened} in-flight=${inFlight} waiting=${waiting} no-change=${noChange} stuck-failed=${stuck}`)
+  return enqueued + reopened
 }
 
 export async function runLarkBugtablePoller({

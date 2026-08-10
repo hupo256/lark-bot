@@ -33,7 +33,7 @@ import { startLogRotation } from './lib/lark-log-rotate.mjs'
 import { createRequestHandler } from './lib/lark-routes.mjs'
 
 // 沿用既有 import 路径的对外契约（单测 + 外部调用方无需改动）：pure 判定、执行器指令、状态回写处理。
-export { isForBot, isWhitelisted, normalizeMessage } from './lib/lark-message.mjs'
+export { isForBot, isWhitelisted, normalizeMessage, resolveMessageTrigger } from './lib/lark-message.mjs'
 export { parseAiExecutorDirective, resolveGatewayAiExecutor } from './lib/lark-ingest.mjs'
 export { handleStatusUpdate } from './lib/lark-status.mjs'
 
@@ -92,10 +92,13 @@ export async function runLarkGateway({ configPath, port = defaultPort }) {
     console.log(`[lark-gateway] whitelist chats=${config.allowedChatIds === 'auto' ? 'auto(bot 所在群)' : ((config.allowedChatIds || []).join(',') || '(none)')} consume=im.message.receive_v1`)
   })
 
-  // 定期清理陈旧 done 任务，防止 /lark/health 计数单调增长（failed 保留待人工 retry/clear）。
+  // 定期清理陈旧 done / 静默 intake 终态，防止 /lark/health 计数单调增长（failed 保留待人工 retry/clear）。
   const pruneDoneAfterMs = Number(config.pruneDoneAfterHours ?? 24) * 3600000
   const pruneTimer = setInterval(() => {
-    const removed = store.pruneTerminal({ olderThanMs: pruneDoneAfterMs, statuses: ['done'] })
+    const removed = store.pruneTerminal({
+      olderThanMs: pruneDoneAfterMs,
+      statuses: ['done', 'ignored', 'intake_failed'],
+    })
     if (removed.length) console.log(`[lark-gateway] 清理陈旧 done 任务 ${removed.length} 条`)
   }, 60 * 60 * 1000)
   pruneTimer.unref?.()

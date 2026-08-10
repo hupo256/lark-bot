@@ -13,12 +13,13 @@ import {
   resolveAiExecutor,
   validateAiExecutor,
 } from '../lib/lark-ai-executor.mjs'
-import { parseStructuredAiResult } from '../lib/lark-ai-result.mjs'
+import { parseStructuredAiResult, parseStructuredIntentResult } from '../lib/lark-ai-result.mjs'
 import { buildQueuedCard, buildResultCard, buildWaitingCard, resolveOwnerMention } from '../lib/lark-cards.mjs'
 import { scanDiffForViolations } from '../lib/lark-lint-diff.mjs'
 import { buildFocusedRuleContext } from '../lib/lark-rule-context.mjs'
 import {
   buildAnalysisPrompt,
+  buildIntentClassificationPrompt,
   buildTaskPrompt,
   buildValidationRequirements,
   gatewayStatusForAiStatus,
@@ -108,6 +109,69 @@ describe('Codex non-interactive command', () => {
     assert.equal(command.args.some((a) => /^sandbox_workspace_write\.writable_roots=/.test(a)), false)
     const schemaPath = command.args[command.args.indexOf('--output-schema') + 1]
     assert.match(schemaPath, /lark-ai-analysis\.schema\.json$/)
+  })
+
+  it('Codex 意图分类使用只读沙箱、关闭网络和独立 Schema', () => {
+    const command = buildAiExecutorCommand({
+      executor: 'codex',
+      promptText: 'classify it',
+      cwd: '/tmp/repo',
+      resultPath: '/tmp/intent.json',
+      resultKind: 'intent',
+      readOnly: true,
+    })
+    assert.deepEqual(command.args.slice(command.args.indexOf('--sandbox'), command.args.indexOf('--sandbox') + 2), ['--sandbox', 'read-only'])
+    assert.ok(command.args.includes('sandbox_workspace_write.network_access=false'))
+    assert.match(command.args[command.args.indexOf('--output-schema') + 1], /lark-intent-classification\.schema\.json$/)
+  })
+
+  it('Claude 意图分类只开放 Read + plan，不使用无人值守写权限', () => {
+    const command = buildAiExecutorCommand({
+      executor: 'claude',
+      promptText: 'classify it',
+      cwd: '/tmp/repo',
+      resultPath: '/tmp/intent.json',
+      resultKind: 'intent',
+      readOnly: true,
+    })
+    assert.equal(command.resultMode, 'stdout-structured')
+    assert.deepEqual(command.args.slice(command.args.indexOf('--permission-mode'), command.args.indexOf('--permission-mode') + 2), ['--permission-mode', 'plan'])
+    assert.deepEqual(command.args.slice(command.args.indexOf('--tools'), command.args.indexOf('--tools') + 2), ['--tools', 'Read'])
+    assert.equal(command.args.includes('--dangerously-skip-permissions'), false)
+    assert.ok(command.args.includes('--json-schema'))
+  })
+})
+
+describe('task-mention intent classification', () => {
+  it('解析合法分类并拒绝缺字段结果', () => {
+    const result = parseStructuredIntentResult({
+      decision: 'bug',
+      confidence: 'high',
+      summary: '修复登录页报错',
+      reason: '明确描述了报错',
+    }, 'claude')
+    assert.equal(result.decision, 'bug')
+    assert.throws(() => parseStructuredIntentResult({ decision: 'bug' }), /confidence/)
+    assert.throws(() => parseStructuredIntentResult('{bad json'), /未返回合法意图分类结果/)
+  })
+
+  it('Claude 兼容完整 JSON 代码围栏，但拒绝围栏外的解释文字', () => {
+    const fenced = '```json\n{"decision":"requirement","confidence":"medium","summary":"调整页面规则","reason":"明确交办产品行为变更"}\n```'
+    assert.equal(parseStructuredIntentResult(fenced, 'claude').decision, 'requirement')
+    assert.throws(
+      () => parseStructuredIntentResult(`分类结果如下：\n${fenced}`, 'claude'),
+      /未返回合法意图分类结果/,
+    )
+  })
+
+  it('分类 Prompt 把群消息标为不可信并明确歧义时 ignore', () => {
+    const prompt = buildIntentClassificationPrompt({
+      text: '这个按钮不对，帮忙修一下',
+      attachments: [{ type: 'image', localPath: '/tmp/screenshot.png' }],
+    })
+    assert.match(prompt, /UNTRUSTED_LARK_MESSAGE/)
+    assert.match(prompt, /有歧义时必须 decision=ignore/)
+    assert.match(prompt, /\/tmp\/screenshot\.png/)
   })
 })
 
