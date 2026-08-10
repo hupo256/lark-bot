@@ -15,12 +15,13 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve, join, dirname } from 'node:path'
 
 import { isProjectId } from './lib/lark-message.mjs'
-import { loadConfig, secretHeaders } from './lib/lark-config.mjs'
+import { loadConfig, resolveNotifyChatId, secretHeaders } from './lib/lark-config.mjs'
 import { buildCardContent } from './lib/lark-cards.mjs'
 import { sendChatMessage } from './lib/lark-cli.mjs'
 import {
   assigneeHasOpenId,
   buildBugText,
+  BUGTABLE_FIELD_DEFAULTS,
   buildBugStatusFilter,
   classifyBugPollAction,
   parseColumnarRecords,
@@ -94,9 +95,9 @@ const fetchPendingRecords = async ({ bug }) => {
   const projected = [
     bug.statusField,
     bug.assigneeField,
-    bug.projectField || '项目ID',
-    bug.titleField || '问题标题',
-    bug.descField || '问题描述（复现步骤）',
+    bug.projectField || BUGTABLE_FIELD_DEFAULTS.projectField,
+    bug.titleField || BUGTABLE_FIELD_DEFAULTS.titleField,
+    bug.descField || BUGTABLE_FIELD_DEFAULTS.descField,
   ].filter(Boolean)
 
   const all = []
@@ -179,7 +180,9 @@ const runOnce = async ({ config, seen, gatewayUrl }) => {
     throw new Error('config.bugTable.appToken / tableId are required')
   }
   const records = await fetchPendingRecords({ bug })
-  const mine = records.filter((record) => assigneeHasOpenId(record.fields?.[bug.assigneeField], bug.myOpenId))
+  // myOpenId 与「@负责人才触发任务分类」的 taskMentionOpenIds[0] 是同一人，不在 bugTable 下单独维护。
+  const myOpenId = bug.myOpenId || config.taskMentionOpenIds?.[0]
+  const mine = records.filter((record) => assigneeHasOpenId(record.fields?.[bug.assigneeField], myOpenId))
   // 用 gateway 任务状态（而非「入队即永久 seen」）判断去重：避免 failed 的 bug 既留在表里待处理、
   // 又被本地 seen 挡住永不再捞而静默消失。seen 只缓存已确认 done 的记录（跨重启防重入队）。
   const taskById = await fetchGatewayTasks(gatewayUrl)
@@ -223,13 +226,13 @@ const runOnce = async ({ config, seen, gatewayUrl }) => {
       continue
     }
     if (disposition === 'reopen') {
-      await enqueueTask({ gatewayUrl, record, bug, chatId: bug.chatId || config.allowedChatIds?.[0], reopen: true })
+      await enqueueTask({ gatewayUrl, record, bug, chatId: resolveNotifyChatId(config), reopen: true })
       reopened += 1
       console.log(`[bugtable-poller] reopened QA-returned ${id}`)
       continue
     }
     // 全新记录 → 入队
-    await enqueueTask({ gatewayUrl, record, bug, chatId: bug.chatId || config.allowedChatIds?.[0] })
+    await enqueueTask({ gatewayUrl, record, bug, chatId: resolveNotifyChatId(config) })
     enqueued += 1
     console.log(`[bugtable-poller] enqueued ${id}`)
   }
@@ -249,7 +252,7 @@ export async function runLarkBugtablePoller({
   const statePath = join(dirname(resolve(configPath)), '..', 'lark-bugtable-state.json')
   const seen = createSeenStore(statePath)
   const once = argv.includes('--once')
-  const chatId = config.bugTable?.chatId || config.allowedChatIds?.[0]
+  const chatId = resolveNotifyChatId(config)
   const notify = ({ kind, lines, idempotencyKey }) =>
     sendChatMessage({ chatId, card: buildCardContent({ config, kind, lines }), logPrefix: 'poller notice', idempotencyKey })
 

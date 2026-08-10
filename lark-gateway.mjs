@@ -19,7 +19,7 @@
 
 import { createServer } from 'node:http'
 import { join } from 'node:path'
-import { loadConfig } from './lib/lark-config.mjs'
+import { loadConfig, resolveNotifyChatId } from './lib/lark-config.mjs'
 import { docsDir } from './lib/lark-repo.mjs'
 import { normalizeAiExecutor } from './lib/lark-http.mjs'
 import { buildCardContent } from './lib/lark-cards.mjs'
@@ -65,7 +65,7 @@ export async function runLarkGateway({ configPath, port = defaultPort }) {
     onDeadLetter: (task) => {
       sendAlertCard({
         config,
-        chatId: task.chatId || config.bugTable?.chatId || config.allowedChatIds?.[0],
+        chatId: resolveNotifyChatId(config, task.chatId),
         lines: [`**详情**：任务「${task.summary || task.id}」${task.deadLetterReason}。已停止自动重投，请人工排查（修复根因后 \`lark-bot retry ${task.id}\`）。`],
         logPrefix: 'dead-letter alert',
         idempotencyKey: `${task.id}-deadletter`,
@@ -79,7 +79,7 @@ export async function runLarkGateway({ configPath, port = defaultPort }) {
     onDownAlert: (attempt) =>
       sendAlertCard({
         config,
-        chatId: config.bugTable?.chatId || config.allowedChatIds?.[0],
+        chatId: resolveNotifyChatId(config),
         lines: [`**详情**：Lark 事件长连接已连续 ${attempt} 次重连仍未恢复，可能暂时收不到群内 @；请检查网络或 lark-cli 登录态。`],
         logPrefix: 'consumer-down alert',
         idempotencyKey: `consumer-down-${attempt}`,
