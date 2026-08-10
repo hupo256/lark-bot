@@ -19,6 +19,7 @@ import {
   buildBugText,
   classifyBugPollAction,
   classifyBugTaskStatus,
+  readStatusText,
 } from '../lib/lark-bugtable-parse.mjs'
 import { createTaskStore } from '../lib/lark-task-store.mjs'
 import { parkedReminderRound } from '../lib/lark-parked-reminder.mjs'
@@ -147,6 +148,11 @@ describe('bug table task status', () => {
     })
   })
 
+  it('解析 Base 单选字段返回的字符串数组', () => {
+    assert.equal(readStatusText(['验退']), '验退')
+    assert.equal(readStatusText([{ name: '待处理' }]), '待处理')
+  })
+
   it('验退是新的人工轮次：忽略 seen，并重开旧终态；活动/等待态仍去重', () => {
     const base = { recordStatus: '验退', rejectedValue: '验退', seen: true }
     for (const taskStatus of ['done', 'done_pending_writeback', 'failed', 'no_change_needed']) {
@@ -168,7 +174,7 @@ describe('bug table task status', () => {
       bug: { statusField: '处理状态', rejectedValue: '验退', titleField: '问题标题', descField: '问题描述', projectField: '项目ID' },
       record: {
         record_id: 'rec1',
-        fields: { 处理状态: '验退', 问题标题: '按钮仍错位', 问题描述: 'test 环境复现', 项目ID: 'PR-12345' },
+        fields: { 处理状态: ['验退'], 问题标题: '按钮仍错位', 问题描述: 'test 环境复现', 项目ID: 'PR-12345' },
       },
     })
     assert.match(text, /bug 表验退项/)
