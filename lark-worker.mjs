@@ -15,7 +15,7 @@ import {
 import { aiTimeoutMs, resolveAiExecutor } from './lib/lark-ai-executor.mjs'
 import { createGatewayClient, sleep } from './lib/lark-gateway-client.mjs'
 import { loadWorkerLocalConfig } from './lib/lark-worker-run.mjs'
-import { resolveWorkContext } from './lib/lark-work-context.mjs'
+import { resolveWorkContext, safeProject } from './lib/lark-work-context.mjs'
 import { createTaskRunner } from './lib/lark-task-runner.mjs'
 import { startLogRotation } from './lib/lark-log-rotate.mjs'
 
@@ -26,8 +26,13 @@ export { assessDoneResult, crossCheckChangedFiles, detectChangeTier, splitViolat
 export { classifyWorkerFailure } from './lib/lark-worker-results.mjs'
 export { gatewayStatusForAiStatus, isCompletedAiStatus } from './lib/lark-ai-result.mjs'
 export { requestJson } from './lib/lark-gateway-client.mjs'
-export { buildAnalysisPrompt, buildTaskPrompt, buildValidationRequirements } from './lib/lark-worker-prompts.mjs'
-export { normalizeAnalysisForTask } from './lib/lark-worker-run.mjs'
+export {
+  buildAnalysisPrompt,
+  buildIntentClassificationPrompt,
+  buildTaskPrompt,
+  buildValidationRequirements,
+} from './lib/lark-worker-prompts.mjs'
+export { classifyTaskIntent, normalizeAnalysisForTask } from './lib/lark-worker-run.mjs'
 export { shouldSyncProjectDocs } from './lib/lark-task-runner.mjs'
 
 function printHelp() {
@@ -52,14 +57,15 @@ export async function runLarkWorker({
   pollMs = defaultPollMs,
   projectId,
   projectName,
-  projectDocs = [],
   aiExecutor = defaultAiExecutor,
   configPath,
-  repoCwd,
 }) {
-  if (!projectId || !projectName) {
-    throw new Error('runLarkWorker requires projectId and projectName')
-  }
+  const localConfig = loadWorkerLocalConfig(configPath)
+  // worker 是多项目的：真正干活的 projectId/projectName/projectDocs/cwd 由 resolveWorkContext 按
+  // 每条 task.project 推导（见 lib/lark-work-context.mjs）。这里的项目身份只作软默认——从 config
+  // 派生，用于 adhoc 任务的审计归桶兜底（lib/lark-worker-audit.mjs），不写死在 wrapper 里。
+  projectId = projectId || safeProject(localConfig.project)
+  projectName = projectName || localConfig.title || projectId || '(adhoc)'
 
   // 焊死「孤儿回收不与活着的 AI 双跑」这条唯一防线：AI 执行超时必须 < gateway 租约。
   // 否则 AI 还在跑，gateway 已判租约过期把任务重投/领走，两个 AI 同 worktree 改文件打架。
@@ -72,8 +78,7 @@ export async function runLarkWorker({
     )
   }
 
-  const localConfig = loadWorkerLocalConfig(configPath)
-  const workerConfig = { projectId, projectName, projectDocs, aiExecutor, localConfig, repoCwd }
+  const workerConfig = { projectId, projectName, aiExecutor, localConfig }
   const startupExecutor = resolveAiExecutor(workerConfig, {})
   const codexProfile = startupExecutor === 'codex'
     ? ` model=${localConfig.codexModel || '(Codex default)'} reasoning=${localConfig.codexReasoningEffort || '(Codex default)'}`
