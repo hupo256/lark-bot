@@ -8,7 +8,7 @@
  */
 
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
@@ -20,7 +20,7 @@ import { parkedReminderRound } from '../lib/lark-parked-reminder.mjs'
 import { rotateLogIfLarge } from '../lib/lark-log-rotate.mjs'
 import { buildResultCard } from '../lib/lark-cards.mjs'
 import { isProjectId, isReadOnlyCommand, matchProjectId, parseCommandType, parseProjectFromText } from '../lib/lark-message.mjs'
-import { classifyLarkTask, extractMarkdownSection } from '../lib/lark-rule-context.mjs'
+import { allRuleRefs, buildFocusedRuleContext, classifyLarkTask, extractMarkdownSection } from '../lib/lark-rule-context.mjs'
 import { assessDoneResult, classifyWorkerFailure, crossCheckChangedFiles, detectChangeTier, pruneStaleAudits, resolveWorkContext, safeProject, splitViolations } from '../lark-worker.mjs'
 import { validateSource } from '../../engine/agent-scripts/sync-lark-docs.mjs'
 
@@ -550,6 +550,26 @@ describe('extractMarkdownSection', () => {
   })
   it('标题不存在 → 空串（供 buildFocusedRuleContext 判章节缺失告警）', () => {
     assert.equal(extractMarkdownSection(doc, '## Z'), '')
+  })
+})
+
+describe('allRuleRefs（规则路由表 ↔ 真实文档，锁住漂移）', () => {
+  it('每条路由的 file+heading 在真实文档上都能抽到非空章节，一个都不能丢', () => {
+    const refs = allRuleRefs()
+    assert.ok(refs.length >= 20) // 路由表本身不能被误删空
+    for (const ref of refs) {
+      assert.ok(existsSync(ref.file), `路由文件缺失：${ref.label}（${ref.file}）`)
+      const excerpt = extractMarkdownSection(readFileSync(ref.file, 'utf8'), ref.heading)
+      assert.ok(excerpt, `路由章节抽空：${ref.label} · ${ref.heading}（源文档可能改了标题）`)
+    }
+  })
+})
+
+describe('buildFocusedRuleContext（正常场景零 warnings，全路由章节命中）', () => {
+  it('全信号任务加载全部路由章节，0 warnings', () => {
+    const ctx = buildFocusedRuleContext({ taskText: '文案 tooltip 样式颜色圆角 页面组件表单 API接口schema DTO mapper映射 React Query mutation缓存 Zustand store状态管理 MSW mock fixture' })
+    assert.equal(ctx.warnings.length, 0)
+    assert.equal(ctx.sources.length, allRuleRefs().length)
   })
 })
 
