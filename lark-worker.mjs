@@ -119,12 +119,16 @@ export async function runLarkWorker({
   // 并行调度器：inFlight 以 workContext.cwd 为 key（同一 worktree 只允许一个在飞、天然串行；
   // 不同 worktree 并行）。git worktree add/remove 等走 spawnSync 同步执行，本就互不交错，无需额外锁。
   for (;;) {
+    // 本轮跳过集：claim 竞态失败的 id 记下来，避免「可列出却不可领」的任务被反复重挑，
+    // 把内层 while 变成不带退避的紧循环、满速打 gateway。每轮重新开始，不会永久屏蔽任务。
+    const skipThisRound = new Set()
     while (!shuttingDown && inFlight.size < defaultConcurrency) {
       const candidates = await client.listClaimable()
       // 挑第一个「目标 cwd 未在飞」的任务；其余留到下一轮（保证同 worktree 串行）
       let picked = null
       let pickedCtx = null
       for (const candidate of candidates) {
+        if (skipThisRound.has(candidate.id)) continue
         const ctx = resolveWorkContext(workerConfig, candidate)
         if (inFlight.has(ctx.cwd)) continue
         picked = candidate
@@ -140,7 +144,21 @@ export async function runLarkWorker({
         console.error('[lark-worker] claim 失败：', error)
         break
       }
-      if (!claimed) continue // 被并发领走 / 状态已变，下一轮重新 list
+      if (!claimed) {
+        skipThisRound.add(picked.id) // 被并发领走 / 状态已变，本轮不再重挑，下一轮重新 list
+        continue
+      }
+      // 领取与 SIGTERM 的竞态：若在上面两次 await 期间收到 SIGTERM，gracefulShutdown 已快照过
+      // inFlight（此时还没加入本任务），不会替它释放租约 → 任务卡 running 白等 40min 租约过期。
+      // 故退出中刚领到的任务自行交还，再退出。
+      if (shuttingDown) {
+        await client
+          .releaseTask(claimed.id)
+          .catch((error) =>
+            console.error(`[lark-worker] 退出期间交还刚领取的 ${claimed.id} 失败（回落到租约回收）：${String(error).slice(0, 120)}`),
+          )
+        return
+      }
 
       const key = pickedCtx.cwd
       const running = runTask(claimed, pickedCtx, { signal: shutdownController.signal })
