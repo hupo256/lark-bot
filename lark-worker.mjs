@@ -18,22 +18,7 @@ import { loadWorkerLocalConfig } from './lib/lark-worker-run.mjs'
 import { resolveWorkContext, safeProject } from './lib/lark-work-context.mjs'
 import { createTaskRunner } from './lib/lark-task-runner.mjs'
 import { startLogRotation } from './lib/lark-log-rotate.mjs'
-
-// 对外契约：测试与其它模块沿用从本文件导入这些符号（实现已下沉到 lib/，此处只再导出门面）。
-export { safeProject, resolveWorkContext } from './lib/lark-work-context.mjs'
-export { pruneStaleAudits } from './lib/lark-worker-audit.mjs'
-export { assessDoneResult, crossCheckChangedFiles, detectChangeTier, splitViolations } from './lib/lark-quality-gate.mjs'
-export { classifyWorkerFailure } from './lib/lark-worker-results.mjs'
-export { gatewayStatusForAiStatus, isCompletedAiStatus } from './lib/lark-ai-result.mjs'
-export { requestJson } from './lib/lark-gateway-client.mjs'
-export {
-  buildAnalysisPrompt,
-  buildIntentClassificationPrompt,
-  buildTaskPrompt,
-  buildValidationRequirements,
-} from './lib/lark-worker-prompts.mjs'
-export { classifyTaskIntent, normalizeAnalysisForTask } from './lib/lark-worker-run.mjs'
-export { shouldSyncProjectDocs } from './lib/lark-task-runner.mjs'
+import { defaultTaskLeaseMs } from './lib/lark-constants.mjs'
 
 function printHelp() {
   console.log(`usage: lark-worker.mjs [--once] [--help]
@@ -70,7 +55,7 @@ export async function runLarkWorker({
   // 焊死「孤儿回收不与活着的 AI 双跑」这条唯一防线：AI 执行超时必须 < gateway 租约。
   // 否则 AI 还在跑，gateway 已判租约过期把任务重投/领走，两个 AI 同 worktree 改文件打架。
   // 默认 30min < 40min 成立；env 覆盖（LARK_WORKER_AI_TIMEOUT_MS / LARK_TASK_LEASE_MS）可能破坏，故启动即断言。
-  const leaseMs = Number(process.env.LARK_TASK_LEASE_MS || 40 * 60 * 1000)
+  const leaseMs = defaultTaskLeaseMs
   if (Number.isFinite(aiTimeoutMs) && aiTimeoutMs > 0 && aiTimeoutMs >= leaseMs) {
     throw new Error(
       `[lark-worker] 配置冲突：AI 超时(${aiTimeoutMs}ms) 必须小于任务租约 LARK_TASK_LEASE_MS(${leaseMs}ms)，` +

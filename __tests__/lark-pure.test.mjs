@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
-import { handleStatusUpdate, isForBot, isWhitelisted, normalizeMessage, resolveMessageTrigger } from '../lark-gateway.mjs'
+import { handleStatusUpdate } from '../lib/lark-status.mjs'
 import {
   buildBugStatusFilter,
   buildBugText,
@@ -25,9 +25,21 @@ import { createTaskStore } from '../lib/lark-task-store.mjs'
 import { parkedReminderRound } from '../lib/lark-parked-reminder.mjs'
 import { rotateLogIfLarge } from '../lib/lark-log-rotate.mjs'
 import { buildResultCard } from '../lib/lark-cards.mjs'
-import { isProjectId, isReadOnlyCommand, matchProjectId, parseCommandType, parseProjectFromText } from '../lib/lark-message.mjs'
+import {
+  isForBot,
+  isProjectId,
+  isReadOnlyCommand,
+  isWhitelisted,
+  matchProjectId,
+  normalizeMessage,
+  parseCommandType,
+  resolveMessageTrigger,
+} from '../lib/lark-message.mjs'
 import { allRuleRefs, buildFocusedRuleContext, classifyLarkTask, extractMarkdownSection } from '../lib/lark-rule-context.mjs'
-import { assessDoneResult, classifyWorkerFailure, crossCheckChangedFiles, detectChangeTier, pruneStaleAudits, resolveWorkContext, safeProject, splitViolations } from '../lark-worker.mjs'
+import { assessDoneResult, crossCheckChangedFiles, detectChangeTier, splitViolations } from '../lib/lark-quality-gate.mjs'
+import { pruneStaleAudits } from '../lib/lark-worker-audit.mjs'
+import { classifyWorkerFailure } from '../lib/lark-worker-results.mjs'
+import { resolveWorkContext, safeProject } from '../lib/lark-work-context.mjs'
 import { validateSource } from '../../engine/agent-scripts/sync-lark-docs.mjs'
 
 const BOT = 'ou_bot'
@@ -421,10 +433,6 @@ describe('matchProjectId（自由文本提取）', () => {
     assert.equal(matchProjectId('没有项目号'), null)
     assert.equal(matchProjectId(''), null)
     assert.equal(matchProjectId(null), null)
-  })
-  it('parseProjectFromText 与 matchProjectId 同源同结果', () => {
-    assert.equal(parseProjectFromText('SUPR-01947'), matchProjectId('SUPR-01947'))
-    assert.equal(parseProjectFromText('pr-02172 页面'), 'PR-02172')
   })
 })
 

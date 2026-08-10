@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
-import { parseAiExecutorDirective, resolveGatewayAiExecutor } from '../lark-gateway.mjs'
+import { parseAiExecutorDirective, resolveGatewayAiExecutor } from '../lib/lark-ingest.mjs'
 import {
   buildAiExecutorCommand,
   formatStructuredAiResult,
@@ -17,17 +17,16 @@ import { parseStructuredAiResult, parseStructuredIntentResult } from '../lib/lar
 import { buildQueuedCard, buildResultCard, buildWaitingCard, resolveOwnerMention } from '../lib/lark-cards.mjs'
 import { scanDiffForViolations } from '../lib/lark-lint-diff.mjs'
 import { buildFocusedRuleContext } from '../lib/lark-rule-context.mjs'
+import { requestJson } from '../lib/lark-gateway-client.mjs'
+import { gatewayStatusForAiStatus, isCompletedAiStatus } from '../lib/lark-status-meta.mjs'
+import { shouldSyncProjectDocs } from '../lib/lark-task-runner.mjs'
+import { normalizeAnalysisForTask } from '../lib/lark-worker-run.mjs'
 import {
   buildAnalysisPrompt,
   buildIntentClassificationPrompt,
   buildTaskPrompt,
   buildValidationRequirements,
-  gatewayStatusForAiStatus,
-  isCompletedAiStatus,
-  normalizeAnalysisForTask,
-  requestJson,
-  shouldSyncProjectDocs,
-} from '../lark-worker.mjs'
+} from '../lib/lark-worker-prompts.mjs'
 
 describe('AI executor selection', () => {
   it('只接受 claude/codex 固定枚举', () => {

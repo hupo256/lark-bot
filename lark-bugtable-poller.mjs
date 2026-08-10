@@ -10,14 +10,15 @@
  * 规则来源：apps/web/docs_tdd/common/rules/lark-bot-gateway.md、lark-doc-sync.md。
  */
 
-import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve, join, dirname } from 'node:path'
 
 import { isProjectId } from './lib/lark-message.mjs'
-import { loadConfig, resolveNotifyChatId, secretHeaders } from './lib/lark-config.mjs'
+import { loadConfig, resolveNotifyChatId } from './lib/lark-config.mjs'
 import { buildCardContent } from './lib/lark-cards.mjs'
-import { sendChatMessage } from './lib/lark-cli.mjs'
+import { runLarkCli, sendChatMessage } from './lib/lark-cli.mjs'
+import { createGatewayClient, sleep } from './lib/lark-gateway-client.mjs'
+import { defaultGatewayUrl } from './lib/lark-constants.mjs'
 import {
   assigneeHasOpenId,
   buildBugText,
@@ -32,49 +33,11 @@ import {
 // 测试与既有调用方沿用从本文件导入 classifyBugTaskStatus（实现已下沉到 lib/）。
 export { classifyBugTaskStatus } from './lib/lark-bugtable-parse.mjs'
 
-const larkCliBin = process.env.LARK_CLI_BIN || 'lark-cli'
-const defaultGatewayUrl = process.env.LARK_GATEWAY_URL || 'http://127.0.0.1:3005'
 const defaultPollMs = Number(process.env.LARK_BUGTABLE_POLL_MS || 90000)
 // 空闲自动收工：连续这么久没有新 bug 就自动退出，忘了 poll-off 也无害（默认 4h）
 const defaultIdleOffMs = Number(process.env.LARK_BUGTABLE_IDLE_OFF_MS || 4 * 60 * 60 * 1000)
-// lark-cli 子进程超时兜底（默认 60s）
-const larkCliTimeoutMs = Number(process.env.LARK_CLI_TIMEOUT_MS || 60000)
 // 连续失败到这个轮次就发群告警（默认 3 轮 ≈ 4.5min）：失败期间新 bug 完全捞不到，必须让人知道。
 const errorAlertRounds = Number(process.env.LARK_BUGTABLE_ERROR_ALERT_ROUNDS || 3)
-
-const runLarkCli = (args, { timeoutMs = larkCliTimeoutMs } = {}) =>
-  new Promise((resolveFn) => {
-    // 强制 bot 身份（同 lib/lark-cli.mjs）：defaultAs:auto 会选 user，bitable 读写需 bot scope。
-    const child = spawn(larkCliBin, ['--as', 'bot', ...args], { stdio: ['ignore', 'pipe', 'pipe'] })
-    let stdout = ''
-    let stderr = ''
-    let settled = false
-    const finish = (result) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      resolveFn(result)
-    }
-    const timer = setTimeout(() => {
-      child.kill('SIGTERM')
-      setTimeout(() => {
-        try {
-          child.kill('SIGKILL')
-        } catch {
-          // 进程可能已退出
-        }
-      }, 3000)
-      finish({ code: -1, stdout, stderr: `${stderr}\n[lark-cli timeout after ${timeoutMs}ms]`.slice(-200) })
-    }, timeoutMs)
-    child.stdout.on('data', (chunk) => {
-      stdout += chunk.toString()
-    })
-    child.stderr.on('data', (chunk) => {
-      stderr += chunk.toString()
-    })
-    child.on('error', (error) => finish({ code: -1, stdout, stderr: String(error) }))
-    child.on('exit', (code) => finish({ code, stdout, stderr }))
-  })
 
 // 已处理 record_id 持久化，避免重复建 task
 const createSeenStore = (statePath) => {
@@ -134,47 +97,32 @@ const fetchPendingRecords = async ({ bug }) => {
   return all
 }
 
-const enqueueTask = async ({ gatewayUrl, record, bug, chatId, reopen = false }) => {
+const enqueueTask = async ({ client, record, bug, chatId, reopen = false }) => {
   // 校验项目号：只把合法 PR-#### / PM-#### 传给 gateway；异常单元格（如 ../../x）不作为 project，
   // 交由 worker 走 adhoc 临时 worktree，避免污染路径/分支名。
   const rawProject = readProjectId({ fields: record.fields || {}, bug })
   const project = isProjectId(rawProject) ? rawProject.toUpperCase() : undefined
-  const endpoint = reopen
-    ? `${gatewayUrl}/lark/tasks/${encodeURIComponent(record.record_id)}/reopen`
-    : `${gatewayUrl}/lark/tasks`
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...secretHeaders(),
-    },
-    body: JSON.stringify({
-      id: record.record_id,
-      source: 'lark-bugtable',
-      recordId: record.record_id,
-      project,
-      chatId,
-      text: buildBugText({ record, bug }),
-    }),
-  })
-  if (!response.ok) {
-    throw new Error(`enqueue failed: ${response.status} ${await response.text()}`)
+  const body = {
+    id: record.record_id,
+    source: 'lark-bugtable',
+    recordId: record.record_id,
+    project,
+    chatId,
+    text: buildBugText({ record, bug }),
   }
+  if (reopen) await client.reopenTask(record.record_id, body)
+  else await client.enqueueTask(body)
 }
 
 // 读 gateway 当前任务（record_id → task），作为去重、验退重开与「是否在处理中」的权威依据。
-const fetchGatewayTasks = async (gatewayUrl) => {
-  const response = await fetch(`${gatewayUrl}/lark/tasks`, {
-    headers: secretHeaders(),
-  })
-  if (!response.ok) throw new Error(`list tasks failed: ${response.status}`)
-  const { tasks = [] } = await response.json()
+const fetchGatewayTasks = async (client) => {
+  const tasks = await client.listTasks()
   const byId = new Map()
   for (const task of tasks) byId.set(task.id, task)
   return byId
 }
 
-const runOnce = async ({ config, seen, gatewayUrl }) => {
+const runOnce = async ({ config, seen, client }) => {
   const bug = config.bugTable
   if (!bug?.appToken || !bug?.tableId) {
     throw new Error('config.bugTable.appToken / tableId are required')
@@ -185,7 +133,7 @@ const runOnce = async ({ config, seen, gatewayUrl }) => {
   const mine = records.filter((record) => assigneeHasOpenId(record.fields?.[bug.assigneeField], myOpenId))
   // 用 gateway 任务状态（而非「入队即永久 seen」）判断去重：避免 failed 的 bug 既留在表里待处理、
   // 又被本地 seen 挡住永不再捞而静默消失。seen 只缓存已确认 done 的记录（跨重启防重入队）。
-  const taskById = await fetchGatewayTasks(gatewayUrl)
+  const taskById = await fetchGatewayTasks(client)
   let enqueued = 0
   let reopened = 0
   let inFlight = 0
@@ -226,13 +174,13 @@ const runOnce = async ({ config, seen, gatewayUrl }) => {
       continue
     }
     if (disposition === 'reopen') {
-      await enqueueTask({ gatewayUrl, record, bug, chatId: resolveNotifyChatId(config), reopen: true })
+      await enqueueTask({ client, record, bug, chatId: resolveNotifyChatId(config), reopen: true })
       reopened += 1
       console.log(`[bugtable-poller] reopened QA-returned ${id}`)
       continue
     }
     // 全新记录 → 入队
-    await enqueueTask({ gatewayUrl, record, bug, chatId: resolveNotifyChatId(config) })
+    await enqueueTask({ client, record, bug, chatId: resolveNotifyChatId(config) })
     enqueued += 1
     console.log(`[bugtable-poller] enqueued ${id}`)
   }
@@ -251,6 +199,7 @@ export async function runLarkBugtablePoller({
   // 状态文件放在项目 agent/ 下（configPath 在 agent/scripts/ 内）
   const statePath = join(dirname(resolve(configPath)), '..', 'lark-bugtable-state.json')
   const seen = createSeenStore(statePath)
+  const client = createGatewayClient(gatewayUrl)
   const once = argv.includes('--once')
   const chatId = resolveNotifyChatId(config)
   const notify = ({ kind, lines, idempotencyKey }) =>
@@ -261,7 +210,7 @@ export async function runLarkBugtablePoller({
   let alerted = false
   do {
     try {
-      const enqueued = await runOnce({ config, seen, gatewayUrl })
+      const enqueued = await runOnce({ config, seen, client })
       idleMs = enqueued > 0 ? 0 : idleMs
       consecutiveErrors = 0
       alerted = false
@@ -283,11 +232,11 @@ export async function runLarkBugtablePoller({
           idempotencyKey: `poller-error-${new Date().toISOString().slice(0, 13)}`,
         })
       }
-      if (!once) await new Promise((r) => setTimeout(r, pollMs))
+      if (!once) await sleep(pollMs)
       continue
     }
     if (!once) {
-      await new Promise((r) => setTimeout(r, pollMs))
+      await sleep(pollMs)
       idleMs += pollMs
       if (idleOffMs > 0 && idleMs >= idleOffMs) {
         const hours = Math.round(idleOffMs / 3600000)

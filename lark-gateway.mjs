@@ -31,16 +31,10 @@ import { retryPendingWriteback } from './lib/lark-bugtable-writeback.mjs'
 import { remindParkedTasks } from './lib/lark-parked-reminder.mjs'
 import { startLogRotation } from './lib/lark-log-rotate.mjs'
 import { createRequestHandler } from './lib/lark-routes.mjs'
+import { GATEWAY_HOST, defaultGatewayPort, defaultTaskLeaseMs } from './lib/lark-constants.mjs'
 
-// 沿用既有 import 路径的对外契约（单测 + 外部调用方无需改动）：pure 判定、执行器指令、状态回写处理。
-export { isForBot, isWhitelisted, normalizeMessage, resolveMessageTrigger } from './lib/lark-message.mjs'
-export { parseAiExecutorDirective, resolveGatewayAiExecutor } from './lib/lark-ingest.mjs'
-export { handleStatusUpdate } from './lib/lark-status.mjs'
-
-const defaultPort = Number(process.env.LARK_GATEWAY_PORT || 3005)
 // 任务领取租约：worker 领走后置 running；超过此时长仍 running 视为孤儿，下次 claim 时自动重入队。
 // 必须 > worker 的 AI 执行超时（默认 30min），避免误回收正在跑的长任务。
-const taskLeaseMs = Number(process.env.LARK_TASK_LEASE_MS || 40 * 60 * 1000)
 
 // 告警卡快捷发送：dead-letter / consumer-down / writeback 告警共用同一「alert 卡 + 幂等键」形态。
 const sendAlertCard = ({ config, chatId, lines, logPrefix, idempotencyKey }) =>
@@ -51,16 +45,16 @@ const sendAlertCard = ({ config, chatId, lines, logPrefix, idempotencyKey }) =>
     idempotencyKey,
   })
 
-export async function runLarkGateway({ configPath, port = defaultPort }) {
-  const config = loadConfig(configPath, 'gateway config')
-  config.aiExecutor = normalizeAiExecutor(config.aiExecutor)
+export async function runLarkGateway({ configPath, port = defaultGatewayPort }) {
+  const loadedConfig = loadConfig(configPath, 'gateway config')
+  const config = { ...loadedConfig, aiExecutor: normalizeAiExecutor(loadedConfig.aiExecutor) }
   const membershipMode = config.allowedChatIds === 'auto'
   if (!membershipMode && !config.allowedChatIds?.length && !config.allowedOpenIds?.length) {
     console.warn('[lark-gateway] ⚠ 未配置任何白名单（allowedChatIds/allowedOpenIds），将拒绝所有事件（fail-closed）。请填 allowedChatIds:"auto"（bot 所在群）或显式群 id。')
   }
   const store = createTaskStore({
     tasksDir: join(docsDir(config.project), 'agent/lark-tasks'),
-    leaseMs: taskLeaseMs,
+    leaseMs: defaultTaskLeaseMs,
     // 孤儿达重投上限转 failed 死信时发一次告警卡：无人值守下这是人工介入的唯一信号
     onDeadLetter: (task) => {
       sendAlertCard({
@@ -87,8 +81,8 @@ export async function runLarkGateway({ configPath, port = defaultPort }) {
   })
 
   const server = createServer(createRequestHandler({ config, store, consumer, port }))
-  server.listen(port, '127.0.0.1', () => {
-    console.log(`[lark-gateway] listening on http://127.0.0.1:${port} for ${config.project}`)
+  server.listen(port, GATEWAY_HOST, () => {
+    console.log(`[lark-gateway] listening on http://${GATEWAY_HOST}:${port} for ${config.project}`)
     console.log(`[lark-gateway] whitelist chats=${config.allowedChatIds === 'auto' ? 'auto(bot 所在群)' : ((config.allowedChatIds || []).join(',') || '(none)')} consume=im.message.receive_v1`)
   })
 
@@ -147,7 +141,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const portArgIndex = process.argv.indexOf('--port')
   runLarkGateway({
     configPath,
-    port: portArgIndex >= 0 ? Number(process.argv[portArgIndex + 1]) : defaultPort,
+    port: portArgIndex >= 0 ? Number(process.argv[portArgIndex + 1]) : defaultGatewayPort,
   }).catch((error) => {
     console.error(error)
     process.exit(1)
