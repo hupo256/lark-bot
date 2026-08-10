@@ -548,7 +548,7 @@ describe('extractMarkdownSection', () => {
   it('抽出指定标题到下一同级标题前', () => {
     assert.equal(extractMarkdownSection(doc, '## A'), '## A\n\na1\na2')
   })
-  it('标题不存在 → 空串（供 buildFocusedRuleContext 判章节缺失告警）', () => {
+  it('标题不存在 → 空串（供 buildFocusedRuleContext fail-closed）', () => {
     assert.equal(extractMarkdownSection(doc, '## Z'), '')
   })
 })
@@ -570,6 +570,37 @@ describe('buildFocusedRuleContext（正常场景零 warnings，全路由章节�
     const ctx = buildFocusedRuleContext({ taskText: '文案 tooltip 样式颜色圆角 页面组件表单 API接口schema DTO mapper映射 React Query mutation缓存 Zustand store状态管理 MSW mock fixture' })
     assert.equal(ctx.warnings.length, 0)
     assert.equal(ctx.sources.length, allRuleRefs().length)
+  })
+
+  it('绑定当前发布指纹；同一章节在规则链变化后上下文指纹必须变化', () => {
+    const first = buildFocusedRuleContext({
+      taskText: '调整页面样式',
+      ruleChain: { ruleReleaseFingerprint: 'l3-a', effectiveRulesFingerprint: 'effective-a' },
+    })
+    const second = buildFocusedRuleContext({
+      taskText: '调整页面样式',
+      ruleChain: { ruleReleaseFingerprint: 'l3-b', effectiveRulesFingerprint: 'effective-b' },
+    })
+    assert.equal(first.ruleReleaseFingerprint, 'l3-a')
+    assert.equal(first.effectiveRulesFingerprint, 'effective-a')
+    assert.notEqual(first.fingerprint, second.fingerprint)
+  })
+
+  it('任一路由章节缺失都阻断，不允许带 warnings 继续执行', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'lark-rule-context-'))
+    const file = join(dir, 'rule.md')
+    writeFileSync(file, '# Rule\n\n## Existing\n\ntext\n')
+    try {
+      assert.throws(
+        () => buildFocusedRuleContext({
+          taskText: '修复页面',
+          ruleRefs: [{ file, label: 'rule.md', heading: '## Missing' }],
+        }),
+        /VERIFY-RULE-004.*规则上下文构建失败/,
+      )
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
 

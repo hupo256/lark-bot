@@ -122,6 +122,8 @@ describe('focused rule loading and two-phase prompts', () => {
     const ruleContext = {
       scenario: 'write_ui',
       fingerprint: 'abc123',
+      ruleReleaseFingerprint: 'l3-fingerprint',
+      effectiveRulesFingerprint: 'effective-fingerprint',
       sources: [{ path: 'common/rule.md', section: '## Copy', sha256: 'deadbeef' }],
       text: '权威规则：文案必须来自 PRD。',
     }
@@ -136,6 +138,8 @@ describe('focused rule loading and two-phase prompts', () => {
     assert.match(analysisPrompt, /第一阶段只读分析/)
     assert.match(analysisPrompt, /权威规则：文案必须来自 PRD/)
     assert.match(analysisPrompt, /规则指纹：abc123/)
+    assert.match(analysisPrompt, /L3 发布指纹：l3-fingerprint/)
+    assert.match(analysisPrompt, /Effective Rules 指纹：effective-fingerprint/)
 
     const implementationPrompt = buildTaskPrompt(workContext, task, 'codex', { ruleContext, analysis })
     assert.match(implementationPrompt, /第一阶段只读分析已判定 ready/)
