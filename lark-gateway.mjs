@@ -18,9 +18,8 @@
  */
 
 import { createServer } from 'node:http'
-import { join } from 'node:path'
 import { loadConfig, resolveNotifyChatId } from './lib/lark-config.mjs'
-import { docsDir } from './lib/lark-repo.mjs'
+import { larkTasksDir } from './lib/lark-repo.mjs'
 import { normalizeAiExecutor } from './lib/lark-http.mjs'
 import { buildCardContent } from './lib/lark-cards.mjs'
 import { sendChatMessage } from './lib/lark-cli.mjs'
@@ -53,7 +52,7 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
     console.warn('[lark-gateway] ⚠ 未配置任何白名单（allowedChatIds/allowedOpenIds），将拒绝所有事件（fail-closed）。请填 allowedChatIds:"auto"（bot 所在群）或显式群 id。')
   }
   const store = createTaskStore({
-    tasksDir: join(docsDir(config.project), 'agent/lark-tasks'),
+    tasksDir: larkTasksDir,
     leaseMs: defaultTaskLeaseMs,
     // 孤儿达重投上限转 failed 死信时发一次告警卡：无人值守下这是人工介入的唯一信号
     onDeadLetter: (task) => {
