@@ -14,7 +14,7 @@
  *   · lark-bugtable-writeback bug 表回写 + 通知日志   · lark-status 状态回写处理
  *   · lark-routes    HTTP 路由分发   · lark-http body/响应工具
  *
- * 硬规则来源：apps/web/docs_tdd/common/rules/lark-bot-gateway.md、lark-active-notification.md。
+ * 硬规则来源：apps/web/docs_tdd/common/lark-bot/docs/README.md、common/rules/lark-active-notification.md。
  */
 
 import { createServer } from 'node:http'
