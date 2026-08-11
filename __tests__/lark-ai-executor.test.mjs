@@ -312,8 +312,10 @@ describe('risk-based validation policy', () => {
   })
 
   it('群任务和 Bug 表的 G2 流程阻塞都会降级，真实范围歧义仍保留', () => {
-    const groupTask = { source: 'lark', commandType: null }
-    const bugTableTask = { source: 'lark-bugtable', commandType: null }
+    // 正文不再是可省的：降级资格现在由 workKind 决定（缺陷反馈可免流程材料，新需求不可），
+    // 详见 lark-work-policy.test.mjs。这里给出典型缺陷反馈正文。
+    const groupTask = { source: 'lark', commandType: null, text: '错误提示不显示' }
+    const bugTableTask = { source: 'lark-bugtable', commandType: null, text: '输入框错误态不对' }
     const g2Analysis = {
       status: 'blocked',
       summary: '缺少 G2 定稿证据',

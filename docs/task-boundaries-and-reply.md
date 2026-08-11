@@ -13,7 +13,6 @@
 | `ignored` | @负责人消息已判定不是 bug / 明确需求 | 静默终止，定期清理 |
 | `intake_failed` | @负责人消息的只读分类器异常 | 不执行代码；health 告警、保留审计 |
 | `queued` | 已生成 Job 并入队 | Worker 领取 |
-| `triaging` | Worker 正在读取 docs_tdd、分支状态和影响范围 | 判断是否可自动执行 |
 | `waiting_confirmation` | 范围、PRD、API、QA、登录账号、权限、环境或其他材料存在需人工确认 / 补充项 | 自动发送待确认 / 补信息通知，尽量 @ 具体责任人，回群等确认 |
 | `running` | 已开始改文档 / 代码 / 自测 | 持续记录进展 |
 | `verifying` | 已完成修改，正在跑 Biome、测试、type-check | 生成验证摘要 |
@@ -59,6 +58,40 @@ Gateway / Worker 至少提取：
 - 任务影响范围超出当前 `apps/web` 或当前 feature。
 
 进入上述任一场景时，Worker 必须把 task 状态置为 `waiting_confirmation`，并自动发送待确认 / 补信息通知。通知里要写清缺什么、影响哪个阶段、需要谁处理；能识别责任人时必须 @ 具体人，不能识别时 @ 项目负责人 / 群内负责人。**已落地实现**：AI 结构化结果（`lark-ai-result.schema.json`）status 支持 `waiting_confirmation`，并可带 `blockers`（逐条列缺什么）、`owner`（推断责任人 / 角色）；Worker 原样回写该状态（不跑规范闸、不提交改动）并把 `owner` 随状态回写带给 Gateway；Gateway `handleStatusUpdate` 对 `waiting_confirmation` / `blocked` 发**橙色独立回执卡**（区别于绿/红的完成/失败卡）。**责任人 @ 落地**（`resolveOwnerMention`）：AI 自报 `owner`（角色 / 关键词）命中项目配置 `config.ownerMap`（`角色/关键词 → open_id`，可选表）则 `<at>` 对应责任人；未命中则回落 `<at>` 触发人（`task.operator`）并注明「未在责任人表识别，暂 @ 提单人」；bug 表任务由 poller 把负责 RD 写入 `operator`，保证无法识别业务 owner 时仍有人接收。**续任务闭环**（`store.resumeWithSupplement` + `resolveResumeTarget` / `handleResume`）：Gateway 保存待确认卡和催办卡的真实 Lark `message_id → task.id` 关联；只有以下情形算**续跑意图**：① 发送 `继续任务 <taskId> <补充内容>` 显式指令；② 明确回复（`reply_to`）机器人回执卡；③ 明确回复仍处 `waiting_confirmation`/`blocked` 的原任务消息；④ 无 `reply_to`、仅会话线程根 `root_id` 且命中回执索引（`root_id` 是线程根、可能是任意旧消息，绝不拿它直接 `store.get` 以免误命中）。命中续跑意图即复用**原任务**（append 补料 + 合并附件 + 保存本轮结论到 `waitingHistory` + 复用同一分支/worktree），置回 `queued` 并 bump `epoch`；回执关联持久化且只接受当前 epoch，重启不丢、旧轮次卡片也不能误续跑新一轮。**边界硬规则**：一旦识别出续跑意图，本条消息只走续跑分支——目标不存在 / 不在待确认·阻塞态 / 无补充内容时**显式回执说明并 return，绝不 fall through 新建孤儿任务**（否则补料落空、原任务继续卡着而群里无感知）。**关键约束**：AI 遇缺材料严禁猜测生成文案 / 默认值硬做，也严禁误判成 `failed`；`failed` 只留给工具 / 环境 / 权限等技术性失败。
+
+## 3.1 任务性质（workKind）与阻塞四分类
+
+§3 的「自动执行 / 必须确认」不再靠一条正则白名单硬压，而是先判**任务性质**、再对 AI 给出的每条 blocker 做**四分类**。实装在 [lark-work-policy.mjs](../lib/lark-work-policy.mjs)（纯函数，`node --test __tests__/lark-work-policy.test.mjs` 直测），语义为单一事实源。
+
+**任务性质 `workKind`**（`resolveWorkKind`，优先级从人的显式表达到 AI 分类结论再到文本信号，最后 fail-safe）：
+
+| workKind | 判据 | fastLane | 压制流程 blocker | 需人工放行 |
+|---|---|---|---|---|
+| `readonly` | 状态查询等只读命令 | 否 | 否 | 否 |
+| `docs` | 文档类命令 | 否 | 否 | 否 |
+| `bugfix` | fix/test/api 命令、缺陷信号、「改成 X」类增量、截图 | 是 | 是 | 否 |
+| `qa_feedback` | bug 表来源、qa 命令 | 是 | 是 | 否 |
+| `requirement` | 交办尚不存在的行为（新增…功能/页面/模块），或兜底 | 否 | 否 | **是** |
+
+上述 fastLane / 压制 / 需放行三档还要**与来源资格取交集**（`isFastLaneSource`：仅 `lark` / `lark-bugtable`）：外部系统投递的工单既不因措辞像 bug 就免 G2，也不被「群里一句话不构成规格」拦下——它根本不是群里的一句话。兜底方向刻意选 `requirement`：把 bug 误当需求只多问一句人，把需求误当 bug 会让 bot 凭空发明行为写进仓库。
+
+**阻塞四分类**（`classifyBlocker`，顺序即优先级，未命中任何类 → `hard` 即 fail-closed）：
+
+| 类 | 含义 | 处置 |
+|---|---|---|
+| `hard` | 改动目标无法唯一定位，或缺权限/凭证/环境 | **停**。硬做必错 |
+| `soft` | 外部依赖未就绪（接口未定、后端未上） | **不停**。按契约/Mock 假设推进，假设登记进 `assumptions` 随实施 prompt 下发 |
+| `decision` | 有多个合理取舍需人拍板 | **不停**。选一个并在完成卡记录理由供复核 |
+| `process` | 流程材料缺失（G2/PRD/技术方案/历史 gate） | **看 workKind**：bug/QA 反馈可压制，新需求不可 |
+
+关键：`resolveAnalysisGate` **从不覆写 AI 的判断**，只把 blockers 分门别类，再由 workKind 决定哪些类构成停机（`hard` + 非快车道时的 `process`）。这取代了旧的 `SCOPE_OR_ACCESS_BLOCKER_RE`「命不中就整条改写成 ready」的默认放行。
+
+**新需求放行闸**（`requirementGate`，在 [lark-task-runner.mjs](../lib/lark-task-runner.mjs) 里于**跑 AI、动 worktree 之前**执行）：判为 `requirement` 且人尚未放行过（无 `resumeCount`/`waitingHistory`/`qaReturnCount`）时，直接回一张 `waiting_confirmation` 卡，一次 AI 都不跑。放这么早有两个硬理由：① 默认执行器 `claude` 没有只读分析阶段，只在分析阶段拦等于对默认路径无效；② 拦下的任务不该烧 AI、不该碰 worktree。人回复卡片补一句预期行为即视为放行、续跑。
+
+## 3.2 人类 WIP 隔离与 L2 契约改动的 type-check 闸
+
+- **绝不自动提交人类 WIP**：命中的已有 worktree 在任务开始前若已有未提交改动，任务会**改路由到隔离的临时 worktree**（`tempWorktreeContextFor`），bot 的改动落 `origin/online` 上的 hotfix 分支、完全不碰人类工作区。边界：bot 提交**自己**产生的改动是允许的（隔离分支 / 命中干净 worktree 的当前分支，均不 push/PR），提交人类没打算提交的 WIP 不允许。
+- **L2 契约/共享改动缺 type-check 证据 → 降级人工复核**（`assessDoneResult`）：改动触达 schema / mapper / api / `.d.ts` / `packages/` 时，若 AI 自报的 `checks` 里没有 type-check 证据，则**不按 done 处理**（这类改动最易静默改坏调用方；实施 prompt 已明确要求 L2/L3 在触达包跑一次 `tsc`）。注意这与「我们自己按整包 `tsc` exit code 硬判」不同——那会被历史基线红误伤，我们从不那么做；这里只校验 AI 是否给出了它本应产出的 type-check 证据。
 
 ## 4. 完成后汇报策略
 

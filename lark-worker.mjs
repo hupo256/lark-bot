@@ -18,6 +18,8 @@ import { loadWorkerLocalConfig } from './lib/lark-worker-run.mjs'
 import { resolveWorkContext, safeProject } from './lib/lark-work-context.mjs'
 import { createTaskRunner } from './lib/lark-task-runner.mjs'
 import { startLogRotation } from './lib/lark-log-rotate.mjs'
+import { createRuntimeVersion, versionWarnings, writeWorkerHeartbeat } from './lib/lark-runtime-version.mjs'
+import { larkRuntimeDir } from './lib/lark-repo.mjs'
 import { defaultTaskLeaseMs } from './lib/lark-constants.mjs'
 
 function printHelp() {
@@ -46,6 +48,9 @@ export async function runLarkWorker({
   configPath,
 }) {
   const localConfig = loadWorkerLocalConfig(configPath)
+  // 版本快照要在装配前拍（= 本进程真正加载的源码版本）。worker 无 HTTP 端口，故靠心跳文件让
+  // gateway 的 /lark/health 代为上报——「gateway 重启了但 worker 还是旧的」是最容易漏的半重启态。
+  const runtimeVersion = createRuntimeVersion({ configPath })
   // worker 是多项目的：真正干活的 projectId/projectName/projectDocs/cwd 由 resolveWorkContext 按
   // 每条 task.project 推导（见 lib/lark-work-context.mjs）。这里的项目身份只作软默认——从 config
   // 派生，用于 adhoc 任务的审计归桶兜底（lib/lark-worker-audit.mjs），不写死在 wrapper 里。
@@ -69,6 +74,10 @@ export async function runLarkWorker({
     ? ` model=${localConfig.codexModel || '(Codex default)'} reasoning=${localConfig.codexReasoningEffort || '(Codex default)'}`
     : ''
   console.log(`[lark-worker] AI executor=${startupExecutor}${codexProfile}（task > env > config > wrapper）`)
+  console.log(`[lark-worker] code=${runtimeVersion.codeHash} startedAt=${runtimeVersion.startedAt}`)
+
+  const heartbeat = (extra) => writeWorkerHeartbeat({ runtimeDir: larkRuntimeDir, version: runtimeVersion, extra })
+  heartbeat({ inFlight: 0 })
 
   const client = createGatewayClient(gatewayUrl)
   const runTask = createTaskRunner({ client, workerConfig })
@@ -91,10 +100,19 @@ export async function runLarkWorker({
   const shutdownController = new AbortController()
   const inFlight = new Map() // cwd -> { promise, taskId }
   let shuttingDown = false
+
+  // 版本心跳 + 自检告警：每分钟落一次盘（供 gateway health 汇总），同时把落后状态打进 worker.log。
+  // 只告警不自杀——正在跑的长任务比"跑最新代码"更值得保住，重启时机由人或 launchd 决定。
+  const heartbeatTimer = setInterval(() => {
+    heartbeat({ inFlight: inFlight.size })
+    for (const warning of versionWarnings(runtimeVersion.observe())) console.warn(`[lark-worker] ⚠ ${warning}`)
+  }, 60_000)
+  heartbeatTimer.unref?.()
   const gracefulShutdown = async (signal) => {
     if (shuttingDown) return
     shuttingDown = true
     if (logTimer) clearInterval(logTimer)
+    clearInterval(heartbeatTimer)
     const entries = [...inFlight.values()]
     console.log(`[lark-worker] 收到 ${signal}，优雅退出：交还 ${entries.length} 个在飞任务并中断 AI`)
     await Promise.allSettled(

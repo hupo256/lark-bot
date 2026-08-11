@@ -45,7 +45,7 @@ import { allRuleRefs, buildFocusedRuleContext, classifyLarkTask, extractMarkdown
 import { assessDoneResult, crossCheckChangedFiles, detectChangeTier, splitViolations } from '../lib/lark-quality-gate.mjs'
 import { pruneStaleAudits } from '../lib/lark-worker-audit.mjs'
 import { classifyWorkerFailure } from '../lib/lark-worker-results.mjs'
-import { resolveWorkContext, safeProject } from '../lib/lark-work-context.mjs'
+import { resolveWorkContext, safeProject, tempWorktreeContextFor } from '../lib/lark-work-context.mjs'
 import { resolveResumeTarget } from '../lib/lark-ingest.mjs'
 import { validateSource } from '../../engine/agent-scripts/sync-lark-docs.mjs'
 
@@ -377,6 +377,34 @@ describe('resolveWorkContext', () => {
 })
 
 // ---------------------------------------------------------------------------
+// tempWorktreeContextFor：命中已有 worktree 但有人类 WIP 时的隔离改路由落点
+// （runTask 用它把 bot 改动挪出人类脏工作区，绝不自动提交人类 WIP）
+// ---------------------------------------------------------------------------
+describe('tempWorktreeContextFor', () => {
+  it('落点与「本地无 worktree」的默认临时 worktree 完全一致（改路由不引入新分支命名）', () => {
+    const task = { project: 'PR-99999', id: 'om_zzzzzzzzABCDEFGH' }
+    const rerouted = tempWorktreeContextFor(task)
+    const fresh = resolveWorkContext({}, task) // PR-99999 本地无 worktree → 同一临时落点
+    assert.equal(rerouted.hotfixBranch, fresh.hotfixBranch)
+    assert.equal(rerouted.cwd, fresh.cwd)
+    assert.ok(rerouted.hotfixBranch.startsWith('hotfix/PR-99999-'))
+  })
+
+  it('同一 task.id 恒定 → retry/补料/QA 验退复用同一隔离 worktree，不丢上一轮', () => {
+    const task = { project: 'PR-99999', id: 'om_x100b68708_AAAA0001' }
+    assert.equal(tempWorktreeContextFor(task).hotfixBranch, tempWorktreeContextFor(task).hotfixBranch)
+    assert.notEqual(
+      tempWorktreeContextFor(task).hotfixBranch,
+      tempWorktreeContextFor({ ...task, id: 'om_x100b68708_AAAA0002' }).hotfixBranch,
+    )
+  })
+
+  it('无项目号 → adhoc 隔离分支', () => {
+    assert.ok(tempWorktreeContextFor({ id: 'om_xxxxxxxx87654321' }).hotfixBranch.startsWith('hotfix/adhoc-'))
+  })
+})
+
+// ---------------------------------------------------------------------------
 // parseCommandType：命令前缀归一 + 只读命令判定
 // ---------------------------------------------------------------------------
 describe('parseCommandType', () => {
@@ -681,23 +709,33 @@ describe('assessDoneResult（done 可信度评估）', () => {
     assert.equal(a.trustworthy, true)
     assert.deepEqual(a.notes, [])
   })
-  it('L2+ 改动但 AI checks 不含 type-check → 挂 note（仍可信）', () => {
+  it('L2 契约/共享改动但 AI checks 不含 type-check → 不可信，降级人工复核（不再是 note 级）', () => {
     const a = assessDoneResult({
       reportedChangedFiles: ['x.schema.ts'],
       actualChangedFiles: ['x.schema.ts'],
       checks: ['biome', '单测通过'],
     })
-    assert.equal(a.trustworthy, true)
+    assert.equal(a.trustworthy, false)
     assert.equal(a.tier, 'L2')
     assert.ok(a.notes.some((n) => /type-check/.test(n)))
   })
-  it('L2+ 改动且 checks 含 tsc → 无 type-check note', () => {
+  it('L2 契约/共享改动且 checks 含 tsc → 可信、无 type-check note', () => {
     const a = assessDoneResult({
       reportedChangedFiles: ['x.schema.ts'],
       actualChangedFiles: ['x.schema.ts'],
       checks: ['tsc --noEmit 通过'],
     })
+    assert.equal(a.trustworthy, true)
     assert.ok(!a.notes.some((n) => /type-check/.test(n)))
+  })
+  it('L1 改动缺 type-check 不受影响（type-check 闸只作用于契约/共享改动）', () => {
+    const a = assessDoneResult({
+      reportedChangedFiles: ['a.tsx'],
+      actualChangedFiles: ['a.tsx'],
+      checks: [],
+    })
+    assert.equal(a.trustworthy, true)
+    assert.equal(a.tier, 'L1')
   })
   it('漏报改动文件 → 挂 note 但不阻断（可信）', () => {
     const a = assessDoneResult({

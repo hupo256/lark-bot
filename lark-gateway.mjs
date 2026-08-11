@@ -30,6 +30,7 @@ import { retryPendingWriteback } from './lib/lark-bugtable-writeback.mjs'
 import { remindParkedTasks } from './lib/lark-parked-reminder.mjs'
 import { startLogRotation } from './lib/lark-log-rotate.mjs'
 import { createRequestHandler } from './lib/lark-routes.mjs'
+import { createRuntimeVersion } from './lib/lark-runtime-version.mjs'
 import { GATEWAY_HOST, defaultGatewayPort, defaultTaskLeaseMs } from './lib/lark-constants.mjs'
 
 // 任务领取租约：worker 领走后置 running；超过此时长仍 running 视为孤儿，下次 claim 时自动重入队。
@@ -45,6 +46,8 @@ const sendAlertCard = ({ config, chatId, lines, logPrefix, idempotencyKey }) =>
   })
 
 export async function runLarkGateway({ configPath, port = defaultGatewayPort }) {
+  // 版本快照必须在最前面拍：它代表「本进程 import 进内存的那一版源码」，晚于任何磁盘改动就失去意义。
+  const runtimeVersion = createRuntimeVersion({ configPath })
   const loadedConfig = loadConfig(configPath, 'gateway config')
   const config = { ...loadedConfig, aiExecutor: normalizeAiExecutor(loadedConfig.aiExecutor) }
   const membershipMode = config.allowedChatIds === 'auto'
@@ -79,10 +82,11 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
       }),
   })
 
-  const server = createServer(createRequestHandler({ config, store, consumer, port }))
+  const server = createServer(createRequestHandler({ config, store, consumer, port, runtimeVersion }))
   server.listen(port, GATEWAY_HOST, () => {
     console.log(`[lark-gateway] listening on http://${GATEWAY_HOST}:${port} for ${config.project}`)
     console.log(`[lark-gateway] whitelist chats=${config.allowedChatIds === 'auto' ? 'auto(bot 所在群)' : ((config.allowedChatIds || []).join(',') || '(none)')} consume=im.message.receive_v1`)
+    console.log(`[lark-gateway] code=${runtimeVersion.codeHash} startedAt=${runtimeVersion.startedAt}（health.version 会在磁盘代码变更后报 codeStale）`)
   })
 
   // 定期清理陈旧 done / 静默 intake 终态，防止 /lark/health 计数单调增长（failed 保留待人工 retry/clear）。

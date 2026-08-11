@@ -102,7 +102,7 @@ Codex / Cursor Worker 领取任务后：
 5. UI / 交互变更后验证桌面、390px H5、dark / light。
 6. 输出 diff 摘要、验证结果、风险和待确认项。
 7. 完成后回群通知结果，并写入通知记录。
-8. 除非命令明确允许并经过确认，否则不自动 commit、push、开 PR。
+8. 完成后 bot 会把**自己产生的改动**本地提交（临时 worktree 提交到其 hotfix 分支；命中已有 worktree 提交到其当前分支），但**从不 push、不开 PR、不合并**，留待人工 review。绝不自动提交人类的既存 WIP：命中的已有 worktree 在任务开始前若已有未提交改动，任务会改路由到隔离的临时 worktree，bot 的改动落隔离分支、完全不碰人类工作区。
 
 任务生命周期、自动执行 / 必须确认的具体边界与回复格式见 [task-boundaries-and-reply.md](./task-boundaries-and-reply.md)。
 
