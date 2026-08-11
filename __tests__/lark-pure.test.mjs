@@ -28,15 +28,18 @@ import { rotateLogIfLarge } from '../lib/lark-log-rotate.mjs'
 import { buildResultCard, buildWaitingCard } from '../lib/lark-cards.mjs'
 import { parseSentMessageId } from '../lib/lark-cli.mjs'
 import {
+  classifyCommandType,
   inferCommandType,
   isForBot,
   isProjectId,
   isReadOnlyCommand,
+  isReadOnlyTask,
   isWhitelisted,
   matchProjectId,
   normalizeMessage,
   parseCommandType,
   parseResumeDirective,
+  resolveCommandType,
   resolveMessageTrigger,
 } from '../lib/lark-message.mjs'
 import { allRuleRefs, buildFocusedRuleContext, classifyLarkTask, extractMarkdownSection } from '../lib/lark-rule-context.mjs'
@@ -44,6 +47,7 @@ import { assessDoneResult, crossCheckChangedFiles, detectChangeTier, splitViolat
 import { pruneStaleAudits } from '../lib/lark-worker-audit.mjs'
 import { classifyWorkerFailure } from '../lib/lark-worker-results.mjs'
 import { resolveWorkContext, safeProject } from '../lib/lark-work-context.mjs'
+import { resolveResumeTarget } from '../lib/lark-ingest.mjs'
 import { validateSource } from '../../engine/agent-scripts/sync-lark-docs.mjs'
 
 const BOT = 'ou_bot'
@@ -198,12 +202,17 @@ describe('bug table task status', () => {
     assert.match(text, /不要原样重复上一轮方案/)
   })
 
-  it('在 bug 包装前识别自然语言状态查询；QA 验退始终按修复处理', () => {
+  it('bug 表命令类型只认显式前缀，不做自然语言兜底；QA 验退始终按修复处理', () => {
     const bug = { statusField: '处理状态', rejectedValue: '验退', titleField: '问题标题', descField: '问题描述' }
-    const fields = { 处理状态: '待处理', 问题标题: '这个项目现在的状态是？', 问题描述: '' }
-    assert.equal(readBugCommandType({ fields, bug }), 'status')
-    assert.match(buildBugText({ record: { record_id: 'rec-status', fields }, bug }), /^状态：这个项目现在的状态是？/)
-    assert.equal(readBugCommandType({ fields: { ...fields, 处理状态: '验退' }, bug }), 'fix')
+    // 自然语言问法（无显式「状态：」前缀）不再当 status——否则真 bug 会被静默零改动关单（P0-1）。
+    const nl = { 处理状态: '待处理', 问题标题: '这个项目现在的状态是？', 问题描述: '' }
+    assert.equal(readBugCommandType({ fields: nl, bug }), null)
+    assert.match(buildBugText({ record: { record_id: 'rec-nl', fields: nl }, bug }), /^修复：Lark bug 表待处理项/)
+    // 只有标题里显式写「状态：」前缀才当只读查询。
+    const explicit = { 处理状态: '待处理', 问题标题: '状态：这个项目现在做到哪了', 问题描述: '' }
+    assert.equal(readBugCommandType({ fields: explicit, bug }), 'status')
+    assert.match(buildBugText({ record: { record_id: 'rec-status', fields: explicit }, bug }), /^状态：状态：这个项目现在做到哪了/)
+    assert.equal(readBugCommandType({ fields: { ...nl, 处理状态: '验退' }, bug }), 'fix')
   })
 })
 
@@ -402,12 +411,87 @@ describe('parseCommandType', () => {
     assert.equal(inferCommandType('项目状态字段显示错误'), null)
   })
 
+  it('缺陷信号一票否决：报障式描述绝不当只读查询', () => {
+    // 这些都含项目级主题词 + 查询提示，但带缺陷信号 → 必须判 null（此前「项目状态一直转圈」被误判成 status）。
+    assert.equal(inferCommandType('这个项目的状态一直转圈，是什么原因？'), null)
+    assert.equal(inferCommandType('看看项目状态怎么样，字段一直不显示'), null)
+    assert.equal(inferCommandType('项目进度页面白屏了是怎么回事'), null)
+  })
+
+  it('classifyCommandType 标注来源：显式前缀=explicit，自然语言兜底=inferred，兜不住=null', () => {
+    assert.deepEqual(classifyCommandType('状态：这个项目做到哪了'), { type: 'status', source: 'explicit' })
+    assert.deepEqual(classifyCommandType('这个项目现在的状态是？'), { type: 'status', source: 'inferred' })
+    assert.deepEqual(classifyCommandType('登录页按钮点不动'), { type: null, source: null })
+  })
+
+  it('resolveCommandType 是任务级 SSOT：无来源字段时按正文回推 explicit/inferred', () => {
+    // 已持久化命令类型 + 无 commandTypeSource：正文有显式前缀 → explicit
+    assert.deepEqual(resolveCommandType({ commandType: 'status', text: '状态：做到哪了' }), { type: 'status', source: 'explicit' })
+    // 已持久化 status 但正文无显式前缀（自然语言） → inferred
+    assert.deepEqual(resolveCommandType({ commandType: 'status', text: '这个项目现在的状态是？' }), { type: 'status', source: 'inferred' })
+    // 显式 commandTypeSource 优先于正文回推
+    assert.deepEqual(resolveCommandType({ commandType: 'status', commandTypeSource: 'inferred', text: '状态：做到哪了' }), { type: 'status', source: 'inferred' })
+    // 无持久化命令类型：直接按正文分类
+    assert.deepEqual(resolveCommandType({ text: '登录页按钮点不动' }), { type: null, source: null })
+  })
+
+  it('isReadOnlyTask 只在只读命令时为真', () => {
+    assert.equal(isReadOnlyTask({ commandType: 'status', text: '状态：x' }), true)
+    assert.equal(isReadOnlyTask({ commandType: 'fix', text: '修复：x' }), false)
+    assert.equal(isReadOnlyTask({ text: '登录页按钮点不动' }), false)
+  })
+
   it('解析显式续跑指令并保留补料正文', () => {
     assert.deepEqual(parseResumeDirective('继续任务 recABC_123 产品确认按方案 A'), {
       taskId: 'recABC_123',
       supplementText: '产品确认按方案 A',
     })
     assert.equal(parseResumeDirective('继续讨论这个问题'), null)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// resolveResumeTarget：续跑目标解析的边界（B3）——只在明确续跑意图时命中，root_id 需回执命中
+// ---------------------------------------------------------------------------
+describe('resolveResumeTarget', () => {
+  const parked = { id: 'w', status: 'waiting_confirmation' }
+  const done = { id: 'd', status: 'done' }
+  const makeStore = ({ byId = {}, byReceipt = {} } = {}) => ({
+    get: (id) => byId[id] || null,
+    findByReceiptMessageId: (id) => byReceipt[id] || null,
+  })
+
+  it('显式「继续任务 <id>」即使目标缺失也返回目标（交 handleResume 明确回话）', () => {
+    const store = makeStore()
+    assert.deepEqual(
+      resolveResumeTarget({ msg: {}, store, resumeDirective: { taskId: 'w', supplementText: 'x' } }),
+      { taskId: 'w', task: null, explicit: true },
+    )
+  })
+
+  it('回复机器人回执卡（reply_to 命中回执）→ 命中，不限状态', () => {
+    const store = makeStore({ byReceipt: { om_card: parked } })
+    assert.equal(resolveResumeTarget({ msg: { replyToDirect: 'om_card', replyTo: 'om_card' }, store }).task, parked)
+  })
+
+  it('回复原任务消息：仅当该任务仍待确认/阻塞才算续跑意图', () => {
+    assert.equal(
+      resolveResumeTarget({ msg: { replyToDirect: 'w', replyTo: 'w' }, store: makeStore({ byId: { w: parked } }) }).task,
+      parked,
+    )
+    // 回复一条已 done 的任务消息 → 视作线程内新请求，不劫持为续跑
+    assert.equal(resolveResumeTarget({ msg: { replyToDirect: 'd', replyTo: 'd' }, store: makeStore({ byId: { d: done } }) }), null)
+  })
+
+  it('仅有线程根 root_id（无 reply_to）：只在命中回执且仍待确认/阻塞时锚定，绝不 store.get 任意消息', () => {
+    // root_id 命中一条无关任务消息 → 不锚定（防误命中）
+    assert.equal(resolveResumeTarget({ msg: { replyTo: 'w' }, store: makeStore({ byId: { w: parked } }) }), null)
+    // root_id 命中待确认回执 → 锚定
+    assert.equal(resolveResumeTarget({ msg: { replyTo: 'root' }, store: makeStore({ byReceipt: { root: parked } }) }).task, parked)
+  })
+
+  it('无任何续跑信号 → null（普通新任务）', () => {
+    assert.equal(resolveResumeTarget({ msg: {}, store: makeStore() }), null)
   })
 })
 
@@ -722,7 +806,7 @@ describe('buildFocusedRuleContext（正常场景零 warnings，全路由章节�
     assert.notEqual(first.fingerprint, second.fingerprint)
   })
 
-  it('任一路由章节缺失都阻断，不允许带 warnings 继续执行', () => {
+  it('required（常驻硬规则）章节缺失 → fail-closed 阻断', () => {
     const dir = mkdtempSync(join(tmpdir(), 'lark-rule-context-'))
     const file = join(dir, 'rule.md')
     writeFileSync(file, '# Rule\n\n## Existing\n\ntext\n')
@@ -730,10 +814,31 @@ describe('buildFocusedRuleContext（正常场景零 warnings，全路由章节�
       assert.throws(
         () => buildFocusedRuleContext({
           taskText: '修复页面',
-          ruleRefs: [{ file, label: 'rule.md', heading: '## Missing' }],
+          ruleRefs: [{ file, label: 'rule.md', heading: '## Missing', required: true }],
         }),
-        /VERIFY-RULE-004.*规则上下文构建失败/,
+        /VERIFY-RULE-004.*规则上下文构建失败.*常驻硬规则/,
       )
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('辅助（非 required）章节缺失 → 降级 + 浮现 warnings，不阻断', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'lark-rule-context-'))
+    const file = join(dir, 'rule.md')
+    writeFileSync(file, '# Rule\n\n## Existing\n\ntext\n')
+    try {
+      // 一条 required 命中 + 一条 aux 缺失：不抛，aux 缺失以 warnings 浮现，required 章节仍进 sources。
+      const ctx = buildFocusedRuleContext({
+        taskText: '修复页面',
+        ruleRefs: [
+          { file, label: 'rule.md', heading: '## Existing', required: true },
+          { file, label: 'rule.md', heading: '## Missing' },
+        ],
+      })
+      assert.equal(ctx.sources.length, 1)
+      assert.equal(ctx.warnings.length, 1)
+      assert.match(ctx.warnings[0], /规则章节缺失.*Missing/)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

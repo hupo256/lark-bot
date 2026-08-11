@@ -26,6 +26,7 @@ import {
   buildIntentClassificationPrompt,
   buildTaskPrompt,
   buildValidationRequirements,
+  resolveTaskMode,
 } from '../lib/lark-worker-prompts.mjs'
 
 describe('AI executor selection', () => {
@@ -216,6 +217,14 @@ describe('focused rule loading and two-phase prompts', () => {
 })
 
 describe('risk-based validation policy', () => {
+  it('resolveTaskMode 三态优先级：只读 > 测试反馈 > 常规', () => {
+    assert.equal(resolveTaskMode({ commandType: 'status', text: '状态：x' }), 'readOnly')
+    assert.equal(resolveTaskMode({ source: 'lark-bugtable', commandType: 'qa' }), 'testFeedback')
+    assert.equal(resolveTaskMode({ source: 'lark', commandType: 'fix', text: '修复：x' }), 'testFeedback')
+    assert.equal(resolveTaskMode({ source: 'manual-api', commandType: 'fix' }), 'regular')
+    assert.equal(resolveTaskMode({ source: 'lark', commandType: 'docs' }), 'regular')
+  })
+
   it('L1 样式改动跳过 type-check，验证使用本地二进制并预防缓存/网络问题', () => {
     const policy = buildValidationRequirements()
     assert.match(policy, /L1 样式/)
@@ -408,7 +417,7 @@ describe('structured result and cards', () => {
   }
 
   it('Worker 把结构化结果转成稳定回执（群卡精简：不列验证/文件明细）', () => {
-    const text = formatStructuredAiResult(result, 'codex')
+    const text = formatStructuredAiResult(result)
     assert.match(text, /^已完成，待发布。/)
     assert.doesNotMatch(text, /执行器：codex/)
     assert.match(text, /修复登录按钮颜色。/)
@@ -418,7 +427,7 @@ describe('structured result and cards', () => {
   })
 
   it('只读状态查询使用“查询完成”结论，不显示待发布', () => {
-    const text = formatStructuredAiResult({ ...result, changedFiles: [] }, 'claude', { readOnly: true })
+    const text = formatStructuredAiResult({ ...result, changedFiles: [] }, { readOnly: true })
     assert.match(text, /^查询完成。/)
     assert.doesNotMatch(text, /待发布/)
   })
@@ -435,7 +444,7 @@ describe('structured result and cards', () => {
       failureKind: null,
       nextStep: null,
     }
-    const text = formatStructuredAiResult(resultWithWarnings, 'codex')
+    const text = formatStructuredAiResult(resultWithWarnings)
     assert.equal(isCompletedAiStatus(resultWithWarnings.status), true)
     assert.equal(gatewayStatusForAiStatus(resultWithWarnings.status), 'done')
     assert.match(text, /^已完成（有验证提醒），待发布。/)
@@ -477,7 +486,6 @@ describe('structured result and cards', () => {
   it('waiting_confirmation 结果转成「待确认」回执并列出 blockers（群卡不列建议责任人）', () => {
     const text = formatStructuredAiResult(
       { status: 'waiting_confirmation', summary: '需要 hover tips 文案', checks: [], changedFiles: [], blockers: ['缺 tips 文案原文'], owner: '产品' },
-      'codex',
     )
     assert.match(text, /^需人工确认/)
     assert.match(text, /待补充：缺 tips 文案原文/)
@@ -500,7 +508,6 @@ describe('structured result and cards', () => {
   it('failed 结果带 failureKind 时回执列出失败类型（群卡不列下一步）', () => {
     const text = formatStructuredAiResult(
       { status: 'failed', summary: '构建产物缺失', checks: [], changedFiles: [], failureKind: 'env', nextStep: '在 dev 克隆重装依赖后重试' },
-      'codex',
     )
     assert.match(text, /^处理失败。/)
     assert.match(text, /失败类型：环境失败/)
@@ -511,7 +518,6 @@ describe('structured result and cards', () => {
   it('blocked 结果和卡片使用阻塞语义', () => {
     const text = formatStructuredAiResult(
       { status: 'blocked', summary: '缺少权威文案', checks: ['只读分析通过'], changedFiles: [], blockers: ['PM 未提供 tips 文案'] },
-      'codex',
     )
     assert.match(text, /^已阻塞/)
     assert.match(text, /待补充：PM 未提供 tips 文案/)
@@ -588,7 +594,7 @@ describe('no_change_needed 终态（本仓无对应改动，转后端/别的仓�
   })
 
   it('群卡结论首行为「无需改动」，不误报处理失败/已完成', () => {
-    const text = formatStructuredAiResult(base, 'codex')
+    const text = formatStructuredAiResult(base)
     assert.match(text, /^无需改动（不属本仓）。/)
     assert.match(text, /该拉先项属后台 API/)
     assert.doesNotMatch(text, /处理失败/)
