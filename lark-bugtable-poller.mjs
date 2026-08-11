@@ -11,9 +11,10 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { resolve, join, dirname } from 'node:path'
+import { join, dirname } from 'node:path'
 
-import { isProjectId } from './lib/lark-message.mjs'
+import { larkRuntimeDir } from './lib/lark-repo.mjs'
+import { isProjectId } from './lib/lark-project-id.mjs'
 import { loadConfig, resolveNotifyChatId } from './lib/lark-config.mjs'
 import { buildCardContent } from './lib/lark-cards.mjs'
 import { runLarkCli, sendChatMessage } from './lib/lark-cli.mjs'
@@ -44,11 +45,25 @@ const errorAlertRounds = Number(process.env.LARK_BUGTABLE_ERROR_ALERT_ROUNDS || 
 const createSeenStore = (statePath) => {
   mkdirSync(dirname(statePath), { recursive: true })
   const seen = existsSync(statePath) ? new Set(JSON.parse(readFileSync(statePath, 'utf8')).seen || []) : new Set()
+  const persist = () => writeFileSync(statePath, JSON.stringify({ seen: [...seen] }, null, 2))
   return {
     has: (id) => seen.has(id),
     add(id) {
       seen.add(id)
-      writeFileSync(statePath, JSON.stringify({ seen: [...seen] }, null, 2))
+      persist()
+    },
+    // 加界：只保留仍在本轮抓取窗口（待处理/验退）里的 id。done 记录回写后离开筛选、随即被剔除，
+    // 而它本就不会再入队（不在抓取集）；网关已 done 但表格回写滞后的记录此刻仍被抓到，留在窗口内不误删。
+    // 无此清理时 seen 只增不减（已 done 的 record_id 永久累积），是 lark-tasks 之外同型的「只增集合」。
+    prune(liveIds) {
+      let changed = false
+      for (const id of seen) {
+        if (!liveIds.has(id)) {
+          seen.delete(id)
+          changed = true
+        }
+      }
+      if (changed) persist()
     },
   }
 }
@@ -188,6 +203,8 @@ const runOnce = async ({ config, seen, client }) => {
     console.log(`[bugtable-poller] enqueued ${id}`)
   }
   console.log(`[bugtable-poller] actionable=${records.length} mine=${mine.length} new=${enqueued} qa-returned=${reopened} in-flight=${inFlight} waiting=${waiting} no-change=${noChange} stuck-failed=${stuck}`)
+  // 用本轮抓取窗口（全部待处理/验退记录）裁剪 seen：离开筛选的 done 记录随之退出，seen 不再只增。
+  seen.prune(new Set(records.map((record) => record.record_id)))
   return enqueued + reopened
 }
 
@@ -199,8 +216,8 @@ export async function runLarkBugtablePoller({
   argv = process.argv.slice(2),
 }) {
   const config = loadConfig(configPath)
-  // 状态文件放在项目 agent/ 下（configPath 在 agent/scripts/ 内）
-  const statePath = join(dirname(resolve(configPath)), '..', 'lark-bugtable-state.json')
+  // 跨项目单例状态：与 lark-tasks 队列同源，落在中性的 runtime 目录，不再寄生在某个宿主项目的 agent/ 下。
+  const statePath = join(larkRuntimeDir, 'lark-bugtable-state.json')
   const seen = createSeenStore(statePath)
   const client = createGatewayClient(gatewayUrl)
   const once = argv.includes('--once')

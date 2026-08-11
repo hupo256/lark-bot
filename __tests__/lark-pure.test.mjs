@@ -31,17 +31,16 @@ import {
   classifyCommandType,
   inferCommandType,
   isForBot,
-  isProjectId,
   isReadOnlyCommand,
   isReadOnlyTask,
   isWhitelisted,
-  matchProjectId,
   normalizeMessage,
   parseCommandType,
   parseResumeDirective,
   resolveCommandType,
   resolveMessageTrigger,
 } from '../lib/lark-message.mjs'
+import { isProjectId, matchProjectId } from '../lib/lark-project-id.mjs'
 import { allRuleRefs, buildFocusedRuleContext, classifyLarkTask, extractMarkdownSection } from '../lib/lark-rule-context.mjs'
 import { assessDoneResult, crossCheckChangedFiles, detectChangeTier, splitViolations } from '../lib/lark-quality-gate.mjs'
 import { pruneStaleAudits } from '../lib/lark-worker-audit.mjs'
