@@ -19,13 +19,16 @@ import {
   buildBugText,
   classifyBugPollAction,
   classifyBugTaskStatus,
+  readBugCommandType,
   readStatusText,
 } from '../lib/lark-bugtable-parse.mjs'
 import { createTaskStore } from '../lib/lark-task-store.mjs'
 import { parkedReminderRound } from '../lib/lark-parked-reminder.mjs'
 import { rotateLogIfLarge } from '../lib/lark-log-rotate.mjs'
-import { buildResultCard } from '../lib/lark-cards.mjs'
+import { buildResultCard, buildWaitingCard } from '../lib/lark-cards.mjs'
+import { parseSentMessageId } from '../lib/lark-cli.mjs'
 import {
+  inferCommandType,
   isForBot,
   isProjectId,
   isReadOnlyCommand,
@@ -33,6 +36,7 @@ import {
   matchProjectId,
   normalizeMessage,
   parseCommandType,
+  parseResumeDirective,
   resolveMessageTrigger,
 } from '../lib/lark-message.mjs'
 import { allRuleRefs, buildFocusedRuleContext, classifyLarkTask, extractMarkdownSection } from '../lib/lark-rule-context.mjs'
@@ -192,6 +196,14 @@ describe('bug table task status', () => {
     assert.match(text, /bug 表验退项/)
     assert.match(text, /深入分析未解决的根因/)
     assert.match(text, /不要原样重复上一轮方案/)
+  })
+
+  it('在 bug 包装前识别自然语言状态查询；QA 验退始终按修复处理', () => {
+    const bug = { statusField: '处理状态', rejectedValue: '验退', titleField: '问题标题', descField: '问题描述' }
+    const fields = { 处理状态: '待处理', 问题标题: '这个项目现在的状态是？', 问题描述: '' }
+    assert.equal(readBugCommandType({ fields, bug }), 'status')
+    assert.match(buildBugText({ record: { record_id: 'rec-status', fields }, bug }), /^状态：这个项目现在的状态是？/)
+    assert.equal(readBugCommandType({ fields: { ...fields, 处理状态: '验退' }, bug }), 'fix')
   })
 })
 
@@ -382,6 +394,30 @@ describe('parseCommandType', () => {
     assert.equal(isReadOnlyCommand('fix'), false)
     assert.equal(isReadOnlyCommand(null), false)
   })
+
+  it('自然语言明确问状态时推断 status，带写操作或陈述句时不误判', () => {
+    assert.equal(inferCommandType('这个项目现在的状态是？'), 'status')
+    assert.equal(inferCommandType('看看 PR-01947 目前做到哪一步'), 'status')
+    assert.equal(inferCommandType('修复项目状态显示错误'), null)
+    assert.equal(inferCommandType('项目状态字段显示错误'), null)
+  })
+
+  it('解析显式续跑指令并保留补料正文', () => {
+    assert.deepEqual(parseResumeDirective('继续任务 recABC_123 产品确认按方案 A'), {
+      taskId: 'recABC_123',
+      supplementText: '产品确认按方案 A',
+    })
+    assert.equal(parseResumeDirective('继续讨论这个问题'), null)
+  })
+})
+
+describe('Lark 回执 message_id 解析', () => {
+  it('兼容常见 lark-cli 输出层级，非法输出返回 null', () => {
+    assert.equal(parseSentMessageId('{"data":{"message_id":"om_a"}}'), 'om_a')
+    assert.equal(parseSentMessageId('{"data":{"message":{"message_id":"om_b"}}}'), 'om_b')
+    assert.equal(parseSentMessageId('{"message_id":"om_c"}'), 'om_c')
+    assert.equal(parseSentMessageId('not-json'), null)
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -516,8 +552,21 @@ describe('buildResultCard（结果卡渲染分支行）', () => {
     assert.match(card, /分支/)
   })
   it('无 task.branch（只读任务）→ 卡片不含分支行', () => {
-    const card = buildResultCard({ config, task: { summary: 'x' }, status: 'done', result: '已完成。' })
+    const card = buildResultCard({ config, task: { summary: 'x', commandType: 'status' }, status: 'done', result: '查询完成。' })
     assert.ok(!/\*\*分支\*\*/.test(card))
+    assert.match(card, /查询成功/)
+  })
+
+  it('待确认卡展示任务 ID、轮次和两种续跑入口', () => {
+    const card = buildWaitingCard({
+      config,
+      task: { id: 'rec1234', summary: '缺接口口径', waitRound: 2 },
+      status: 'waiting_confirmation',
+      result: '需确认全部账户含义。',
+    })
+    assert.match(card, /rec1234/)
+    assert.match(card, /第 2 轮/)
+    assert.match(card, /继续任务 rec1234/)
   })
 })
 
@@ -816,8 +865,10 @@ describe('handleStatusUpdate 的 parkedAt 锚点', () => {
     await handleStatusUpdate({ config: parkedConfig, store, id: 't', status: 'blocked', result: 'x' })
     const first = store.get('t').parkedAt
     assert.ok(first, '进入 blocked 应打上 parkedAt')
+    assert.equal(store.get('t').waitRound, 1)
     await handleStatusUpdate({ config: parkedConfig, store, id: 't', status: 'blocked', result: 'x' })
     assert.equal(store.get('t').parkedAt, first, '同态重复回写不得重置挂起时长')
+    assert.equal(store.get('t').waitRound, 1, '同态幂等回写不得增加等待轮次')
     await handleStatusUpdate({ config: parkedConfig, store, id: 't', status: 'running' })
     assert.equal(store.get('t').parkedAt, null, '离开挂起态应清掉锚点')
   })

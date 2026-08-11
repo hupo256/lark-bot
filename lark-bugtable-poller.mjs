@@ -26,6 +26,7 @@ import {
   buildBugStatusFilter,
   classifyBugPollAction,
   parseColumnarRecords,
+  readBugCommandType,
   readProjectId,
   readStatusText,
 } from './lib/lark-bugtable-parse.mjs'
@@ -97,7 +98,7 @@ const fetchPendingRecords = async ({ bug }) => {
   return all
 }
 
-const enqueueTask = async ({ client, record, bug, chatId, reopen = false }) => {
+const enqueueTask = async ({ client, record, bug, chatId, operator, reopen = false }) => {
   // 校验项目号：只把合法 PR-#### / PM-#### 传给 gateway；异常单元格（如 ../../x）不作为 project，
   // 交由 worker 走 adhoc 临时 worktree，避免污染路径/分支名。
   const rawProject = readProjectId({ fields: record.fields || {}, bug })
@@ -108,6 +109,8 @@ const enqueueTask = async ({ client, record, bug, chatId, reopen = false }) => {
     recordId: record.record_id,
     project,
     chatId,
+    operator,
+    commandType: readBugCommandType({ fields: record.fields || {}, bug }),
     text: buildBugText({ record, bug }),
   }
   if (reopen) await client.reopenTask(record.record_id, body)
@@ -174,13 +177,13 @@ const runOnce = async ({ config, seen, client }) => {
       continue
     }
     if (disposition === 'reopen') {
-      await enqueueTask({ client, record, bug, chatId: resolveNotifyChatId(config), reopen: true })
+      await enqueueTask({ client, record, bug, chatId: resolveNotifyChatId(config), operator: myOpenId, reopen: true })
       reopened += 1
       console.log(`[bugtable-poller] reopened QA-returned ${id}`)
       continue
     }
     // 全新记录 → 入队
-    await enqueueTask({ client, record, bug, chatId: resolveNotifyChatId(config) })
+    await enqueueTask({ client, record, bug, chatId: resolveNotifyChatId(config), operator: myOpenId })
     enqueued += 1
     console.log(`[bugtable-poller] enqueued ${id}`)
   }

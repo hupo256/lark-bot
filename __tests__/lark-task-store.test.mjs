@@ -248,7 +248,7 @@ describe('createTaskStore', () => {
 
   it('resumeWithSupplement 续 waiting_confirmation：append 补料、复用同 id、回 queued、bump epoch', () => {
     const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
-    store.upsert({ id: 'w', status: 'waiting_confirmation', text: '修复：hover tips', epoch: 2, attachments: [{ type: 'image', localPath: '/a.png' }], createdAt: '2026-01-01T00:00:00Z' })
+    store.upsert({ id: 'w', status: 'waiting_confirmation', text: '修复：hover tips', result: '缺 tips 文案', owner: '产品', waitRound: 2, epoch: 2, attachments: [{ type: 'image', localPath: '/a.png' }], createdAt: '2026-01-01T00:00:00Z' })
     const resumed = store.resumeWithSupplement({ id: 'w', supplementText: 'tips 文案：请稍候', supplementAttachments: [{ type: 'image', localPath: '/b.png' }] })
     assert.equal(resumed.id, 'w') // 复用原任务 → resolveWorkContext 会算出同一分支/worktree
     assert.equal(resumed.status, 'queued')
@@ -258,7 +258,33 @@ describe('createTaskStore', () => {
     assert.match(resumed.text, /修复：hover tips/)
     assert.match(resumed.text, /【补料】\ntips 文案：请稍候/)
     assert.equal(resumed.attachments.length, 2)
+    assert.equal(resumed.result, null)
+    assert.equal(resumed.owner, null)
+    assert.deepEqual(resumed.waitingHistory[0], {
+      round: 2,
+      epoch: 2,
+      status: 'waiting_confirmation',
+      result: '缺 tips 文案',
+      owner: '产品',
+      resumedAt: resumed.waitingHistory[0].resumedAt,
+    })
     assert.equal(store.claimNext().id, 'w') // 真的回到 pending
+  })
+
+  it('机器人回执 message_id 可持久关联原任务，重启后仍可反查', () => {
+    const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+    store.upsert({ id: 'w-card', status: 'waiting_confirmation', createdAt: '2026-01-01T00:00:00Z' })
+    store.recordReceipt('w-card', { messageId: 'om_waiting_card', kind: 'waiting_confirmation' })
+    assert.equal(store.findByReceiptMessageId('om_waiting_card').id, 'w-card')
+    const restored = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+    assert.equal(restored.findByReceiptMessageId('om_waiting_card').id, 'w-card')
+  })
+
+  it('空回复不触发无意义续跑', () => {
+    const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+    store.upsert({ id: 'w-empty', status: 'waiting_confirmation', createdAt: '2026-01-01T00:00:00Z' })
+    assert.equal(store.resumeWithSupplement({ id: 'w-empty' }), null)
+    assert.equal(store.get('w-empty').status, 'waiting_confirmation')
   })
 
   it('resumeWithSupplement 对非 waiting/blocked（done/failed/running）返回 null', () => {

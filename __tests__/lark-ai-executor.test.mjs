@@ -352,6 +352,27 @@ describe('risk-based validation policy', () => {
     assert.equal(shouldSyncProjectDocs(externalTask), true)
     assert.equal(shouldSyncProjectDocs({ source: 'lark', commandType: 'docs' }), true)
   })
+
+  it('状态查询不运行写式文档同步，Prompt 明确零改动成功', () => {
+    const task = {
+      id: 'status-1',
+      source: 'lark-bugtable',
+      commandType: 'status',
+      text: '状态：这个项目现在的状态是？',
+      attachments: [],
+    }
+    assert.equal(shouldSyncProjectDocs(task), false)
+    const prompt = buildTaskPrompt(
+      { projectId: 'PR-01947', projectName: '跟单设置', projectDocs: [], cwd: '/tmp/repo' },
+      task,
+      'codex',
+      { ruleContext: { scenario: 'g4_coding_worktree', sources: [], text: '只读规则。' } },
+    )
+    assert.match(prompt, /本任务是只读状态查询/)
+    assert.match(prompt, /changedFiles 必须为 \[\]/)
+    assert.match(prompt, /无代码改动是正确结果/)
+    assert.doesNotMatch(prompt, /编码规范（改任何代码前必做/)
+  })
 })
 
 describe('Gateway transient retry', () => {
@@ -394,6 +415,12 @@ describe('structured result and cards', () => {
     // 验证/文件等实现细节不上群卡
     assert.doesNotMatch(text, /button.test.tsx 通过/)
     assert.doesNotMatch(text, /文件：/)
+  })
+
+  it('只读状态查询使用“查询完成”结论，不显示待发布', () => {
+    const text = formatStructuredAiResult({ ...result, changedFiles: [] }, 'claude', { readOnly: true })
+    assert.match(text, /^查询完成。/)
+    assert.doesNotMatch(text, /待发布/)
   })
 
   it('实现完成但 Playwright 环境不可用时映射为 done，并在群卡保留验证提醒', () => {
