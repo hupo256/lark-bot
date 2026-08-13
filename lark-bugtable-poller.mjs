@@ -35,7 +35,7 @@ import {
 // 测试与既有调用方沿用从本文件导入 classifyBugTaskStatus（实现已下沉到 lib/）。
 export { classifyBugTaskStatus } from './lib/lark-bugtable-parse.mjs'
 
-const defaultPollMs = Number(process.env.LARK_BUGTABLE_POLL_MS || 90000)
+const defaultPollMs = Number(process.env.LARK_BUGTABLE_POLL_MS || 60000)
 // 空闲自动收工：连续这么久没有新 bug 就自动退出，忘了 poll-off 也无害（默认 4h）
 const defaultIdleOffMs = Number(process.env.LARK_BUGTABLE_IDLE_OFF_MS || 4 * 60 * 60 * 1000)
 // 连续失败到这个轮次就发群告警（默认 3 轮 ≈ 4.5min）：失败期间新 bug 完全捞不到，必须让人知道。
