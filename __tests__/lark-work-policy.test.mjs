@@ -64,6 +64,22 @@ describe('resolveWorkKind', () => {
     assert.equal(resolveWorkKind(asBug), WORK_KINDS.bugfix)
   })
 
+  it('自带规格的改动越过 requirement 误判：intake 判 requirement 但「改成 X」是确定性增量，仍走快车道、不被闸拦（PR-01947 回归）', () => {
+    const task = larkTask({
+      text: '这里改成 合约跟单配置(个人)',
+      intake: { classification: { decision: 'requirement', confidence: 'medium' } },
+      attachments: [{ type: 'image' }],
+    })
+    assert.equal(resolveWorkKind(task), WORK_KINDS.bugfix)
+    assert.equal(isFastLaneTask(task), true)
+    assert.equal(requirementGate(task), null)
+  })
+
+  it('但「改成 X 并新增导出功能」这类夹带创造信号的，仍回落 requirement（不放过真新需求）', () => {
+    const task = larkTask({ text: '把标题改成 X，并新增导出功能', intake: { classification: { decision: 'requirement' } } })
+    assert.equal(resolveWorkKind(task), WORK_KINDS.requirement)
+  })
+
   it('只截图无措辞 → bugfix；既无信号也无附件 → 兜底 requirement（宁可多问一句）', () => {
     assert.equal(resolveWorkKind(larkTask({ text: '看下', attachments: [{ type: 'image' }] })), WORK_KINDS.bugfix)
     assert.equal(resolveWorkKind(larkTask({ text: '看下这个' })), WORK_KINDS.requirement)
