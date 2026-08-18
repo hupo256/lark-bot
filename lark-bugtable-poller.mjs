@@ -17,7 +17,7 @@ import { larkRuntimeDir } from './lib/lark-repo.mjs'
 import { isProjectId } from './lib/lark-project-id.mjs'
 import { loadConfig, resolveNotifyChatId } from './lib/lark-config.mjs'
 import { buildCardContent } from './lib/lark-cards.mjs'
-import { runLarkCli, sendChatMessage } from './lib/lark-cli.mjs'
+import { runLarkCli, sendChatMessage, resolveChatIdByProject } from './lib/lark-cli.mjs'
 import { createGatewayClient, sleep } from './lib/lark-gateway-client.mjs'
 import { defaultGatewayUrl } from './lib/lark-constants.mjs'
 import {
@@ -113,11 +113,15 @@ const fetchPendingRecords = async ({ bug }) => {
   return all
 }
 
-const enqueueTask = async ({ client, record, bug, chatId, operator, reopen = false }) => {
+const enqueueTask = async ({ client, record, bug, fallbackChatId, operator, reopen = false }) => {
   // 校验项目号：只把合法 PR-#### / PM-#### 传给 gateway；异常单元格（如 ../../x）不作为 project，
   // 交由 worker 走 adhoc 临时 worktree，避免污染路径/分支名。
   const rawProject = readProjectId({ fields: record.fields || {}, bug })
   const project = isProjectId(rawProject) ? rawProject.toUpperCase() : undefined
+  // bug 表跨项目路由：回执/结果卡发到 bug 所属项目自己的群（群名含 [PR-xxxxx]）；找不到项目群
+  // （bot 不在该群 / 项目号缺失）就私聊负责人（operator open_id, ou_），而不是把别的项目的 bug 卡
+  // 都涌向一个固定群。operator 也缺失时才回落到 config 的通知群（sendChatMessage 按 id 前缀择群/私聊）。
+  const chatId = (project && await resolveChatIdByProject(project)) || operator || fallbackChatId
   const body = {
     id: record.record_id,
     source: 'lark-bugtable',
@@ -192,13 +196,13 @@ const runOnce = async ({ config, seen, client }) => {
       continue
     }
     if (disposition === 'reopen') {
-      await enqueueTask({ client, record, bug, chatId: resolveNotifyChatId(config), operator: myOpenId, reopen: true })
+      await enqueueTask({ client, record, bug, fallbackChatId: resolveNotifyChatId(config), operator: myOpenId, reopen: true })
       reopened += 1
       console.log(`[bugtable-poller] reopened QA-returned ${id}`)
       continue
     }
     // 全新记录 → 入队
-    await enqueueTask({ client, record, bug, chatId: resolveNotifyChatId(config), operator: myOpenId })
+    await enqueueTask({ client, record, bug, fallbackChatId: resolveNotifyChatId(config), operator: myOpenId })
     enqueued += 1
     console.log(`[bugtable-poller] enqueued ${id}`)
   }
@@ -221,7 +225,10 @@ export async function runLarkBugtablePoller({
   const seen = createSeenStore(statePath)
   const client = createGatewayClient(gatewayUrl)
   const once = argv.includes('--once')
-  const chatId = resolveNotifyChatId(config)
+  // poller 自身的空闲/连续失败告警也私聊负责人（operator open_id），与 bug 卡兜底同源，
+  // 不再把运维通知硬发进某个项目群（config 通知群仅在 operator 缺失时兜底）。
+  const operator = config.bugTable?.myOpenId || config.taskMentionOpenIds?.[0]
+  const chatId = operator || resolveNotifyChatId(config)
   const notify = ({ kind, lines, idempotencyKey }) =>
     sendChatMessage({ chatId, card: buildCardContent({ config, kind, lines }), logPrefix: 'poller notice', idempotencyKey })
 

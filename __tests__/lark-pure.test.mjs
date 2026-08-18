@@ -26,7 +26,7 @@ import { createTaskStore } from '../lib/lark-task-store.mjs'
 import { parkedReminderRound } from '../lib/lark-parked-reminder.mjs'
 import { rotateLogIfLarge } from '../lib/lark-log-rotate.mjs'
 import { buildResultCard, buildWaitingCard } from '../lib/lark-cards.mjs'
-import { parseSentMessageId } from '../lib/lark-cli.mjs'
+import { messageSendRecipientArgs, parseSentMessageId, pickChatIdByProject } from '../lib/lark-cli.mjs'
 import {
   classifyCommandType,
   inferCommandType,
@@ -528,6 +528,46 @@ describe('Lark 回执 message_id 解析', () => {
     assert.equal(parseSentMessageId('{"data":{"message":{"message_id":"om_b"}}}'), 'om_b')
     assert.equal(parseSentMessageId('{"message_id":"om_c"}'), 'om_c')
     assert.equal(parseSentMessageId('not-json'), null)
+  })
+})
+
+// bug 表跨项目路由：按项目号反查项目群 chat_id（回执/结果卡发到对的群，而非固定通知群）
+describe('pickChatIdByProject（项目号 → 项目群反查）', () => {
+  const chats = new Map([
+    ['oc_02031', '8.26上OL [PR-02031] 管理后台支持体验金手动失效'],
+    ['oc_01947', '【8.21上线】[PR-01947]【跟单】跟单设置优化（保证金/杠杆/复制仓位）'],
+    ['oc_noise', '闲聊群'],
+  ])
+
+  it('命中项目号 → 返回该项目自己的群，不串到别的项目群', () => {
+    assert.equal(pickChatIdByProject(chats, 'PR-01947'), 'oc_01947')
+    assert.equal(pickChatIdByProject(chats, 'PR-02031'), 'oc_02031')
+  })
+
+  it('大小写归一：小写项目号也命中', () => {
+    assert.equal(pickChatIdByProject(chats, 'pr-01947'), 'oc_01947')
+  })
+
+  it('无对应项目群 / 空项目号 → 返回 ""（由调用方回落到通知群）', () => {
+    assert.equal(pickChatIdByProject(chats, 'PR-09999'), '')
+    assert.equal(pickChatIdByProject(chats, ''), '')
+    assert.equal(pickChatIdByProject(chats, undefined), '')
+  })
+})
+
+// 收信方按 id 前缀择群/私聊：ou_ 走 --user-id 私聊负责人（bug 兜底），其余 oc_ 群走 --chat-id
+describe('messageSendRecipientArgs（chat_id / open_id 择参）', () => {
+  it('ou_ 开头 → --user-id 私聊', () => {
+    assert.deepEqual(messageSendRecipientArgs('ou_91861d6da6cf6822e08045ba1868241e'), ['--user-id', 'ou_91861d6da6cf6822e08045ba1868241e'])
+  })
+
+  it('oc_ 群 → --chat-id', () => {
+    assert.deepEqual(messageSendRecipientArgs('oc_51e2bcf0ed6a772c402d6cacd43176b3'), ['--chat-id', 'oc_51e2bcf0ed6a772c402d6cacd43176b3'])
+  })
+
+  it('空/缺失 → 仍归为 --chat-id（由 sendChatMessage 的 missing 校验拦下）', () => {
+    assert.deepEqual(messageSendRecipientArgs(''), ['--chat-id', ''])
+    assert.deepEqual(messageSendRecipientArgs(undefined), ['--chat-id', ''])
   })
 })
 
