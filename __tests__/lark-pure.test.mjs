@@ -25,6 +25,7 @@ import {
 import { createTaskStore } from '../lib/lark-task-store.mjs'
 import { parkedReminderRound } from '../lib/lark-parked-reminder.mjs'
 import { rotateLogIfLarge } from '../lib/lark-log-rotate.mjs'
+import { sweepAttachments } from '../lib/lark-retention.mjs'
 import { buildResultCard, buildWaitingCard } from '../lib/lark-cards.mjs'
 import { messageSendRecipientArgs, parseSentMessageId, pickChatIdByProject } from '../lib/lark-cli.mjs'
 import {
@@ -1114,5 +1115,43 @@ describe('rotateLogIfLarge（launchd 日志轮转）', () => {
     assert.equal(rotateLogIfLarge({ file, maxBytes: 0, keep: 1 }), false)
     assert.equal(rotateLogIfLarge({ file: join(dir, 'nope.log'), maxBytes: 1, keep: 1 }), false)
     rmSync(dir, { recursive: true, force: true })
+  })
+})
+
+// sweepAttachments：按目录 mtime TTL 清理各项目 lark-attachments，天然连孤儿一起回收
+describe('sweepAttachments（附件保留期清扫）', () => {
+  const mkAttach = (prdsRoot, project, msgId, ageMs, now) => {
+    const dir = join(prdsRoot, project, 'agent/lark-attachments', msgId)
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, '1.img'), 'x')
+    const t = (now - ageMs) / 1000
+    utimesSync(dir, t, t)
+    return dir
+  }
+
+  it('只删 mtime 超过保留期的 <msgId> 目录，保留期内的不动', () => {
+    const now = 1_000_000_000_000
+    const prdsRoot = mkdtempSync(join(tmpdir(), 'lark-retention-'))
+    const maxAgeMs = 7 * 24 * 3600000
+    const oldDir = mkAttach(prdsRoot, 'PR-00001', 'om_old', maxAgeMs + 3600000, now) // 超期
+    const freshDir = mkAttach(prdsRoot, 'PR-00001', 'om_fresh', 3600000, now) // 1h 前，保留
+    const orphanDir = mkAttach(prdsRoot, 'PR-00002', 'om_orphan', maxAgeMs * 2, now) // 别的项目的孤儿，超期
+
+    const { removed, freedDirs } = sweepAttachments({ prdsRoot, maxAgeMs, now })
+    assert.equal(removed, 2)
+    assert.equal(existsSync(oldDir), false)
+    assert.equal(existsSync(orphanDir), false)
+    assert.equal(existsSync(freshDir), true, '保留期内的附件不应被删')
+    assert.ok(freedDirs.includes(oldDir) && freedDirs.includes(orphanDir))
+    rmSync(prdsRoot, { recursive: true, force: true })
+  })
+
+  it('根不存在 / maxAgeMs<=0 时安全返回 0，不误删', () => {
+    assert.deepEqual(sweepAttachments({ prdsRoot: '/no/such/root', maxAgeMs: 1000 }), { removed: 0, freedDirs: [] })
+    const prdsRoot = mkdtempSync(join(tmpdir(), 'lark-retention-'))
+    const dir = mkAttach(prdsRoot, 'PR-00001', 'om_x', 999 * 24 * 3600000, 1_000_000_000_000)
+    assert.equal(sweepAttachments({ prdsRoot, maxAgeMs: 0, now: 1_000_000_000_000 }).removed, 0)
+    assert.equal(existsSync(dir), true, 'maxAgeMs=0（关闭）不得删任何东西')
+    rmSync(prdsRoot, { recursive: true, force: true })
   })
 })

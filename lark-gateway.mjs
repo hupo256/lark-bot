@@ -29,6 +29,7 @@ import { ingestLarkEvent } from './lib/lark-ingest.mjs'
 import { retryPendingWriteback } from './lib/lark-bugtable-writeback.mjs'
 import { remindParkedTasks } from './lib/lark-parked-reminder.mjs'
 import { startLogRotation } from './lib/lark-log-rotate.mjs'
+import { prdsRootDir, sweepAttachments } from './lib/lark-retention.mjs'
 import { createRequestHandler } from './lib/lark-routes.mjs'
 import { createRuntimeVersion } from './lib/lark-runtime-version.mjs'
 import { GATEWAY_HOST, defaultGatewayPort, defaultTaskLeaseMs } from './lib/lark-constants.mjs'
@@ -89,16 +90,32 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
     console.log(`[lark-gateway] code=${runtimeVersion.codeHash} startedAt=${runtimeVersion.startedAt}（health.version 会在磁盘代码变更后报 codeStale）`)
   })
 
-  // 定期清理陈旧 done / 静默 intake 终态，防止 /lark/health 计数单调增长（failed 保留待人工 retry/clear）。
+  // 定期清理陈旧终态任务，防止 /lark/health 计数单调增长（failed 保留待人工 retry/clear）。
+  // no_change_needed / done_with_warnings 同属「已了结」终态，一并纳入（否则会永久残留、催办残影）。
   const pruneDoneAfterMs = Number(config.pruneDoneAfterHours ?? 24) * 3600000
   const pruneTimer = setInterval(() => {
     const removed = store.pruneTerminal({
       olderThanMs: pruneDoneAfterMs,
-      statuses: ['done', 'ignored', 'intake_failed'],
+      statuses: ['done', 'done_with_warnings', 'no_change_needed', 'ignored', 'intake_failed'],
     })
-    if (removed.length) console.log(`[lark-gateway] 清理陈旧 done 任务 ${removed.length} 条`)
+    if (removed.length) console.log(`[lark-gateway] 清理陈旧终态任务 ${removed.length} 条`)
   }, 60 * 60 * 1000)
   pruneTimer.unref?.()
+
+  // 附件保留期清扫：lark-attachments 此前无任何清理会单调膨胀（含任务 prune 后的孤儿图片）。
+  // 按目录 mtime TTL 清，每小时一次 + 启动即扫一次，默认保留 7 天（config.attachmentRetentionDays 可调）。
+  const attachmentMaxAgeMs = Number(config.attachmentRetentionDays ?? 7) * 24 * 3600000
+  const sweepAttachmentsOnce = () => {
+    try {
+      const { removed } = sweepAttachments({ prdsRoot: prdsRootDir(), maxAgeMs: attachmentMaxAgeMs })
+      if (removed) console.log(`[lark-gateway] 清理过期附件目录 ${removed} 个（保留期 ${attachmentMaxAgeMs / 86400000} 天）`)
+    } catch (error) {
+      console.error(`[lark-gateway] 附件清扫异常：${String(error).slice(0, 120)}`)
+    }
+  }
+  sweepAttachmentsOnce()
+  const sweepTimer = setInterval(sweepAttachmentsOnce, 60 * 60 * 1000)
+  sweepTimer.unref?.()
 
   // 回写重试：done_pending_writeback 的 bug 任务每 5min 重试回写，成功即落地 done。
   const writebackTimer = setInterval(() => {
@@ -123,6 +140,7 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
 
   const shutdown = () => {
     clearInterval(pruneTimer)
+    clearInterval(sweepTimer)
     clearInterval(writebackTimer)
     clearInterval(parkedTimer)
     if (logTimer) clearInterval(logTimer)
