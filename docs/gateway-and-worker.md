@@ -12,7 +12,7 @@ Lark 事件订阅 im.message.receive_v1
   ↓
 Bot Gateway 校验、解析、幂等入队
   ↓
-Codex / Cursor Worker 领取任务
+Codex / Claude Worker 领取任务
   ↓
 读取 docs_tdd 与当前项目代码
   ↓
@@ -23,10 +23,8 @@ Codex / Cursor Worker 领取任务
 
 ## 2. Bot Gateway 要求
 
-Bot Gateway 是独立服务，不放进 `apps/web` 运行时。它负责：
+Bot Gateway 是独立的本机常驻服务，不放进 `apps/web` 运行时。当前由 `lark-cli event consume im.message.receive_v1` 长连接接收事件，不需要公网 tunnel 或自建 challenge / 验签端点。它负责：
 
-- 处理 Lark challenge。
-- 校验签名、encrypt key、verification token。
 - 只接受白名单群和白名单用户。信任边界是**白名单群**：群内 QA / PM / 后台 @ 都能触发，群消息只按群放行、不按发送人过滤；p2p 直发才按白名单用户放行。**推荐动态成员制 `allowedChatIds:"auto"`**：白名单 = bot 当前所在的群（`im +chat-list`），新群拉进去即时响应、无需改配置或重启（未知 chat 首次 @ 自动刷新再判）。**fail-closed 硬规则**：完全没配任何白名单（`allowedChatIds` 非 `"auto"` 且群 + 用户皆空）时拒绝所有事件，绝不因配置漏填而放行所有人。
 - 群内 `@应用` / `@所有人` 保持直接入队；仅 `@taskMentionOpenIds` 中负责人的消息先走严格只读意图分类，只有中高置信度的 bug / 明确需求才正式入队，其余静默忽略。普通群聊永远不调用 AI。
 - `@负责人` 代理触发依赖 Lark 应用的“获取群组中所有消息”只读权限（申请项为 `im:message.group_msg:readonly`；当前应用 scope API 展示 tenant `im:message:readonly`）及 `im.message.receive_v1` 事件订阅；未获该权限时 Lark 不会投递未 @bot 的群消息，代码侧无法补救。
@@ -35,12 +33,12 @@ Bot Gateway 是独立服务，不放进 `apps/web` 运行时。它负责：
 - 将消息解析为 Job，写入任务队列。
 - 提供任务领取、任务状态回写和群通知能力。
 
-图片读取要求：
+上下文与图片读取要求：
 
-- 自定义机器人 `webhookUrl/secret` 只能发群消息，不能读取 Lark 消息里的图片内容。
-- 需要读取群消息图片时，项目配置或 Gateway 环境必须提供 Lark 应用凭证：`appSecret` 或 `LARK_APP_SECRET` 必填；`appId` / `LARK_APP_ID` 可选，真实 Lark 事件 header 里有 `app_id` 时可自动使用。
-- Gateway 收到 post 图片后必须用应用凭证换取 `tenant_access_token`，再按 `image_key` 下载图片，保存到 `<PROJECT-ID>/agent/lark-attachments/<messageId>/`，并把 `localPath` 写入 task。
-- 若缺少应用凭证，task 必须保留 `imageKey/width/height/downloadError`，失败原因应写成图片读取凭证缺失，不能写成任务信息不足。
+- 收发消息、读取话题和下载图片统一使用 `lark-cli` 已登录的 bot 身份（keychain）；自定义机器人 `webhookUrl/secret` 只能作为发消息通道，不能读取上下文或图片。
+- 当 @ 消息位于话题内，Gateway 会合并被引用消息和同话题其他真人回复，并下载父消息、当前消息及兄弟回复中的图片；机器人卡片不回灌给 AI。读取话题需群消息历史权限。
+- 图片按实际任务项目保存到 `<PROJECT-ID>/agent/lark-attachments/<messageId>/`，`localPath` 写入 task；下载失败时保留 `imageKey/width/height/downloadError`，明确报告技术原因，不泛化成“任务信息不足”。
+- 附件目录默认保留 7 天，Gateway 启动时及此后每小时按目录 mtime 清扫；可用 `attachmentRetentionDays` 调整。
 
 ## 3. 推荐命令类型
 
@@ -93,10 +91,10 @@ Job 至少包含：
 
 ## 5. Worker 执行规则
 
-Codex / Cursor Worker 领取任务后：
+Codex / Claude Worker 领取任务后：
 
-1. 先读取 `apps/web/docs_tdd/AGENTS.md`、`CONTEXT.md`、`common/README.md` 和当前项目文档。
-2. 按命令类型决定只改文档、改代码、跑自测或输出差异。
+1. 先读取 `apps/web/docs_tdd/AGENTS.md`、`CONTEXT.md`、`common/README.md` 和当前项目文档；项目输入至少包含 `product/00-feature-inventory.md`、`product/04-frontend-tasks.md`、`agent/lark-integration.md`、`agent/README.md` 中实际存在的文件，其中 `00` 是 scope 裁决真值源。
+2. 按命令类型决定只改文档、改代码、跑自测或输出差异；任务正文含 Figma 链接时，非只读任务先用 `figma-spec.mjs` 把规格落到本轮审计目录并注入 prompt。
 3. 改代码前先更新必要文档或任务说明。
 4. 代码变更后运行触达文件 Biome。
 5. UI / 交互变更后验证桌面、390px H5、dark / light。

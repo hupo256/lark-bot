@@ -8,6 +8,6 @@
 
 | 文档 | 内容 |
 |------|------|
-| [gateway-and-worker.md](./gateway-and-worker.md) | 基础链路、Bot Gateway 要求、命令类型、Job 字段、Worker 执行规则、项目级配置要求 |
-| [task-boundaries-and-reply.md](./task-boundaries-and-reply.md) | Task 生命周期、解析规则、自动执行 / 必须确认边界、完成后汇报、回复策略、阻塞超时 |
-| [runtime-and-scheduling.md](./runtime-and-scheduling.md) | 当前实现（lark-cli 长连接）、bug 表跨项目路由与按需轮询、Worker 按 worktree 并行调度 |
+| [gateway-and-worker.md](./gateway-and-worker.md) | lark-cli 长连接接入、命令与 Job、项目 scope 文档注入、执行器与审计 |
+| [task-boundaries-and-reply.md](./task-boundaries-and-reply.md) | 生命周期、话题文字/图片上下文、自动执行 / 确认边界、Figma 预取与回复策略 |
+| [runtime-and-scheduling.md](./runtime-and-scheduling.md) | 长连接健壮性、规则链告警、附件保留期、bug 表项目群路由与按 worktree 并行调度 |
