@@ -43,7 +43,7 @@ import {
 } from '../lib/lark-message.mjs'
 import { isProjectId, matchProjectId } from '../lib/lark-project-id.mjs'
 import { allRuleRefs, buildFocusedRuleContext, classifyLarkTask, extractMarkdownSection } from '../lib/lark-rule-context.mjs'
-import { assessDoneResult, crossCheckChangedFiles, detectChangeTier, splitViolations } from '../lib/lark-quality-gate.mjs'
+import { assessDoneResult, crossCheckChangedFiles, detectChangeTier, figmaEvidenceInAudit, splitViolations, taskReferencesFigma } from '../lib/lark-quality-gate.mjs'
 import { pruneStaleAudits } from '../lib/lark-worker-audit.mjs'
 import { classifyWorkerFailure } from '../lib/lark-worker-results.mjs'
 import { resolveWorkContext, safeProject, tempWorktreeContextFor } from '../lib/lark-work-context.mjs'
@@ -786,6 +786,60 @@ describe('assessDoneResult（done 可信度评估）', () => {
     })
     assert.equal(a.trustworthy, true)
     assert.ok(a.notes.some((n) => /漏报/.test(n) && /b\.tsx/.test(n)))
+  })
+  it('引用 Figma 但审计无 figma 痕迹 → 不可信（疑似截图代打卡，降级人工）', () => {
+    const a = assessDoneResult({
+      reportedChangedFiles: ['a.tsx'],
+      actualChangedFiles: ['a.tsx'],
+      checks: [],
+      referencesFigma: true,
+      figmaOpened: false,
+    })
+    assert.equal(a.trustworthy, false)
+    assert.ok(a.notes.some((n) => /figma MCP 调用痕迹/i.test(n)))
+  })
+  it('引用 Figma 且已见 figma 痕迹 → 可信、无 figma note', () => {
+    const a = assessDoneResult({
+      reportedChangedFiles: ['a.tsx'],
+      actualChangedFiles: ['a.tsx'],
+      checks: [],
+      referencesFigma: true,
+      figmaOpened: true,
+    })
+    assert.equal(a.trustworthy, true)
+    assert.ok(!a.notes.some((n) => /figma/i.test(n)))
+  })
+})
+
+describe('taskReferencesFigma（任务是否引用设计稿）', () => {
+  it('命中 figma.com design/file/proto 链接', () => {
+    assert.equal(taskReferencesFigma('看这个 https://www.figma.com/design/abc/x?node-id=1-2'), true)
+    assert.equal(taskReferencesFigma('https://figma.com/file/xyz'), true)
+    assert.equal(taskReferencesFigma('https://www.figma.com/proto/pp'), true)
+  })
+  it('无 figma 链接返回 false（空/普通文本）', () => {
+    assert.equal(taskReferencesFigma('修一下登录按钮颜色'), false)
+    assert.equal(taskReferencesFigma(''), false)
+    assert.equal(taskReferencesFigma(null), false)
+  })
+})
+
+describe('figmaEvidenceInAudit（审计日志里有无 figma MCP 调用痕迹）', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'figma-audit-'))
+  it('审计含 mcp__figma__ 工具调用 → true', () => {
+    const p = join(dir, 'hit.log')
+    writeFileSync(p, '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"mcp__figma__get_metadata"}]}}\n')
+    assert.equal(figmaEvidenceInAudit(p), true)
+  })
+  it('审计无 figma 痕迹（只有普通工具）→ false', () => {
+    const p = join(dir, 'miss.log')
+    writeFileSync(p, '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read"}]}}\n完成。\n')
+    assert.equal(figmaEvidenceInAudit(p), false)
+  })
+  it('文件不存在 / 路径为空 → false（缺证据按未核验，不误判可信）', () => {
+    assert.equal(figmaEvidenceInAudit(join(dir, 'nope.log')), false)
+    assert.equal(figmaEvidenceInAudit(''), false)
+    assert.equal(figmaEvidenceInAudit(null), false)
   })
 })
 

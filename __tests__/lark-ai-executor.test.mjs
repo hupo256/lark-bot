@@ -90,9 +90,18 @@ describe('Codex non-interactive command', () => {
     assert.equal(command.args.includes('--dangerously-bypass-approvals-and-sandbox'), false)
   })
 
-  it('Claude 保持现有无人值守参数，并与 codex 同构走结构化结果', () => {
+  it('Claude 保持现有无人值守参数，挂载 figma MCP + stream-json 捕获工具痕迹，并与 codex 同构走结构化结果', () => {
     const command = buildAiExecutorCommand({ executor: 'claude', promptText: 'fix it', cwd: '/tmp/repo' })
-    assert.deepEqual(command.args, ['-p', '--dangerously-skip-permissions', 'fix it'])
+    assert.ok(command.args.includes('-p'))
+    assert.ok(command.args.includes('--dangerously-skip-permissions'))
+    // stream-json 捕获 tool_use / MCP 调用（print 模式下强制配 --verbose）
+    assert.deepEqual(command.args.slice(command.args.indexOf('--output-format'), command.args.indexOf('--output-format') + 2), ['--output-format', 'stream-json'])
+    assert.ok(command.args.includes('--verbose'))
+    // figma MCP 挂载，供 mcp__figma__ 痕迹核验；--strict-mcp-config 只挂本配置
+    assert.match(command.args[command.args.indexOf('--mcp-config') + 1], /figma-mcp\.json$/)
+    assert.ok(command.args.includes('--strict-mcp-config'))
+    // prompt 仍是最后一个位置参数
+    assert.equal(command.args.at(-1), 'fix it')
     assert.equal(command.resultMode, 'structured')
   })
 
