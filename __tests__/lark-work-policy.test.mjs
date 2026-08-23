@@ -51,6 +51,22 @@ describe('resolveWorkKind', () => {
     assert.equal(isFastLaneTask(task), true)
   })
 
+  it('位置/命名/列增删这类自带规格的改动也走快车道（D3.1 补词表前会被兜底成 requirement 退回补 PRD）', () => {
+    for (const text of [
+      '把「合约跟单」重命名为「跟单合约」',
+      '这个筛选项移到搜索框右边',
+      '列表默认按创建时间排序',
+      '把这条置顶',
+      '表格加一列「结算币种」',
+      '订单详情补字段：手续费',
+    ]) {
+      const task = larkTask({ text })
+      assert.equal(resolveWorkKind(task), WORK_KINDS.bugfix, text)
+      assert.equal(isFastLaneTask(task), true, text)
+      assert.equal(requirementGate(task), null, text)
+    }
+  })
+
   it('bug 表来源恒为 QA 反馈，不看正文措辞（QA 单里写「新增校验」也不该被拦）', () => {
     const task = { id: 'rec1', source: 'lark-bugtable', commandType: 'fix', text: '需要新增一个校验功能' }
     assert.equal(resolveWorkKind(task), WORK_KINDS.qaFeedback)

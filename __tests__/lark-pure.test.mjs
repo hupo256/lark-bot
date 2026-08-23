@@ -22,6 +22,7 @@ import {
   readBugCommandType,
   readStatusText,
 } from '../lib/lark-bugtable-parse.mjs'
+import { resolveWritebackOutcome } from '../lib/lark-bugtable-writeback.mjs'
 import { createTaskStore } from '../lib/lark-task-store.mjs'
 import { parkedReminderRound } from '../lib/lark-parked-reminder.mjs'
 import { rotateLogIfLarge } from '../lib/lark-log-rotate.mjs'
@@ -41,7 +42,7 @@ import {
   resolveCommandType,
   resolveMessageTrigger,
 } from '../lib/lark-message.mjs'
-import { isProjectId, matchProjectId } from '../lib/lark-project-id.mjs'
+import { isProjectId, matchProjectId, matchProjectIds } from '../lib/lark-project-id.mjs'
 import { allRuleRefs, buildFocusedRuleContext, classifyLarkTask, extractMarkdownSection } from '../lib/lark-rule-context.mjs'
 import { assessDoneResult, crossCheckChangedFiles, detectChangeTier, splitViolations } from '../lib/lark-quality-gate.mjs'
 import { pruneStaleAudits } from '../lib/lark-worker-audit.mjs'
@@ -149,6 +150,17 @@ describe('bug table task status', () => {
   })
   it('no_change_needed → no-change 终局，不重入队也不落 seen（转后端待人工重派）', () => {
     assert.equal(classifyBugTaskStatus('no_change_needed'), 'no-change')
+  })
+
+  it('回写重试的三个出口：成功落 done，未到上限继续重试，到上限停在 done_pending_writeback（不伪装成完成）', () => {
+    assert.deepEqual(resolveWritebackOutcome({ ok: true, attempts: 5 }), { status: 'done', attempts: 0, gaveUp: false, retry: false })
+    assert.deepEqual(resolveWritebackOutcome({ ok: false, attempts: 0, max: 3 }), {
+      status: 'done_pending_writeback', attempts: 1, gaveUp: false, retry: true,
+    })
+    // 到上限：状态**仍是中间态**——落 done 会让「群里说完成、bug 表还挂着待处理」这条不一致被 prune 抹掉
+    assert.deepEqual(resolveWritebackOutcome({ ok: false, attempts: 2, max: 3 }), {
+      status: 'done_pending_writeback', attempts: 3, gaveUp: true, retry: false,
+    })
   })
 
   it('同时查询待处理与验退；未配置验退值时保持单状态过滤', () => {
@@ -522,11 +534,15 @@ describe('resolveResumeTarget', () => {
     assert.equal(resolveResumeTarget({ msg: { replyToDirect: 'd', replyTo: 'd' }, store: makeStore({ byId: { d: done } }) }), null)
   })
 
-  it('仅有线程根 root_id（无 reply_to）：只在命中回执且仍待确认/阻塞时锚定，绝不 store.get 任意消息', () => {
-    // root_id 命中一条无关任务消息 → 不锚定（防误命中）
-    assert.equal(resolveResumeTarget({ msg: { replyTo: 'w' }, store: makeStore({ byId: { w: parked } }) }), null)
+  it('仅有线程根 root_id（无 reply_to）：命中回执或原任务消息且仍待确认/阻塞才锚定', () => {
     // root_id 命中待确认回执 → 锚定
     assert.equal(resolveResumeTarget({ msg: { replyTo: 'root' }, store: makeStore({ byReceipt: { root: parked } }) }).task, parked)
+    // root_id 就是原任务消息本身且任务仍卡着（话题内直接发补料，Lark 不带 reply_to）→ 锚定，不建孤儿任务
+    assert.equal(resolveResumeTarget({ msg: { replyTo: 'w' }, store: makeStore({ byId: { w: parked } }) }).task, parked)
+    // 话题根是一条已完成的任务 → 视作线程内新请求，不劫持
+    assert.equal(resolveResumeTarget({ msg: { replyTo: 'd' }, store: makeStore({ byId: { d: done } }) }), null)
+    // root_id 不对应任何任务 → 不锚定
+    assert.equal(resolveResumeTarget({ msg: { replyTo: 'om_other' }, store: makeStore({ byId: { w: parked } }) }), null)
   })
 
   it('无任何续跑信号 → null（普通新任务）', () => {
@@ -632,6 +648,20 @@ describe('matchProjectId（自由文本提取）', () => {
     assert.equal(matchProjectId('没有项目号'), null)
     assert.equal(matchProjectId(''), null)
     assert.equal(matchProjectId(null), null)
+  })
+})
+
+describe('matchProjectIds（全部项目号，用于判「正文是否明确指向唯一项目」）', () => {
+  it('去重 + 大写归一 + 保持出现顺序', () => {
+    assert.deepEqual(matchProjectIds('pr-01947 与 PM-1469 都提到过 PR-01947'), ['PR-01947', 'PM-1469'])
+  })
+  it('恰好一个 → 正文可作权威来源；多个 → 视为引用，调用方回落群名', () => {
+    assert.deepEqual(matchProjectIds('PR-02306 这个页面报错'), ['PR-02306'])
+    assert.equal(matchProjectIds('参考 PR-01947 的做法改 PR-02306').length, 2)
+  })
+  it('无项目号 / 空输入 → 空数组（不抛错）', () => {
+    assert.deepEqual(matchProjectIds('没有项目号'), [])
+    assert.deepEqual(matchProjectIds(null), [])
   })
 })
 

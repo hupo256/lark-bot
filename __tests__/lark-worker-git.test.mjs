@@ -154,22 +154,44 @@ describe('finalizeTempWorktree（ok=false 即「改动没落盘」，调用方�
   })
 })
 
-describe('finalizeExistingWorktree（命中已有 worktree 的收尾提交）', () => {
-  it('有改动 → 提交到当前分支', () => {
+describe('finalizeExistingWorktree（命中已有 worktree 的定向收尾提交）', () => {
+  it('改动在本任务实测清单内 → 提交到当前分支', () => {
     writeFileSync(join(wtPath(), 'fix.txt'), 'fixed\n')
-    const outcome = finalizeExistingWorktree({ cwd: wtPath(), task })
+    const outcome = finalizeExistingWorktree({ cwd: wtPath(), task, taskPaths: ['fix.txt'] })
     assert.deepEqual({ ok: outcome.ok, committed: outcome.committed }, { ok: true, committed: true })
     assert.equal(run(wtPath(), ['status', '--porcelain']), '')
   })
 
+  it('任务执行期间新出现的改动不进提交，且在 unexpected 里显形', () => {
+    writeFileSync(join(wtPath(), 'bot.txt'), 'bot\n')
+    writeFileSync(join(wtPath(), 'human-wip.txt'), 'human\n')
+    const outcome = finalizeExistingWorktree({ cwd: wtPath(), task, taskPaths: ['bot.txt'] })
+    assert.deepEqual({ ok: outcome.ok, committed: outcome.committed }, { ok: true, committed: true })
+    assert.deepEqual(outcome.unexpected, ['human-wip.txt'])
+    assert.match(run(wtPath(), ['show', '--stat', '--name-only', 'HEAD']), /bot\.txt/)
+    assert.doesNotMatch(run(wtPath(), ['show', '--name-only', 'HEAD']), /human-wip\.txt/, '人类 WIP 绝不能被提交')
+    assert.match(run(wtPath(), ['status', '--porcelain']), /human-wip\.txt/, 'WIP 应原样留在工作区')
+    rmSync(join(wtPath(), 'human-wip.txt'), { force: true })
+    run(wtPath(), ['reset'])
+  })
+
+  it('实测清单为空（无从证明哪些是本任务的）→ 一个都不提交且 ok=false', () => {
+    writeFileSync(join(wtPath(), 'unknown.txt'), 'x\n')
+    const outcome = finalizeExistingWorktree({ cwd: wtPath(), task, taskPaths: [] })
+    assert.deepEqual({ ok: outcome.ok, committed: outcome.committed }, { ok: false, committed: false })
+    assert.match(run(wtPath(), ['status', '--porcelain']), /unknown\.txt/)
+    rmSync(join(wtPath(), 'unknown.txt'), { force: true })
+    run(wtPath(), ['reset'])
+  })
+
   it('无改动 → 不提交，ok=true', () => {
-    const outcome = finalizeExistingWorktree({ cwd: wtPath(), task })
+    const outcome = finalizeExistingWorktree({ cwd: wtPath(), task, taskPaths: ['fix.txt'] })
     assert.deepEqual({ ok: outcome.ok, committed: outcome.committed }, { ok: true, committed: false })
   })
 
   it('git 状态读不出来 → ok=false（调用方据此不报完成）', () => {
     const alien = mkdtempSync(join(tmpdir(), 'lark-alien-'))
-    const outcome = finalizeExistingWorktree({ cwd: alien, task })
+    const outcome = finalizeExistingWorktree({ cwd: alien, task, taskPaths: ['fix.txt'] })
     assert.equal(outcome.ok, false)
     rmSync(alien, { recursive: true, force: true })
   })
