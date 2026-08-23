@@ -45,6 +45,7 @@ import {
 import { isProjectId, matchProjectId, matchProjectIds } from '../lib/lark-project-id.mjs'
 import { allRuleRefs, buildFocusedRuleContext, classifyLarkTask, extractMarkdownSection } from '../lib/lark-rule-context.mjs'
 import { assessDoneResult, crossCheckChangedFiles, detectChangeTier, splitViolations } from '../lib/lark-quality-gate.mjs'
+import { formatCodeRulesLine, summarizeCodeRules } from '../lib/lark-code-rules.mjs'
 import { pruneStaleAudits } from '../lib/lark-worker-audit.mjs'
 import { classifyWorkerFailure } from '../lib/lark-worker-results.mjs'
 import { resolveWorkContext, safeProject, tempWorktreeContextFor } from '../lib/lark-work-context.mjs'
@@ -847,6 +848,47 @@ describe('splitViolations（规范闸残留分级：色类硬拦 / 其余 note�
     ])
     assert.equal(hardRemaining.length, 0)
     assert.equal(softRemaining.length, 1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// changed-file 静态扫描摘要（D5）：非阻断，但卡片上的数字必须如实
+// ---------------------------------------------------------------------------
+describe('summarizeCodeRules / formatCodeRulesLine（bot 改动过一次同一把静态尺子）', () => {
+  it('按 severity 计数，note 不进点名清单，ruleId 去重', () => {
+    const summary = summarizeCodeRules({
+      changedFiles: ['a.tsx', 'b.ts'],
+      findings: [
+        { severity: 'error', ruleId: 'CODE-ANY-001' },
+        { severity: 'warn', ruleId: 'CODE-I18N-002' },
+        { severity: 'warn', ruleId: 'CODE-I18N-002' },
+        { severity: 'note', ruleId: 'CODE-OLD-009' },
+        { severity: 'future-level', ruleId: 'CODE-NEW-001' },
+      ],
+    })
+    assert.deepEqual(
+      { ok: summary.ok, error: summary.error, warn: summary.warn, note: summary.note, other: summary.other, changedFiles: summary.changedFiles },
+      { ok: false, error: 1, warn: 2, note: 1, other: 1, changedFiles: 2 },
+    )
+    assert.deepEqual(summary.ruleIds, ['CODE-ANY-001', 'CODE-I18N-002', 'CODE-NEW-001'])
+  })
+  it('无 finding → ok 且计数全 0', () => {
+    const summary = summarizeCodeRules({ changedFiles: ['a.ts'], findings: [] })
+    assert.deepEqual({ ok: summary.ok, error: summary.error, warn: summary.warn }, { ok: true, error: 0, warn: 0 })
+  })
+  it('未跑成时如实说未跑成，绝不渲染成 0 违规', () => {
+    const line = formatCodeRulesLine({ ran: false, reason: '扫描输出无法解析' })
+    assert.match(line, /未跑成/)
+    assert.ok(!line.includes('error 0'), '扫描没跑成不能显示成零违规')
+  })
+  it('跑成时把 error/warn 计数与命中规则写进卡片行', () => {
+    const line = formatCodeRulesLine(summarizeCodeRules({
+      changedFiles: ['a.tsx'],
+      findings: [{ severity: 'warn', ruleId: 'CODE-I18N-002' }],
+    }))
+    assert.match(line, /改动 1 文件/)
+    assert.match(line, /error 0 · warn 1/)
+    assert.match(line, /CODE-I18N-002/)
   })
 })
 

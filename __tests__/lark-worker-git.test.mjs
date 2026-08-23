@@ -121,6 +121,14 @@ describe('finalizeTempWorktree（ok=false 即「改动没落盘」，调用方�
     assert.equal(run(repo, ['rev-list', '--count', `origin/online..${BRANCH}`]), '1')
   })
 
+  // `lark-task:` trailer 是「群里这条反馈 → 哪个提交」的机器可查锚点（D5）。
+  it('提交信息带 lark-task trailer，可被 git log --grep 精确捞出', () => {
+    writeFileSync(join(wtPath(), 'trailer.txt'), 'x\n')
+    finalizeTempWorktree({ path: wtPath(), branch: BRANCH, task, allowCommit: true })
+    assert.match(run(repo, ['log', '-1', '--format=%B', BRANCH]), /^lark-task: T1$/m)
+    assert.equal(run(repo, ['log', '--grep', '^lark-task: T1$', '--format=%h', BRANCH]).split('\n').filter(Boolean).length, 1)
+  })
+
   it('有改动 + 不允许提交（失败/阻塞） → ok=false，现场完整保留', () => {
     writeFileSync(join(wtPath(), 'half.txt'), 'half\n')
     const outcome = finalizeTempWorktree({ path: wtPath(), branch: BRANCH, task, allowCommit: false })
