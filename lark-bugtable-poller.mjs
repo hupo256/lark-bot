@@ -45,7 +45,8 @@ const errorAlertRounds = Number(process.env.LARK_BUGTABLE_ERROR_ALERT_ROUNDS || 
 const createSeenStore = (statePath) => {
   mkdirSync(dirname(statePath), { recursive: true })
   const seen = existsSync(statePath) ? new Set(JSON.parse(readFileSync(statePath, 'utf8')).seen || []) : new Set()
-  const persist = () => writeFileSync(statePath, JSON.stringify({ seen: [...seen] }, null, 2))
+  // mode 0o600 仅在首次创建时生效；已存在的历史 0644 文件由 gateway 启动时的 hardenRuntimeFiles 收紧。
+  const persist = () => writeFileSync(statePath, JSON.stringify({ seen: [...seen] }, null, 2), { mode: 0o600 })
   return {
     has: (id) => seen.has(id),
     add(id) {

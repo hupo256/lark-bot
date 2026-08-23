@@ -252,9 +252,20 @@ describe('isForBot', () => {
   it('群里 @所有人（key=@_all）→ true', () => {
     assert.equal(isForBot({ msg: { chatType: 'group', mentions: [{ key: '@_all' }] }, config }), true)
   })
+  it('群里 @所有人 → 只读意图分类，不直接入队', () => {
+    // 群里任何人喊一句「@所有人」不该等于「让机器人改代码」；仍进 task_mention 以便接住真实反馈。
+    assert.equal(resolveMessageTrigger({ msg: { chatType: 'group', mentions: [{ key: '@_all' }] }, config }), 'task_mention')
+  })
+  it('@所有人 同时 @bot → 仍是 direct（明确在叫机器人）', () => {
+    const msg = { chatType: 'group', mentions: [{ key: '@_all' }, { id: BOT }] }
+    assert.equal(resolveMessageTrigger({ msg, config }), 'direct')
+  })
   it('未配置 botOpenId 时：有任意 mention 即算', () => {
     assert.equal(isForBot({ msg: { chatType: 'group', mentions: [{ id: 'x' }] }, config: {} }), true)
     assert.equal(isForBot({ msg: { chatType: 'group', mentions: [] }, config: {} }), false)
+  })
+  it('未配置 botOpenId 的兼容分支 → 降为只读分类而非 direct', () => {
+    assert.equal(resolveMessageTrigger({ msg: { chatType: 'group', mentions: [{ id: 'x' }] }, config: {} }), 'task_mention')
   })
 })
 

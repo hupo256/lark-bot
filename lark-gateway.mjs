@@ -18,8 +18,9 @@
  */
 
 import { createServer } from 'node:http'
-import { loadConfig, resolveNotifyChatId } from './lib/lark-config.mjs'
-import { larkTasksDir } from './lib/lark-repo.mjs'
+import { join } from 'node:path'
+import { gatewaySecret, loadConfig, resolveNotifyChatId } from './lib/lark-config.mjs'
+import { hardenRuntimeFiles, larkRuntimeDir, larkTasksDir } from './lib/lark-repo.mjs'
 import { normalizeAiExecutor } from './lib/lark-http.mjs'
 import { buildCardContent } from './lib/lark-cards.mjs'
 import { sendChatMessage } from './lib/lark-cli.mjs'
@@ -52,6 +53,20 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   const loadedConfig = loadConfig(configPath, 'gateway config')
   const config = { ...loadedConfig, aiExecutor: normalizeAiExecutor(loadedConfig.aiExecutor) }
   const membershipMode = config.allowedChatIds === 'auto'
+  // 本地 API 鉴权是硬前置：没有共享密钥时本机任一进程都能 POST 触发改代码 / commit / prune，
+  // 「只绑 127.0.0.1」不构成边界。与 isWhitelisted 同一立场——缺配置就拒绝启动，而不是降级放行。
+  if (!gatewaySecret) {
+    console.error(
+      '[lark-gateway] ✖ 缺少 LARK_GATEWAY_SECRET，拒绝启动。\n' +
+        '  写入 0600 的 ~/.config/fameex-lark/gateway-secret（launchd-node.sh 与 lark-bot 均从该文件注入）：\n' +
+        "  mkdir -p ~/.config/fameex-lark && (umask 077 && node -e 'process.stdout.write(require(\"crypto\").randomBytes(32).toString(\"base64url\"))' > ~/.config/fameex-lark/gateway-secret)\n" +
+        '  然后 `lark-bot restart`（worker/poller 会从同一文件读同一密钥）。',
+    )
+    process.exit(1)
+  }
+  // 本机运行时文件权限收紧（配置含 bug 表 appToken/URL；历史文件多为 0644）。
+  const tightened = hardenRuntimeFiles([configPath, ...['lark-bot.local.json', 'lark-worker-state.json', 'lark-bugtable-state.json'].map((name) => join(larkRuntimeDir, name))])
+  if (tightened.length) console.warn(`[lark-gateway] ⚠ 已收紧运行时文件权限：${tightened.join('、')}`)
   if (!membershipMode && !config.allowedChatIds?.length && !config.allowedOpenIds?.length) {
     console.warn('[lark-gateway] ⚠ 未配置任何白名单（allowedChatIds/allowedOpenIds），将拒绝所有事件（fail-closed）。请填 allowedChatIds:"auto"（bot 所在群）或显式群 id。')
   }
