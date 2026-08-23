@@ -463,6 +463,16 @@ describe('parseCommandType', () => {
     assert.equal(inferCommandType('项目状态字段显示错误'), null)
   })
 
+  it('「汇报/报告」是常见的状态查询问法，与「汇总」同等判 status（真机漏判修复）', () => {
+    // 现场发现：「汇报一下这个项目的状态」曾因 cue 词表只收「汇总」漏「汇报」→ 被当新需求拦。
+    assert.equal(inferCommandType('汇报一下这个项目的状态'), 'status')
+    assert.equal(inferCommandType('报告下当前项目的进度'), 'status')
+    assert.equal(inferCommandType('说一下这个需求现在做到哪了'), 'status')
+    // 词表扩充不得越过缺陷/写操作否决：报障、做功能仍判 null。
+    assert.equal(inferCommandType('汇报下为什么项目状态一直转圈'), null) // 缺陷信号（转圈）一票否决
+    assert.equal(inferCommandType('新增一个项目进度汇报页面'), null) // 写操作（新增）一票否决
+  })
+
   it('缺陷信号一票否决：报障式描述绝不当只读查询', () => {
     // 这些都含项目级主题词 + 查询提示，但带缺陷信号 → 必须判 null（此前「项目状态一直转圈」被误判成 status）。
     assert.equal(inferCommandType('这个项目的状态一直转圈，是什么原因？'), null)
