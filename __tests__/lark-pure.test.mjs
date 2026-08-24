@@ -28,7 +28,7 @@ import { parkedReminderRound } from '../lib/lark-parked-reminder.mjs'
 import { rotateLogIfLarge } from '../lib/lark-log-rotate.mjs'
 import { sweepAttachments } from '../lib/lark-retention.mjs'
 import { buildResultCard, buildWaitingCard } from '../lib/lark-cards.mjs'
-import { messageSendRecipientArgs, parseSentMessageId, pickChatIdByProject } from '../lib/lark-cli.mjs'
+import { messageSendRecipientArgs, parseSentMessageId, pickChatIdByProject, resolveDeliveryChatId } from '../lib/lark-cli.mjs'
 import {
   classifyCommandType,
   inferCommandType,
@@ -1332,5 +1332,42 @@ describe('sweepAttachments（附件保留期清扫）', () => {
     assert.equal(sweepAttachments({ prdsRoot, maxAgeMs: 0, now: 1_000_000_000_000 }).removed, 0)
     assert.equal(existsSync(dir), true, 'maxAgeMs=0（关闭）不得删任何东西')
     rmSync(prdsRoot, { recursive: true, force: true })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// resolveDeliveryChatId：发送时按项目号改投项目群，命中则用群 id，否则回落冻结的 fallback。
+// 修复「入队时 bot 未进群 → chatId 冻结成私聊，之后进群仍私发」。
+describe('resolveDeliveryChatId（发送时改投项目群）', () => {
+  it('有 project 且解析命中项目群 → 用群 chat_id（而非冻结的私聊 fallback）', async () => {
+    const chatId = await resolveDeliveryChatId({
+      project: 'PR-02265',
+      fallbackChatId: 'ou_reporter',
+      resolve: async (p) => (p === 'PR-02265' ? 'oc_group' : ''),
+    })
+    assert.equal(chatId, 'oc_group')
+  })
+
+  it('解析未命中（bot 不在项目群）→ 回落到冻结的 fallbackChatId', async () => {
+    const chatId = await resolveDeliveryChatId({
+      project: 'PR-99999',
+      fallbackChatId: 'ou_reporter',
+      resolve: async () => '',
+    })
+    assert.equal(chatId, 'ou_reporter')
+  })
+
+  it('无 project（adhoc / p2p）→ 短路返回 fallback，不触发解析（network-free）', async () => {
+    let called = false
+    const chatId = await resolveDeliveryChatId({
+      project: null,
+      fallbackChatId: 'oc_notify',
+      resolve: async () => {
+        called = true
+        return 'oc_should_not_be_used'
+      },
+    })
+    assert.equal(chatId, 'oc_notify')
+    assert.equal(called, false, 'project 为空时不得调用 resolve')
   })
 })
