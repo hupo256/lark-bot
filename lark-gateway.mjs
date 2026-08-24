@@ -19,7 +19,7 @@
 
 import { createServer } from 'node:http'
 import { join } from 'node:path'
-import { gatewaySecret, loadConfig, resolveNotifyChatId } from './lib/lark-config.mjs'
+import { assertConfigOrExit, gatewaySecret, loadConfig, resolveNotifyChatId } from './lib/lark-config.mjs'
 import { hardenRuntimeFiles, larkRuntimeDir, larkTasksDir } from './lib/lark-repo.mjs'
 import { normalizeAiExecutor } from './lib/lark-http.mjs'
 import { buildCardContent } from './lib/lark-cards.mjs'
@@ -52,6 +52,8 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   const runtimeVersion = createRuntimeVersion({ configPath })
   const loadedConfig = loadConfig(configPath, 'gateway config')
   const config = { ...loadedConfig, aiExecutor: normalizeAiExecutor(loadedConfig.aiExecutor) }
+  // 结构校验前置：字段缺失/类型错会让下游静默跑歪（bugTable 尤甚），缺了直接拒绝启动。
+  assertConfigOrExit(config, 'lark-gateway')
   const membershipMode = config.allowedChatIds === 'auto'
   // 本地 API 鉴权是硬前置：没有共享密钥时本机任一进程都能 POST 触发改代码 / commit / prune，
   // 「只绑 127.0.0.1」不构成边界。与 isWhitelisted 同一立场——缺配置就拒绝启动，而不是降级放行。

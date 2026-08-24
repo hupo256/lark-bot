@@ -15,7 +15,7 @@ import { join, dirname } from 'node:path'
 
 import { larkRuntimeDir } from './lib/lark-repo.mjs'
 import { isProjectId } from './lib/lark-project-id.mjs'
-import { loadConfig, resolveNotifyChatId } from './lib/lark-config.mjs'
+import { assertConfigOrExit, loadConfig, resolveNotifyChatId } from './lib/lark-config.mjs'
 import { buildCardContent } from './lib/lark-cards.mjs'
 import { runLarkCli, sendChatMessage, resolveChatIdByProject } from './lib/lark-cli.mjs'
 import { createGatewayClient, sleep } from './lib/lark-gateway-client.mjs'
@@ -221,6 +221,13 @@ export async function runLarkBugtablePoller({
   argv = process.argv.slice(2),
 }) {
   const config = loadConfig(configPath)
+  // 启动期结构校验：poller 以 bug 表为刚需，bugTable 缺失或子字段不全都直接拒绝启动，
+  // 而不是等首轮轮询时才在 fetchPendingRecords 里抛（那时才发现配置错，已白跑一段）。
+  assertConfigOrExit(config, 'bugtable-poller')
+  if (!config.bugTable) {
+    console.error('[bugtable-poller] ✖ 缺少 bugTable 配置，拒绝启动（本进程的职责就是轮询 bug 表）。')
+    process.exit(1)
+  }
   // 跨项目单例状态：与 lark-tasks 队列同源，落在中性的 runtime 目录，不再寄生在某个宿主项目的 agent/ 下。
   const statePath = join(larkRuntimeDir, 'lark-bugtable-state.json')
   const seen = createSeenStore(statePath)

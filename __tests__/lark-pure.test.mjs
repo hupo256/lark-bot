@@ -45,7 +45,8 @@ import {
 import { isProjectId, matchProjectId, matchProjectIds } from '../lib/lark-project-id.mjs'
 import { allRuleRefs, buildFocusedRuleContext, classifyLarkTask, extractMarkdownSection } from '../lib/lark-rule-context.mjs'
 import { assessDoneResult, crossCheckChangedFiles, detectChangeTier, splitViolations } from '../lib/lark-quality-gate.mjs'
-import { formatCodeRulesLine, summarizeCodeRules } from '../lib/lark-code-rules.mjs'
+import { buildCodeRulesBlockedResult, codeRuleErrorsInDiff, formatCodeRulesLine, summarizeCodeRules } from '../lib/lark-code-rules.mjs'
+import { validateConfig } from '../lib/lark-config.mjs'
 import { pruneStaleAudits } from '../lib/lark-worker-audit.mjs'
 import { classifyWorkerFailure } from '../lib/lark-worker-results.mjs'
 import { resolveWorkContext, safeProject, tempWorktreeContextFor } from '../lib/lark-work-context.mjs'
@@ -881,6 +882,7 @@ describe('summarizeCodeRules / formatCodeRulesLine（bot 改动过一次同一�
       { ok: false, error: 1, warn: 2, note: 1, other: 1, changedFiles: 2 },
     )
     assert.deepEqual(summary.ruleIds, ['CODE-ANY-001', 'CODE-I18N-002', 'CODE-NEW-001'])
+    assert.deepEqual(summary.errorFindings, [{ ruleId: 'CODE-ANY-001', file: '', line: 0 }], 'errorFindings 只收 error 级，缺 file/line 归一为 空/0')
   })
   it('无 finding → ok 且计数全 0', () => {
     const summary = summarizeCodeRules({ changedFiles: ['a.ts'], findings: [] })
@@ -899,6 +901,90 @@ describe('summarizeCodeRules / formatCodeRulesLine（bot 改动过一次同一�
     assert.match(line, /改动 1 文件/)
     assert.match(line, /error 0 · warn 1/)
     assert.match(line, /CODE-I18N-002/)
+  })
+})
+
+describe('codeRuleErrorsInDiff / buildCodeRulesBlockedResult（文件级归因硬闸）', () => {
+  const summary = summarizeCodeRules({
+    changedFiles: ['apps/web/src/a.tsx', 'apps/web/src/legacy.ts'],
+    findings: [
+      { severity: 'error', ruleId: 'CODE-MSW-002', file: 'apps/web/src/a.tsx', line: 12 },
+      { severity: 'error', ruleId: 'CODE-MSW-002', file: 'apps/web/src/legacy.ts', line: 3 },
+      { severity: 'warn', ruleId: 'CODE-I18N-002', file: 'apps/web/src/a.tsx', line: 8 },
+    ],
+  })
+  it('只挑出 error 且文件落在本次实测改动清单里的 finding', () => {
+    const hits = codeRuleErrorsInDiff({ summary, changedFiles: ['apps/web/src/a.tsx'] })
+    assert.deepEqual(hits.map((h) => h.ruleId), ['CODE-MSW-002'], '本次只改了 a.tsx，legacy.ts 的存量 error 不该命中')
+    assert.equal(hits[0].file, 'apps/web/src/a.tsx')
+  })
+  it('本次改动文件无 error → 空（warn 不算，存量 error 不算）', () => {
+    const warnOnly = summarizeCodeRules({ changedFiles: ['a.tsx'], findings: [{ severity: 'warn', ruleId: 'X', file: 'a.tsx' }] })
+    assert.deepEqual(codeRuleErrorsInDiff({ summary: warnOnly, changedFiles: ['a.tsx'] }), [])
+  })
+  it('ran=false（扫描没跑成）恒不命中——降级环境不误伤', () => {
+    assert.deepEqual(codeRuleErrorsInDiff({ summary: { ran: false, reason: '缺 rg' }, changedFiles: ['a.tsx'] }), [])
+  })
+  it('缺参数安全返回空', () => {
+    assert.deepEqual(codeRuleErrorsInDiff({}), [])
+    assert.deepEqual(codeRuleErrorsInDiff({ summary, changedFiles: null }), [])
+  })
+  it('阻断卡如实点名 ruleId:file:line 与两条出口，带任务号', () => {
+    const hits = codeRuleErrorsInDiff({ summary, changedFiles: ['apps/web/src/a.tsx'] })
+    const text = buildCodeRulesBlockedResult({ id: 'PR-02306-1' }, hits)
+    assert.match(text, /PR-02306-1/)
+    assert.match(text, /命中 1 处 error/)
+    assert.match(text, /CODE-MSW-002 apps\/web\/src\/a\.tsx:12/)
+    assert.match(text, /rule-waivers\.json/)
+  })
+})
+
+describe('validateConfig（启动期配置结构校验）', () => {
+  const base = {
+    project: 'PR-02306',
+    botOpenId: 'ou_bot',
+    allowedChatIds: 'auto',
+    bugTable: { appToken: 'app', tableId: 'tbl', statusField: '状态', assigneeField: '负责人', doneValue: '已处理' },
+  }
+  it('合法配置：无 error 无 warning', () => {
+    const { errors, warnings } = validateConfig(base)
+    assert.deepEqual(errors, [])
+    assert.deepEqual(warnings, [])
+  })
+  it('project 缺失 / 空串 → error', () => {
+    assert.ok(validateConfig({ ...base, project: undefined }).errors.some((e) => e.includes('project')))
+    assert.ok(validateConfig({ ...base, project: '  ' }).errors.some((e) => e.includes('project')))
+  })
+  it('非对象 config → 单条 error', () => {
+    assert.deepEqual(validateConfig(null).errors, ['config 必须是对象'])
+    assert.deepEqual(validateConfig([]).errors, ['config 必须是对象'])
+  })
+  it('allowedChatIds 只接受 "auto" 或字符串数组', () => {
+    assert.deepEqual(validateConfig({ ...base, allowedChatIds: ['oc_1', 'oc_2'] }).errors, [])
+    assert.ok(validateConfig({ ...base, allowedChatIds: 123 }).errors.some((e) => e.includes('allowedChatIds')))
+  })
+  it('taskMentionOpenIds 非字符串数组 → error', () => {
+    assert.ok(validateConfig({ ...base, taskMentionOpenIds: [1, 2] }).errors.some((e) => e.includes('taskMentionOpenIds')))
+  })
+  it('botOpenId 缺失 → 只 warning 不 error（有只读降级兼容）', () => {
+    const { errors, warnings } = validateConfig({ ...base, botOpenId: undefined })
+    assert.deepEqual(errors, [])
+    assert.ok(warnings.some((w) => w.includes('botOpenId')))
+  })
+  it('bugTable 配了就得配全 appToken/tableId/statusField/assigneeField', () => {
+    const { errors } = validateConfig({ ...base, bugTable: { appToken: 'app' } })
+    for (const field of ['tableId', 'statusField', 'assigneeField']) {
+      assert.ok(errors.some((e) => e.includes(`bugTable.${field}`)), `应报 bugTable.${field} 缺失`)
+    }
+    assert.ok(!errors.some((e) => e.includes('bugTable.appToken')), 'appToken 已配不该报缺失')
+  })
+  it('bugTable.doneValue 缺失 → 只 warning（回写有优雅降级）', () => {
+    const { errors, warnings } = validateConfig({ ...base, bugTable: { ...base.bugTable, doneValue: undefined } })
+    assert.deepEqual(errors, [])
+    assert.ok(warnings.some((w) => w.includes('doneValue')))
+  })
+  it('无 bugTable → 合法（bug 表集成可选，poller 侧另有刚需校验）', () => {
+    assert.deepEqual(validateConfig({ ...base, bugTable: undefined }).errors, [])
   })
 })
 
