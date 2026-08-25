@@ -1255,7 +1255,7 @@ describe('handleStatusUpdate no_change_needed 终态', () => {
   it('被 VALID_STATUSES 接纳、落终态，且 bug 表来源不写 doneValue（不标已修复）', async () => {
     const store = freshStore()
     store.upsert({ id: 't', status: 'running', source: 'lark-bugtable', recordId: 'rec1', createdAt: '2026-01-01T00:00:00Z', chatId: null })
-    const outcome = await handleStatusUpdate({ config, store, id: 't', status: 'no_change_needed', result: '无需改动（不属本仓）。' })
+    const outcome = await handleStatusUpdate({ config, store, id: 't', status: 'no_change_needed', result: '无需改动。' })
     assert.equal(outcome.ok, true) // 未落到 invalid status 分支
     assert.equal(store.get('t').status, 'no_change_needed') // 直接落终态，未走 done→done_pending_writeback
     assert.equal(store.get('t').parkedAt, null) // 非挂起态，不打锚点

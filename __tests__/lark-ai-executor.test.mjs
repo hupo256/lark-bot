@@ -597,7 +597,7 @@ describe('no_change_needed 终态（本仓无对应改动，转后端/别的仓�
 
   it('群卡结论首行为「无需改动」，不误报处理失败/已完成', () => {
     const text = formatStructuredAiResult(base)
-    assert.match(text, /^无需改动（不属本仓）。/)
+    assert.match(text, /^无需改动。/)
     assert.match(text, /该拉先项属后台 API/)
     assert.doesNotMatch(text, /处理失败/)
     assert.doesNotMatch(text, /已完成/)
@@ -608,10 +608,10 @@ describe('no_change_needed 终态（本仓无对应改动，转后端/别的仓�
       config: { project: 'PR-02135', title: 'Test' },
       task: { project: 'PR-02135', summary: '后台 api', aiExecutor: 'codex' },
       status: 'no_change_needed',
-      result: '无需改动（不属本仓）。',
+      result: '无需改动。',
     }))
     assert.equal(card.header.template, 'grey')
-    assert.match(card.elements[0].text.content, /无需改动（不属本仓）/)
+    assert.match(card.elements[0].text.content, /无需改动/)
   })
 })
 
