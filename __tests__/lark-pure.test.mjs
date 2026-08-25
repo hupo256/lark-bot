@@ -1047,6 +1047,17 @@ describe('buildFocusedRuleContext（正常场景零 warnings，全路由章节�
     const ctx = buildFocusedRuleContext({ taskText: '文案 tooltip 样式颜色圆角 页面组件表单 API接口schema DTO mapper映射 React Query mutation缓存 Zustand store状态管理 MSW mock fixture' })
     assert.equal(ctx.warnings.length, 0)
     assert.equal(ctx.sources.length, allRuleRefs().length)
+    const expectedTopicSources = [
+      ['~/.ai-rules/skills/coding-quality/references/reuse-before-new-ui.md', '# Reuse Before New UI'],
+      ['~/.ai-rules/skills/coding-quality/references/i18n-keys.md', '# i18n Keys Are What-You-See-In-Source (i18n Ally WYSIWYG)'],
+      ['~/.ai-rules/skills/coding-quality/references/copy-contracts.md', '# Copy Contracts'],
+      ['~/.ai-rules/skills/coding-quality/references/styling-visual-qa.md', '# Styling And Visual QA'],
+      ['~/.ai-rules/skills/coding-quality/references/api-schema-mapper.md', '# API Schema And Mapper Checks'],
+      ['~/.ai-rules/skills/coding-quality/references/state-derivation-lookup.md', '# State Derivation And Lookup Resolvers'],
+    ]
+    for (const [path, section] of expectedTopicSources) {
+      assert.ok(ctx.sources.some((source) => source.path === path && source.section === section), `专题规则未加载：${path} · ${section}`)
+    }
   })
 
   it('绑定当前发布指纹；同一章节在规则链变化后上下文指纹必须变化', () => {
