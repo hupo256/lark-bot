@@ -17,7 +17,7 @@ import { larkRuntimeDir } from './lib/lark-repo.mjs'
 import { isProjectId } from './lib/lark-project-id.mjs'
 import { assertConfigOrExit, loadConfig, resolveNotifyChatId } from './lib/lark-config.mjs'
 import { buildCardContent } from './lib/lark-cards.mjs'
-import { runLarkCli, sendChatMessage, resolveChatIdByProject } from './lib/lark-cli.mjs'
+import { runLarkCli, sendChatMessage, resolveChatIdByProject, larkCallFailed, formatLarkCliError, isTransientLarkError } from './lib/lark-cli.mjs'
 import { createGatewayClient, sleep } from './lib/lark-gateway-client.mjs'
 import { defaultGatewayUrl } from './lib/lark-constants.mjs'
 import {
@@ -35,10 +35,10 @@ import {
 // 测试与既有调用方沿用从本文件导入 classifyBugTaskStatus（实现已下沉到 lib/）。
 export { classifyBugTaskStatus } from './lib/lark-bugtable-parse.mjs'
 
-const defaultPollMs = Number(process.env.LARK_BUGTABLE_POLL_MS || 60000)
+const defaultPollMs = Number(process.env.LARK_BUGTABLE_POLL_MS || 120000)
 // 空闲自动收工：连续这么久没有新 bug 就自动退出，忘了 poll-off 也无害（默认 4h）
 const defaultIdleOffMs = Number(process.env.LARK_BUGTABLE_IDLE_OFF_MS || 4 * 60 * 60 * 1000)
-// 连续失败到这个轮次就发群告警（默认 3 轮 ≈ 4.5min）：失败期间新 bug 完全捞不到，必须让人知道。
+// 连续失败到这个轮次就发群告警（默认 3 轮 ≈ 6min）：失败期间新 bug 完全捞不到，必须让人知道。
 const errorAlertRounds = Number(process.env.LARK_BUGTABLE_ERROR_ALERT_ROUNDS || 3)
 
 // 已处理 record_id 持久化，避免重复建 task
@@ -103,9 +103,16 @@ const fetchPendingRecords = async ({ bug }) => {
       args.push('--field-id', field)
     }
 
-    const result = await runLarkCli(args)
-    if (result.code !== 0) {
-      throw new Error(`record-list failed: ${(result.stderr || result.stdout).slice(0, 200)}`)
+    // record-list 走有界重试：只对瞬时网络/传输层抖动退避重试（1.5s、3s），吸收 sub-minute 抖动；
+    // 权限/参数类错误立即失败以尽快告警。持续中断仍会逐轮失败、按 errorAlertRounds 告警。
+    let result
+    for (let attempt = 1; ; attempt += 1) {
+      result = await runLarkCli(args)
+      if (!larkCallFailed(result)) break
+      if (!isTransientLarkError(result) || attempt >= 3) {
+        throw new Error(`record-list failed: ${formatLarkCliError(result)}`)
+      }
+      await sleep(attempt * 1500)
     }
     const data = JSON.parse(result.stdout).data || {}
     all.push(...parseColumnarRecords(data))

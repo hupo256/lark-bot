@@ -28,7 +28,7 @@ import { parkedReminderRound } from '../lib/lark-parked-reminder.mjs'
 import { rotateLogIfLarge } from '../lib/lark-log-rotate.mjs'
 import { sweepAttachments } from '../lib/lark-retention.mjs'
 import { buildResultCard, buildWaitingCard } from '../lib/lark-cards.mjs'
-import { messageSendRecipientArgs, parseSentMessageId, pickChatIdByProject, resolveDeliveryChatId } from '../lib/lark-cli.mjs'
+import { messageSendRecipientArgs, parseSentMessageId, pickChatIdByProject, resolveDeliveryChatId, formatLarkCliError, isTransientLarkError } from '../lib/lark-cli.mjs'
 import {
   classifyCommandType,
   inferCommandType,
@@ -1380,5 +1380,35 @@ describe('resolveDeliveryChatId（发送时改投项目群）', () => {
     })
     assert.equal(chatId, 'oc_notify')
     assert.equal(called, false, 'project 为空时不得调用 resolve')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// formatLarkCliError / isTransientLarkError：poller 告警可读化 + 瞬时错误有界重试判定
+describe('formatLarkCliError（失败结果压成一行可读原因）', () => {
+  it('结构化 error 取 type/subtype/message、单行、不塞截断 JSON', () => {
+    const result = { code: -1, stdout: JSON.stringify({ ok: false, identity: 'bot', error: { type: 'network', subtype: 'transport', message: 'API call failed: Post "https://accounts.larksuite.com/oauth/v3/token":\n  dial tcp 1.2.3.4:443: i/o timeout' } }), stderr: '' }
+    const reason = formatLarkCliError(result)
+    assert.equal(reason, 'network/transport: API call failed: Post "https://accounts.larksuite.com/oauth/v3/token": dial tcp 1.2.3.4:443: i/o timeout')
+    assert.doesNotMatch(reason, /[{}]/) // 不再是原始 JSON
+  })
+
+  it('非 JSON（超时/spawn error）回落 stderr，压成单行并截断', () => {
+    assert.equal(formatLarkCliError({ code: -1, stdout: '', stderr: 'spawn lark ENOENT' }), 'spawn lark ENOENT')
+    assert.equal(formatLarkCliError({ code: 0, stdout: '', stderr: '' }), '未知错误')
+    assert.ok(formatLarkCliError({ code: -1, stdout: 'x'.repeat(500), stderr: '' }).length <= 200)
+  })
+})
+
+describe('isTransientLarkError（仅网络层/本地 spawn 超时可重试）', () => {
+  it('code=-1（超时/spawn error）与 error.type=network 判为瞬时', () => {
+    assert.equal(isTransientLarkError({ code: -1, stdout: '', stderr: 'timeout' }), true)
+    assert.equal(isTransientLarkError({ code: 1, stdout: JSON.stringify({ ok: false, error: { type: 'network', subtype: 'transport' } }) }), true)
+  })
+
+  it('权限/参数类结构化错误不重试（尽快失败以告警）', () => {
+    assert.equal(isTransientLarkError({ code: 1, stdout: JSON.stringify({ ok: false, error: { type: 'permission', subtype: 'missing_scope' } }) }), false)
+    assert.equal(isTransientLarkError({ code: 1, stdout: 'not json' }), false)
+    assert.equal(isTransientLarkError({ code: 0, stdout: '{}' }), false)
   })
 })
