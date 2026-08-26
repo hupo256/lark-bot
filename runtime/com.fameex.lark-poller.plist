@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.fameex.lark-poller</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/aven/github/docs_tdd/common/lark-bot/runtime/launchd-node.sh</string>
+    <string>/Users/aven/github/docs_tdd/common/lark-bot/runtime/lark-bugtable-poller.mjs</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/aven/github/fameex-web</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/Applications/ChatGPT.app/Contents/Resources:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <false/>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>StandardOutPath</key>
+  <string>/Users/aven/Library/Logs/fameex-lark/poller.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/aven/Library/Logs/fameex-lark/poller.log</string>
+</dict>
+</plist>

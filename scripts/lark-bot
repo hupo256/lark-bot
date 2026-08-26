@@ -13,10 +13,12 @@ HEALTH="http://127.0.0.1:3005/lark/health"
 AGENT_DIR="$HOME/Library/LaunchAgents"
 GW_LABEL="com.fameex.lark-gateway"
 WK_LABEL="com.fameex.lark-worker"
+POLLER_LABEL="com.fameex.lark-poller"
 LEGACY_GW_LABEL="com.aven.lark.gateway"
 LEGACY_WK_LABEL="com.aven.lark.worker"
 GW_PLIST="$AGENT_DIR/$GW_LABEL.plist"
 WK_PLIST="$AGENT_DIR/$WK_LABEL.plist"
+POLLER_PLIST="$AGENT_DIR/$POLLER_LABEL.plist"
 SECRET_FILE="$HOME/.config/fameex-lark/gateway-secret"
 DOMAIN="gui/$(id -u)"
 
@@ -135,6 +137,7 @@ start() {
 
 stop() {
   stop_core
+  launchctl bootout "$DOMAIN/$POLLER_LABEL" 2>/dev/null || true
   _stop_script "$POLLER"
   echo "• stopped gateway + worker + poller"
 }
@@ -145,15 +148,17 @@ poll_on() {
   if _running "$POLLER"; then
     echo "• poller already running"
   else
-    # poller 不走 launchd wrapper，密钥要在这里注入，否则它带不上 header、被 gateway 401 挡掉。
-    [ -s "$SECRET_FILE" ] && export LARK_GATEWAY_SECRET="${LARK_GATEWAY_SECRET:-$(<"$SECRET_FILE")}"
-    nohup node "$POLLER" >"$LOGDIR/poller.log" 2>&1 & disown
-    echo "• poller started   → $LOGDIR/poller.log（空闲 4h 无新 bug 自动收工）"
+    install_agent "$POLLER_LABEL" "$DOCS_ROOT/common/lark-bot/runtime/$POLLER_LABEL.plist" "$POLLER_PLIST"
+    echo "• poller supervised by launchd → $LOGDIR/poller.log（空闲 4h 无新 bug 自动收工）"
   fi
 }
 
 poll_off() {
-  if _running "$POLLER"; then _stop_script "$POLLER"; echo "• poller stopped"; else echo "• poller not running"; fi
+  local was_running=0
+  if _running "$POLLER"; then was_running=1; fi
+  launchctl bootout "$DOMAIN/$POLLER_LABEL" 2>/dev/null || true
+  _stop_script "$POLLER"
+  if [ "$was_running" -eq 1 ]; then echo "• poller stopped"; else echo "• poller not running"; fi
 }
 
 # Gateway 写接口密钥必填；环境变量优先，否则读本机 0600 secret 文件。
