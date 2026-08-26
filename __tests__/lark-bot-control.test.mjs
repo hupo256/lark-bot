@@ -75,4 +75,27 @@ describe('lark-bot control script', () => {
     `)
     assert.notEqual(result.status, 0)
   })
+
+  it('status 先列进程，空行后再列 executor、任务与规则', () => {
+    const result = runBash(`
+      export LARK_BOT_SOURCE_ONLY=1
+      source ${JSON.stringify(script)}
+      _pid() {
+        case "$1" in
+          "$GW") echo 101 ;;
+          "$WK") echo 202 ;;
+          "$POLLER") echo 303 ;;
+        esac
+      }
+      curl() {
+        printf '%s' '{"ok":true,"worker":{"pid":202,"heartbeatStale":false,"codeStale":false,"readiness":{"ok":true,"executor":"codex","model":"gpt-5.6-sol","reasoningEffort":"high","modelProbe":"passed"}},"version":{"startedAt":"2026-08-26T07:39:48.923Z"},"counts":{},"ruleChainFresh":true,"pendingReceipts":{"total":0}}'
+      }
+      status
+    `)
+    assert.equal(result.status, 0, result.stderr)
+    assert.match(
+      result.stdout,
+      /lark-worker:  running  pid=202\npoller:       running  pid=303\n\nexecutor:     codex  model=gpt-5\.6-sol  reasoning=high  probe=passed\ntasks:/,
+    )
+  })
 })
