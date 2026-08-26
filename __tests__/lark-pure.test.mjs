@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
-import { handleStatusUpdate } from '../lib/lark-status.mjs'
+import { handleStatusUpdate, resolveReceiptOutcome, retryPendingReceipts } from '../lib/lark-status.mjs'
 import {
   buildBugStatusFilter,
   buildBugText,
@@ -152,6 +152,10 @@ describe('bug table task status', () => {
   })
   it('no_change_needed → no-change 终局，不重入队也不落 seen（转后端待人工重派）', () => {
     assert.equal(classifyBugTaskStatus('no_change_needed'), 'no-change')
+  })
+
+  it('结果回执 pending 属于 in-flight，不会被 poller 当成新任务重复入队', () => {
+    assert.equal(classifyBugTaskStatus('result_pending_receipt'), 'in-flight')
   })
 
   it('回写重试的三个出口：成功落 done，未到上限继续重试，到上限停在 done_pending_writeback（不伪装成完成）', () => {
@@ -1235,11 +1239,12 @@ describe('handleStatusUpdate 的 parkedAt 锚点', () => {
   it('进入挂起态打锚点；同态重复回写不重置；离开挂起态清掉', async () => {
     const store = freshStore()
     store.upsert({ id: 't', status: 'running', createdAt: '2026-01-01T00:00:00Z', chatId: null })
-    await handleStatusUpdate({ config: parkedConfig, store, id: 't', status: 'blocked', result: 'x' })
+    const sendMessage = async () => ({ ok: true })
+    await handleStatusUpdate({ config: parkedConfig, store, id: 't', status: 'blocked', result: 'x', sendMessage })
     const first = store.get('t').parkedAt
     assert.ok(first, '进入 blocked 应打上 parkedAt')
     assert.equal(store.get('t').waitRound, 1)
-    await handleStatusUpdate({ config: parkedConfig, store, id: 't', status: 'blocked', result: 'x' })
+    await handleStatusUpdate({ config: parkedConfig, store, id: 't', status: 'blocked', result: 'x', sendMessage })
     assert.equal(store.get('t').parkedAt, first, '同态重复回写不得重置挂起时长')
     assert.equal(store.get('t').waitRound, 1, '同态幂等回写不得增加等待轮次')
     await handleStatusUpdate({ config: parkedConfig, store, id: 't', status: 'running' })
@@ -1255,10 +1260,160 @@ describe('handleStatusUpdate no_change_needed 终态', () => {
   it('被 VALID_STATUSES 接纳、落终态，且 bug 表来源不写 doneValue（不标已修复）', async () => {
     const store = freshStore()
     store.upsert({ id: 't', status: 'running', source: 'lark-bugtable', recordId: 'rec1', createdAt: '2026-01-01T00:00:00Z', chatId: null })
-    const outcome = await handleStatusUpdate({ config, store, id: 't', status: 'no_change_needed', result: '无需改动。' })
+    const outcome = await handleStatusUpdate({
+      config,
+      store,
+      id: 't',
+      status: 'no_change_needed',
+      result: '无需改动。',
+      sendMessage: async () => ({ ok: true }),
+    })
     assert.equal(outcome.ok, true) // 未落到 invalid status 分支
     assert.equal(store.get('t').status, 'no_change_needed') // 直接落终态，未走 done→done_pending_writeback
     assert.equal(store.get('t').parkedAt, null) // 非挂起态，不打锚点
+  })
+})
+
+describe('任务回执持久化重试', () => {
+  const freshStore = () => createTaskStore({ tasksDir: mkdtempSync(join(tmpdir(), 'lark-receipt-')), leaseMs: 1000 })
+
+  it('发送失败不落可清理终态，重试成功后才恢复最终状态', async () => {
+    const store = freshStore()
+    store.upsert({ id: 't', status: 'running', epoch: 2, project: 'PR-99999', summary: 'fix', chatId: 'oc_x', createdAt: '2026-01-01T00:00:00Z' })
+    const first = await handleStatusUpdate({
+      config: { project: 'PR-99999' },
+      store,
+      id: 't',
+      status: 'done',
+      result: '完成',
+      epoch: 2,
+      sendMessage: async () => ({ ok: false, reason: 'network down' }),
+    })
+    assert.equal(first.receiptPending, true)
+    assert.equal(store.get('t').status, 'result_pending_receipt')
+    assert.equal(store.get('t').pendingReceipt.attempts, 1)
+    assert.equal(store.get('t').pendingReceipt.epoch, 2)
+    assert.equal(store.get('t').pendingReceipt.idempotencyKey, 't-e2-done')
+
+    await retryPendingReceipts({
+      config: { project: 'PR-99999' },
+      store,
+      sendMessage: async () => ({ ok: true, messageId: 'om_receipt' }),
+    })
+    assert.equal(store.get('t').status, 'done')
+    assert.equal(store.get('t').pendingReceipt, undefined)
+    assert.equal(store.get('t').lastDeliveredReceipt.idempotencyKey, 't-e2-done')
+  })
+
+  it('达到上限后保持 pending 并停止自动重试', () => {
+    assert.deepEqual(resolveReceiptOutcome({ ok: false, attempts: 2, max: 3 }), {
+      attempts: 3,
+      gaveUp: true,
+      retry: false,
+    })
+  })
+
+  it('旧回执请求返回时不得覆盖更新一代的 pending', async () => {
+    const store = freshStore()
+    const oldPending = {
+      status: 'blocked',
+      result: '旧阻塞',
+      epoch: 1,
+      idempotencyKey: 't-e1-blk',
+      attempts: 1,
+      gaveUp: false,
+    }
+    store.upsert({
+      id: 't',
+      status: 'blocked',
+      epoch: 1,
+      project: 'PR-99999',
+      summary: 'fix',
+      chatId: 'oc_x',
+      pendingReceipt: oldPending,
+      createdAt: '2026-01-01T00:00:00Z',
+    })
+
+    let releaseSend
+    const sending = retryPendingReceipts({
+      config: { project: 'PR-99999' },
+      store,
+      sendMessage: () => new Promise((resolve) => { releaseSend = resolve }),
+    })
+    while (!releaseSend) await new Promise((resolve) => setImmediate(resolve))
+    store.get('t').pendingReceipt = {
+      status: 'done',
+      result: '新完成',
+      epoch: 2,
+      idempotencyKey: 't-e2-done',
+      attempts: 1,
+      gaveUp: false,
+    }
+    store.upsert(store.get('t'))
+    releaseSend({ ok: true, messageId: 'om_old' })
+    await sending
+
+    assert.equal(store.get('t').pendingReceipt.status, 'done')
+    assert.equal(store.get('t').pendingReceipt.idempotencyKey, 't-e2-done')
+  })
+
+  it('waiting 回执发送期间任务换代时，不登记旧卡也不重新制造 pending', async () => {
+    const store = freshStore()
+    store.upsert({
+      id: 't',
+      status: 'running',
+      epoch: 1,
+      project: 'PR-99999',
+      summary: 'fix',
+      chatId: 'oc_x',
+      text: 'x',
+      createdAt: '2026-01-01T00:00:00Z',
+    })
+
+    let releaseSend
+    const updating = handleStatusUpdate({
+      config: { project: 'PR-99999' },
+      store,
+      id: 't',
+      status: 'blocked',
+      result: '等待补料',
+      epoch: 1,
+      sendMessage: () => new Promise((resolve) => { releaseSend = resolve }),
+    })
+    while (!releaseSend) await new Promise((resolve) => setImmediate(resolve))
+    store.retry('t')
+    releaseSend({ ok: true, messageId: 'om_old' })
+    const outcome = await updating
+
+    assert.equal(outcome.receiptSuperseded, true)
+    assert.equal(store.get('t').status, 'queued')
+    assert.equal(store.get('t').epoch, 2)
+    assert.equal(store.get('t').pendingReceipt, undefined)
+    assert.equal(store.findByReceiptMessageId('om_old'), null)
+  })
+
+  it('已持久化 delivered marker 时直接结算残留 pending，不重复发送', async () => {
+    const store = freshStore()
+    store.upsert({
+      id: 't',
+      status: 'result_pending_receipt',
+      epoch: 3,
+      project: 'PR-99999',
+      summary: 'fix',
+      chatId: 'oc_x',
+      pendingReceipt: { status: 'done', epoch: 3, idempotencyKey: 't-e3-done', attempts: 1, gaveUp: false },
+      lastDeliveredReceipt: { status: 'done', epoch: 3, idempotencyKey: 't-e3-done', deliveredAt: '2026-01-01T00:00:00Z' },
+      createdAt: '2026-01-01T00:00:00Z',
+    })
+    let sends = 0
+    await retryPendingReceipts({
+      config: { project: 'PR-99999' },
+      store,
+      sendMessage: async () => { sends += 1; return { ok: true } },
+    })
+    assert.equal(sends, 0)
+    assert.equal(store.get('t').status, 'done')
+    assert.equal(store.get('t').pendingReceipt, undefined)
   })
 })
 

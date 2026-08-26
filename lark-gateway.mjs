@@ -28,6 +28,7 @@ import { createTaskStore } from './lib/lark-task-store.mjs'
 import { startConsumer } from './lib/lark-consumer.mjs'
 import { ingestLarkEvent } from './lib/lark-ingest.mjs'
 import { retryPendingWriteback } from './lib/lark-bugtable-writeback.mjs'
+import { retryPendingReceipts } from './lib/lark-status.mjs'
 import { remindParkedTasks } from './lib/lark-parked-reminder.mjs'
 import { startLogRotation } from './lib/lark-log-rotate.mjs'
 import { prdsRootDir, sweepAttachments } from './lib/lark-retention.mjs'
@@ -142,6 +143,14 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   }, 5 * 60 * 1000)
   writebackTimer.unref?.()
 
+  // 回执重试：终态/挂起卡发送失败时任务会持久化 pendingReceipt，避免“已 done 但群里无消息”。
+  const receiptTimer = setInterval(() => {
+    retryPendingReceipts({ config, store }).catch((error) =>
+      console.error(`[lark-gateway] 回执重试异常：${String(error).slice(0, 120)}`),
+    )
+  }, 5 * 60 * 1000)
+  receiptTimer.unref?.()
+
   // 挂起催办：waiting_confirmation / blocked 的任务每 15min 盘一遍，超时未处理按轮次催办。
   // 无此定时器时，挂起任务只有最初那一条回执，被群里讨论刷下去就再无人记得。
   const parkedTimer = setInterval(() => {
@@ -159,6 +168,7 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
     clearInterval(pruneTimer)
     clearInterval(sweepTimer)
     clearInterval(writebackTimer)
+    clearInterval(receiptTimer)
     clearInterval(parkedTimer)
     if (logTimer) clearInterval(logTimer)
     consumer.stop()

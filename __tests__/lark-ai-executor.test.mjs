@@ -9,6 +9,7 @@ import { describe, it } from 'node:test'
 import { parseAiExecutorDirective, resolveGatewayAiExecutor } from '../lib/lark-ingest.mjs'
 import {
   buildAiExecutorCommand,
+  buildCodexReadinessCommand,
   formatStructuredAiResult,
   resolveAiExecutor,
   validateAiExecutor,
@@ -66,6 +67,21 @@ describe('AI executor selection', () => {
 })
 
 describe('Codex non-interactive command', () => {
+  it('启动 readiness probe 使用实际模型、推理强度和只读沙箱', () => {
+    const command = buildCodexReadinessCommand({
+      codexModel: 'gpt-5.6-sol',
+      codexReasoningEffort: 'high',
+      cwd: '/tmp/lark-ready',
+    })
+    assert.equal(command.cmd, 'codex')
+    assert.ok(command.args.includes('--ephemeral'))
+    assert.ok(command.args.includes('--skip-git-repo-check'))
+    assert.deepEqual(command.args.slice(command.args.indexOf('--sandbox'), command.args.indexOf('--sandbox') + 2), ['--sandbox', 'read-only'])
+    assert.deepEqual(command.args.slice(command.args.indexOf('--model'), command.args.indexOf('--model') + 2), ['--model', 'gpt-5.6-sol'])
+    assert.ok(command.args.includes('model_reasoning_effort="high"'))
+    assert.equal(command.args.at(-1).includes('CODEX_MODEL_READY'), true)
+  })
+
   it('使用指定模型与推理强度，并保持 workspace-write、never、关闭工具网络', () => {
     const command = buildAiExecutorCommand({
       executor: 'codex',

@@ -246,9 +246,25 @@ describe('createTaskStore', () => {
     assert.equal(store.get('q').status, 'queued')
   })
 
+  it('retryReceipt 只重开发卡，不重跑任务或改变目标终态', () => {
+    const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+    store.upsert({
+      id: 'receipt',
+      status: 'result_pending_receipt',
+      pendingReceipt: { status: 'done', attempts: 12, gaveUp: true },
+      createdAt: '2026-01-01T00:00:00Z',
+    })
+    const retried = store.retryReceipt('receipt')
+    assert.equal(retried.status, 'result_pending_receipt')
+    assert.equal(retried.pendingReceipt.status, 'done')
+    assert.equal(retried.pendingReceipt.attempts, 0)
+    assert.equal(retried.pendingReceipt.gaveUp, false)
+    assert.equal(store.retryReceipt('missing'), null)
+  })
+
   it('resumeWithSupplement 续 waiting_confirmation：append 补料、复用同 id、回 queued、bump epoch', () => {
     const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
-    store.upsert({ id: 'w', status: 'waiting_confirmation', text: '修复：hover tips', result: '缺 tips 文案', owner: '产品', waitRound: 2, epoch: 2, attachments: [{ type: 'image', localPath: '/a.png' }], createdAt: '2026-01-01T00:00:00Z' })
+    store.upsert({ id: 'w', status: 'waiting_confirmation', text: '修复：hover tips', result: '缺 tips 文案', owner: '产品', waitRound: 2, epoch: 2, pendingReceipt: { status: 'waiting_confirmation', attempts: 1 }, attachments: [{ type: 'image', localPath: '/a.png' }], createdAt: '2026-01-01T00:00:00Z' })
     const resumed = store.resumeWithSupplement({ id: 'w', supplementText: 'tips 文案：请稍候', supplementAttachments: [{ type: 'image', localPath: '/b.png' }] })
     assert.equal(resumed.id, 'w') // 复用原任务 → resolveWorkContext 会算出同一分支/worktree
     assert.equal(resumed.status, 'queued')
@@ -260,6 +276,7 @@ describe('createTaskStore', () => {
     assert.equal(resumed.attachments.length, 2)
     assert.equal(resumed.result, null)
     assert.equal(resumed.owner, null)
+    assert.equal(resumed.pendingReceipt, undefined) // 换代后不得继续补发上一轮 waiting 卡
     assert.deepEqual(resumed.waitingHistory[0], {
       round: 2,
       epoch: 2,
@@ -278,6 +295,14 @@ describe('createTaskStore', () => {
     assert.equal(store.findByReceiptMessageId('om_waiting_card').id, 'w-card')
     const restored = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
     assert.equal(restored.findByReceiptMessageId('om_waiting_card').id, 'w-card')
+  })
+
+  it('recordReceipt 可显式保留发送时 epoch，旧卡不会关联换代后的任务', () => {
+    const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+    store.upsert({ id: 'receipt-epoch', status: 'waiting_confirmation', epoch: 2, createdAt: '2026-01-01T00:00:00Z' })
+    store.recordReceipt('receipt-epoch', { messageId: 'om_old', kind: 'waiting_confirmation', epoch: 1 })
+    assert.equal(store.get('receipt-epoch').receipts[0].epoch, 1)
+    assert.equal(store.findByReceiptMessageId('om_old'), null)
   })
 
   it('空回复不触发无意义续跑', () => {

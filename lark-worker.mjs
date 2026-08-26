@@ -12,7 +12,7 @@ import {
   defaultGatewayUrl,
   defaultPollMs,
 } from './lib/lark-worker-env.mjs'
-import { aiTimeoutMs, resolveAiExecutor } from './lib/lark-ai-executor.mjs'
+import { aiTimeoutMs, preflightAiExecutor, resolveAiExecutor } from './lib/lark-ai-executor.mjs'
 import { createGatewayClient, sleep } from './lib/lark-gateway-client.mjs'
 import { loadWorkerLocalConfig } from './lib/lark-worker-run.mjs'
 import { resolveWorkContext, safeProject } from './lib/lark-work-context.mjs'
@@ -23,14 +23,15 @@ import { larkRuntimeDir } from './lib/lark-repo.mjs'
 import { defaultTaskLeaseMs } from './lib/lark-constants.mjs'
 
 function printHelp() {
-  console.log(`usage: lark-worker.mjs [--once] [--help]
+  console.log(`usage: lark-worker.mjs [--once] [--preflight] [--help]
 
 Lark Bot Gateway worker: claim pending tasks from the gateway and dispatch them to codex.
 Normally invoked by the per-project wrapper; this module also exports runLarkWorker().
 
 Options:
-  --help  Show this help message and exit
-  --once  Process one task then exit instead of polling forever`)
+  --help       Show this help message and exit
+  --preflight  Validate the configured executor/model and exit
+  --once       Process one task then exit instead of polling forever`)
 }
 
 if (process.argv.includes('--help')) {
@@ -73,10 +74,21 @@ export async function runLarkWorker({
   const codexProfile = startupExecutor === 'codex'
     ? ` model=${localConfig.codexModel || '(Codex default)'} reasoning=${localConfig.codexReasoningEffort || '(Codex default)'}`
     : ''
-  console.log(`[lark-worker] AI executor=${startupExecutor}${codexProfile}（task > env > config > wrapper）`)
+  const readiness = preflightAiExecutor(startupExecutor, {
+    codexModel: localConfig.codexModel,
+    codexReasoningEffort: localConfig.codexReasoningEffort,
+    // 默认执行器为 Codex 时，Worker 在写首个 heartbeat 前真实探测模型；restart 只有看到该 heartbeat 才成功。
+    probeModel: startupExecutor === 'codex',
+  })
+  console.log(`[lark-worker] AI executor=${startupExecutor}${codexProfile} readiness=${readiness.modelProbe}（task > env > config > wrapper）`)
   console.log(`[lark-worker] code=${runtimeVersion.codeHash} startedAt=${runtimeVersion.startedAt}`)
 
-  const heartbeat = (extra) => writeWorkerHeartbeat({ runtimeDir: larkRuntimeDir, version: runtimeVersion, extra })
+  if (argv.includes('--preflight')) {
+    console.log(JSON.stringify(readiness))
+    return
+  }
+
+  const heartbeat = (extra) => writeWorkerHeartbeat({ runtimeDir: larkRuntimeDir, version: runtimeVersion, extra: { readiness, ...extra } })
   heartbeat({ inFlight: 0 })
 
   const client = createGatewayClient(gatewayUrl)

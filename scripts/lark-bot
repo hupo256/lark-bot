@@ -1,0 +1,288 @@
+#!/usr/bin/env bash
+# Friendly control for the PR-01947 Lark bot (gateway + worker + bug poller).
+# Usage: lark-bot {start|stop|restart|status|logs|poll-on|poll-off}
+set -euo pipefail
+
+REPO="/Users/aven/github/fameex-web"
+DOCS_ROOT="${LARK_BOT_DOCS_ROOT:-/Users/aven/github/docs_tdd}"
+GW="$DOCS_ROOT/common/lark-bot/runtime/lark-gateway.mjs"
+WK="$DOCS_ROOT/common/lark-bot/runtime/lark-worker.mjs"
+POLLER="$DOCS_ROOT/common/lark-bot/runtime/lark-bugtable-poller.mjs"
+LOGDIR="$HOME/Library/Logs/fameex-lark"
+HEALTH="http://127.0.0.1:3005/lark/health"
+AGENT_DIR="$HOME/Library/LaunchAgents"
+GW_LABEL="com.fameex.lark-gateway"
+WK_LABEL="com.fameex.lark-worker"
+LEGACY_GW_LABEL="com.aven.lark.gateway"
+LEGACY_WK_LABEL="com.aven.lark.worker"
+GW_PLIST="$AGENT_DIR/$GW_LABEL.plist"
+WK_PLIST="$AGENT_DIR/$WK_LABEL.plist"
+SECRET_FILE="$HOME/.config/fameex-lark/gateway-secret"
+DOMAIN="gui/$(id -u)"
+
+mkdir -p "$LOGDIR"
+
+_running() { pgrep -f "$1" >/dev/null 2>&1; }
+_pid() { pgrep -f "$1" 2>/dev/null | head -n 1 || true; }
+_loaded() { launchctl print "$DOMAIN/$1" >/dev/null 2>&1; }
+_stop_script() {
+  local script="$1" pids
+  pids="$(pgrep -f "$script" 2>/dev/null || true)"
+  [ -z "$pids" ] || kill $pids 2>/dev/null || true
+}
+
+# 日志轮转：launchd 的 StandardOutPath 只追加、自己不轮转，worker.log 会无上限增长。
+# 只在 start() 顶部调用——此刻旧进程已被 stop() 停掉、log fd 已释放，mv 才安全（进程在跑时
+# mv 会让 launchd 继续写被改名的旧 inode）。每个日志保留 1 代（.1），上限约 2×阈值。
+LOG_ROTATE_BYTES="${LARK_LOG_ROTATE_BYTES:-10485760}"  # 10 MiB
+rotate_logs() {
+  local f size
+  for f in "$LOGDIR"/gateway.log "$LOGDIR"/worker.log "$LOGDIR"/poller.log; do
+    [ -f "$f" ] || continue
+    size="$(/usr/bin/stat -f%z "$f" 2>/dev/null || echo 0)"
+    if [ "$size" -gt "$LOG_ROTATE_BYTES" ]; then
+      mv -f "$f" "$f.1"
+      echo "• rotated $(basename "$f") (${size} bytes) → $(basename "$f").1"
+    fi
+  done
+}
+
+ensure_secret() {
+  [ -s "$SECRET_FILE" ] && return
+  umask 077
+  mkdir -p "$(dirname "$SECRET_FILE")"
+  /usr/bin/openssl rand -hex 32 >"$SECRET_FILE.tmp"
+  mv "$SECRET_FILE.tmp" "$SECRET_FILE"
+}
+
+install_agent() {
+  local label="$1" source="$2" target="$3"
+  mkdir -p "$AGENT_DIR"
+  cp "$source" "$target"
+  plutil -lint "$target" >/dev/null
+  if ! _loaded "$label"; then
+    launchctl bootstrap "$DOMAIN" "$target"
+  fi
+  launchctl enable "$DOMAIN/$label"
+  launchctl kickstart -k "$DOMAIN/$label"
+}
+
+START_TIMEOUT_SECONDS="${LARK_BOT_START_TIMEOUT_SECONDS:-120}"
+
+gateway_ready() {
+  curl -sS -m 1 "$HEALTH" 2>/dev/null | /opt/homebrew/bin/node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.exit(JSON.parse(s).ok?0:1)}catch{process.exit(1)}})'
+}
+
+worker_ready() {
+  local worker_pid
+  worker_pid="$(_pid "$WK")"
+  [ -n "$worker_pid" ] || return 1
+  curl -sS -m 1 "$HEALTH" 2>/dev/null | LARK_EXPECTED_WORKER_PID="$worker_pid" /opt/homebrew/bin/node -e '
+    let s="";
+    process.stdin.on("data",d=>s+=d).on("end",()=>{
+      try {
+        const h=JSON.parse(s), w=h.worker, expected=Number(process.env.LARK_EXPECTED_WORKER_PID);
+        process.exit(h.ok && w && w.pid===expected && !w.heartbeatStale && !w.codeStale && w.readiness?.ok ? 0 : 1);
+      } catch { process.exit(1); }
+    })'
+}
+
+wait_until() {
+  local label="$1" check="$2" elapsed=0
+  while [ "$elapsed" -lt "$START_TIMEOUT_SECONDS" ]; do
+    if "$check"; then return 0; fi
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
+  echo "✖ ${label} 未在 ${START_TIMEOUT_SECONDS}s 内就绪" >&2
+  return 1
+}
+
+stop_core() {
+  launchctl bootout "$DOMAIN/$WK_LABEL" 2>/dev/null || true
+  launchctl bootout "$DOMAIN/$GW_LABEL" 2>/dev/null || true
+  launchctl bootout "$DOMAIN/$LEGACY_WK_LABEL" 2>/dev/null || true
+  launchctl bootout "$DOMAIN/$LEGACY_GW_LABEL" 2>/dev/null || true
+  _stop_script "$WK"
+  _stop_script "$GW"
+}
+
+start() {
+  [ -d "$REPO" ] || { echo "repo not found: $REPO"; exit 1; }
+  rotate_logs
+  ensure_secret
+  launchctl bootout "$DOMAIN/$LEGACY_WK_LABEL" 2>/dev/null || true
+  launchctl bootout "$DOMAIN/$LEGACY_GW_LABEL" 2>/dev/null || true
+  if ! _loaded "$GW_LABEL"; then _stop_script "$GW"; fi
+  install_agent "$GW_LABEL" "$DOCS_ROOT/common/lark-bot/runtime/$GW_LABEL.plist" "$GW_PLIST"
+  echo "• gateway supervised by launchd → $LOGDIR/gateway.log"
+  if ! wait_until "gateway" gateway_ready; then
+    tail -n 20 "$LOGDIR/gateway.log" 2>/dev/null || true
+    stop_core
+    return 1
+  fi
+  if ! _loaded "$WK_LABEL"; then _stop_script "$WK"; fi
+  install_agent "$WK_LABEL" "$DOCS_ROOT/common/lark-bot/runtime/$WK_LABEL.plist" "$WK_PLIST"
+  echo "• worker supervised by launchd  → $LOGDIR/worker.log"
+  if ! wait_until "worker/Codex model" worker_ready; then
+    tail -n 30 "$LOGDIR/worker.log" 2>/dev/null || true
+    stop_core
+    return 1
+  fi
+  echo "---"
+  status || true
+}
+
+stop() {
+  stop_core
+  _stop_script "$POLLER"
+  echo "• stopped gateway + worker + poller"
+}
+
+# bug 轮询窗口：QA 期手动开、测完手动关（平时不跑）。空闲 4h 无新 bug 会自动收工。
+poll_on() {
+  cd "$REPO" || { echo "repo not found: $REPO"; exit 1; }
+  if _running "$POLLER"; then
+    echo "• poller already running"
+  else
+    # poller 不走 launchd wrapper，密钥要在这里注入，否则它带不上 header、被 gateway 401 挡掉。
+    [ -s "$SECRET_FILE" ] && export LARK_GATEWAY_SECRET="${LARK_GATEWAY_SECRET:-$(<"$SECRET_FILE")}"
+    nohup node "$POLLER" >"$LOGDIR/poller.log" 2>&1 & disown
+    echo "• poller started   → $LOGDIR/poller.log（空闲 4h 无新 bug 自动收工）"
+  fi
+}
+
+poll_off() {
+  if _running "$POLLER"; then _stop_script "$POLLER"; echo "• poller stopped"; else echo "• poller not running"; fi
+}
+
+# Gateway 写接口密钥必填；环境变量优先，否则读本机 0600 secret 文件。
+SECRET_HDR=()
+if [ -n "${LARK_GATEWAY_SECRET:-}" ]; then
+  SECRET_HDR=(-H "x-lark-gateway-secret: $LARK_GATEWAY_SECRET")
+elif [ -s "$SECRET_FILE" ]; then
+  SECRET_HDR=(-H "x-lark-gateway-secret: $(<"$SECRET_FILE")")
+fi
+
+# 列出所有 failed / blocked 任务（需人工重触发或清理的）
+# GET /lark/tasks 现在同样要求密钥（任务正文/附件本地路径属业务内容），故这里必须带 SECRET_HDR。
+failed() {
+  curl -s -m 5 ${SECRET_HDR[@]+"${SECRET_HDR[@]}"} "http://127.0.0.1:3005/lark/tasks" 2>/dev/null | node -e '
+    let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
+      let tasks=[];try{tasks=(JSON.parse(s).tasks||[])}catch{console.error("gateway DOWN");process.exit(1)}
+      const bad=tasks.filter(t=>t.status==="failed"||t.status==="blocked");
+      if(!bad.length){console.log("(无 failed / blocked 任务)");return}
+      for(const t of bad)console.log(`${t.status.padEnd(7)} ${t.id}  [${t.source||"?"}]  retry=${t.retryCount||0}\n         ${(t.summary||"").slice(0,70)}\n         → ${(t.result||"").replace(/\n/g," ").slice(0,90)}`)
+    })'
+}
+
+# 人工重触发一个 failed/blocked 任务：重置为 queued，worker 下一轮重跑
+retry() {
+  [ -n "${1:-}" ] || { echo "usage: lark-bot retry <taskId>"; exit 1; }
+  curl -s -m 5 -X POST ${SECRET_HDR[@]+"${SECRET_HDR[@]}"} "http://127.0.0.1:3005/lark/tasks/$1/retry"; echo
+}
+
+receipt_retry() {
+  [ -n "${1:-}" ] || { echo "usage: lark-bot receipt-retry <taskId>"; exit 1; }
+  curl -s -m 5 -X POST ${SECRET_HDR[@]+"${SECRET_HDR[@]}"} "http://127.0.0.1:3005/lark/tasks/$1/receipt/retry"; echo
+}
+
+# 清理陈旧终态任务。默认清 done；传 --failed 一并清 failed/blocked（注意：poller 运行时会重投 bug 表待处理项）
+clean() {
+  local hours="${1:-0}" statuses='["done"]'
+  if [ "${1:-}" = "--failed" ]; then statuses='["done","failed","blocked"]'; hours="${2:-0}"; fi
+  curl -s -m 5 -X POST ${SECRET_HDR[@]+"${SECRET_HDR[@]}"} -H 'Content-Type: application/json' \
+    -d "{\"olderThanHours\":$hours,\"statuses\":$statuses}" \
+    "http://127.0.0.1:3005/lark/tasks/prune"; echo
+}
+
+status() {
+  local h gateway_pid worker_pid poller_pid
+  h="$(curl -sS -m 3 "$HEALTH" 2>/dev/null || true)"
+  gateway_pid="$(_pid "$GW")"
+  worker_pid="$(_pid "$WK")"
+  poller_pid="$(_pid "$POLLER")"
+
+  printf '%s' "$h" | \
+    LARK_STATUS_GATEWAY_PID="$gateway_pid" \
+    LARK_STATUS_WORKER_PID="$worker_pid" \
+    LARK_STATUS_POLLER_PID="$poller_pid" \
+    node -e '
+      let input="";
+      process.stdin.on("data", chunk => input += chunk).on("end", () => {
+        let health = null;
+        try { health = input ? JSON.parse(input) : null; } catch {}
+
+        const gatewayPid = process.env.LARK_STATUS_GATEWAY_PID;
+        const workerPid = process.env.LARK_STATUS_WORKER_PID;
+        const pollerPid = process.env.LARK_STATUS_POLLER_PID;
+        const worker = health?.worker;
+        const gatewayState = health ? (health.ok ? "running" : "unhealthy") : (gatewayPid ? "unhealthy" : "stopped");
+        const workerHealthy = Boolean(
+          workerPid && worker && worker.pid === Number(workerPid) &&
+          !worker.heartbeatStale && !worker.codeStale && worker.readiness?.ok
+        );
+        const workerState = workerPid ? (workerHealthy ? "running" : "unhealthy") : "stopped";
+        const pollerState = pollerPid ? "running" : "stopped";
+        const readiness = worker?.readiness;
+        const counts = health?.counts || {};
+
+        console.log(`started time: ${health?.version?.startedAt || "--"}`);
+        console.log(`lark-gateway: ${gatewayState}  port=3005`);
+        console.log(`lark-worker:  ${workerState}${workerPid ? `  pid=${workerPid}` : ""}`);
+        console.log(`executor:     ${readiness?.executor || "--"}${readiness?.model ? `  model=${readiness.model}  reasoning=${readiness.reasoningEffort}  probe=${readiness.modelProbe}` : ""}`);
+        console.log(`poller:       ${pollerState}${pollerPid ? `  pid=${pollerPid}` : ""}`);
+        console.log(`tasks:        queued=${counts.queued || 0} running=${counts.running || 0} failed=${counts.failed || 0} receipt-pending=${health?.pendingReceipts?.total || 0} writeback-pending=${counts.done_pending_writeback || 0}`);
+        console.log(`rules:        ${health?.ruleChainFresh === false ? "stale" : health ? "fresh" : "--"}`);
+
+        if (health?.version?.codeStale) {
+          console.log(`\n⚠ gateway 跑的是旧代码（${health.version.codeHash || "?"}，磁盘 ${health.version.diskCodeHash || "?"}）：需 lark-bot restart`);
+        }
+        if (health?.version?.configStale) {
+          console.log(`\n⚠ gateway 跑的是旧配置（${health.version.configHash || "?"}，磁盘 ${health.version.diskConfigHash || "?"}）：需 lark-bot restart`);
+        }
+        if (worker?.codeStale) {
+          console.log(`\n⚠ worker 跑的是旧代码（${worker.codeHash || "?"}，磁盘 ${health?.version?.diskCodeHash || "?"}）：需 lark-bot restart`);
+        }
+        for (const warning of health?.warnings || []) console.log(`⚠ ${warning}`);
+
+        const unhealthy = gatewayState !== "running" || workerState !== "running" ||
+          health?.version?.codeStale || health?.version?.configStale ||
+          health?.ruleChainFresh === false || (health?.pendingReceipts?.gaveUp || 0) > 0;
+        if (unhealthy) process.exitCode = 1;
+      });'
+}
+
+restart() {
+  local restore_poller=0
+  if _running "$POLLER"; then restore_poller=1; fi
+  stop
+  sleep 2
+  start
+  if [ "$restore_poller" -eq 1 ]; then
+    poll_on
+    echo "• restored poller state from before restart"
+  fi
+  # restart 的最终验收无条件执行：即使 poller 原本关闭，也必须让 gateway/worker、
+  # executor/model readiness、代码/配置/规则新鲜度任一异常以非零退出。
+  status
+}
+
+if [ "${LARK_BOT_SOURCE_ONLY:-0}" = "1" ]; then
+  return 0 2>/dev/null || exit 0
+fi
+
+case "${1:-}" in
+  start)    start ;;
+  stop)     stop ;;
+  restart)  restart ;;
+  status)   status ;;
+  logs)     tail -n 40 -f "$LOGDIR"/gateway.log "$LOGDIR"/worker.log ;;
+  poll-on)  poll_on ;;
+  poll-off) poll_off ;;
+  failed)   failed ;;
+  retry)    retry "${2:-}" ;;
+  receipt-retry) receipt_retry "${2:-}" ;;
+  clean)    clean "${2:-}" "${3:-}" ;;
+  *) echo "usage: lark-bot {start|stop|restart|status|logs|poll-on|poll-off|failed|retry <id>|receipt-retry <id>|clean [hours]|clean --failed [hours]}"; exit 1 ;;
+esac
