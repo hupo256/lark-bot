@@ -3,12 +3,34 @@
   "title": "Lark AI task result",
   "type": "object",
   "additionalProperties": false,
-  "required": ["status", "summary", "checks", "changedFiles", "warnings", "blockers", "owner", "failureKind", "nextStep"],
+  "required": ["status", "taskState", "rootCauseLayer", "evidence", "summary", "checks", "changedFiles", "warnings", "blockers", "owner", "failureKind", "nextStep"],
   "properties": {
     "status": {
       "type": "string",
       "enum": ["done", "done_with_warnings", "no_change_needed", "blocked", "failed", "waiting_confirmation"],
       "description": "no_change_needed：经核对确认本仓（前端）无对应改动，需求属后台 API / 别的仓 / 别的职责；changedFiles 填 []，summary 说明为何本仓无需改动，owner 尽量指向承接方，nextStep 给「转 X 处理」"
+    },
+    "taskState": {
+      "type": ["string", "null"],
+      "enum": ["diagnosing", "root_cause_confirmed", "awaiting_owner_fix", "fix_verifying", "completed", null],
+      "description": "诊断状态机（防线1）：diagnosing 待诊断 → root_cause_confirmed 根因已确认 → awaiting_owner_fix 待对应端修复 → fix_verifying 修复验证中 → completed 已完成。无 root_cause_confirmed 不得改业务代码。缺陷类任务必填；非缺陷/纯需求任务可填 null"
+    },
+    "rootCauseLayer": {
+      "type": ["string", "null"],
+      "enum": ["frontend-logic", "frontend-data", "backend-data", "backend-contract", "product-spec", "cross-boundary", null],
+      "description": "根因所在层（防线2）：frontend-logic 前端逻辑 / frontend-data 前端数据层(mapper) / backend-data 后端数据错 / backend-contract 后端契约缺口 / product-spec 产品口径 / cross-boundary 跨层。判定：API 已错前端仅展示→backend-*；API 对 mapper 错→frontend-data；数据层对 UI 组合错→frontend-logic。取不到证据→填 null 并置 taskState=diagnosing，禁止猜测修复"
+    },
+    "evidence": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "description": "高风险字段（金额/状态/权限）或 rootCauseLayer=backend-* 时的结构化证据链（防线2）；沿 API→schema/mapper→state→UI 定位首个出错位置",
+      "properties": {
+        "userSeenValue": { "type": "string", "minLength": 1, "description": "用户实际看到的错误值" },
+        "apiActualValue": { "type": "string", "minLength": 1, "description": "API 实际返回值（Network/日志证据）" },
+        "contractExpectedValue": { "type": "string", "minLength": 1, "description": "契约/产品口径应有的值" },
+        "dataFlowFirstErrorLocation": { "type": "string", "minLength": 1, "description": "数据链上首个出错位置（如「API 响应 availableTrialFee 字段」）" }
+      },
+      "required": ["userSeenValue", "apiActualValue", "contractExpectedValue", "dataFlowFirstErrorLocation"]
     },
     "summary": {
       "type": "string",

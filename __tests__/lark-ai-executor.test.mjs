@@ -494,6 +494,49 @@ describe('structured result and cards', () => {
     }
   })
 
+  it('缺陷分诊门禁（VERIFY-TASK-001）：后端根因缺证据 / 后端根因关单无转交均拒收，合规与旧形态放行', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'lark-diag-test-'))
+    const resultPath = join(dir, 'result.json')
+    const base = {
+      status: 'done', summary: '已定位并转交后端。', checks: ['已读 Network'], changedFiles: [],
+      warnings: [], blockers: null, owner: '后端', failureKind: null, nextStep: null,
+    }
+    const evidence = { userSeenValue: '79.40', apiActualValue: '79.40', contractExpectedValue: '146.03', dataFlowFirstErrorLocation: 'API availableTrialFee' }
+    const write = (o) => { writeFileSync(resultPath, JSON.stringify(o)); return resultPath }
+    try {
+      // 旧形态（无新字段）仍放行
+      assert.deepEqual(parseStructuredAiResult(write(base)), base)
+      // 后端根因缺证据 → 拒收
+      assert.throws(() => parseStructuredAiResult(write({ ...base, rootCauseLayer: 'backend-data', taskState: 'awaiting_owner_fix', evidence: null })), /必须给出 evidence/)
+      // 后端根因标 completed 但 blockers 无转交项 → 拒收
+      assert.throws(() => parseStructuredAiResult(write({ ...base, rootCauseLayer: 'backend-data', taskState: 'completed', evidence, blockers: null })), /不能标 taskState=completed 关单/)
+      // 后端根因 + 证据 + awaiting_owner_fix + 转交项 → 放行
+      const ok = { ...base, rootCauseLayer: 'backend-data', taskState: 'awaiting_owner_fix', evidence, blockers: ['availableTrialFee 漏未激活，转后端'] }
+      assert.deepEqual(parseStructuredAiResult(write(ok)), ok)
+      // 前端根因 completed 无需证据 → 放行
+      const feOk = { ...base, rootCauseLayer: 'frontend-logic', taskState: 'completed' }
+      assert.deepEqual(parseStructuredAiResult(write(feOk)), feOk)
+      // 非法 taskState → 拒收
+      assert.throws(() => parseStructuredAiResult(write({ ...base, taskState: 'nonsense' })), /taskState 必须是/)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('结果正文带「分诊」行：显示根因层与诊断状态，后端根因标注需对应端修复', () => {
+    const text = formatStructuredAiResult({
+      status: 'done', summary: '已转交后端。', checks: [], changedFiles: [], warnings: [],
+      blockers: null, owner: '后端', failureKind: null, nextStep: null,
+      rootCauseLayer: 'backend-data', taskState: 'awaiting_owner_fix',
+      evidence: { userSeenValue: 'a', apiActualValue: 'b', contractExpectedValue: 'c', dataFlowFirstErrorLocation: 'd' },
+    })
+    assert.match(text, /分诊：根因层 后端数据（非前端，需对应端修复）/)
+    assert.match(text, /诊断状态 待对应端修复/)
+    // 无分诊字段的旧形态结果不出现「分诊」行
+    const plain = formatStructuredAiResult({ status: 'done', summary: 'ok', checks: [], changedFiles: [], warnings: [], blockers: null, owner: null, failureKind: null, nextStep: null })
+    assert.doesNotMatch(plain, /分诊：/)
+  })
+
   it('排队卡与结果卡展示实际执行器', () => {
     const config = { project: 'PR-01947', title: 'Test' }
     const task = { project: 'PR-01947', summary: 'fix', aiExecutor: 'codex' }
