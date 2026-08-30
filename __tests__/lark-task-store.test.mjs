@@ -402,4 +402,41 @@ describe('createTaskStore', () => {
     assert.equal(stats.topRequeued[0].id, 'hot')
     assert.ok(stats.minLeaseRemainingMs > 0 && stats.minLeaseRemainingMs <= 60_000) // busy 未超租约
   })
+
+  describe('同话题归并 / 收尾（listParkedByThread + supersede）', () => {
+    it('listParkedByThread 只返回同 threadRootId 且仍挂起的任务，排除自身', () => {
+      const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+      store.upsert({ id: 'a', status: 'waiting_confirmation', threadRootId: 'T', createdAt: '2026-01-01T00:00:00Z' })
+      store.upsert({ id: 'b', status: 'blocked', threadRootId: 'T', createdAt: '2026-01-01T00:00:00Z' })
+      store.upsert({ id: 'done', status: 'done', threadRootId: 'T', createdAt: '2026-01-01T00:00:00Z' }) // 已了结不算
+      store.upsert({ id: 'other', status: 'waiting_confirmation', threadRootId: 'X', createdAt: '2026-01-01T00:00:00Z' }) // 别的话题
+      const ids = store.listParkedByThread('T', { excludeId: 'a' }).map((t) => t.id).sort()
+      assert.deepEqual(ids, ['b'])
+    })
+
+    it('listParkedByThread 空 threadRootId 一律返回 []（非话题 @ 不误并）', () => {
+      const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+      store.upsert({ id: 'legacy', status: 'waiting_confirmation', createdAt: '2026-01-01T00:00:00Z' }) // 老任务无 threadRootId
+      assert.deepEqual(store.listParkedByThread(null), [])
+      assert.deepEqual(store.listParkedByThread(undefined), [])
+    })
+
+    it('supersede 把挂起任务置 superseded、清 parkedAt 与催办轮次、记 supersededBy', () => {
+      const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+      store.upsert({ id: 'a', status: 'waiting_confirmation', threadRootId: 'T', parkedAt: '2026-01-01T00:00:00Z', parkedRemindedRound: 2, createdAt: '2026-01-01T00:00:00Z' })
+      const out = store.supersede({ id: 'a', bySiblingId: 'b' })
+      assert.equal(out.status, 'superseded')
+      assert.equal(out.supersededBy, 'b')
+      assert.equal(out.parkedAt, null)
+      assert.equal(out.parkedRemindedRound, 0)
+      assert.match(out.result, /任务 b 完成/)
+    })
+
+    it('supersede 对非挂起态返回 null（不覆盖 done/running）', () => {
+      const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+      store.upsert({ id: 'd', status: 'done', threadRootId: 'T', createdAt: '2026-01-01T00:00:00Z' })
+      assert.equal(store.supersede({ id: 'd', bySiblingId: 'b' }), null)
+      assert.equal(store.supersede({ id: 'missing', bySiblingId: 'b' }), null)
+    })
+  })
 })

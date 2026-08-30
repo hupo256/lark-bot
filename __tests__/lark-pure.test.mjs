@@ -1226,6 +1226,12 @@ describe('parkedReminderRound（挂起催办轮次）', () => {
     assert.equal(round({ status: 'blocked' }), 0)
   })
 
+  it('superseded（同话题收尾终态）→ 恒不催，即便还带着旧 parkedAt', () => {
+    // supersede() 会清掉 parkedAt，但即使残留旧锚点，superseded 不在 PARKED_STATUSES → 恒 0。
+    assert.equal(round({ status: 'superseded', parkedAt: at(50) }), 0)
+    assert.equal(round({ status: 'superseded', parkedAt: at(4), parkedRemindedRound: 0 }), 0)
+  })
+
   it('锚点回落 updatedAt（老任务无 parkedAt）仍能催', () => {
     assert.equal(round({ status: 'blocked', updatedAt: at(5) }), 1)
   })

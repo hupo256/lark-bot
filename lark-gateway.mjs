@@ -114,7 +114,7 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   const pruneTimer = setInterval(() => {
     const removed = store.pruneTerminal({
       olderThanMs: pruneDoneAfterMs,
-      statuses: ['done', 'done_with_warnings', 'no_change_needed', 'ignored', 'intake_failed'],
+      statuses: ['done', 'done_with_warnings', 'no_change_needed', 'ignored', 'intake_failed', 'superseded'],
     })
     if (removed.length) console.log(`[lark-gateway] 清理陈旧终态任务 ${removed.length} 条`)
   }, 60 * 60 * 1000)
