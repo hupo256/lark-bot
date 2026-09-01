@@ -97,7 +97,7 @@ Gateway / Worker 至少提取：
 
 关键：`resolveAnalysisGate` **从不覆写 AI 的判断**，只把 blockers 分门别类，再由 workKind 决定哪些类构成停机（`hard` + 非快车道时的 `process`）。这取代了旧的 `SCOPE_OR_ACCESS_BLOCKER_RE`「命不中就整条改写成 ready」的默认放行。
 
-**新需求放行闸**（`requirementGate`，在 [lark-task-runner.mjs](../lib/lark-task-runner.mjs) 里于**跑 AI、动 worktree 之前**执行）：判为 `requirement` 且人尚未放行过（无 `resumeCount`/`waitingHistory`/`qaReturnCount`）时，直接回一张 `waiting_confirmation` 卡，一次 AI 都不跑。放这么早有两个硬理由：① 默认执行器 `claude` 没有只读分析阶段，只在分析阶段拦等于对默认路径无效；② 拦下的任务不该烧 AI、不该碰 worktree。人回复卡片补一句预期行为即视为放行、续跑。
+**新需求放行闸（混合兜底）**（`requirementGate`，在 [lark-task-runner.mjs](../lib/lark-task-runner.mjs) 里于**跑 AI、动 worktree 之前**执行）：判为 `requirement` 且人尚未放行过（无 `resumeCount`/`waitingHistory`/`qaReturnCount`）时——**仅当连自评材料都没有（`requirementHasSpecContext` 为 false：无附件，且正文短于 `REQUIREMENT_SELF_ASSESS_MIN_CHARS`=24 的裸一句话）**——才直接回一张 `waiting_confirmation` 卡、一次 AI 都不跑（这种消息 AI 也只能空手，先问一句比烧一次 AI 省）。**其余新需求（有附件 / 正文有细节）不再盲拦**，一律放行到 AI 由能读上下文的它自评。历史上这里对**每条**新需求盲拦，靠纯正则读不到话题讨论 / 设计稿，把已说清的新需求也退回补料——正是「太烦人」的根因。自评落地在两处执行器：`claude` 单趟无独立只读分析阶段，故 `buildTaskPrompt` 给未放行新需求内置「开工前只读自评」段（能从上下文唯一推导规格就直接做，不够再 `waiting_confirmation` 并**具体**列出缺口）；`codex` 沿用其只读分析阶段 + `resolveAnalysisGate` 自评。人回复卡片补一句预期行为即视为放行、续跑。
 
 ## 3.2 人类 WIP 隔离与 L2 契约改动的 type-check 闸
 

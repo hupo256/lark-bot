@@ -16,6 +16,7 @@ import {
   hasHumanGoAhead,
   isFastLaneTask,
   requirementGate,
+  requirementHasSpecContext,
   resolveAnalysisGate,
   resolveWorkKind,
 } from '../lib/lark-work-policy.mjs'
@@ -207,13 +208,35 @@ describe('resolveAnalysisGate', () => {
 })
 
 describe('requirementGate', () => {
-  it('新需求首次执行前被拦下，给出可操作的续跑指令', () => {
+  it('裸一句话新需求（无附件、无上下文）首次执行前被拦下，给出可操作的续跑指令', () => {
     const task = larkTask({ text: '加个导出功能' })
     const gate = requirementGate(task)
     assert.equal(gate.status, 'waiting_confirmation')
     assert.equal(gate.workKind, WORK_KINDS.requirement)
     assert.ok(gate.blockers.length >= 2)
     assert.match(gate.nextStep, /继续任务 t1/)
+  })
+
+  it('混合兜底：带可自评上下文的新需求不再盲拦，放行到 AI 自评（少烦人）', () => {
+    // 正文已带细节（≥ 阈值）→ 放行
+    const detailed = larkTask({ text: '新增一个数据看板页面，展示当日成交量、活跃用户和留存曲线' })
+    assert.equal(resolveWorkKind(detailed), WORK_KINDS.requirement)
+    assert.equal(requirementHasSpecContext(detailed), true)
+    assert.equal(requirementGate(detailed), null)
+    // 带附件（设计稿 / 截图即规格）→ 放行；用 intake 锁定为 requirement，绕过「有图即 bug」的兜底
+    const withAttachment = larkTask({
+      text: '做个新的对账页面',
+      intake: { classification: { decision: 'requirement' } },
+      attachments: [{ type: 'image' }],
+    })
+    assert.equal(resolveWorkKind(withAttachment), WORK_KINDS.requirement)
+    assert.equal(requirementHasSpecContext(withAttachment), true)
+    assert.equal(requirementGate(withAttachment), null)
+  })
+
+  it('requirementHasSpecContext：裸一句话无料，附件或长正文才算有料', () => {
+    assert.equal(requirementHasSpecContext(larkTask({ text: '加个导出功能' })), false)
+    assert.equal(requirementHasSpecContext(larkTask({ text: '加个导出功能', attachments: [{ type: 'image' }] })), true)
   })
 
   it('人补过料（resumeWithSupplement 后 resumeCount/waitingHistory 有值）即视为放行，不再重复拦', () => {
