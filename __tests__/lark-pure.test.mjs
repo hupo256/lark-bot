@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
-import { handleStatusUpdate, resolveReceiptOutcome, retryPendingReceipts } from '../lib/lark-status.mjs'
+import { handleStatusUpdate, resolveReceiptOutcome, retryPendingReceipts, sendQueuedReceipt } from '../lib/lark-status.mjs'
 import {
   buildBugStatusFilter,
   buildBugText,
@@ -33,6 +33,7 @@ import {
   classifyCommandType,
   inferCommandType,
   isForBot,
+  isManualResolutionMessage,
   isReadOnlyCommand,
   isReadOnlyTask,
   isWhitelisted,
@@ -50,7 +51,7 @@ import { validateConfig } from '../lib/lark-config.mjs'
 import { pruneStaleAudits } from '../lib/lark-worker-audit.mjs'
 import { classifyWorkerFailure } from '../lib/lark-worker-results.mjs'
 import { resolveWorkContext, safeProject, tempWorktreeContextFor } from '../lib/lark-work-context.mjs'
-import { resolveResumeTarget } from '../lib/lark-ingest.mjs'
+import { resolveManualCloseTarget, resolveResumeTarget } from '../lib/lark-ingest.mjs'
 import { validateSource } from '../../engine/agent-scripts/sync-lark-docs.mjs'
 
 const BOT = 'ou_bot'
@@ -515,6 +516,39 @@ describe('parseCommandType', () => {
     })
     assert.equal(parseResumeDirective('继续讨论这个问题'), null)
   })
+
+  it('只把明确的人工完成确认识别为直接结单', () => {
+    assert.equal(isManualResolutionMessage('已由另一位 AI 同学完成了，请同步更新状态'), true)
+    assert.equal(isManualResolutionMessage('👍 该问题已解决'), true)
+    assert.equal(isManualResolutionMessage('这个问题处理好了'), true)
+    assert.equal(isManualResolutionMessage('该问题未解决'), false)
+    assert.equal(isManualResolutionMessage('只完成了一部分，还需继续处理'), false)
+    assert.equal(isManualResolutionMessage('请解决这个问题'), false)
+    assert.equal(isManualResolutionMessage('问题解决不了怎么办？'), false)
+  })
+})
+
+describe('resolveManualCloseTarget', () => {
+  const task = { id: 't', status: 'queued' }
+  const makeStore = ({ byId = {}, byReceipt = {} } = {}) => ({
+    get: (id) => byId[id] || null,
+    findByReceiptMessageId: (id) => byReceipt[id] || null,
+  })
+
+  it('直接回复排队/待确认回执时精确命中原任务', () => {
+    const store = makeStore({ byReceipt: { om_card: task } })
+    assert.equal(resolveManualCloseTarget({ msg: { replyToDirect: 'om_card' }, store }), task)
+  })
+
+  it('回复原任务消息或仅有线程根时也能命中', () => {
+    const store = makeStore({ byId: { t: task } })
+    assert.equal(resolveManualCloseTarget({ msg: { replyToDirect: 't' }, store }), task)
+    assert.equal(resolveManualCloseTarget({ msg: { replyTo: 't' }, store }), task)
+  })
+
+  it('无明确回复关联时不猜测目标', () => {
+    assert.equal(resolveManualCloseTarget({ msg: {}, store: makeStore() }), null)
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -572,6 +606,32 @@ describe('Lark 回执 message_id 解析', () => {
     assert.equal(parseSentMessageId('{"data":{"message":{"message_id":"om_b"}}}'), 'om_b')
     assert.equal(parseSentMessageId('{"message_id":"om_c"}'), 'om_c')
     assert.equal(parseSentMessageId('not-json'), null)
+  })
+})
+
+describe('sendQueuedReceipt', () => {
+  it('排队卡发送成功后保存 message_id 与发送时 epoch', async () => {
+    let recorded
+    const task = { id: 't1', chatId: 'oc_1', project: 'PR-01930', summary: '测试任务', epoch: 2 }
+    const receipt = await sendQueuedReceipt({
+      config: { project: 'PR-01930', title: '测试' },
+      store: { recordReceipt: (id, value) => { recorded = { id, ...value } } },
+      task,
+      sendMessage: async () => ({ ok: true, messageId: 'om_queued' }),
+    })
+    assert.equal(receipt.ok, true)
+    assert.deepEqual(recorded, { id: 't1', messageId: 'om_queued', kind: 'queued', epoch: 2 })
+  })
+
+  it('发送失败或未返回 message_id 时不伪造关联', async () => {
+    let recorded = false
+    await sendQueuedReceipt({
+      config: { project: 'PR-01930', title: '测试' },
+      store: { recordReceipt: () => { recorded = true } },
+      task: { id: 't1', chatId: 'oc_1', project: 'PR-01930', summary: '测试任务' },
+      sendMessage: async () => ({ ok: false, reason: 'network' }),
+    })
+    assert.equal(recorded, false)
   })
 })
 

@@ -438,5 +438,36 @@ describe('createTaskStore', () => {
       assert.equal(store.supersede({ id: 'd', bySiblingId: 'b' }), null)
       assert.equal(store.supersede({ id: 'missing', bySiblingId: 'b' }), null)
     })
+
+    it('人工确认外部已解决时直接结单，并换代拦截 running worker 迟到回写', () => {
+      const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+      store.upsert({
+        id: 'active',
+        status: 'running',
+        epoch: 3,
+        claimedAt: '2026-09-01T10:00:00Z',
+        parkedAt: '2026-09-01T09:00:00Z',
+        parkedRemindedRound: 2,
+        pendingReceipt: { status: 'waiting_confirmation' },
+        createdAt: '2026-09-01T08:00:00Z',
+      })
+      const outcome = store.closeAsExternallyResolved({ id: 'active', operator: 'ou_user', messageId: 'om_close' })
+      assert.equal(outcome.previousStatus, 'running')
+      assert.equal(outcome.task.status, 'superseded')
+      assert.equal(outcome.task.epoch, 4)
+      assert.equal(outcome.task.claimedAt, null)
+      assert.equal(outcome.task.parkedAt, null)
+      assert.equal(outcome.task.parkedRemindedRound, 0)
+      assert.equal(outcome.task.pendingReceipt, undefined)
+      assert.deepEqual(outcome.task.externalResolution.operator, 'ou_user')
+      assert.equal(outcome.task.externalResolution.messageId, 'om_close')
+    })
+
+    it('人工结单不覆盖已了结任务', () => {
+      const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+      store.upsert({ id: 'done', status: 'done', createdAt: '2026-09-01T08:00:00Z' })
+      assert.equal(store.closeAsExternallyResolved({ id: 'done' }), null)
+      assert.equal(store.closeAsExternallyResolved({ id: 'missing' }), null)
+    })
   })
 })
