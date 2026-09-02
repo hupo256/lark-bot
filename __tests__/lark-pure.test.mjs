@@ -32,6 +32,7 @@ import { messageSendRecipientArgs, parseSentMessageId, pickChatIdByProject, reso
 import {
   classifyClosureIntent,
   classifyCommandType,
+  classifyPauseIntent,
   classifyReopenIntent,
   inferCommandType,
   isForBot,
@@ -54,8 +55,8 @@ import { validateConfig } from '../lib/lark-config.mjs'
 import { pruneStaleAudits } from '../lib/lark-worker-audit.mjs'
 import { classifyWorkerFailure } from '../lib/lark-worker-results.mjs'
 import { resolveWorkContext, safeProject, tempWorktreeContextFor } from '../lib/lark-work-context.mjs'
-import { decideControlAction, resolveManualCloseTarget, resolveResumeTarget } from '../lib/lark-ingest.mjs'
-import { isExecutionSuperseded } from '../lib/lark-task-runner.mjs'
+import { decideControlAction, isRegisteredBotReceiptReply, resolveManualCloseTarget, resolveResumeTarget } from '../lib/lark-ingest.mjs'
+import { isExecutionSuperseded, monitorExecutionCancellation } from '../lib/lark-task-runner.mjs'
 import { validateSource } from '../../engine/agent-scripts/sync-lark-docs.mjs'
 
 const BOT = 'ou_bot'
@@ -266,6 +267,12 @@ describe('isForBot', () => {
   })
   it('普通群消息没有 mention → 不触发', () => {
     assert.equal(resolveMessageTrigger({ msg: { chatType: 'group', mentions: [] }, config }), null)
+  })
+
+  it('无 @ 的群回复仅在精确命中 Bot 回执时进入控制通道', () => {
+    const msg = { chatType: 'group', senderType: 'user', mentions: [], replyToDirect: 'om_receipt' }
+    assert.equal(resolveMessageTrigger({ msg, config, isBotReceiptReply: true }), 'bot_reply')
+    assert.equal(resolveMessageTrigger({ msg, config, isBotReceiptReply: false }), null)
   })
   it('bot 自己发的含 @负责人消息 → 不回流成任务', () => {
     const personConfig = { botOpenId: BOT, taskMentionOpenIds: [ME] }
@@ -537,6 +544,8 @@ describe('parseCommandType', () => {
     assert.deepEqual(classifyClosureIntent('这个任务终止'), { intent: 'close', closureReason: 'cancelled', scope: 'whole_task', confidence: 'high' })
     assert.deepEqual(classifyClosureIntent('需求变了，先不做了'), { intent: 'close', closureReason: 'no_longer_needed', scope: 'whole_task', confidence: 'high' })
     assert.deepEqual(classifyClosureIntent('已上线了'), { intent: 'close', closureReason: 'completed_elsewhere', scope: 'whole_task', confidence: 'high' })
+    assert.equal(classifyClosureIntent('已经有人在改了').intent, 'close')
+    assert.equal(classifyClosureIntent('走线下处理了').intent, 'close')
     assert.equal(classifyClosureIntent('不用继续做了').intent, 'close') // 否定+继续=停，不算 partial
   })
 
@@ -546,6 +555,23 @@ describe('parseCommandType', () => {
     assert.equal(classifyClosureIntent('结束后再通知我').intent, 'unclear')
     assert.equal(classifyClosureIntent('他说不用做了，但我觉得要做').intent, 'unclear')
     assert.equal(classifyClosureIntent('还没解决').intent, null)
+  })
+
+  it('结单疑问句不自动关闭；暂停是独立控制动作', () => {
+    for (const text of ['是不是已经解决了？', '这个不用做了吗？', '修复了没', '完成没', '已上线了吗', '还没有取消']) {
+      assert.equal(classifyClosureIntent(text).intent, 'unclear', text)
+    }
+    assert.equal(classifyPauseIntent('先暂停一下'), true)
+    assert.equal(classifyPauseIntent('不用继续做了'), false)
+  })
+
+  it('结单夹带新的缺陷/修改请求时保留残余请求，不静默吞掉', () => {
+    for (const text of ['上个问题已解决，现在这个下拉框还是空的', '这个功能已上线后下拉框还是空的', '需求变了，按钮改成蓝色']) {
+      const verdict = classifyClosureIntent(text)
+      assert.equal(verdict.intent, 'close_with_residual', text)
+      assert.ok(verdict.residualRequest, text)
+    }
+    assert.equal(classifyClosureIntent('已由另一位 AI 同学完成了，请同步更新状态').intent, 'close')
   })
 
   it('classifyClosureIntent：夹带「另一部分/其余继续」→ unclear + scope=partial', () => {
@@ -609,6 +635,17 @@ describe('resolveManualCloseTarget', () => {
   it('无明确回复关联时不猜测目标', () => {
     assert.equal(resolveManualCloseTarget({ msg: {}, store: makeStore() }), null)
   })
+
+  it('direct 精确锚定失败时回落到同话题唯一活动任务', () => {
+    const active = { id: 'task-a', status: 'running' }
+    const store = {
+      findTaskByAnyReceipt: () => null,
+      findByReceiptMessageId: () => null,
+      get: () => null,
+      listActiveByThread: () => [active],
+    }
+    assert.equal(resolveManualCloseTarget({ msg: { replyToDirect: 'unknown', replyTo: 'unknown', threadRootId: 'th' }, store }), active)
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -644,10 +681,15 @@ describe('decideControlAction', () => {
     assert.equal(decideControlAction({ target: { status: 'queued' }, verdict: { intent: null } }), 'notice')
   })
 
-  it('终态任务 + 非结单表达 → passthrough（允许在已了结话题里发起真正的新请求）', () => {
+  it('暂停与混合结单分别走独立动作', () => {
+    assert.equal(decideControlAction({ target: { status: 'blocked' }, verdict: { intent: null }, pause: true }), 'pause')
+    assert.equal(decideControlAction({ target: { status: 'running' }, verdict: { intent: 'close_with_residual' } }), 'close_with_residual')
+    assert.equal(decideControlAction({ target: { status: 'done' }, verdict: { intent: 'unclear' } }), 'confirm')
+  })
+
+  it('终态任务 + 普通新请求 → passthrough（允许在已了结话题里发起真正的新请求）', () => {
     for (const status of TERMINAL) {
       assert.equal(decideControlAction({ target: { status }, verdict: { intent: null } }), 'passthrough')
-      assert.equal(decideControlAction({ target: { status }, verdict: { intent: 'unclear' } }), 'passthrough')
     }
   })
 
@@ -723,6 +765,31 @@ describe('isExecutionSuperseded', () => {
   it('epoch 缺省按 0 比较（旧任务无 epoch 字段）', () => {
     assert.equal(isExecutionSuperseded({ current: { status: 'running' }, claimedEpoch: undefined }), false)
     assert.equal(isExecutionSuperseded({ current: { status: 'running', epoch: 1 }, claimedEpoch: 0 }), true)
+  })
+})
+
+describe('monitorExecutionCancellation', () => {
+  it('AI 运行中检测到 superseded 后 abort', async () => {
+    const controller = new AbortController()
+    let checks = 0
+    const stop = monitorExecutionCancellation({
+      getTask: async () => ({ status: ++checks >= 2 ? 'superseded' : 'running', epoch: checks >= 2 ? 2 : 1 }),
+      taskId: 't1',
+      claimedEpoch: 1,
+      controller,
+      intervalMs: 10,
+    })
+    await new Promise((resolve) => setTimeout(resolve, 130))
+    stop()
+    assert.equal(controller.signal.aborted, true)
+  })
+})
+
+describe('Bot receipt reply admission', () => {
+  it('用持久回执索引限制无 @ 控制入口', () => {
+    const msg = { replyToDirect: 'om_receipt' }
+    assert.equal(isRegisteredBotReceiptReply({ msg, store: { findTaskByAnyReceipt: () => ({ id: 't1' }) } }), true)
+    assert.equal(isRegisteredBotReceiptReply({ msg, store: { findTaskByAnyReceipt: () => null, findByReceiptMessageId: () => null } }), false)
   })
 })
 

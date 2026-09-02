@@ -509,7 +509,13 @@ describe('createTaskStore', () => {
       assert.equal(closed.task.status, 'superseded')
       assert.equal(isReopenableClosedTask(closed.task), true)
 
-      const reopened = store.reopenClosed({ id: 'r1', operator: 'ou_b', messageId: 'om_re' })
+      const reopened = store.reopenClosed({
+        id: 'r1',
+        operator: 'ou_b',
+        messageId: 'om_re',
+        supplementText: '按钮仍然是空的',
+        supplementAttachments: [{ type: 'image', path: '/tmp/reopen.png' }],
+      })
       assert.equal(reopened.status, 'queued')
       assert.equal(reopened.epoch, 3) // close(1→2) 后 reopen 再 ++ → 3
       assert.equal(reopened.closureReason, undefined)
@@ -519,6 +525,9 @@ describe('createTaskStore', () => {
       assert.equal(reopened.closureHistory.length, 1)
       assert.equal(reopened.closureHistory[0].closureReason, 'cancelled')
       assert.equal(reopened.closureHistory[0].reopenedBy, 'ou_b')
+      assert.match(reopened.text, /【重开补充】\n按钮仍然是空的/)
+      assert.equal(reopened.attachments[0].path, '/tmp/reopen.png')
+      assert.equal(reopened.reopenHistory[0].messageId, 'om_re')
       assert.equal(isReopenableClosedTask(reopened), false)
     })
 
