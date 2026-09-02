@@ -55,6 +55,7 @@ import { pruneStaleAudits } from '../lib/lark-worker-audit.mjs'
 import { classifyWorkerFailure } from '../lib/lark-worker-results.mjs'
 import { resolveWorkContext, safeProject, tempWorktreeContextFor } from '../lib/lark-work-context.mjs'
 import { decideControlAction, resolveManualCloseTarget, resolveResumeTarget } from '../lib/lark-ingest.mjs'
+import { isExecutionSuperseded } from '../lib/lark-task-runner.mjs'
 import { validateSource } from '../../engine/agent-scripts/sync-lark-docs.mjs'
 
 const BOT = 'ou_bot'
@@ -681,6 +682,31 @@ describe('classifyReopenIntent', () => {
     for (const t of ['继续下一步', '补充一下需求', '取消吧', '', '这个已解决']) {
       assert.equal(classifyReopenIntent(t), false, t)
     }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// isExecutionSuperseded：running 中协作式取消检测（提交前回查，防已取消任务提代码）
+// ---------------------------------------------------------------------------
+describe('isExecutionSuperseded', () => {
+  it('人工结单落 superseded → true（无论 epoch）', () => {
+    assert.equal(isExecutionSuperseded({ current: { status: 'superseded', epoch: 2 }, claimedEpoch: 2 }), true)
+  })
+  it('换代（epoch 变了：retry/resume/reclaim）→ true', () => {
+    assert.equal(isExecutionSuperseded({ current: { status: 'running', epoch: 3 }, claimedEpoch: 2 }), true)
+    assert.equal(isExecutionSuperseded({ current: { status: 'queued', epoch: 3 }, claimedEpoch: 2 }), true)
+  })
+  it('同代次仍在跑 / 正常完成 → false（不误弃）', () => {
+    assert.equal(isExecutionSuperseded({ current: { status: 'running', epoch: 2 }, claimedEpoch: 2 }), false)
+    assert.equal(isExecutionSuperseded({ current: { status: 'done', epoch: 2 }, claimedEpoch: 2 }), false)
+  })
+  it('读不到当前任务（网关瞬时不可达）→ false，交由 epoch/409 回写兜底，不误判取消', () => {
+    assert.equal(isExecutionSuperseded({ current: null, claimedEpoch: 2 }), false)
+    assert.equal(isExecutionSuperseded({}), false)
+  })
+  it('epoch 缺省按 0 比较（旧任务无 epoch 字段）', () => {
+    assert.equal(isExecutionSuperseded({ current: { status: 'running' }, claimedEpoch: undefined }), false)
+    assert.equal(isExecutionSuperseded({ current: { status: 'running', epoch: 1 }, claimedEpoch: 0 }), true)
   })
 })
 
