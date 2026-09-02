@@ -469,5 +469,37 @@ describe('createTaskStore', () => {
       assert.equal(store.closeAsExternallyResolved({ id: 'done' }), null)
       assert.equal(store.closeAsExternallyResolved({ id: 'missing' }), null)
     })
+
+    it('closureReason 分流：取消/无需处理不记成外部完成，落态存档反映真实原因', () => {
+      const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+      store.upsert({ id: 'c1', status: 'queued', createdAt: '2026-09-01T08:00:00Z' })
+      const cancelled = store.closeAsExternallyResolved({ id: 'c1', closureReason: 'cancelled' })
+      assert.equal(cancelled.closureReason, 'cancelled')
+      assert.equal(cancelled.task.closureReason, 'cancelled')
+      assert.equal(cancelled.task.externalResolution.closureReason, 'cancelled')
+      assert.match(cancelled.task.result, /取消/)
+      assert.doesNotMatch(cancelled.task.result, /已由其他/)
+
+      store.upsert({ id: 'c2', status: 'blocked', createdAt: '2026-09-01T08:00:00Z' })
+      const noNeed = store.closeAsExternallyResolved({ id: 'c2', closureReason: 'no_longer_needed' })
+      assert.equal(noNeed.closureReason, 'no_longer_needed')
+
+      // 缺省 / 非法 reason 回落 completed_elsewhere（向后兼容旧调用点）
+      store.upsert({ id: 'c3', status: 'running', createdAt: '2026-09-01T08:00:00Z' })
+      assert.equal(store.closeAsExternallyResolved({ id: 'c3' }).closureReason, 'completed_elsewhere')
+    })
+
+    it('findTaskByAnyReceipt 忽略代次命中；listActiveByThread 只返回未了结、可含 running', () => {
+      const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+      store.upsert({ id: 'a', status: 'running', epoch: 2, threadRootId: 'th', createdAt: '2026-09-01T08:00:00Z' })
+      store.recordReceipt('a', { messageId: 'om_gen0', kind: 'queued', epoch: 0 }) // 旧代次卡
+      // epoch 严格版因代次不匹配漏掉，忽略代次版命中
+      assert.equal(store.findByReceiptMessageId('om_gen0'), null)
+      assert.equal(store.findTaskByAnyReceipt('om_gen0').id, 'a')
+
+      store.upsert({ id: 'b', status: 'done', threadRootId: 'th', createdAt: '2026-09-01T08:00:00Z' })
+      const active = store.listActiveByThread('th', { excludeId: 'x' })
+      assert.deepEqual(active.map((t) => t.id).sort(), ['a']) // 只含未了结的 running，排除 done
+    })
   })
 })

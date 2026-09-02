@@ -30,6 +30,7 @@ import { sweepAttachments } from '../lib/lark-retention.mjs'
 import { buildResultCard, buildWaitingCard } from '../lib/lark-cards.mjs'
 import { messageSendRecipientArgs, parseSentMessageId, pickChatIdByProject, resolveDeliveryChatId, formatLarkCliError, isTransientLarkError } from '../lib/lark-cli.mjs'
 import {
+  classifyClosureIntent,
   classifyCommandType,
   inferCommandType,
   isForBot,
@@ -51,7 +52,7 @@ import { validateConfig } from '../lib/lark-config.mjs'
 import { pruneStaleAudits } from '../lib/lark-worker-audit.mjs'
 import { classifyWorkerFailure } from '../lib/lark-worker-results.mjs'
 import { resolveWorkContext, safeProject, tempWorktreeContextFor } from '../lib/lark-work-context.mjs'
-import { resolveManualCloseTarget, resolveResumeTarget } from '../lib/lark-ingest.mjs'
+import { decideControlAction, resolveManualCloseTarget, resolveResumeTarget } from '../lib/lark-ingest.mjs'
 import { validateSource } from '../../engine/agent-scripts/sync-lark-docs.mjs'
 
 const BOT = 'ou_bot'
@@ -526,13 +527,41 @@ describe('parseCommandType', () => {
     assert.equal(isManualResolutionMessage('请解决这个问题'), false)
     assert.equal(isManualResolutionMessage('问题解决不了怎么办？'), false)
   })
+
+  it('classifyClosureIntent：取消/无需/外部完成语族 → close(high) + 正确 closureReason', () => {
+    assert.deepEqual(classifyClosureIntent('这个不用做了'), { intent: 'close', closureReason: 'no_longer_needed', scope: 'whole_task', confidence: 'high' })
+    assert.deepEqual(classifyClosureIntent('取消吧'), { intent: 'close', closureReason: 'cancelled', scope: 'whole_task', confidence: 'high' })
+    assert.deepEqual(classifyClosureIntent('这个任务终止'), { intent: 'close', closureReason: 'cancelled', scope: 'whole_task', confidence: 'high' })
+    assert.deepEqual(classifyClosureIntent('需求变了，先不做了'), { intent: 'close', closureReason: 'no_longer_needed', scope: 'whole_task', confidence: 'high' })
+    assert.deepEqual(classifyClosureIntent('已上线了'), { intent: 'close', closureReason: 'completed_elsewhere', scope: 'whole_task', confidence: 'high' })
+    assert.equal(classifyClosureIntent('不用继续做了').intent, 'close') // 否定+继续=停，不算 partial
+  })
+
+  it('classifyClosureIntent：否定/暂停/条件未来时/转述 → unclear(不自动结单)', () => {
+    assert.equal(classifyClosureIntent('不要结束，继续做').intent, 'unclear')
+    assert.equal(classifyClosureIntent('先暂停一下').intent, null) // 无结单原因信号 → 非控制表达
+    assert.equal(classifyClosureIntent('结束后再通知我').intent, 'unclear')
+    assert.equal(classifyClosureIntent('他说不用做了，但我觉得要做').intent, 'unclear')
+    assert.equal(classifyClosureIntent('还没解决').intent, null)
+  })
+
+  it('classifyClosureIntent：夹带「另一部分/其余继续」→ unclear + scope=partial', () => {
+    const a = classifyClosureIntent('A 不用做了，B 继续')
+    assert.equal(a.intent, 'unclear')
+    assert.equal(a.scope, 'partial')
+    const b = classifyClosureIntent('这个已解决，不过另外那个还要处理')
+    assert.equal(b.intent, 'unclear')
+    assert.equal(b.scope, 'partial')
+  })
 })
 
 describe('resolveManualCloseTarget', () => {
   const task = { id: 't', status: 'queued' }
-  const makeStore = ({ byId = {}, byReceipt = {} } = {}) => ({
+  const makeStore = ({ byId = {}, byReceipt = {}, byAnyReceipt = {}, active = [] } = {}) => ({
     get: (id) => byId[id] || null,
     findByReceiptMessageId: (id) => byReceipt[id] || null,
+    findTaskByAnyReceipt: (id) => byAnyReceipt[id] || null,
+    listActiveByThread: () => active,
   })
 
   it('直接回复排队/待确认回执时精确命中原任务', () => {
@@ -546,8 +575,61 @@ describe('resolveManualCloseTarget', () => {
     assert.equal(resolveManualCloseTarget({ msg: { replyTo: 't' }, store }), task)
   })
 
+  it('忽略代次的回执反查：回复旧代次卡（findTaskByAnyReceipt）仍能命中', () => {
+    const store = makeStore({ byAnyReceipt: { om_old: task } }) // findByReceiptMessageId 因 epoch 不匹配返回 null
+    assert.equal(resolveManualCloseTarget({ msg: { replyToDirect: 'om_old' }, store }), task)
+  })
+
+  it('无直接锚点时，同话题恰好一条活动任务才归并', () => {
+    const one = makeStore({ active: [task] })
+    assert.equal(resolveManualCloseTarget({ msg: { threadRootId: 'th', messageId: 'm' }, store: one }), task)
+    const many = makeStore({ active: [task, { id: 't2', status: 'running' }] })
+    assert.equal(resolveManualCloseTarget({ msg: { threadRootId: 'th', messageId: 'm' }, store: many }), null)
+  })
+
   it('无明确回复关联时不猜测目标', () => {
     assert.equal(resolveManualCloseTarget({ msg: {}, store: makeStore() }), null)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// decideControlAction：任务控制通道路由 + 硬不变量（回复活动任务卡永不 fall through 新建任务）
+// ---------------------------------------------------------------------------
+describe('decideControlAction', () => {
+  const ACTIVE = ['received', 'queued', 'running', 'verifying', 'waiting_confirmation', 'blocked', 'failed']
+  const TERMINAL = ['done', 'superseded', 'ignored', 'no_change_needed']
+
+  it('无锚定 → passthrough', () => {
+    assert.equal(decideControlAction({ target: null, verdict: { intent: 'close' } }), 'passthrough')
+  })
+
+  it('结单意图对任意状态都走 close（终态由 store 幂等挡回）', () => {
+    for (const status of [...ACTIVE, ...TERMINAL]) {
+      assert.equal(decideControlAction({ target: { status }, verdict: { intent: 'close', closureReason: 'cancelled' } }), 'close')
+    }
+  })
+
+  it('硬不变量：活动态任务被锚定时，任何非结单意图都不 passthrough（绝不新建任务）', () => {
+    for (const status of ACTIVE) {
+      for (const intent of ['unclear', null]) {
+        const action = decideControlAction({ target: { status }, verdict: { intent } })
+        assert.notEqual(action, 'passthrough', `status=${status} intent=${intent} 不应 passthrough`)
+      }
+    }
+  })
+
+  it('活动态路由：unclear→confirm；parked 无结单→resume；其它活动态无结单→notice', () => {
+    assert.equal(decideControlAction({ target: { status: 'running' }, verdict: { intent: 'unclear' } }), 'confirm')
+    assert.equal(decideControlAction({ target: { status: 'waiting_confirmation' }, verdict: { intent: null } }), 'resume')
+    assert.equal(decideControlAction({ target: { status: 'blocked' }, verdict: { intent: null } }), 'resume')
+    assert.equal(decideControlAction({ target: { status: 'queued' }, verdict: { intent: null } }), 'notice')
+  })
+
+  it('终态任务 + 非结单表达 → passthrough（允许在已了结话题里发起真正的新请求）', () => {
+    for (const status of TERMINAL) {
+      assert.equal(decideControlAction({ target: { status }, verdict: { intent: null } }), 'passthrough')
+      assert.equal(decideControlAction({ target: { status }, verdict: { intent: 'unclear' } }), 'passthrough')
+    }
   })
 })
 

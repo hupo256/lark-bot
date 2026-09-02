@@ -140,7 +140,23 @@ Worker 完成后必须回群，并写入项目通知记录。回群内容固定�
 
 ## 5. 回复策略
 
-用户回复原任务消息或机器人回执卡，并明确表示“已由其他人 / AI 完成”、“该问题已解决”时，必须将关联原任务直接结单，停止排队、执行和催办；该回复本身绝不得生成新 task。未找到关联任务时只回执说明，也不得降级为新 task。“未解决”、“只完成部分”、“还需继续处理”不属于结单信号。排队卡、续跑卡和待确认卡均必须保存 Lark `message_id → task.id` 关联，确保回复任一卡片都能精确结单。
+### 5.0 任务控制通道（回复 Bot 卡片 ≠ 新任务入口）
+
+一条消息只要**能锚定到一条 Bot 卡片 / 原任务消息**，它就进入**任务控制通道**，出口被约束为四类，**绝不 fall through 新建 task**：结单 / 续跑补料 / 查状态 / 意图不明去确认。实装在 [lark-ingest.mjs](../lib/lark-ingest.mjs)（`resolveControlTarget` + `decideControlAction` + `maybeHandleControlChannel`）与 [lark-message.mjs](../lib/lark-message.mjs)（`classifyClosureIntent`），路由决策为纯函数、可直测。
+
+- **锚定（`resolveControlTarget`）**：① 明确回复回执卡 / 原任务消息（用**忽略代次**的 `findTaskByAnyReceipt` 反查——任务续跑过 epoch++ 后回复旧卡也要能命中）；② 无直接锚点时，同话题**恰好一条活动任务**才归并（0 或 ≥2 条归属不明，退回新任务，绝不误关）。
+- **结单语义（`classifyClosureIntent`）**：先按语族正则给出结构化判定 `{ intent, closureReason, scope, confidence }`。三种 `closureReason`：`completed_elsewhere`（已解决 / 已由其他人·AI 完成 / 已上线 / 重复工单）、`cancelled`（取消 / 终止 / 撤销 / 停止处理 / 结束）、`no_longer_needed`（不用做了 / 不需要处理 / 需求变了 / 算了）。**一票否决**（降级为 unclear 去确认，绝不自动结单）：否定关闭（别结束）、暂停（先暂停一下）、条件未来时（结束后再通知）、未完成（还没解决）、只完成部分、还需继续、转述他人（他说…）。夹带「另一部分要继续」判 `scope=partial` → 同样去确认。
+- **路由决策（`decideControlAction`）硬不变量**：锚定到的任务为**活动态**（`received/queued/running/verifying/waiting_confirmation/blocked/failed`）时，任何意图都不返回 `passthrough` —— 即**回复活动任务卡的消息永远不会新建任务**。仅「终态任务 + 非结单表达」放行老路径，允许在已了结话题里发起真正的新请求。
+  - `close`：`closeAsExternallyResolved` 落终态 `superseded` + `epoch++`（拦截已领取 worker 的迟到回写）+ 清排队/催办/待发回执；`closureReason` 写入落态存档与通知日志——**取消类绝不记成「已完成」**（通知日志状态列 `已取消` / `外部完成`，见记忆铁律：inferred/取消不得写完成态）。终态任务再次结单则幂等回「已结束」，不重复操作。
+  - `confirm`：意图不明，回一句让用户澄清「结束整个任务 or 只取消一部分」，原任务不变、不新建。
+  - `resume`：活动态(parked) + 无结单信号 → 复用原任务补料续跑（见 5.1）。
+  - `notice`：其它活动态 + 无结单信号 → 记录并引导，不新建。
+
+> 沿革：早期只识别「已解决 / 已完成」窄语族且判定散在 ingest 线性 if 链里，取消 / 不用做了 / 已结束等表达全部漏判、fall through 建新任务；且回复旧代次卡因 epoch 不匹配锚定失败。现收敛为统一控制通道 + 忽略代次锚定 + closureReason 分流。
+
+### 5.1 续任务与结单的关联锚定
+
+用户回复原任务消息或机器人回执卡，并明确表示“已由其他人 / AI 完成”、“该问题已解决”时，必须将关联原任务直接结单，停止排队、执行和催办；该回复本身绝不得生成新 task。未找到关联任务时按新请求处理（终态）或引导（活动态），不得静默丢。“未解决”、“只完成部分”、“还需继续处理”不属于结单信号。排队卡、续跑卡和待确认卡均必须保存 Lark `message_id → task.id` 关联，确保回复任一卡片都能精确锚定。
 
 收到任务后先回群确认已接收：
 
