@@ -556,6 +556,22 @@ describe('parseCommandType', () => {
     assert.equal(b.intent, 'unclear')
     assert.equal(b.scope, 'partial')
   })
+
+  it('classifyClosureIntent：弱结单信号（收工/到此为止/先放着）→ unclear + scope=suspected（轻量仲裁去确认，不猜死）', () => {
+    for (const text of ['收工', '就到此为止', '这个先放着吧', '行吧就这样吧', '这事就到这了', '不弄这个了']) {
+      const v = classifyClosureIntent(text)
+      assert.equal(v.intent, 'unclear', `弱信号「${text}」应升级为 unclear`)
+      assert.equal(v.scope, 'suspected', `弱信号「${text}」scope 应为 suspected`)
+      assert.equal(v.closureReason, 'cancelled')
+    }
+  })
+
+  it('classifyClosureIntent：弱信号叠加否决门（先别收工）→ 仍为 null（= 继续，不该问「要结单吗」）', () => {
+    assert.equal(classifyClosureIntent('先别收工，继续做').intent, null)
+    assert.equal(classifyClosureIntent('别放着，接着弄').intent, null)
+    // 普通补料不含弱信号 → 仍是 null，不误升级为 confirm
+    assert.equal(classifyClosureIntent('把按钮改成蓝色').intent, null)
+  })
 })
 
 describe('resolveManualCloseTarget', () => {
