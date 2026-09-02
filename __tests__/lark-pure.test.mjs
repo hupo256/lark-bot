@@ -32,6 +32,7 @@ import { messageSendRecipientArgs, parseSentMessageId, pickChatIdByProject, reso
 import {
   classifyClosureIntent,
   classifyCommandType,
+  classifyReopenIntent,
   inferCommandType,
   isForBot,
   isManualResolutionMessage,
@@ -40,6 +41,7 @@ import {
   isWhitelisted,
   normalizeMessage,
   parseCommandType,
+  parseControlDirective,
   parseResumeDirective,
   resolveCommandType,
   resolveMessageTrigger,
@@ -629,6 +631,55 @@ describe('decideControlAction', () => {
     for (const status of TERMINAL) {
       assert.equal(decideControlAction({ target: { status }, verdict: { intent: null } }), 'passthrough')
       assert.equal(decideControlAction({ target: { status }, verdict: { intent: 'unclear' } }), 'passthrough')
+    }
+  })
+
+  it('误结单可逆：回复「人工结单」任务且有重开意图 → reopen；无重开意图仍 passthrough', () => {
+    const closed = { status: 'superseded', externalResolution: { closureReason: 'cancelled' } }
+    assert.equal(decideControlAction({ target: closed, verdict: { intent: null }, reopen: true }), 'reopen')
+    assert.equal(decideControlAction({ target: closed, verdict: { intent: null }, reopen: false }), 'passthrough')
+  })
+
+  it('重开意图只对「人工结单」任务生效：兄弟归并 superseded / done 不可重开 → passthrough', () => {
+    // 兄弟归并 supersede 无 externalResolution，done 也非人工结单 → 重开信号不复活，放行老路径
+    assert.equal(decideControlAction({ target: { status: 'superseded', supersededBy: 'x' }, verdict: { intent: null }, reopen: true }), 'passthrough')
+    assert.equal(decideControlAction({ target: { status: 'done' }, verdict: { intent: null }, reopen: true }), 'passthrough')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// parseControlDirective / classifyReopenIntent：L3 显式控制指令 + 重开意图
+// ---------------------------------------------------------------------------
+describe('parseControlDirective', () => {
+  it('取消任务/撤销 → close + cancelled；结单/关闭任务 → close + completed_elsewhere', () => {
+    assert.deepEqual(parseControlDirective('取消任务 om_abcd'), { action: 'close', taskId: 'om_abcd', closureReason: 'cancelled', supplementText: '' })
+    assert.deepEqual(parseControlDirective('撤销 om_abcd'), { action: 'close', taskId: 'om_abcd', closureReason: 'cancelled', supplementText: '' })
+    assert.deepEqual(parseControlDirective('结单 om_abcd'), { action: 'close', taskId: 'om_abcd', closureReason: 'completed_elsewhere', supplementText: '' })
+    assert.deepEqual(parseControlDirective('关闭任务：om_abcd'), { action: 'close', taskId: 'om_abcd', closureReason: 'completed_elsewhere', supplementText: '' })
+  })
+
+  it('重开任务/reopen → reopen，可带残余说明', () => {
+    assert.deepEqual(parseControlDirective('重开任务 om_abcd'), { action: 'reopen', taskId: 'om_abcd', closureReason: null, supplementText: '' })
+    assert.deepEqual(parseControlDirective('reopen om_abcd 其实还要做'), { action: 'reopen', taskId: 'om_abcd', closureReason: null, supplementText: '其实还要做' })
+  })
+
+  it('无合法 taskId / 普通正文 → null（不误触发结单）', () => {
+    assert.equal(parseControlDirective('取消'), null) // 无 id
+    assert.equal(parseControlDirective('这个功能取消了吧'), null) // 动词不在句首
+    assert.equal(parseControlDirective('帮我改一下这个页面'), null)
+    assert.equal(parseControlDirective(''), null)
+  })
+})
+
+describe('classifyReopenIntent', () => {
+  it('明确重开/恢复/纠错措辞 → true', () => {
+    for (const t of ['重开这个任务', '重新做一下', '恢复执行吧', '其实还要做', '关错了', '误关了', '不该取消的']) {
+      assert.equal(classifyReopenIntent(t), true, t)
+    }
+  })
+  it('普通补料/结单/空 → false（避免把续跑误判成重开）', () => {
+    for (const t of ['继续下一步', '补充一下需求', '取消吧', '', '这个已解决']) {
+      assert.equal(classifyReopenIntent(t), false, t)
     }
   })
 })

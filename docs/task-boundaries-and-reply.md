@@ -142,17 +142,19 @@ Worker 完成后必须回群，并写入项目通知记录。回群内容固定�
 
 ### 5.0 任务控制通道（回复 Bot 卡片 ≠ 新任务入口）
 
-一条消息只要**能锚定到一条 Bot 卡片 / 原任务消息**，它就进入**任务控制通道**，出口被约束为四类，**绝不 fall through 新建 task**：结单 / 续跑补料 / 查状态 / 意图不明去确认。实装在 [lark-ingest.mjs](../lib/lark-ingest.mjs)（`resolveControlTarget` + `decideControlAction` + `maybeHandleControlChannel`）与 [lark-message.mjs](../lib/lark-message.mjs)（`classifyClosureIntent`），路由决策为纯函数、可直测。
+一条消息只要**能锚定到一条 Bot 卡片 / 原任务消息**，它就进入**任务控制通道**，出口被约束为五类，**绝不 fall through 新建 task**：结单 / 重开 / 续跑补料 / 查状态 / 意图不明去确认。实装在 [lark-ingest.mjs](../lib/lark-ingest.mjs)（`resolveControlTarget` + `decideControlAction` + `maybeHandleControlChannel` + `maybeHandleControlDirective`）与 [lark-message.mjs](../lib/lark-message.mjs)（`classifyClosureIntent` / `classifyReopenIntent` / `parseControlDirective`），路由决策为纯函数、可直测。
 
-- **锚定（`resolveControlTarget`）**：① 明确回复回执卡 / 原任务消息（用**忽略代次**的 `findTaskByAnyReceipt` 反查——任务续跑过 epoch++ 后回复旧卡也要能命中）；② 无直接锚点时，同话题**恰好一条活动任务**才归并（0 或 ≥2 条归属不明，退回新任务，绝不误关）。
-- **结单语义（`classifyClosureIntent`）**：先按语族正则给出结构化判定 `{ intent, closureReason, scope, confidence }`。三种 `closureReason`：`completed_elsewhere`（已解决 / 已由其他人·AI 完成 / 已上线 / 重复工单）、`cancelled`（取消 / 终止 / 撤销 / 停止处理 / 结束）、`no_longer_needed`（不用做了 / 不需要处理 / 需求变了 / 算了）。**一票否决**（降级为 unclear 去确认，绝不自动结单）：否定关闭（别结束）、暂停（先暂停一下）、条件未来时（结束后再通知）、未完成（还没解决）、只完成部分、还需继续、转述他人（他说…）。夹带「另一部分要继续」判 `scope=partial` → 同样去确认。
-- **路由决策（`decideControlAction`）硬不变量**：锚定到的任务为**活动态**（`received/queued/running/verifying/waiting_confirmation/blocked/failed`）时，任何意图都不返回 `passthrough` —— 即**回复活动任务卡的消息永远不会新建任务**。仅「终态任务 + 非结单表达」放行老路径，允许在已了结话题里发起真正的新请求。
+- **两条入口**：① **L3 显式指令**（`maybeHandleControlDirective`，最强意图，先于回复锚定）——`结单 <id>` / `取消任务 <id>` / `重开任务 <id>`（`parseControlDirective`，与 `parseResumeDirective` 对称，带显式 taskId、不依赖回复）；目标缺失也显式回话并 return，绝不建孤儿任务。② **回复锚定**（`resolveControlTarget`）：明确回复回执卡 / 原任务消息（用**忽略代次**的 `findTaskByAnyReceipt` 反查——任务续跑过 epoch++ 后回复旧卡也要能命中），或无直接锚点时同话题**恰好一条活动任务**才归并（0 或 ≥2 条归属不明，退回新任务，绝不误关）。
+- **结单语义（`classifyClosureIntent`）**：先按语族正则给出结构化判定 `{ intent, closureReason, scope, confidence }`。三种 `closureReason`：`completed_elsewhere`（已解决 / 已由其他人·AI 完成 / 已上线 / 重复工单）、`cancelled`（取消 / 终止 / 撤销 / 停止处理 / 结束）、`no_longer_needed`（不用做了 / 不需要处理 / 需求变了 / 算了）。**一票否决**（降级为 unclear 去确认，绝不自动结单）：否定关闭（别结束）、暂停（先暂停一下）、条件未来时（结束后再通知）、未完成（还没解决）、只完成部分、还需继续、转述他人（他说…）。夹带「另一部分要继续」判 `scope=partial` → 同样去确认（混合意图不自动整单关，交人裁决残余段）。
+- **重开语义（`classifyReopenIntent`）**：误结单可逆。窄语族——只认明确的重开 / 恢复 / 纠错措辞（重开 / 重新做 / 恢复执行 / 其实还要做 / 关错了 / 误关 / 不该取消），避免把「继续下一步」这类正常补料误判成重开。仅当回复的目标是一条**人工结单**任务（`superseded` 且带 `externalResolution`）时才生效。
+- **路由决策（`decideControlAction`）硬不变量**：锚定到的任务为**活动态**（`received/queued/running/verifying/waiting_confirmation/blocked/failed`）时，任何意图都不返回 `passthrough` —— 即**回复活动任务卡的消息永远不会新建任务**。仅「终态任务 + 非结单/非重开表达」放行老路径，允许在已了结话题里发起真正的新请求。
   - `close`：`closeAsExternallyResolved` 落终态 `superseded` + `epoch++`（拦截已领取 worker 的迟到回写）+ 清排队/催办/待发回执；`closureReason` 写入落态存档与通知日志——**取消类绝不记成「已完成」**（通知日志状态列 `已取消` / `外部完成`，见记忆铁律：inferred/取消不得写完成态）。终态任务再次结单则幂等回「已结束」，不重复操作。
+  - `reopen`：`reopenClosed` 把人工结单的任务复活回 `queued` + `epoch++`，把本次结单存档进 `closureHistory` 留痕后清 `closureReason`/`externalResolution`；复用原 `task.id` → 复用原分支/worktree。兄弟归并 `supersede`（有 `supersededBy` 无 `externalResolution`）与 `done` 一律不可重开（复活会与已完成的兄弟重复劳动）。
   - `confirm`：意图不明，回一句让用户澄清「结束整个任务 or 只取消一部分」，原任务不变、不新建。
   - `resume`：活动态(parked) + 无结单信号 → 复用原任务补料续跑（见 5.1）。
   - `notice`：其它活动态 + 无结单信号 → 记录并引导，不新建。
 
-> 沿革：早期只识别「已解决 / 已完成」窄语族且判定散在 ingest 线性 if 链里，取消 / 不用做了 / 已结束等表达全部漏判、fall through 建新任务；且回复旧代次卡因 epoch 不匹配锚定失败。现收敛为统一控制通道 + 忽略代次锚定 + closureReason 分流。
+> 沿革：早期只识别「已解决 / 已完成」窄语族且判定散在 ingest 线性 if 链里，取消 / 不用做了 / 已结束等表达全部漏判、fall through 建新任务；且回复旧代次卡因 epoch 不匹配锚定失败；误结单只能人工改文件。现收敛为统一控制通道 + 忽略代次锚定 + closureReason 分流 + 显式指令 + 误结单可逆。
 
 ### 5.1 续任务与结单的关联锚定
 

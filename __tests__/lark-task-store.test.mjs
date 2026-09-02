@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, it } from 'node:test'
 
-import { createTaskStore } from '../lib/lark-task-store.mjs'
+import { createTaskStore, isReopenableClosedTask } from '../lib/lark-task-store.mjs'
 
 describe('createTaskStore', () => {
   let dir
@@ -500,6 +500,38 @@ describe('createTaskStore', () => {
       store.upsert({ id: 'b', status: 'done', threadRootId: 'th', createdAt: '2026-09-01T08:00:00Z' })
       const active = store.listActiveByThread('th', { excludeId: 'x' })
       assert.deepEqual(active.map((t) => t.id).sort(), ['a']) // 只含未了结的 running，排除 done
+    })
+
+    it('reopenClosed 误结单可逆：人工结单的 superseded 复活回 queued+epoch++，存档留痕并清结单字段', () => {
+      const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+      store.upsert({ id: 'r1', status: 'queued', epoch: 1, branch: 'hotfix/x', createdAt: '2026-09-01T08:00:00Z' })
+      const closed = store.closeAsExternallyResolved({ id: 'r1', operator: 'ou_a', messageId: 'om_c', closureReason: 'cancelled' })
+      assert.equal(closed.task.status, 'superseded')
+      assert.equal(isReopenableClosedTask(closed.task), true)
+
+      const reopened = store.reopenClosed({ id: 'r1', operator: 'ou_b', messageId: 'om_re' })
+      assert.equal(reopened.status, 'queued')
+      assert.equal(reopened.epoch, 3) // close(1→2) 后 reopen 再 ++ → 3
+      assert.equal(reopened.closureReason, undefined)
+      assert.equal(reopened.externalResolution, undefined)
+      assert.equal(reopened.result, null)
+      assert.equal(reopened.branch, 'hotfix/x') // 复用原分支
+      assert.equal(reopened.closureHistory.length, 1)
+      assert.equal(reopened.closureHistory[0].closureReason, 'cancelled')
+      assert.equal(reopened.closureHistory[0].reopenedBy, 'ou_b')
+      assert.equal(isReopenableClosedTask(reopened), false)
+    })
+
+    it('reopenClosed 只认「人工结单」：兄弟归并 supersede / 活动态 / 缺失 → null', () => {
+      const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+      // 兄弟归并 supersede：无 externalResolution，不可重开（避免与已完成兄弟重复劳动）
+      store.upsert({ id: 's1', status: 'waiting_confirmation', threadRootId: 'th', createdAt: '2026-09-01T08:00:00Z' })
+      store.supersede({ id: 's1', bySiblingId: 's2' })
+      assert.equal(store.reopenClosed({ id: 's1' }), null)
+      // 活动态不是「已结单」
+      store.upsert({ id: 's3', status: 'queued', createdAt: '2026-09-01T08:00:00Z' })
+      assert.equal(store.reopenClosed({ id: 's3' }), null)
+      assert.equal(store.reopenClosed({ id: 'missing' }), null)
     })
   })
 })
