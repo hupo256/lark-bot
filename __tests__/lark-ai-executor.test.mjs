@@ -11,6 +11,7 @@ import {
   buildAiExecutorCommand,
   buildCodexReadinessCommand,
   formatStructuredAiResult,
+  isTransientAiError,
   resolveAiExecutor,
   validateAiExecutor,
 } from '../lib/lark-ai-executor.mjs'
@@ -424,6 +425,39 @@ describe('Gateway transient retry', () => {
     await assert.rejects(() => requestJson('http://127.0.0.1:3005', '/claim', { method: 'POST' }, { fetchImpl, sleepImpl: async () => {} }), /fetch failed/)
     assert.equal(calls, 1)
   })
+})
+
+describe('AI 子进程瞬时错误识别（决定是否自动重试）', () => {
+  it('claude 连接中途断开被判为瞬时', () => {
+    // PR-02273 实况：claude exec 退出码 1，audit 里是这条。此前无此分类 → 直接判 failed 逼人工重试。
+    assert.equal(isTransientAiError('API Error: Connection closed mid-response. The response above may be incomplete.'), true)
+  })
+  for (const sample of [
+    'overloaded_error: server is overloaded',
+    'HTTP 529 too many requests',
+    'Error: socket hang up',
+    'connect ECONNRESET 1.2.3.4:443',
+    'rate limit exceeded, please retry',
+    'upstream 503 Service Unavailable',
+    'fetch failed',
+  ]) {
+    it(`瞬时：${sample.slice(0, 32)}`, () => {
+      assert.equal(isTransientAiError(sample), true)
+    })
+  }
+  for (const sample of [
+    'API Error: 401 invalid api key',
+    'API Error: 400 invalid model name',
+    'permission denied: not logged in',
+    'SyntaxError: Unexpected token in prompt',
+    '',
+    null,
+    undefined,
+  ]) {
+    it(`非瞬时（永久错误/空，不应重试）：${String(sample).slice(0, 32)}`, () => {
+      assert.equal(isTransientAiError(sample), false)
+    })
+  }
 })
 
 describe('structured result and cards', () => {

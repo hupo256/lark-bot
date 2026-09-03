@@ -1038,6 +1038,28 @@ describe('handleStatusUpdate epoch fencing', () => {
 })
 
 // ---------------------------------------------------------------------------
+// 终态结果卡登记为回执：回复一条已完成/失败/无需改动的结果卡说「取消任务」时，控制通道要能锚定回原任务，
+// 幂等回「已结束、未新建」，而不是 fall through 新建一条名为「取消任务」的任务。
+// ---------------------------------------------------------------------------
+describe('终态结果卡回执可锚定', () => {
+  const cardConfig = { project: 'PR-TEST', title: '任务', bugTable: {} }
+  for (const status of ['done', 'failed', 'no_change_needed']) {
+    it(`${status} 结果卡的 messageId 被登记为回执，findTaskByAnyReceipt 可反查`, async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'lark-gw-term-'))
+      const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+      store.upsert({ id: 't-term', status: 'running', epoch: 0, chatId: 'oc_x', summary: '原任务', createdAt: '2026-01-01T00:00:00Z' })
+      const sendMessage = async () => ({ ok: true, messageId: `om_result_${status}` })
+      const outcome = await handleStatusUpdate({ config: cardConfig, store, id: 't-term', status, epoch: 0, result: '结束。', sendMessage })
+      assert.equal(outcome.ok, true)
+      const anchored = store.findTaskByAnyReceipt(`om_result_${status}`)
+      assert.ok(anchored, `回复 ${status} 结果卡应能经回执锚定回原任务，否则控制通道会新建任务`)
+      assert.equal(anchored.id, 't-term')
+      rmSync(dir, { recursive: true, force: true })
+    })
+  }
+})
+
+// ---------------------------------------------------------------------------
 // 变更分级探测 + changedFiles 交叉校验 + done 可信度评估（worker 侧无人值守验证加强，P2-13）
 // ---------------------------------------------------------------------------
 describe('detectChangeTier（契约/共享/类型敏感路径 → L2+）', () => {
