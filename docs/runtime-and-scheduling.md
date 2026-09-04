@@ -47,6 +47,7 @@ bug 表按 `项目ID` 跨项目路由，与群 @ 共用 `resolveWorkContext`：
 - **failed 人工重触发闭环**：群 @ 任务可直接重新 @（新 messageId 天然是新任务）；bug 表任务 id=record_id 固定、POST 幂等会命中旧 failed，只能显式重置 —— `lark-bot failed` 列出待处理失败项，`lark-bot retry <id>` 把 failed/blocked 重置为 queued（`retryCount++`、补发「已重新入队」卡片），worker 下一轮重跑。**不做自动重试**（避免对修不动的 bug 无限烧钱）。
 - poller 由 `lark-bot poll-on/off` 控制，并使用 `KeepAlive=false` 的 LaunchAgent 托管，避免启动它的终端或 Agent 会话退出时把轮询进程一并清理；空闲 `LARK_BUGTABLE_IDLE_OFF_MS` 后仍会自动停止。G6/G7 提醒开启，G8 提醒关闭。`lark-bot restart` 会记录重启前的 poller 状态，核心服务和 Codex readiness 均恢复后才按原状态重新开启，不会把 QA 轮询窗口静默关掉。
 - 运维入口的版本化实现位于 `common/lark-bot/scripts/lark-bot`，`~/.local/bin/lark-bot` 仅为薄入口。`start/restart` 对 plist 安装、Gateway 健康、Worker 心跳和 AI readiness 任一失败均返回非零；`status` 展示 executor/model/reasoning、code/config/rule stale、任务积压与回执/表格回写挂起。
+- **status 的挂起盘点**：`status` 的 `tasks:` 行含 `waiting=N`，并在 N>0 时列出每条 `waiting_confirmation` 的 id / 项目 / 已挂起时长 / 已催轮次 / 结论摘要 + 续跑与结单指令。理由：挂起催办满 `LARK_PARKED_REMIND_ROUNDS`（默认 3）轮后 Gateway 就不再提醒，此后这些任务只能靠这里被盘点到。明细走**带鉴权**的 `GET /lark/tasks`（任务正文属业务内容，不塞进可匿名的 `/lark/health`）；取不到时降级为一行提示，不影响其余状态输出，也不改变退出码——挂起是等人的正常业务态，不是不健康。
 - **陈旧终态清理**：Gateway 每小时自动清 `updatedAt` 早于 `pruneDoneAfterHours`（默认 24h）的 `done`、`done_with_warnings`、`no_change_needed`、`ignored`、`intake_failed`，`/lark/health` 计数不再单调增长；`lark-bot clean [hours]` 手动立即清已完成任务，`lark-bot clean --failed [hours]` 一并清 failed/blocked。**failed 默认不自动删**：删掉后 bug 表若仍待处理，poller 下一轮会把它当新任务重投 = 变相自动重试，故 failed 只在人工确认后 `clean --failed` 或 `retry`。
 
 ## 3. Worker 并行调度（按 worktree）

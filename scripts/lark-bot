@@ -10,6 +10,7 @@ WK="$DOCS_ROOT/common/lark-bot/runtime/lark-worker.mjs"
 POLLER="$DOCS_ROOT/common/lark-bot/runtime/lark-bugtable-poller.mjs"
 LOGDIR="$HOME/Library/Logs/fameex-lark"
 HEALTH="http://127.0.0.1:3005/lark/health"
+TASKS="http://127.0.0.1:3005/lark/tasks"
 AGENT_DIR="$HOME/Library/LaunchAgents"
 GW_LABEL="com.fameex.lark-gateway"
 WK_LABEL="com.fameex.lark-worker"
@@ -172,7 +173,7 @@ fi
 # 列出所有 failed / blocked 任务（需人工重触发或清理的）
 # GET /lark/tasks 现在同样要求密钥（任务正文/附件本地路径属业务内容），故这里必须带 SECRET_HDR。
 failed() {
-  curl -s -m 5 ${SECRET_HDR[@]+"${SECRET_HDR[@]}"} "http://127.0.0.1:3005/lark/tasks" 2>/dev/null | node -e '
+  curl -s -m 5 ${SECRET_HDR[@]+"${SECRET_HDR[@]}"} "$TASKS" 2>/dev/null | node -e '
     let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
       let tasks=[];try{tasks=(JSON.parse(s).tasks||[])}catch{console.error("gateway DOWN");process.exit(1)}
       const bad=tasks.filter(t=>t.status==="failed"||t.status==="blocked");
@@ -202,21 +203,29 @@ clean() {
 }
 
 status() {
-  local h gateway_pid worker_pid poller_pid
+  local h t gateway_pid worker_pid poller_pid
   h="$(curl -sS -m 3 "$HEALTH" 2>/dev/null || true)"
+  # 挂起（waiting_confirmation）明细要 id/正文/催办轮次，只能走**带鉴权**的 /lark/tasks：
+  # health 是可匿名探活端点，不能把任务正文塞进去（同 failed() 的口径）。取不到只降级为一行提示，
+  # 不影响其余状态输出——运维态查看不该因为缺密钥/gateway 抖动而整条命令失效。
+  t="$(curl -s -m 5 ${SECRET_HDR[@]+"${SECRET_HDR[@]}"} "$TASKS" 2>/dev/null || true)"
   gateway_pid="$(_pid "$GW")"
   worker_pid="$(_pid "$WK")"
   poller_pid="$(_pid "$POLLER")"
 
-  printf '%s' "$h" | \
+  # 两段 JSON 各占一行喂给 node：JSON.stringify 的输出内不含裸换行，按首个 \n 切分是安全的。
+  printf '%s\n%s' "$h" "$t" | \
     LARK_STATUS_GATEWAY_PID="$gateway_pid" \
     LARK_STATUS_WORKER_PID="$worker_pid" \
     LARK_STATUS_POLLER_PID="$poller_pid" \
     node -e '
       let input="";
       process.stdin.on("data", chunk => input += chunk).on("end", () => {
+        const [healthLine = "", tasksLine = ""] = input.split("\n");
         let health = null;
-        try { health = input ? JSON.parse(input) : null; } catch {}
+        try { health = healthLine ? JSON.parse(healthLine) : null; } catch {}
+        let tasks = null;
+        try { tasks = JSON.parse(tasksLine).tasks || []; } catch {}
 
         const gatewayPid = process.env.LARK_STATUS_GATEWAY_PID;
         const workerPid = process.env.LARK_STATUS_WORKER_PID;
@@ -238,8 +247,28 @@ status() {
         console.log(`poller:       ${pollerState}${pollerPid ? `  pid=${pollerPid}` : ""}`);
         console.log("");
         console.log(`executor:     ${readiness?.executor || "--"}${readiness?.model ? `  model=${readiness.model}  reasoning=${readiness.reasoningEffort}  probe=${readiness.modelProbe}` : ""}`);
-        console.log(`tasks:        queued=${counts.queued || 0} running=${counts.running || 0} failed=${counts.failed || 0} receipt-pending=${health?.pendingReceipts?.total || 0} writeback-pending=${counts.done_pending_writeback || 0}`);
+        console.log(`tasks:        queued=${counts.queued || 0} running=${counts.running || 0} waiting=${counts.waiting_confirmation || 0} failed=${counts.failed || 0} receipt-pending=${health?.pendingReceipts?.total || 0} writeback-pending=${counts.done_pending_writeback || 0}`);
         console.log(`rules:        ${health?.ruleChainFresh === false ? "stale" : health ? "fresh" : "--"}`);
+
+        // 挂起任务明细：催办满 N 轮后 gateway 就不再提醒（见 lark-parked-reminder），此后它们只能靠
+        // 这里被盘点到，否则会静静躺着占着 bug 表条目。轮次上限与 lib 侧同一 env 默认值。
+        const parked = (tasks || []).filter((task) => task.status === "waiting_confirmation");
+        const parkedAgeMs = (task) => Date.now() - new Date(task.parkedAt || task.updatedAt || 0).getTime();
+        const formatAge = (ms) => (Number.isFinite(ms) && ms > 0
+          ? (ms >= 3600000 ? `${Math.floor(ms / 3600000)}h` : `${Math.floor(ms / 60000)}min`)
+          : "?");
+        if (parked.length) {
+          const rounds = Number(process.env.LARK_PARKED_REMIND_ROUNDS || 3);
+          console.log(`\nwaiting-confirmation（等人补料/确认，催办满 ${rounds} 轮即停，之后只能在此盘点）：`);
+          for (const task of parked.sort((a, b) => parkedAgeMs(b) - parkedAgeMs(a))) {
+            console.log(`  ${task.id}  [${task.project || "-"}]  已挂起 ${formatAge(parkedAgeMs(task))}  已催 ${task.parkedRemindedRound || 0}/${rounds} 轮`);
+            console.log(`    ${(task.summary || "").slice(0, 70)}`);
+            if (task.result) console.log(`    → ${task.result.replace(/\n/g, " ").slice(0, 90)}`);
+            console.log(`    群里续跑：继续任务 ${task.id} <补充内容>   |   结单：结单 ${task.id}`);
+          }
+        } else if ((counts.waiting_confirmation || 0) > 0) {
+          console.log(`\n⚠ 有 ${counts.waiting_confirmation} 个挂起任务但取不到明细（gateway 不可达或缺 gateway secret）`);
+        }
 
         if (health?.version?.codeStale) {
           console.log(`\n⚠ gateway 跑的是旧代码（${health.version.codeHash || "?"}，磁盘 ${health.version.diskCodeHash || "?"}）：需 lark-bot restart`);
