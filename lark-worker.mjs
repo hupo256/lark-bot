@@ -12,7 +12,7 @@ import {
   defaultGatewayUrl,
   defaultPollMs,
 } from './lib/lark-worker-env.mjs'
-import { aiTimeoutMs, preflightAiExecutor, resolveAiExecutor } from './lib/lark-ai-executor.mjs'
+import { aiTimeoutMs, preflightAiExecutor, resolveAiExecutor, resolveAiModelConfig } from './lib/lark-ai-executor.mjs'
 import { createGatewayClient, sleep } from './lib/lark-gateway-client.mjs'
 import { loadWorkerLocalConfig } from './lib/lark-worker-run.mjs'
 import { resolveWorkContext, safeProject } from './lib/lark-work-context.mjs'
@@ -25,7 +25,7 @@ import { defaultTaskLeaseMs } from './lib/lark-constants.mjs'
 function printHelp() {
   console.log(`usage: lark-worker.mjs [--once] [--preflight] [--help]
 
-Lark Bot Gateway worker: claim pending tasks from the gateway and dispatch them to codex.
+Lark Bot Gateway worker: claim pending tasks from the gateway and dispatch them to the configured AI executor.
 Normally invoked by the per-project wrapper; this module also exports runLarkWorker().
 
 Options:
@@ -71,16 +71,16 @@ export async function runLarkWorker({
 
   const workerConfig = { projectId, projectName, aiExecutor, localConfig }
   const startupExecutor = resolveAiExecutor(workerConfig, {})
-  const codexProfile = startupExecutor === 'codex'
-    ? ` model=${localConfig.codexModel || '(Codex default)'} reasoning=${localConfig.codexReasoningEffort || '(Codex default)'}`
+  const startupModelCfg = resolveAiModelConfig(localConfig, startupExecutor)
+  const executorProfile = startupModelCfg?.model
+    ? ` model=${startupModelCfg.model}${startupModelCfg.reasoningEffort ? ` reasoning=${startupModelCfg.reasoningEffort}` : ''}`
     : ''
   const readiness = preflightAiExecutor(startupExecutor, {
-    codexModel: localConfig.codexModel,
-    codexReasoningEffort: localConfig.codexReasoningEffort,
-    // 默认执行器为 Codex 时，Worker 在写首个 heartbeat 前真实探测模型；restart 只有看到该 heartbeat 才成功。
-    probeModel: startupExecutor === 'codex',
+    localConfig,
+    // 默认执行器为 Codex/Pi 时，Worker 在写首个 heartbeat 前真实探测模型；restart 只有看到该 heartbeat 才成功。
+    probeModel: startupExecutor === 'codex' || startupExecutor === 'pi',
   })
-  console.log(`[lark-worker] AI executor=${startupExecutor}${codexProfile} readiness=${readiness.modelProbe}（task > env > config > wrapper）`)
+  console.log(`[lark-worker] AI executor=${startupExecutor}${executorProfile} readiness=${readiness.modelProbe}（task > env > config > wrapper）`)
   console.log(`[lark-worker] code=${runtimeVersion.codeHash} startedAt=${runtimeVersion.startedAt}`)
 
   if (argv.includes('--preflight')) {

@@ -32,13 +32,15 @@ import {
 } from '../lib/lark-worker-prompts.mjs'
 
 describe('AI executor selection', () => {
-  it('只接受 claude/codex 固定枚举', () => {
+  it('只接受已知 CLI 执行器固定枚举', () => {
     assert.equal(validateAiExecutor(' Codex '), 'codex')
     assert.equal(validateAiExecutor('CLAUDE'), 'claude')
+    assert.equal(validateAiExecutor('pi'), 'pi')
+    assert.equal(validateAiExecutor('CURSOR'), 'cursor')
     assert.throws(() => validateAiExecutor('bash -c whoami'), /must be one of/)
   })
 
-  it('优先级为 task > env > local config > wrapper > claude', () => {
+  it('优先级为 task > env > local config > wrapper > default', () => {
     const worker = { aiExecutor: 'claude', localConfig: { aiExecutor: 'codex' } }
     assert.equal(resolveAiExecutor(worker, { aiExecutor: 'claude' }, { LARK_AI_EXECUTOR: 'codex' }), 'claude')
     assert.equal(resolveAiExecutor(worker, {}, { LARK_AI_EXECUTOR: 'claude' }), 'claude')
@@ -51,6 +53,8 @@ describe('AI executor selection', () => {
     assert.equal(parseAiExecutorDirective('[codex]这里有明显颜色重叠'), 'codex')
     assert.equal(parseAiExecutorDirective(' [CLAUDE] 看这里'), 'claude')
     assert.equal(parseAiExecutorDirective('[claude]直接处理'), 'claude')
+    assert.equal(parseAiExecutorDirective('[pi] 处理这个'), 'pi')
+    assert.equal(parseAiExecutorDirective('[cursor]看一下'), 'cursor')
     assert.equal(parseAiExecutorDirective('![Image](img_v3_demo) [codex] 这个选项是接口还是写死的'), 'codex')
     assert.equal(parseAiExecutorDirective('![Image](img_1)\n![Image](img_2)\n[CLAUDE] 看两个截图'), 'claude')
     assert.equal(parseAiExecutorDirective('[Image: img_v3_fallback]\n[codex]排查这里'), 'codex')
@@ -64,6 +68,7 @@ describe('AI executor selection', () => {
     assert.equal(resolveGatewayAiExecutor({ config, env: {} }), 'codex')
     assert.equal(resolveGatewayAiExecutor({ requestedExecutor: 'claude', config, env: {} }), 'claude')
     assert.equal(resolveGatewayAiExecutor({ config, env: { LARK_AI_EXECUTOR: 'claude' } }), 'claude')
+    assert.equal(resolveGatewayAiExecutor({ config: {}, env: {} }), 'pi') // fallback to DEFAULT_EXECUTOR
   })
 })
 

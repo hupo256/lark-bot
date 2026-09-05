@@ -27,6 +27,13 @@ fi
 # 于是 git 里的 xcrun 每次都想在 /tmp 写共享缓存、撞上别的 uid 建的同名文件，
 # worker.log 里就持续刷 `git: couldn't create cache file '/tmp/xcrun_db-*'`——
 # 无害但把真实报错埋掉。给一个本用户私有目录即可彻底消掉这类噪音。
+# 登录会话的 PATH（nvm、~/.local/bin 等）不会自动带进 launchd 进程，
+# worker 里 spawn 的 codex/pi/cursor-agent 等 CLI 会找不到二进制。
+PATH="$HOME/.local/bin:$PATH"
+NVM_PI="$(find "$HOME/.nvm/versions/node" -maxdepth 2 -name pi -print -quit 2>/dev/null)"
+[ -n "$NVM_PI" ] && PATH="$(dirname "$NVM_PI"):$PATH"
+export PATH
+
 TMPDIR="${TMPDIR:-$HOME/Library/Caches/fameex-lark/tmp}"
 case "$TMPDIR" in
   /tmp|/tmp/) TMPDIR="$HOME/Library/Caches/fameex-lark/tmp" ;;
