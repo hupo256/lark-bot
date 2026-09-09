@@ -248,7 +248,6 @@ status() {
         console.log("");
         console.log(`executor:     ${readiness?.executor || "--"}${readiness?.model ? `  model=${readiness.model}  reasoning=${readiness.reasoningEffort}  probe=${readiness.modelProbe}` : ""}`);
         console.log(`tasks:        queued=${counts.queued || 0} running=${counts.running || 0} waiting=${counts.waiting_confirmation || 0} failed=${counts.failed || 0} receipt-pending=${health?.pendingReceipts?.total || 0} writeback-pending=${counts.done_pending_writeback || 0}`);
-        console.log(`rules:        ${health?.ruleChainFresh === false ? "stale" : health ? "fresh" : "--"}`);
 
         // 挂起任务明细：催办满 N 轮后 gateway 就不再提醒（见 lark-parked-reminder），此后它们只能靠
         // 这里被盘点到，否则会静静躺着占着 bug 表条目。轮次上限与 lib 侧同一 env 默认值。
@@ -283,7 +282,7 @@ status() {
 
         const unhealthy = gatewayState !== "running" || workerState !== "running" ||
           health?.version?.codeStale || health?.version?.configStale ||
-          health?.ruleChainFresh === false || (health?.pendingReceipts?.gaveUp || 0) > 0;
+          (health?.pendingReceipts?.gaveUp || 0) > 0;
         if (unhealthy) process.exitCode = 1;
       });'
 }
