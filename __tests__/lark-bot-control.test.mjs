@@ -76,7 +76,7 @@ describe('lark-bot control script', () => {
     assert.notEqual(result.status, 0)
   })
 
-  it('status 先列进程，空行后再列 executor、任务与规则', () => {
+  it('status 先列进程，空行后再列 executor 与任务', () => {
     const result = runBash(`
       export LARK_BOT_SOURCE_ONLY=1
       source ${JSON.stringify(script)}
@@ -88,7 +88,7 @@ describe('lark-bot control script', () => {
         esac
       }
       curl() {
-        printf '%s' '{"ok":true,"worker":{"pid":202,"heartbeatStale":false,"codeStale":false,"readiness":{"ok":true,"executor":"codex","model":"gpt-5.6-sol","reasoningEffort":"high","modelProbe":"passed"}},"version":{"startedAt":"2026-08-26T07:39:48.923Z"},"counts":{},"ruleChainFresh":true,"pendingReceipts":{"total":0}}'
+        printf '%s' '{"ok":true,"worker":{"pid":202,"heartbeatStale":false,"codeStale":false,"readiness":{"ok":true,"executor":"codex","model":"gpt-5.6-sol","reasoningEffort":"high","modelProbe":"passed"}},"version":{"startedAt":"2026-08-26T07:39:48.923Z"},"counts":{},"pendingReceipts":{"total":0}}'
       }
       status
     `)
@@ -109,7 +109,7 @@ describe('lark-bot control script', () => {
         if printf '%s' "$*" | grep -q '/lark/tasks'; then
           printf '%s' '{"tasks":[{"id":"recAAA","status":"waiting_confirmation","project":"PR-02172","summary":"修复：埋点没上报","result":"需人工确认 / 补充材料后才能继续。","parkedAt":"2020-01-01T00:00:00.000Z","parkedRemindedRound":2},{"id":"recBBB","status":"done","summary":"不该出现"}]}'
         else
-          printf '%s' '{"ok":true,"worker":{"pid":101,"readiness":{"ok":true,"executor":"claude"}},"counts":{"waiting_confirmation":1},"ruleChainFresh":true,"pendingReceipts":{"total":0}}'
+          printf '%s' '{"ok":true,"worker":{"pid":101,"readiness":{"ok":true,"executor":"claude"}},"counts":{"waiting_confirmation":1},"pendingReceipts":{"total":0}}'
         fi
       }
       status
@@ -133,14 +133,15 @@ describe('lark-bot control script', () => {
         if printf '%s' "$*" | grep -q '/lark/tasks'; then
           printf '%s' 'unauthorized-not-json'
         else
-          printf '%s' '{"ok":true,"worker":{"pid":101,"readiness":{"ok":true,"executor":"claude"}},"counts":{"waiting_confirmation":2},"ruleChainFresh":true,"pendingReceipts":{"total":0}}'
+          printf '%s' '{"ok":true,"worker":{"pid":101,"readiness":{"ok":true,"executor":"claude"}},"counts":{"waiting_confirmation":2},"pendingReceipts":{"total":0}}'
         fi
       }
       status
     `)
     assert.match(result.stdout, /tasks:.*waiting=2/)
     assert.match(result.stdout, /⚠ 有 2 个挂起任务但取不到明细/)
-    assert.match(result.stdout, /rules:\s+fresh/)
+    // 发布层 stale 检测已下线：status 不再输出 `rules:` 行（2026-09-10）。
+    assert.doesNotMatch(result.stdout, /rules:/)
   })
 
   it('无挂起任务时不输出挂起区块', () => {
@@ -152,7 +153,7 @@ describe('lark-bot control script', () => {
         if printf '%s' "$*" | grep -q '/lark/tasks'; then
           printf '%s' '{"tasks":[]}'
         else
-          printf '%s' '{"ok":true,"worker":{"pid":101,"readiness":{"ok":true,"executor":"claude"}},"counts":{},"ruleChainFresh":true,"pendingReceipts":{"total":0}}'
+          printf '%s' '{"ok":true,"worker":{"pid":101,"readiness":{"ok":true,"executor":"claude"}},"counts":{},"pendingReceipts":{"total":0}}'
         fi
       }
       status
