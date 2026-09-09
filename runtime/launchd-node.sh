@@ -30,7 +30,7 @@ fi
 # 登录会话的 PATH（nvm、~/.local/bin 等）不会自动带进 launchd 进程，
 # worker 里 spawn 的 codex/pi/cursor-agent 等 CLI 会找不到二进制。
 PATH="$HOME/.local/bin:$PATH"
-NVM_PI="$(find "$HOME/.nvm/versions/node" -maxdepth 2 -name pi -print -quit 2>/dev/null)"
+NVM_PI="$(find "$HOME/.nvm/versions/node" -maxdepth 3 -path '*/bin/pi' -print -quit 2>/dev/null)"
 [ -n "$NVM_PI" ] && PATH="$(dirname "$NVM_PI"):$PATH"
 export PATH
 

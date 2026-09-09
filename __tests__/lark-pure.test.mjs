@@ -49,7 +49,7 @@ import {
 } from '../lib/lark-message.mjs'
 import { isProjectId, matchProjectId, matchProjectIds } from '../lib/lark-project-id.mjs'
 import { allRuleRefs, buildFocusedRuleContext, classifyLarkTask, extractMarkdownSection } from '../lib/lark-rule-context.mjs'
-import { assessDoneResult, crossCheckChangedFiles, detectChangeTier, splitViolations } from '../lib/lark-quality-gate.mjs'
+import { assessDoneResult, crossCheckChangedFiles, detectChangeTier, isTestOnlyDiff, splitViolations } from '../lib/lark-quality-gate.mjs'
 import { buildCodeRulesBlockedResult, codeRuleErrorsInDiff, formatCodeRulesLine, summarizeCodeRules } from '../lib/lark-code-rules.mjs'
 import { validateConfig } from '../lib/lark-config.mjs'
 import { pruneStaleAudits } from '../lib/lark-worker-audit.mjs'
@@ -1167,6 +1167,46 @@ describe('assessDoneResult（done 可信度评估）', () => {
     })
     assert.equal(a.trustworthy, true)
     assert.ok(a.notes.some((n) => /漏报/.test(n) && /b\.tsx/.test(n)))
+  })
+  it('修复类任务只改了测试文件 → 不可信（拿加测试凑 diff 冒充完成）', () => {
+    const a = assessDoneResult({
+      reportedChangedFiles: ['apps/web/src/components/VerifyMan/index.test.ts'],
+      actualChangedFiles: ['apps/web/src/components/VerifyMan/index.test.ts'],
+      checks: ['单测通过'],
+      expectsCodeFix: true,
+    })
+    assert.equal(a.trustworthy, false)
+    assert.ok(a.notes.some((n) => /只动了测试文件|no_change_needed/.test(n)))
+  })
+  it('修复类任务改了业务代码 + 测试 → 可信（不是 test-only）', () => {
+    const a = assessDoneResult({
+      reportedChangedFiles: ['src/a.ts', 'src/a.test.ts'],
+      actualChangedFiles: ['src/a.ts', 'src/a.test.ts'],
+      checks: [],
+      expectsCodeFix: true,
+    })
+    assert.equal(a.trustworthy, true)
+  })
+  it('自测/文档类任务（expectsCodeFix=false）只改测试文件不降级', () => {
+    const a = assessDoneResult({
+      reportedChangedFiles: ['src/a.test.ts'],
+      actualChangedFiles: ['src/a.test.ts'],
+      checks: [],
+      expectsCodeFix: false,
+    })
+    assert.equal(a.trustworthy, true)
+  })
+})
+
+describe('isTestOnlyDiff（只动测试文件识别）', () => {
+  it('全是测试文件 → true', () => {
+    assert.equal(isTestOnlyDiff(['a/b/index.test.ts', 'c/__tests__/d.mjs', 'e.spec.tsx']), true)
+  })
+  it('含任一业务文件 → false', () => {
+    assert.equal(isTestOnlyDiff(['a.ts', 'a.test.ts']), false)
+  })
+  it('空清单 → false（无改动另有专门判定）', () => {
+    assert.equal(isTestOnlyDiff([]), false)
   })
 })
 

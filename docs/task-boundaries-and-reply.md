@@ -97,7 +97,7 @@ Gateway / Worker 至少提取：
 
 关键：`resolveAnalysisGate` **从不覆写 AI 的判断**，只把 blockers 分门别类，再由 workKind 决定哪些类构成停机（`hard` + 非快车道时的 `process`）。这取代了旧的 `SCOPE_OR_ACCESS_BLOCKER_RE`「命不中就整条改写成 ready」的默认放行。
 
-**新需求放行闸（混合兜底）**（`requirementGate`，在 [lark-task-runner.mjs](../lib/lark-task-runner.mjs) 里于**跑 AI、动 worktree 之前**执行）：判为 `requirement` 且人尚未放行过（无 `resumeCount`/`waitingHistory`/`qaReturnCount`）时——**仅当连自评材料都没有（`requirementHasSpecContext` 为 false：无附件，且正文短于 `REQUIREMENT_SELF_ASSESS_MIN_CHARS`=24 的裸一句话）**——才直接回一张 `waiting_confirmation` 卡、一次 AI 都不跑（这种消息 AI 也只能空手，先问一句比烧一次 AI 省）。**其余新需求（有附件 / 正文有细节）不再盲拦**，一律放行到 AI 由能读上下文的它自评。历史上这里对**每条**新需求盲拦，靠纯正则读不到话题讨论 / 设计稿，把已说清的新需求也退回补料——正是「太烦人」的根因。自评落地在两处执行器：`claude` 单趟无独立只读分析阶段，故 `buildTaskPrompt` 给未放行新需求内置「开工前只读自评」段（能从上下文唯一推导规格就直接做，不够再 `waiting_confirmation` 并**具体**列出缺口）；`codex` 沿用其只读分析阶段 + `resolveAnalysisGate` 自评。人回复卡片补一句预期行为即视为放行、续跑。
+**新需求放行闸（混合兜底）**（`requirementGate`，在 [lark-task-runner.mjs](../lib/lark-task-runner.mjs) 里于**跑 AI、动 worktree 之前**执行）：判为 `requirement` 且人尚未放行过（无 `resumeCount`/`waitingHistory`/`qaReturnCount`）时——**仅当连自评材料都没有（`requirementHasSpecContext` 为 false：无附件，且正文短于 `REQUIREMENT_SELF_ASSESS_MIN_CHARS`=24 的裸一句话）**——才直接回一张 `waiting_confirmation` 卡、一次 AI 都不跑（这种消息 AI 也只能空手，先问一句比烧一次 AI 省）。**其余新需求（有附件 / 正文有细节）不再盲拦**，一律放行到 AI 由能读上下文的它自评。历史上这里对**每条**新需求盲拦，靠纯正则读不到话题讨论 / 设计稿，把已说清的新需求也退回补料——正是「太烦人」的根因。自评按执行模式落地：`claude` / `pi` / `cursor` 单趟无独立只读分析阶段，故 `buildTaskPrompt` 给未放行新需求内置「开工前只读自评」段（能从上下文唯一推导规格就直接做，不够再 `waiting_confirmation` 并**具体**列出缺口）；`codex` 沿用其只读分析阶段 + `resolveAnalysisGate` 自评。人回复卡片补一句预期行为即视为放行、续跑。
 
 ## 3.2 人类 WIP 隔离与 L2 契约改动的 type-check 闸
 
@@ -113,6 +113,7 @@ Gateway / Worker 至少提取：
 
   `scoped` 存在的理由：上面那条路由检查只发生在**任务开始前**，而 AI 可以跑 30 分钟——这期间人在同一 worktree 新写的 WIP 会被 `git add -A` 一并扫走。改成按实测清单定向 `git commit -- <pathspec>` 后，收尾时才出现的路径既不入库也不被静默忽略：它们进 `unexpected`，写进完成卡请人确认。三种模式**都不 push、不开 PR**。
 - **L2 契约/共享改动缺 type-check 证据 → 降级人工复核**（`assessDoneResult`）：改动触达 schema / mapper / api / `.d.ts` / `packages/` 时，若 AI 自报的 `checks` 里没有 type-check 证据，则**不按 done 处理**（这类改动最易静默改坏调用方；实施 prompt 已明确要求 L2/L3 在触达包跑一次 `tsc`）。注意这与「我们自己按整包 `tsc` exit code 硬判」不同——那会被历史基线红误伤，我们从不那么做；这里只校验 AI 是否给出了它本应产出的 type-check 证据。
+- **修复类任务「只动了测试文件」→ 与空 diff 同等不可信、降级人工复核**（`assessDoneResult` 的 `expectsCodeFix` + `isTestOnlyDiff`）：bug / QA 反馈 / 需求类任务（`workKind ∈ bugfix/qa_feedback/requirement`，且命令类型非 `test`/`docs`）报 `done`，但本次实测改动**全是** `*.test.*`/`*.spec.*`/`__tests__/` 文件时，判不可信降级。理由：一个回归测试不构成对已上报缺陷的修复——这正是「done+空 diff 不可信」那道闸**反向逼出来的敷衍**（加个 `index.test.ts` 凑非空 diff 冒充完成）。此时正确出口只有两条：① 根因在后端/数据/别的仓 → `no_change_needed` + 证据；② 确属前端 → 改真正出错的业务代码。**能不动代码就不动代码，但绝不能拿测试凑数走过场。**（沿革：PR-02172「Telegram 绑定重复关联」被 Pi 误判前端、只加一个测试文件报完成——重复关联记录是后端数据/去重问题，应判 `no_change_needed` 回群说明，而非在前端凑 diff。）
 
 ## 4. 完成后汇报策略
 

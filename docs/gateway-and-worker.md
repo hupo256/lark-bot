@@ -12,7 +12,7 @@ Lark 事件订阅 im.message.receive_v1
   ↓
 Bot Gateway 校验、解析、幂等入队
   ↓
-Codex / Claude Worker 领取任务
+Claude / Codex / Pi / Cursor Worker 领取任务
   ↓
 读取 docs_tdd 与当前项目代码
   ↓
@@ -91,7 +91,7 @@ Job 至少包含：
 
 ## 5. Worker 执行规则
 
-Codex / Claude Worker 领取任务后：
+Claude / Codex / Pi / Cursor Worker 领取任务后：
 
 1. 先读取 `apps/web/docs_tdd/AGENTS.md`、`CONTEXT.md`、`common/README.md` 和当前项目文档；项目输入至少包含 `product/00-feature-inventory.md`、`product/04-frontend-tasks.md`、`agent/lark-integration.md`、`agent/README.md` 中实际存在的文件，其中 `00` 是 scope 裁决真值源。
 2. 按命令类型决定只改文档、改代码、跑自测或输出差异；任务正文含 Figma 链接时，非只读任务先用 `figma-spec.mjs` 把规格落到本轮审计目录并注入 prompt。
@@ -116,8 +116,12 @@ Codex / Claude Worker 领取任务后：
 
 该 bot 是**机器级全局单例**（一个 gateway + 一个 worker，launchd 常驻），代码与运行时集中在 `common/lark-bot/`：启动薄包装 `common/lark-bot/runtime/lark-worker.mjs` 只调用 `common/lark-bot/lark-worker.mjs` 并传入项目编号、项目名称和需要读取的项目文档。Gateway 轮询、任务领取、Codex prompt、状态回写、空任务失败处理和兜底完成消息都由公共 Worker 维护；不得在项目目录复制完整 Worker 实现。单例配置（webhook/appToken/bug 表等，gitignore）为 `common/lark-bot/runtime/lark-bot.local.json`。
 
-AI 执行器只允许 `claude` / `codex`，优先级为：task > `LARK_AI_EXECUTOR` > `lark-bot.local.json.aiExecutor` > wrapper > `claude`。群消息首个文本位置的 `[codex]` / `[claude]` 可单次覆盖，标签后可直接接正文；消息最前面的连续图片占位符不算正文，因此“图片 + `[codex]` + 正文”仍由 Codex 执行。正文已经开始后出现的标签不触发切换。外部投递可传 `aiExecutor`。未知值拒绝，入队即解析，排队/结果卡均显示实际执行器。可用 `codexModel` / `codexReasoningEffort` 固定本 Worker 的 Codex 模型/推理强度，不影响其它会话。
+AI 执行器固定为 `claude` / `codex` / `pi` / `cursor` 四种，内置默认值是 `pi`。选择优先级为：任务指定的 `aiExecutor` > `lark-bot.local.json.aiExecutor` > wrapper 参数 > 内置默认值。执行器选择**不读取环境变量**，避免 launchd 或终端残留环境覆盖本机配置。
 
-Codex 两阶段均为 `ephemeral + approval never + 工具网络关闭`：先把按任务抽取的现有 L1/L3 规则交给 `read-only` 分析，前后校验 git 状态；`blocked` 直接回群，只有 `ready` 才把规则原文和分析结论交给 `workspace-write` 实现。图片走 `--image`，结构化结果由 Worker 回写；Claude 保持 callback，但同样接收精准规则上下文。
+群消息首个文本位置可用 `[claude]` / `[codex]` / `[pi]` / `[cursor]` 单次覆盖，标签后可直接接正文；消息最前面的连续图片占位符不算正文，因此“图片 + `[pi]` + 正文”仍由 Pi 执行。正文已经开始后出现的标签不触发切换。外部投递可在任务体中传 `aiExecutor`。未知值拒绝；Gateway 在入队时确定并持久化执行器，排队卡和结果卡均显示实际执行器，因此修改默认配置不会改写已经入队的任务。
+
+机器级默认值写在 `common/lark-bot/runtime/lark-bot.local.json` 的 `aiExecutor`，修改后执行 `lark-bot restart`，再用 `lark-bot status` 检查实际执行器。模型配置按执行器分开：Codex 使用 `codexModel` / `codexReasoningEffort`，Pi 使用 `piProvider` / `piModel` / `piReasoningEffort`，Cursor 使用 `cursorModel`；未配置时由对应 CLI 使用自身默认值。
+
+Codex 使用两阶段执行：先在 `read-only` 沙箱分析并校验 git 状态，只有分析可继续时才进入 `workspace-write` 实施。Claude、Pi、Cursor 使用单阶段 Agent 工具循环。四种执行器都接收同一份精准规则上下文，并把结构化结果落盘后由 Worker 统一回写 Gateway；执行器自身不直接回调 Gateway。
 
 审计写入 `<PROJECT>/agent/lark-audits/<taskId>.json/.log`：记录附件、规则来源/指纹、分析/最终结果、Gateway 状态和 CLI 输出；该目录已 gitignore。

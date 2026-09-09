@@ -10,6 +10,7 @@ import { parseAiExecutorDirective, resolveGatewayAiExecutor } from '../lib/lark-
 import {
   buildAiExecutorCommand,
   buildCodexReadinessCommand,
+  buildPiReadinessCommand,
   formatStructuredAiResult,
   isTransientAiError,
   resolveAiExecutor,
@@ -40,12 +41,12 @@ describe('AI executor selection', () => {
     assert.throws(() => validateAiExecutor('bash -c whoami'), /must be one of/)
   })
 
-  it('优先级为 task > env > local config > wrapper > default', () => {
+  it('优先级为 task > local config > wrapper > Pi default', () => {
     const worker = { aiExecutor: 'claude', localConfig: { aiExecutor: 'codex' } }
-    assert.equal(resolveAiExecutor(worker, { aiExecutor: 'claude' }, { LARK_AI_EXECUTOR: 'codex' }), 'claude')
-    assert.equal(resolveAiExecutor(worker, {}, { LARK_AI_EXECUTOR: 'claude' }), 'claude')
-    assert.equal(resolveAiExecutor(worker, {}, {}), 'codex')
-    assert.equal(resolveAiExecutor({ aiExecutor: 'claude', localConfig: {} }, {}, {}), 'claude')
+    assert.equal(resolveAiExecutor(worker, { aiExecutor: 'claude' }), 'claude')
+    assert.equal(resolveAiExecutor(worker, {}), 'codex')
+    assert.equal(resolveAiExecutor({ aiExecutor: 'claude', localConfig: {} }, {}), 'claude')
+    assert.equal(resolveAiExecutor({ localConfig: {} }, {}), 'pi')
   })
 
   it('群消息识别首个文本位置的安全选择指令，标签后无需空格', () => {
@@ -65,10 +66,9 @@ describe('AI executor selection', () => {
 
   it('Gateway 入队时解析有效执行器，确保领取卡展示默认值', () => {
     const config = { aiExecutor: 'codex' }
-    assert.equal(resolveGatewayAiExecutor({ config, env: {} }), 'codex')
-    assert.equal(resolveGatewayAiExecutor({ requestedExecutor: 'claude', config, env: {} }), 'claude')
-    assert.equal(resolveGatewayAiExecutor({ config, env: { LARK_AI_EXECUTOR: 'claude' } }), 'claude')
-    assert.equal(resolveGatewayAiExecutor({ config: {}, env: {} }), 'pi') // fallback to DEFAULT_EXECUTOR
+    assert.equal(resolveGatewayAiExecutor({ config }), 'codex')
+    assert.equal(resolveGatewayAiExecutor({ requestedExecutor: 'claude', config }), 'claude')
+    assert.equal(resolveGatewayAiExecutor({ config: {} }), 'pi') // fallback to DEFAULT_EXECUTOR
   })
 })
 
@@ -116,6 +116,30 @@ describe('Codex non-interactive command', () => {
     const command = buildAiExecutorCommand({ executor: 'claude', promptText: 'fix it', cwd: '/tmp/repo' })
     assert.deepEqual(command.args, ['-p', '--dangerously-skip-permissions', 'fix it'])
     assert.equal(command.resultMode, 'structured')
+  })
+
+  it('Pi 固定 provider/model 并启用 JSON 事件流，供审计和空闲超时检测', () => {
+    const command = buildAiExecutorCommand({
+      executor: 'pi',
+      promptText: 'fix it',
+      cwd: '/tmp/repo',
+      provider: 'uniaix',
+      model: 'gpt-5.6-sol',
+      reasoningEffort: 'high',
+    })
+    assert.deepEqual(command.args.slice(command.args.indexOf('--mode'), command.args.indexOf('--mode') + 2), ['--mode', 'json'])
+    assert.deepEqual(command.args.slice(command.args.indexOf('--provider'), command.args.indexOf('--provider') + 2), ['--provider', 'uniaix'])
+    assert.deepEqual(command.args.slice(command.args.indexOf('--model'), command.args.indexOf('--model') + 2), ['--model', 'gpt-5.6-sol'])
+    assert.equal(command.eventStream, true)
+    assert.equal(command.resultMode, 'structured')
+  })
+
+  it('Pi readiness probe 验证与任务完全相同的 provider/model/reasoning', () => {
+    const command = buildPiReadinessCommand({ provider: 'uniaix', model: 'gpt-5.6-sol', reasoningEffort: 'high' })
+    assert.deepEqual(command.args.slice(command.args.indexOf('--provider'), command.args.indexOf('--provider') + 2), ['--provider', 'uniaix'])
+    assert.deepEqual(command.args.slice(command.args.indexOf('--model'), command.args.indexOf('--model') + 2), ['--model', 'gpt-5.6-sol'])
+    assert.deepEqual(command.args.slice(command.args.indexOf('--thinking'), command.args.indexOf('--thinking') + 2), ['--thinking', 'high'])
+    assert.equal(command.args.at(-1), 'Reply with exactly: PI_MODEL_READY')
   })
 
   it('Codex 分析阶段使用只读沙箱和独立分析 Schema', () => {

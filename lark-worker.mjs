@@ -77,10 +77,10 @@ export async function runLarkWorker({
     : ''
   const readiness = preflightAiExecutor(startupExecutor, {
     localConfig,
-    // 默认执行器为 Codex/Pi 时，Worker 在写首个 heartbeat 前真实探测模型；restart 只有看到该 heartbeat 才成功。
+    // 所选执行器为 Codex/Pi 时，Worker 在写首个 heartbeat 前真实探测模型；restart 只有看到该 heartbeat 才成功。
     probeModel: startupExecutor === 'codex' || startupExecutor === 'pi',
   })
-  console.log(`[lark-worker] AI executor=${startupExecutor}${executorProfile} readiness=${readiness.modelProbe}（task > env > config > wrapper）`)
+  console.log(`[lark-worker] AI executor=${startupExecutor}${executorProfile} readiness=${readiness.modelProbe}（task > config > wrapper > default）`)
   console.log(`[lark-worker] code=${runtimeVersion.codeHash} startedAt=${runtimeVersion.startedAt}`)
 
   if (argv.includes('--preflight')) {
