@@ -112,9 +112,10 @@ describe('Codex non-interactive command', () => {
     assert.equal(command.args.includes('--dangerously-bypass-approvals-and-sandbox'), false)
   })
 
-  it('Claude 保持现有无人值守参数，并与 codex 同构走结构化结果', () => {
+  it('Claude 启用 stream-json 事件流（供审计与空闲超时），最终结果仍走结构化 resultPath', () => {
     const command = buildAiExecutorCommand({ executor: 'claude', promptText: 'fix it', cwd: '/tmp/repo' })
-    assert.deepEqual(command.args, ['-p', '--dangerously-skip-permissions', 'fix it'])
+    assert.deepEqual(command.args, ['-p', '--dangerously-skip-permissions', '--output-format', 'stream-json', '--verbose', '--include-partial-messages', 'fix it'])
+    assert.equal(command.eventStream, true)
     assert.equal(command.resultMode, 'structured')
   })
 
@@ -425,7 +426,7 @@ describe('risk-based validation policy', () => {
       'codex',
       { ruleContext: { scenario: 'g4_coding_worktree', sources: [], text: '只读规则。' } },
     )
-    assert.match(prompt, /本任务是只读状态查询/)
+    assert.match(prompt, /本任务是只读信息查询/)
     assert.match(prompt, /changedFiles 必须为 \[\]/)
     assert.match(prompt, /无代码改动是正确结果/)
     assert.doesNotMatch(prompt, /编码规范（改任何代码前必做/)

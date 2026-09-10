@@ -480,6 +480,19 @@ describe('parseCommandType', () => {
     assert.equal(inferCommandType('项目状态字段显示错误'), null)
   })
 
+  it('要测试/预览环境 URL、访问地址的信息查询归只读 status（不是需求、不改代码）', () => {
+    // PR-02172 真机：“web的测试链接给我一下”被误判成新需求、又因零 diff 判 failed。
+    assert.equal(inferCommandType('web的测试链接给我一下'), 'status')
+    assert.equal(inferCommandType('这个需求的 pre 环境的 url 是怎样的'), 'status')
+    assert.equal(inferCommandType('测试环境地址发我'), 'status')
+    assert.equal(inferCommandType('预览链接是什么'), 'status')
+    assert.equal(inferCommandType('怎么访问这个页面'), 'status')
+    // 写操作 / 缺陷信号仍一票否决，不当信息查询。
+    assert.equal(inferCommandType('把测试链接改成新域名'), null) // 写操作（改成）
+    assert.equal(inferCommandType('测试链接报错打不开'), null) // 缺陷信号（报错）
+    assert.equal(inferCommandType('新增一个分享链接功能'), null) // 写操作（新增）
+  })
+
   it('「汇报/报告」是常见的状态查询问法，与「汇总」同等判 status（真机漏判修复）', () => {
     // 现场发现：「汇报一下这个项目的状态」曾因 cue 词表只收「汇总」漏「汇报」→ 被当新需求拦。
     assert.equal(inferCommandType('汇报一下这个项目的状态'), 'status')
