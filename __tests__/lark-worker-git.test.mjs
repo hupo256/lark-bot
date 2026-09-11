@@ -17,6 +17,7 @@ import { after, before, beforeEach, describe, it } from 'node:test'
 import {
   finalizeExistingWorktree,
   finalizeTempWorktree,
+  inspectWorktreeIdentity,
   prepareTempWorktree,
   setRepoRoot,
 } from '../lib/lark-worker-git.mjs'
@@ -62,6 +63,27 @@ beforeEach(() => {
   spawnSync('git', ['-C', repo, 'branch', '-D', BRANCH], { encoding: 'utf8' })
   rmSync(wtPath(), { recursive: true, force: true })
   prepareTempWorktree({ path: wtPath(), branch: BRANCH })
+})
+
+describe('inspectWorktreeIdentity（提交链身份锁）', () => {
+  it('root / branch / HEAD 全部一致时通过', () => {
+    const headSha = run(wtPath(), ['rev-parse', 'HEAD'])
+    const identity = inspectWorktreeIdentity({ cwd: wtPath(), expectedBranch: BRANCH, expectedHeadSha: headSha })
+    assert.equal(identity.ok, true)
+    assert.equal(identity.branch, BRANCH)
+    assert.equal(identity.headSha, headSha)
+  })
+
+  it('分支不符或任务执行期间 HEAD 改变时 fail-closed', () => {
+    const headSha = run(wtPath(), ['rev-parse', 'HEAD'])
+    assert.equal(inspectWorktreeIdentity({ cwd: wtPath(), expectedBranch: 'wrong-branch' }).ok, false)
+    writeFileSync(join(wtPath(), 'ai-commit.txt'), 'committed outside worker\n')
+    run(wtPath(), ['add', '-A'])
+    run(wtPath(), ['commit', '-m', 'AI should not commit'])
+    const changed = inspectWorktreeIdentity({ cwd: wtPath(), expectedBranch: BRANCH, expectedHeadSha: headSha })
+    assert.equal(changed.ok, false)
+    assert.ok(changed.problems.some((problem) => problem.includes('HEAD')))
+  })
 })
 
 describe('prepareTempWorktree（retry/resume 不得摧毁保留的现场）', () => {

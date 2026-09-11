@@ -54,7 +54,7 @@ import { buildCodeRulesBlockedResult, codeRuleErrorsInDiff, formatCodeRulesLine,
 import { validateConfig } from '../lib/lark-config.mjs'
 import { pruneStaleAudits } from '../lib/lark-worker-audit.mjs'
 import { classifyWorkerFailure } from '../lib/lark-worker-results.mjs'
-import { resolveWorkContext, safeProject, tempWorktreeContextFor } from '../lib/lark-work-context.mjs'
+import { resolveWorkContext, safeProject, tempWorktreeContextFor, validateWorkContextRoute } from '../lib/lark-work-context.mjs'
 import { decideControlAction, isRegisteredBotReceiptReply, resolveManualCloseTarget, resolveResumeTarget } from '../lib/lark-ingest.mjs'
 import { isExecutionSuperseded, monitorExecutionCancellation } from '../lib/lark-task-runner.mjs'
 import { validateSource } from '../../engine/agent-scripts/sync-lark-docs.mjs'
@@ -415,6 +415,33 @@ describe('resolveWorkContext', () => {
     const ctx = resolveWorkContext(cfg, { project: 'PR-99999', text: '修复：登录报错', id: 'om_fix1234567890' })
     assert.ok(!ctx.readOnly)
     assert.ok(ctx.hotfixBranch?.startsWith('hotfix/PR-99999-'))
+  })
+})
+
+describe('validateWorkContextRoute（任务 / 项目 / worktree 路由同源）', () => {
+  const task = { project: 'PR-99999', id: 'om_zzzzzzzzABCDEFGH' }
+
+  it('resolveWorkContext 原样产出的临时路由通过', () => {
+    assert.equal(validateWorkContextRoute({ task, workContext: resolveWorkContext({}, task) }).ok, true)
+  })
+
+  it('串项目、串分支、串目录分别 fail-closed', () => {
+    const context = resolveWorkContext({}, task)
+    assert.equal(validateWorkContextRoute({ task: { ...task, project: 'PR-99998' }, workContext: context }).ok, false)
+    assert.equal(validateWorkContextRoute({ task, workContext: { ...context, hotfixBranch: 'hotfix/PR-99999-other' } }).ok, false)
+    assert.equal(validateWorkContextRoute({ task, workContext: { ...context, cwd: '/tmp/wrong-worktree' } }).ok, false)
+  })
+
+  it('无项目号的 status 只读主仓路由通过', () => {
+    const readOnlyTask = { commandType: 'status', id: 'om_ro0987654321' }
+    assert.equal(validateWorkContextRoute({ task: readOnlyTask, workContext: resolveWorkContext({}, readOnlyTask) }).ok, true)
+  })
+
+  it('项目 worktree 不存在时只读任务可回落主仓，但错误目录仍 fail-closed', () => {
+    const readOnlyTask = { project: 'PR-99999', commandType: 'status', id: 'om_ro1234567890' }
+    const context = resolveWorkContext({}, readOnlyTask)
+    assert.equal(validateWorkContextRoute({ task: readOnlyTask, workContext: context }).ok, true)
+    assert.equal(validateWorkContextRoute({ task: readOnlyTask, workContext: { ...context, cwd: '/tmp/wrong-worktree' } }).ok, false)
   })
 })
 
@@ -784,15 +811,25 @@ describe('isExecutionSuperseded', () => {
 describe('monitorExecutionCancellation', () => {
   it('AI 运行中检测到 superseded 后 abort', async () => {
     const controller = new AbortController()
-    let checks = 0
     const stop = monitorExecutionCancellation({
-      getTask: async () => ({ status: ++checks >= 2 ? 'superseded' : 'running', epoch: checks >= 2 ? 2 : 1 }),
+      getTask: async () => ({ status: 'superseded', epoch: 2 }),
       taskId: 't1',
       claimedEpoch: 1,
       controller,
       intervalMs: 10,
     })
-    await new Promise((resolve) => setTimeout(resolve, 130))
+    await new Promise((resolve) => {
+      let timer
+      const settle = () => {
+        clearTimeout(timer)
+        resolve()
+      }
+      if (controller.signal.aborted) settle()
+      else {
+        controller.signal.addEventListener('abort', settle, { once: true })
+        timer = setTimeout(settle, 1000)
+      }
+    })
     stop()
     assert.equal(controller.signal.aborted, true)
   })
