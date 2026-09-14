@@ -16,7 +16,7 @@
 | `waiting_confirmation` | 范围、PRD、API、QA、登录账号、权限、环境或其他材料存在需人工确认 / 补充项 | 自动发送待确认 / 补信息通知，尽量 @ 具体责任人，回群等确认 |
 | `running` | 已开始改文档 / 代码 / 自测 | 持续记录进展 |
 | `verifying` | 已完成修改，正在跑 Biome、测试、type-check | 生成验证摘要 |
-| `done` | Lark 轻量链已完成、Worker 终检通过且改动已本地提交；这是**候选修复完成**，不是项目正式交付凭证 | 写通知记录；高风险改动转项目级 v3.1 authoritative verify |
+| `done` | Lark 轻量链已完成、Worker 终检通过且改动已本地提交；这是**候选修复完成**，不是项目正式交付凭证 | 写通知记录；项目正式交付另走 v3.3 authoritative verify |
 | `done_pending_writeback` | 仅 bug 表来源：改动已提交、群里已发完成卡，但记录状态回写失败 | Gateway 每 5min 重试；到上限（默认 12 次 ≈1h）**停止重试并保持本状态**，发告警请人手动改表格。**不落 `done`**——群里说完成而表格还挂着待处理，这个不一致必须一直可见（`done` 会被每小时的终态清理抹掉、health 计数里也不再点名） |
 | `no_change_needed` | **非完成态终局**：经核对确认改动属**后台 API 服务 / 另一个 git 仓库 / 非代码职责**（判据是「不属本 git 仓库」，**不是**「不属本前端 app」——同 monorepo 内另一个 app/package 如 admin/futures-admin 仍是本仓可改，不走此态） | 发独立回执卡（既非绿完成卡也非红失败卡）说明为何本仓无需改动 + 建议的接手方；无 diff、无提交，不进规范闸与「done+空 diff 不可信」评估；bug 表记录不写完成值，留待人工重派 |
 | `blocked` | 无法继续，需要外部资料或权限 | 回群说明阻塞 |
@@ -115,15 +115,15 @@ Gateway / Worker 至少提取：
 - **L2 契约/共享改动缺 type-check 证据 → 降级人工复核**（`assessDoneResult`）：改动触达 schema / mapper / api / `.d.ts` / `packages/` 时，若 AI 自报的 `checks` 里没有 type-check 证据，则**不按 done 处理**（这类改动最易静默改坏调用方；实施 prompt 已明确要求 L2/L3 在触达包跑一次 `tsc`）。注意这与「我们自己按整包 `tsc` exit code 硬判」不同——那会被历史基线红误伤，我们从不那么做；这里只校验 AI 是否给出了它本应产出的 type-check 证据。
 - **修复类任务「只动了测试文件」→ 与空 diff 同等不可信、降级人工复核**（`assessDoneResult` 的 `expectsCodeFix` + `isTestOnlyDiff`）：bug / QA 反馈 / 需求类任务（`workKind ∈ bugfix/qa_feedback/requirement`，且命令类型非 `test`/`docs`）报 `done`，但本次实测改动**全是** `*.test.*`/`*.spec.*`/`__tests__/` 文件时，判不可信降级。理由：一个回归测试不构成对已上报缺陷的修复——这正是「done+空 diff 不可信」那道闸**反向逼出来的敷衍**（加个 `index.test.ts` 凑非空 diff 冒充完成）。此时正确出口只有两条：① 根因在后端/数据/别的仓 → `no_change_needed` + 证据；② 确属前端 → 改真正出错的业务代码。**能不动代码就不动代码，但绝不能拿测试凑数走过场。**（沿革：PR-02172「Telegram 绑定重复关联」被 Pi 误判前端、只加一个测试文件报完成——重复关联记录是后端数据/去重问题，应判 `no_change_needed` 回群说明，而非在前端凑 diff。）
 
-## 3.3 Lark lightweight 与 v3.1 的边界
+## 3.3 Lark lightweight 与 v3.3 的边界
 
-Lark 保留自己的任务生命周期、AI 分析、质量闸和本地提交链，**不接入 v3.1 状态机**，避免群内小修复被项目级流程绑死，也避免两套状态互相映射后产生双重真值。
+Lark 保留自己的任务生命周期、AI 分析、质量闸和本地提交链，**不接入 v3.3 状态机**，避免群内小修复被项目级流程绑死，也避免两套状态互相映射后产生双重真值。
 
 - Lark 审计固定写 `assuranceMode: lark-lightweight`、`deliveryAuthority: false`；`done` 只表示候选修复已通过 Lark 本地闭环并落到本地分支。
 - Worker 在 AI 实施和规范纠正全部结束后，对**最终工作树**亲自执行 `git diff --check` 与触达文件 Biome，回执绑定当时的 `HEAD + diffHash + changedFiles`；AI 自报的 `checks` 只作补充说明，不能替代 Worker 回执。
 - 开工、终检、提交前分别核对任务项目、cwd、真实 git root、branch 与开工 HEAD。任务期间若切分支或绕过 Worker 自行 commit，自动提交 fail-closed，现场保留。
-- schema / mapper / API / `.d.ts` / `packages/` 等 L2 高风险改动会在结果卡明确提示：Lark done 不构成正式交付；进入项目交付前必须另取 v3.1 authoritative PASS。该提示**不阻断 Lark 候选修复闭环**，也不把 Lark 状态同步进 `work-item.json`。
-- 只有项目级 v3.1 结果满足 `mode=enforced,status=passed,ok=true,assuranceMode=autonomous,evidenceTrust=cli-attested`，才具有正式交付权。
+- schema / mapper / API / `.d.ts` / `packages/` 等 L2 高风险改动仍需在正式交付前另取 v3.3 authoritative PASS；该内部交付口径只写审计，不展示在普通群结果卡中，也不把 Lark 状态同步进 `work-item.json`。
+- 只有项目级 v3.3 结果满足 `mode=enforced,status=passed,ok=true,assuranceMode=autonomous,evidenceTrust=cli-attested`，才具有正式交付权。
 
 ## 4. 完成后汇报策略
 
@@ -142,7 +142,7 @@ Worker 完成后必须回群，并写入项目通知记录。回群内容固定�
 - 群消息字段不要编号，例如不要写 `1. 任务`、`2. 结果`。
 - `结果` 字段内先写完成状态，再用数字小结列出“做了什么、现在是什么效果”。
 - 不贴 diff 全文和长日志。
-- 任务 ID、触达文件和完整命令输出写入项目审计；普通完成消息只展示 Worker 终检摘要、diff 指纹短值和 `deliveryAuthority=false` 交付口径，不贴长日志。
+- 任务 ID、触达文件、规则扫描、交付权限字段和完整命令输出写入项目审计；普通完成消息只展示面向协作方的结果、分支、系统实测与 Worker 终检摘要，不贴内部规则扫描和交付口径。
 - 如果失败，群消息只说明失败类型和下一步；详细错误写入任务记录。
 - 如果失败，必须说明是工具失败、环境失败、权限失败还是需求不清。
 - 未明确要求时跳过 Browser / Playwright，不启动 dev server，也不把缺少视觉验收列为 warning；必需检查通过即完成回群。
