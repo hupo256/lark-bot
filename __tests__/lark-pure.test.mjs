@@ -459,6 +459,18 @@ describe('tempWorktreeContextFor', () => {
     assert.ok(rerouted.hotfixBranch.startsWith('hotfix/PR-99999-'))
   })
 
+  it('WIP 改路由保留项目分支基线，不能静默退回 online', () => {
+    const task = { project: 'PR-99999', id: 'om_x100b68708_AAAA0001' }
+    const rerouted = tempWorktreeContextFor(task, {
+      baseRef: 'abc123',
+      sourceBranch: 'feature/PR-99999',
+      sourceWorktree: '/tmp/PR-99999',
+    })
+    assert.equal(rerouted.baseRef, 'abc123')
+    assert.equal(rerouted.sourceBranch, 'feature/PR-99999')
+    assert.equal(rerouted.sourceWorktree, '/tmp/PR-99999')
+  })
+
   it('同一 task.id 恒定 → retry/补料/QA 验退复用同一隔离 worktree，不丢上一轮', () => {
     const task = { project: 'PR-99999', id: 'om_x100b68708_AAAA0001' }
     assert.equal(tempWorktreeContextFor(task).hotfixBranch, tempWorktreeContextFor(task).hotfixBranch)

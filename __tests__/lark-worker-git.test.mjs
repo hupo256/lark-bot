@@ -92,6 +92,33 @@ describe('prepareTempWorktree（retry/resume 不得摧毁保留的现场）', ()
     assert.equal(run(wtPath(), ['rev-parse', 'HEAD']), run(repo, ['rev-parse', 'origin/online']))
   })
 
+  it('项目 worktree 有 WIP 时：隔离分支从项目分支 HEAD 创建，不退回 origin/online', () => {
+    const featureBranch = 'feature/PR-TEST'
+    const isolatedBranch = 'lark/hotfix-feature-base'
+    const isolatedPath = join(sandbox, 'worktrees', 'feature-base')
+    run(repo, ['switch', '-c', featureBranch, 'origin/online'])
+    writeFileSync(join(repo, 'feature-only.txt'), 'only on active feature\n')
+    run(repo, ['add', '-A'])
+    run(repo, ['commit', '-m', 'feature baseline'])
+    const featureHead = run(repo, ['rev-parse', 'HEAD'])
+    run(repo, ['switch', 'online'])
+    // 模拟旧版本进程中断后遗留的「基于 online、无独有提交」空 hotfix；新路由必须安全重建到 feature 基线。
+    run(repo, ['branch', isolatedBranch, 'origin/online'])
+
+    try {
+      prepareTempWorktree({ path: isolatedPath, branch: isolatedBranch, baseRef: featureHead })
+      assert.equal(run(isolatedPath, ['rev-parse', 'HEAD']), featureHead)
+      assert.ok(existsSync(join(isolatedPath, 'feature-only.txt')), '隔离 worktree 必须看得到 feature 分支已有代码')
+      const outcome = finalizeTempWorktree({ path: isolatedPath, branch: isolatedBranch, baseRef: featureHead, task, allowCommit: true })
+      assert.equal(outcome.committed, false)
+      assert.notEqual(spawnSync('git', ['-C', repo, 'rev-parse', '--verify', isolatedBranch], { encoding: 'utf8' }).status, 0)
+    } finally {
+      if (existsSync(isolatedPath)) spawnSync('git', ['-C', repo, 'worktree', 'remove', '--force', isolatedPath], { encoding: 'utf8' })
+      spawnSync('git', ['-C', repo, 'branch', '-D', isolatedBranch], { encoding: 'utf8' })
+      spawnSync('git', ['-C', repo, 'branch', '-D', featureBranch], { encoding: 'utf8' })
+    }
+  })
+
   it('有未提交改动 → 原地复用，改动不丢', () => {
     writeFileSync(join(wtPath(), 'wip.txt'), 'half done\n')
     prepareTempWorktree({ path: wtPath(), branch: BRANCH })

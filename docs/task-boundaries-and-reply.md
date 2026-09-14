@@ -101,14 +101,14 @@ Gateway / Worker 至少提取：
 
 ## 3.2 人类 WIP 隔离与 L2 契约改动的 type-check 闸
 
-- **绝不自动提交人类 WIP**：命中的已有 worktree 在任务开始前若已有未提交改动，任务会**改路由到隔离的临时 worktree**（`tempWorktreeContextFor`），bot 的改动落 `origin/online` 上的 hotfix 分支、完全不碰人类工作区。
+- **绝不自动提交人类 WIP**：命中的已有 worktree 在任务开始前若已有未提交改动，任务会**改路由到隔离的临时 worktree**（`tempWorktreeContextFor`）；hotfix 从该项目 worktree 当前分支当时的已提交 HEAD 创建（不退回 `origin/online`），未提交 WIP 不会复制进来，原工作区也完全不被触碰。
 - **自动提交口径的唯一事实源**是 [lark-commit-policy.mjs](../lib/lark-commit-policy.mjs)（`resolveCommitMode`，纯函数直测）：
 
   | 场景 | 模式 | 行为 |
   |---|---|---|
   | 只读任务 | `none` | 不产生改动，任何写都是越界 |
   | 任务未完成（failed / blocked / 异常） | `none` | 半成品不入库，保留现场待人工 |
-  | 隔离临时 worktree（`origin/online` 上的 hotfix 分支） | `auto` | 分支是 bot 自己开的，全量 `git add -A` 提交 |
+  | 隔离临时 worktree（默认 `origin/online`；WIP 改路由时基于项目分支 HEAD） | `auto` | 分支是 bot 自己开的，全量 `git add -A` 提交 |
   | 命中人类已有 worktree 的当前分支 | `scoped` | **只**提交本任务实测改动清单里的路径 |
 
   `scoped` 存在的理由：上面那条路由检查只发生在**任务开始前**，而 AI 可以跑 30 分钟——这期间人在同一 worktree 新写的 WIP 会被 `git add -A` 一并扫走。改成按实测清单定向 `git commit -- <pathspec>` 后，收尾时才出现的路径既不入库也不被静默忽略：它们进 `unexpected`，写进完成卡请人确认。三种模式**都不 push、不开 PR**。
