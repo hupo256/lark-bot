@@ -39,7 +39,7 @@
 
 bug 表按 `项目ID` 跨项目路由，与群 @ 共用 `resolveWorkContext`：
 
-- 项目号须通过 `(PR|PM)-\d{3,}` 校验：自由文本提取用带词边界的 `\b(PR|PM)-\d{3,}\b`（`matchProjectId`，`SUPR-01947` 不吞出 `PR-01947`），整串校验用 `isProjectId`；群任务按“群名 > 正文 > adhoc”解析，poller 与群链路共用同一正则，Gateway/Worker 双重拦截非法路径。
+- 项目号须通过 `(PR|TR|PM)-\d{3,}` 校验：自由文本提取用带词边界的 `\b(PR|TR|PM)-\d{3,}\b`（`matchProjectId`，`SUPR-01947` 不吞出 `PR-01947`），整串校验用 `isProjectId`；群任务按“群名 > 正文 > adhoc”解析，poller 与群链路共用同一正则，Gateway/Worker 双重拦截非法路径。
 - bug 表任务的回执与结果卡优先发送到群名匹配项目号的项目群；找不到项目群时私聊负责 RD，负责人也不可用时才回落默认通知群，避免跨项目卡片全部涌入同一群。
 - 已有 worktree 时先隔离既存 WIP，done 后提交本次改动；失败/阻塞不提交，提交失败保留现场。
 - 无 worktree 时默认基于 `origin/online` 建 `hotfix/<项目ID|adhoc>-<id>`；命中项目 worktree 但已有未提交 WIP 时，隔离 hotfix 必须基于该项目分支当时的已提交 HEAD，绝不退回 `online`。仅 done 提交并清理，失败/阻塞有半成品则保留，无改动可删除。

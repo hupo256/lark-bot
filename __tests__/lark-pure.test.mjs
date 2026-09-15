@@ -1018,6 +1018,7 @@ describe('validateSource (read-only guard)', () => {
 describe('matchProjectId（自由文本提取）', () => {
   it('提取正文首个项目号并大写归一', () => {
     assert.equal(matchProjectId('修复 pr-01947 的登录 bug'), 'PR-01947')
+    assert.equal(matchProjectId('迁移登录/注册 TR-02386'), 'TR-02386')
     assert.equal(matchProjectId('见 PM-1469 需求'), 'PM-1469')
   })
   it('词边界：SUPR-01947 不吞出 PR-01947（否则误路由）', () => {
@@ -1048,6 +1049,7 @@ describe('matchProjectIds（全部项目号，用于判「正文是否明确指�
 describe('isProjectId（整串校验）', () => {
   it('恰为合法项目号（含尾部空白/换行）→ true', () => {
     assert.equal(isProjectId('PR-01947'), true)
+    assert.equal(isProjectId('TR-02386'), true)
     assert.equal(isProjectId('pm-1469'), true)
     assert.equal(isProjectId('PM-1469\n'), true)
   })
