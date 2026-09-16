@@ -159,13 +159,14 @@ Worker 完成后必须回群，并写入项目通知记录。回群内容固定�
 - **结单语义（`classifyClosureIntent`）**：先按语族正则给出结构化判定 `{ intent, closureReason, scope, confidence }`。三种 `closureReason`：`completed_elsewhere`（已解决 / 已由其他人·AI 完成 / 已上线 / 重复工单）、`cancelled`（取消 / 终止 / 撤销 / 停止处理 / 结束）、`no_longer_needed`（不用做了 / 不需要处理 / 需求变了 / 算了）。**一票否决**（降级为 unclear 去确认，绝不自动结单）：疑问句（修复了吗 / 解决了没 / 是不是已上线）、否定关闭、条件未来时、未完成、只完成部分、还需继续、转述他人。独立暂停表达走 `pause`，保持状态且不续跑、不新建。若明确结单后仍有缺陷/修改请求（如“上个已解决，现在下拉框还是空的”），先结原任务，再把残余正文显式展示并询问是否另发新任务，绝不静默吞请求或自动扩张执行范围。
 - **弱信号轻量仲裁（不引 AI）**：高置信语族没命中、但形状**疑似结单**（收工 / 到此为止 / 先放着 / 就这样吧 / 这事到这了 / 不弄这个了…`SUSPECTED_CLOSURE_RE`）的锚定消息，不再默认当补料续跑或忽略，而是升级为 `unclear`（`scope=suspected` + 猜测 `closureReason=cancelled`）去 `confirm`——零 AI、零新异步流程，只是把「疑似」交人一键裁决。仍受弱信号专用否决门 `SUSPECTED_VETO_RE` 约束（否定 / 继续 / 未完成词出现即退回，「先别收工，继续做」= 继续，不问「要结单吗」）。confirm 文案据 `scope` 分流：`partial` 问「整单关还是只取消一部分」，`suspected` 直接摆出猜测方向 + **带真实 taskId 的一键指令**（回复 `取消任务 <id>` / `结单 <id>` 结束，或补充说明继续）。
 - **重开语义（`classifyReopenIntent`）**：误结单可逆。窄语族——只认明确的重开 / 恢复 / 纠错措辞（重开 / 重新做 / 恢复执行 / 其实还要做 / 关错了 / 误关 / 不该取消），避免把「继续下一步」这类正常补料误判成重开。仅当回复的目标是一条**人工结单**任务（`superseded` 且带 `externalResolution`）时才生效。
-- **路由决策（`decideControlAction`）硬不变量**：锚定到的任务为**活动态**（`received/queued/running/verifying/waiting_confirmation/blocked/failed`）时，任何意图都不返回 `passthrough` —— 即**回复活动任务卡的消息永远不会新建任务**。仅「终态任务 + 非结单/非重开表达」放行老路径，允许在已了结话题里发起真正的新请求。
+- **路由决策（`decideControlAction`）硬不变量**：锚定到的任务为**活动态**（`received/queued/running/verifying/waiting_confirmation/blocked/failed`）时，任何意图都不返回 `passthrough` —— 即**回复活动任务卡的消息永远不会新建任务**。纯确认 / 寒暄（如 `OK`、`收到`、`👌`）和仅要求他人稍后补充的协调话术属于 `ignore`：无论原任务处于活动态还是终态，都在控制通道内静默消费，不续跑、不发提示卡、不创建 `[OK]` 一类任务；带附件或方案、字段、样例等实质内容不忽略。仅「终态任务 + 有实质内容的非结单/非重开表达」放行老路径，允许在已了结话题里发起真正的新请求。
   - `close`：`closeAsExternallyResolved` 落终态 `superseded` + `epoch++`（拦截已领取 worker 的迟到回写）+ 清排队/催办/待发回执；`closureReason` 写入落态存档与通知日志——**取消类绝不记成「已完成」**（通知日志状态列 `已取消` / `外部完成`）。**running 中取消**除 AI 前和提交前检查外，还在 AI 执行期间轮询 Gateway；检出 `superseded`/换代立即用独立 `AbortController` 终止 AI 子进程。所有 prompt 都禁止 AI 自行 commit，提交只由 Worker 在最终状态与 epoch 闸通过后执行，因此已取消任务零 commit；半成品由既有收尾策略保留并写入审计供人工检查。
   - `reopen`：`reopenClosed` 把人工结单的任务复活回 `queued` + `epoch++`，把本次结单存档进 `closureHistory` 留痕后清 `closureReason`/`externalResolution`；显式指令保存去掉指令前缀后的补充正文，回复式重开保存真实正文、附件与操作消息 ID 到任务历史。复用原 `task.id` → 复用原分支/worktree。兄弟归并 `supersede`（有 `supersededBy` 无 `externalResolution`）与 `done` 一律不可重开。
   - `pause`：仅确认暂停表达，不改变任务状态、不触发 parked 任务续跑、不新建任务，并明确回执当前状态。
   - `confirm`：意图不明，回一句让用户澄清「结束整个任务 or 只取消一部分」，原任务不变、不新建。
   - `resume`：活动态(parked) + 无结单信号 → 复用原任务补料续跑（见 5.1）。
   - `notice`：其它活动态 + 无结单信号 → 记录并引导，不新建。
+  - `ignore`：锚定回复只有确认、寒暄或协调话术且没有附件 → 仅写本地日志，任务状态保持不变，不发群消息、不续跑、不新建。
 
 > 沿革：早期只识别「已解决 / 已完成」窄语族且判定散在 ingest 线性 if 链里，取消 / 不用做了 / 已结束等表达全部漏判、fall through 建新任务；且回复旧代次卡因 epoch 不匹配锚定失败；误结单只能人工改文件。现收敛为统一控制通道 + 忽略代次锚定 + closureReason 分流 + 显式指令 + 误结单可逆。
 

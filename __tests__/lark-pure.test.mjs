@@ -37,6 +37,7 @@ import {
   inferCommandType,
   isForBot,
   isManualResolutionMessage,
+  isNonSupplementalReply,
   isReadOnlyCommand,
   isReadOnlyTask,
   isWhitelisted,
@@ -733,6 +734,16 @@ describe('decideControlAction', () => {
     assert.equal(decideControlAction({ target: { status: 'queued' }, verdict: { intent: null } }), 'notice')
   })
 
+  it('无实质内容的卡片回复无论原任务活动或终态都 ignore，不续跑也不新建', () => {
+    for (const status of [...ACTIVE, ...TERMINAL]) {
+      assert.equal(
+        decideControlAction({ target: { status }, verdict: { intent: null }, nonSupplemental: true }),
+        'ignore',
+        status,
+      )
+    }
+  })
+
   it('暂停与混合结单分别走独立动作', () => {
     assert.equal(decideControlAction({ target: { status: 'blocked' }, verdict: { intent: null }, pause: true }), 'pause')
     assert.equal(decideControlAction({ target: { status: 'running' }, verdict: { intent: 'close_with_residual' } }), 'close_with_residual')
@@ -844,6 +855,21 @@ describe('monitorExecutionCancellation', () => {
     })
     stop()
     assert.equal(controller.signal.aborted, true)
+  })
+})
+
+describe('isNonSupplementalReply', () => {
+  it('识别纯确认、寒暄和等待他人补充的协调话术', () => {
+    for (const text of ['OK', '好的', '收到', '明白了', '👌', '谢谢', '麻烦补充下，直接在这里回复就好了', '请确认一下']) {
+      assert.equal(isNonSupplementalReply({ text }), true, text)
+    }
+  })
+
+  it('附件或带真实方案/字段的内容仍是有效补料', () => {
+    for (const text of ['方案 A 可以', '确认按方案 A 处理', '接口实际只返回 1 条', '补充：tableType=1']) {
+      assert.equal(isNonSupplementalReply({ text }), false, text)
+    }
+    assert.equal(isNonSupplementalReply({ text: 'OK', attachments: [{ type: 'image' }] }), false)
   })
 })
 
