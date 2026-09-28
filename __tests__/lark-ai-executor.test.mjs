@@ -277,7 +277,7 @@ describe('risk-based validation policy', () => {
     assert.match(policy, /L1 样式/)
     assert.match(policy, /无需 type-check/)
     assert.match(policy, /node_modules\/\.bin\/vitest run --no-cache/)
-    assert.match(policy, /不要用会触发 Corepack\/registry 的 `pnpm exec`/)
+    assert.match(policy, /pnpm --filter fameex install --frozen-lockfile --prefer-offline/)
     assert.match(policy, /同一检查最多执行一次/)
     assert.match(policy, /自动视觉验收默认关闭/)
     assert.match(policy, /不要启动 dev server/)

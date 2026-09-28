@@ -9,7 +9,7 @@
 
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, before, beforeEach, describe, it } from 'node:test'
@@ -90,6 +90,22 @@ describe('prepareTempWorktree（retry/resume 不得摧毁保留的现场）', ()
   it('新建：worktree 在 origin/online 上、分支已切好', () => {
     assert.equal(run(wtPath(), ['rev-parse', '--abbrev-ref', 'HEAD']), BRANCH)
     assert.equal(run(wtPath(), ['rev-parse', 'HEAD']), run(repo, ['rev-parse', 'origin/online']))
+    assert.equal(existsSync(join(wtPath(), 'node_modules')), false, '创建 worktree 不应软链主仓依赖')
+  })
+
+  it('只迁移旧 bot 指向主仓的依赖软链，不碰独立安装', () => {
+    mkdirSync(join(repo, 'node_modules'))
+    writeFileSync(join(wtPath(), 'keep.txt'), 'unfinished\n')
+    symlinkSync(join(repo, 'node_modules'), join(wtPath(), 'node_modules'), 'dir')
+    prepareTempWorktree({ path: wtPath(), branch: BRANCH })
+    assert.equal(existsSync(join(wtPath(), 'node_modules')), false)
+    symlinkSync(join(repo, 'node_modules'), join(wtPath(), 'node_modules'), 'dir')
+    rmSync(join(repo, 'node_modules'), { recursive: true, force: true })
+    prepareTempWorktree({ path: wtPath(), branch: BRANCH })
+    assert.equal(existsSync(join(wtPath(), 'node_modules')), false, '失效的旧链接也要移除')
+    mkdirSync(join(wtPath(), 'node_modules'))
+    prepareTempWorktree({ path: wtPath(), branch: BRANCH })
+    assert.equal(existsSync(join(wtPath(), 'node_modules')), true)
   })
 
   it('项目 worktree 有 WIP 时：隔离分支从项目分支 HEAD 创建，不退回 origin/online', () => {
@@ -162,6 +178,23 @@ describe('prepareTempWorktree（retry/resume 不得摧毁保留的现场）', ()
 })
 
 describe('finalizeTempWorktree（ok=false 即「改动没落盘」，调用方据此不报完成）', () => {
+  it('正常运行提交 hook，失败保留 worktree 和改动', () => {
+    const hooks = join(sandbox, 'reject-hooks')
+    mkdirSync(hooks)
+    writeFileSync(join(hooks, 'pre-commit'), '#!/bin/sh\nexit 1\n', { mode: 0o755 })
+    run(repo, ['config', 'core.hooksPath', hooks])
+    try {
+      writeFileSync(join(wtPath(), 'fix.txt'), 'fixed\n')
+      const outcome = finalizeTempWorktree({ path: wtPath(), branch: BRANCH, task, allowCommit: true })
+      assert.equal(outcome.ok, false)
+      assert.ok(existsSync(join(wtPath(), 'fix.txt')))
+      assert.equal(run(repo, ['rev-list', '--count', `origin/online..${BRANCH}`]), '0')
+    } finally {
+      run(repo, ['config', '--unset', 'core.hooksPath'])
+      rmSync(hooks, { recursive: true, force: true })
+    }
+  })
+
   it('有改动 + 允许提交 → 提交进分支并删目录', () => {
     writeFileSync(join(wtPath(), 'fix.txt'), 'fixed\n')
     const outcome = finalizeTempWorktree({ path: wtPath(), branch: BRANCH, task, allowCommit: true })
@@ -212,6 +245,26 @@ describe('finalizeTempWorktree（ok=false 即「改动没落盘」，调用方�
 })
 
 describe('finalizeExistingWorktree（命中已有 worktree 的定向收尾提交）', () => {
+  it('提交 hook 只看到定向文件，已有暂存 WIP 不进入提交', () => {
+    const hooks = join(sandbox, 'scope-hooks')
+    const observed = join(sandbox, 'hook-staged.txt')
+    mkdirSync(hooks)
+    writeFileSync(join(hooks, 'pre-commit'), `#!/bin/sh\ngit diff --cached --name-only > "${observed}"\n`, { mode: 0o755 })
+    run(repo, ['config', 'core.hooksPath', hooks])
+    try {
+      writeFileSync(join(wtPath(), 'human-wip.txt'), 'human\n')
+      run(wtPath(), ['add', 'human-wip.txt'])
+      writeFileSync(join(wtPath(), 'bot.txt'), 'bot\n')
+      const outcome = finalizeExistingWorktree({ cwd: wtPath(), task, taskPaths: ['bot.txt'] })
+      assert.equal(outcome.ok, true)
+      assert.equal(run(wtPath(), ['show', '--format=', '--name-only', 'HEAD']), 'bot.txt')
+      assert.equal(readFileSync(observed, 'utf8').trim(), 'bot.txt')
+      assert.match(run(wtPath(), ['diff', '--cached', '--name-only']), /human-wip\.txt/)
+    } finally {
+      run(repo, ['config', '--unset', 'core.hooksPath'])
+      rmSync(hooks, { recursive: true, force: true })
+    }
+  })
   it('改动在本任务实测清单内 → 提交到当前分支', () => {
     writeFileSync(join(wtPath(), 'fix.txt'), 'fixed\n')
     const outcome = finalizeExistingWorktree({ cwd: wtPath(), task, taskPaths: ['fix.txt'] })
