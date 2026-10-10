@@ -116,11 +116,13 @@ Claude / Codex / Pi / Cursor Worker 领取任务后：
 
 该 bot 是**机器级全局单例**（一个 gateway + 一个 worker，launchd 常驻），代码与运行时集中在 `common/lark-bot/`：启动薄包装 `common/lark-bot/runtime/lark-worker.mjs` 只调用 `common/lark-bot/lark-worker.mjs` 并传入项目编号、项目名称和需要读取的项目文档。Gateway 轮询、任务领取、Codex prompt、状态回写、空任务失败处理和兜底完成消息都由公共 Worker 维护；不得在项目目录复制完整 Worker 实现。单例配置（webhook/appToken/bug 表等，gitignore）为 `common/lark-bot/runtime/lark-bot.local.json`。
 
-AI 执行器固定为 `claude` / `codex` / `pi` / `cursor` 四种，内置默认值是 `pi`。选择优先级为：任务指定的 `aiExecutor` > `lark-bot.local.json.aiExecutor` > wrapper 参数 > 内置默认值。执行器选择**不读取环境变量**，避免 launchd 或终端残留环境覆盖本机配置。
+AI 执行器固定为 `claude` / `codex` / `pi` / `cursor` 四种，内置默认值是 `claude`。选择优先级为：任务指定的 `aiExecutor` > `lark-bot.local.json.aiExecutor` > wrapper 参数 > 内置默认值。执行器选择**不读取环境变量**，避免 launchd 或终端残留环境覆盖本机配置。
 
 群消息首个文本位置可用 `[claude]` / `[codex]` / `[pi]` / `[cursor]` 单次覆盖，标签后可直接接正文；消息最前面的连续图片占位符不算正文，因此“图片 + `[pi]` + 正文”仍由 Pi 执行。正文已经开始后出现的标签不触发切换。外部投递可在任务体中传 `aiExecutor`。未知值拒绝；Gateway 在入队时确定并持久化执行器，排队卡和结果卡均显示实际执行器，因此修改默认配置不会改写已经入队的任务。
 
 机器级默认值写在 `common/lark-bot/runtime/lark-bot.local.json` 的 `aiExecutor`，修改后执行 `lark-bot restart`，再用 `lark-bot status` 检查实际执行器。模型配置按执行器分开：Codex 使用 `codexModel` / `codexReasoningEffort`，Pi 使用 `piProvider` / `piModel` / `piReasoningEffort`，Cursor 使用 `cursorModel`；未配置时由对应 CLI 使用自身默认值。
+
+Claude 鉴权用 `lark-bot claude-auth local|proxy` 一键切换（不带参数查看当前模式，`status` 的 executor 行也显示 `auth=`）：`proxy`（默认）走 `~/.config/fameex-lark/claude.env` 里的第三方网关 key，`local` 由 `launchd-node.sh` 剥掉 `ANTHROPIC_*` 网关变量、改走本机钥匙串登录。只写模式文件 `~/.config/fameex-lark/claude-auth`，不改 `claude.env`；切换会自动 restart。Codex、Pi、Claude 的 Worker 启动时都会真实调用一次模型做就绪探针（claude 的 `--version` 不验鉴权，网关欠费 402 或本机未登录只有真实调用才暴露），探针失败则 restart 失败。
 
 Codex 使用两阶段执行：先在 `read-only` 沙箱分析并校验 git 状态，只有分析可继续时才进入 `workspace-write` 实施。Claude、Pi、Cursor 使用单阶段 Agent 工具循环。四种执行器都接收同一份精准规则上下文，并把结构化结果落盘后由 Worker 统一回写 Gateway；执行器自身不直接回调 Gateway。
 

@@ -74,7 +74,7 @@ lark-bot 是跑在**本机**的一套常驻服务：群里 @ 一下机器人（�
 ## 5. 配置与运维
 
 - **单例配置**（gitignore）：`runtime/lark-bot.local.json` —— 项目、白名单、执行器与模型、bug 表字段映射。
-- **执行器切换**：任务 `[claude]`/`[codex]`/`[pi]`/`[cursor]` 标签 > 配置 `aiExecutor` > 内置默认 `pi`；入队时锁定，卡片上可见。
+- **执行器切换**：任务 `[claude]`/`[codex]`/`[pi]`/`[cursor]` 标签 > 配置 `aiExecutor` > 内置默认 `claude`；入队时锁定，卡片上可见。
 - **运维入口**：`lark-bot {start|stop|restart|status|logs|poll-on|poll-off|failed|retry|clean}`（`scripts/lark-bot`，`~/.local/bin/lark-bot` 为薄入口）。
 - **观测**：`lark-bot status` 汇总 gateway/worker/poller 健康、执行器与模型 readiness、任务积压、挂起盘点、代码/配置 stale。
 - **审计**：`<PROJECT>/agent/lark-audits/<taskId>.json/.log`，标记 `assuranceMode=lark-lightweight`、`deliveryAuthority=false`。

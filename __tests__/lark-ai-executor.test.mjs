@@ -9,6 +9,7 @@ import { describe, it } from 'node:test'
 import { parseAiExecutorDirective, resolveGatewayAiExecutor } from '../lib/lark-ingest.mjs'
 import {
   buildAiExecutorCommand,
+  buildClaudeReadinessCommand,
   buildCodexReadinessCommand,
   buildPiReadinessCommand,
   formatStructuredAiResult,
@@ -46,7 +47,7 @@ describe('AI executor selection', () => {
     assert.equal(resolveAiExecutor(worker, { aiExecutor: 'claude' }), 'claude')
     assert.equal(resolveAiExecutor(worker, {}), 'codex')
     assert.equal(resolveAiExecutor({ aiExecutor: 'claude', localConfig: {} }, {}), 'claude')
-    assert.equal(resolveAiExecutor({ localConfig: {} }, {}), 'pi')
+    assert.equal(resolveAiExecutor({ localConfig: {} }, {}), 'claude')
   })
 
   it('群消息识别首个文本位置的安全选择指令，标签后无需空格', () => {
@@ -68,7 +69,7 @@ describe('AI executor selection', () => {
     const config = { aiExecutor: 'codex' }
     assert.equal(resolveGatewayAiExecutor({ config }), 'codex')
     assert.equal(resolveGatewayAiExecutor({ requestedExecutor: 'claude', config }), 'claude')
-    assert.equal(resolveGatewayAiExecutor({ config: {} }), 'pi') // fallback to DEFAULT_EXECUTOR
+    assert.equal(resolveGatewayAiExecutor({ config: {} }), 'claude') // fallback to DEFAULT_EXECUTOR
   })
 })
 
@@ -141,6 +142,15 @@ describe('Codex non-interactive command', () => {
     assert.deepEqual(command.args.slice(command.args.indexOf('--model'), command.args.indexOf('--model') + 2), ['--model', 'gpt-5.6-sol'])
     assert.deepEqual(command.args.slice(command.args.indexOf('--thinking'), command.args.indexOf('--thinking') + 2), ['--thinking', 'high'])
     assert.equal(command.args.at(-1), 'Reply with exactly: PI_MODEL_READY')
+  })
+
+  it('Claude readiness probe 只读、不指定模型（与任务命令同一模型来源）', () => {
+    const command = buildClaudeReadinessCommand()
+    assert.equal(command.cmd, 'claude')
+    assert.deepEqual(command.args.slice(command.args.indexOf('--permission-mode'), command.args.indexOf('--permission-mode') + 2), ['--permission-mode', 'plan'])
+    assert.equal(command.args.includes('--model'), false)
+    assert.equal(command.args.includes('--dangerously-skip-permissions'), false)
+    assert.match(command.args.at(-1), /CLAUDE_MODEL_READY$/)
   })
 
   it('Codex 分析阶段使用只读沙箱和独立分析 Schema', () => {

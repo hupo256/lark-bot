@@ -13,6 +13,18 @@ if [ -f "$CRED" ]; then
   set +a
 fi
 
+# claude 鉴权模式（`lark-bot claude-auth local|proxy` 切换，不改 claude.env 本身）：
+#   proxy（默认/文件缺失）：用 claude.env 里的第三方网关 key；
+#   local：剥掉网关变量，让 claude 走本机钥匙串登录（代理欠费时的退路，充值后切回 proxy）。
+# 钥匙串凭据按 USER 查找，launchd 不保证注入 USER，缺了会报 "Not logged in"，这里兜底。
+CLAUDE_AUTH_MODE="$(cat "$HOME/.config/fameex-lark/claude-auth" 2>/dev/null || echo proxy)"
+if [ "$CLAUDE_AUTH_MODE" = "local" ]; then
+  unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN ANTHROPIC_BASE_URL ANTHROPIC_MODEL
+fi
+: "${USER:=$(id -un)}"
+: "${LOGNAME:=$USER}"
+export USER LOGNAME
+
 # Gateway 本地 API 共享密钥：lark-bot 早就生成了 0600 的 gateway-secret 并在 curl 里带上，
 # 但服务端进程从来没拿到过这个环境变量 —— gatewaySecret 恒为空字符串，鉴权分支恒不成立，
 # 于是本机任何进程都能无凭证投递任务 / 回写任务状态 / prune 队列。密钥必须在这里注入

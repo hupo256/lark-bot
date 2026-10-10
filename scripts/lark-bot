@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Friendly control for the PR-01947 Lark bot (gateway + worker + bug poller).
-# Usage: lark-bot {start|stop|restart|status|logs|poll-on|poll-off}
+# Usage: lark-bot {start|stop|restart|status|logs|poll-on|poll-off|claude-auth [local|proxy]}
 set -euo pipefail
 
 REPO="/Users/aven/github/fameex-web"
@@ -21,6 +21,8 @@ GW_PLIST="$AGENT_DIR/$GW_LABEL.plist"
 WK_PLIST="$AGENT_DIR/$WK_LABEL.plist"
 POLLER_PLIST="$AGENT_DIR/$POLLER_LABEL.plist"
 SECRET_FILE="$HOME/.config/fameex-lark/gateway-secret"
+# claude 鉴权模式：launchd-node.sh 启动时读取；缺失视为 proxy（沿用 claude.env 网关 key）。
+CLAUDE_AUTH_FILE="$HOME/.config/fameex-lark/claude-auth"
 DOMAIN="gui/$(id -u)"
 
 mkdir -p "$LOGDIR"
@@ -127,7 +129,7 @@ start() {
   if ! _loaded "$WK_LABEL"; then _stop_script "$WK"; fi
   install_agent "$WK_LABEL" "$DOCS_ROOT/common/lark-bot/runtime/$WK_LABEL.plist" "$WK_PLIST"
   echo "• worker supervised by launchd  → $LOGDIR/worker.log"
-  if ! wait_until "worker/Codex model" worker_ready; then
+  if ! wait_until "worker/model" worker_ready; then
     tail -n 30 "$LOGDIR/worker.log" 2>/dev/null || true
     stop_core
     return 1
@@ -218,6 +220,7 @@ status() {
     LARK_STATUS_GATEWAY_PID="$gateway_pid" \
     LARK_STATUS_WORKER_PID="$worker_pid" \
     LARK_STATUS_POLLER_PID="$poller_pid" \
+    LARK_STATUS_CLAUDE_AUTH="$(_claude_auth_mode)" \
     node -e '
       let input="";
       process.stdin.on("data", chunk => input += chunk).on("end", () => {
@@ -246,7 +249,7 @@ status() {
         console.log(`lark-worker:  ${workerState}${workerPid ? `  pid=${workerPid}` : ""}`);
         console.log(`poller:       ${pollerState}${pollerPid ? `  pid=${pollerPid}` : ""}`);
         console.log("");
-        console.log(`executor:     ${readiness?.executor || "--"}${readiness?.model ? `  model=${readiness.model}  reasoning=${readiness.reasoningEffort}  probe=${readiness.modelProbe}` : ""}`);
+        console.log(`executor:     ${readiness?.executor || "--"}${readiness?.model ? `  model=${readiness.model}  reasoning=${readiness.reasoningEffort}  probe=${readiness.modelProbe}` : ""}${readiness?.executor === "claude" ? `  auth=${process.env.LARK_STATUS_CLAUDE_AUTH}` : ""}`);
         console.log(`tasks:        queued=${counts.queued || 0} running=${counts.running || 0} waiting=${counts.waiting_confirmation || 0} failed=${counts.failed || 0} receipt-pending=${health?.pendingReceipts?.total || 0} writeback-pending=${counts.done_pending_writeback || 0}`);
 
         // 挂起任务明细：催办满 N 轮后 gateway 就不再提醒（见 lark-parked-reminder），此后它们只能靠
@@ -287,6 +290,29 @@ status() {
       });'
 }
 
+_claude_auth_mode() { cat "$CLAUDE_AUTH_FILE" 2>/dev/null || echo proxy; }
+
+# claude 执行器鉴权一键切换：local=本机钥匙串登录，proxy=claude.env 里的第三方网关 key。
+# 只写模式文件、不改 claude.env；切换后自动 restart，worker 启动探针会真实调用一次 claude 验证新模式。
+claude_auth() {
+  local mode="${1:-}" previous
+  previous="$(_claude_auth_mode)"
+  if [ -z "${mode}" ]; then
+    echo "claude-auth: ${previous}（切换：lark-bot claude-auth local|proxy）"
+    return 0
+  fi
+  case "${mode}" in
+    local|proxy) ;;
+    *) echo "usage: lark-bot claude-auth [local|proxy]"; exit 1 ;;
+  esac
+  (umask 077 && printf '%s\n' "${mode}" > "$CLAUDE_AUTH_FILE")
+  echo "• claude-auth: ${previous} → ${mode}，重启以生效"
+  if ! restart; then
+    echo "✖ 以 claude-auth=${mode} 启动失败（见上方 worker 日志的 Claude 模型就绪检查）；切回：lark-bot claude-auth ${previous}" >&2
+    return 1
+  fi
+}
+
 restart() {
   local restore_poller=0
   if _running "$POLLER"; then restore_poller=1; fi
@@ -318,5 +344,6 @@ case "${1:-}" in
   retry)    retry "${2:-}" ;;
   receipt-retry) receipt_retry "${2:-}" ;;
   clean)    clean "${2:-}" "${3:-}" ;;
-  *) echo "usage: lark-bot {start|stop|restart|status|logs|poll-on|poll-off|failed|retry <id>|receipt-retry <id>|clean [hours]|clean --failed [hours]}"; exit 1 ;;
+  claude-auth) claude_auth "${2:-}" ;;
+  *) echo "usage: lark-bot {start|stop|restart|status|logs|poll-on|poll-off|failed|retry <id>|receipt-retry <id>|clean [hours]|clean --failed [hours]|claude-auth [local|proxy]}"; exit 1 ;;
 esac

@@ -135,6 +135,12 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   const sweepTimer = setInterval(sweepAttachmentsOnce, 60 * 60 * 1000)
   sweepTimer.unref?.()
 
+  // 孤儿租约回收：worker 只在队列有可领任务时才 claim，仅靠 claim 前回收会让空队列下的孤儿永卡 running
+  //（2026-10-05 gateway 重启致 worker release 失败，任务卡了 5 天）。启动即扫一次，之后每 5min 一次。
+  store.reclaimOrphans()
+  const reclaimTimer = setInterval(() => store.reclaimOrphans(), 5 * 60 * 1000)
+  reclaimTimer.unref?.()
+
   // 回写重试：done_pending_writeback 的 bug 任务每 5min 重试回写，成功即落地 done。
   const writebackTimer = setInterval(() => {
     retryPendingWriteback({ config, store }).catch((error) =>

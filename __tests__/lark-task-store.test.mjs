@@ -43,6 +43,19 @@ describe('createTaskStore', () => {
     assert.equal(reclaimed.requeueCount, 1)
   })
 
+  it('reclaimOrphans 可脱离 claim 单独调用：空队列下孤儿也回到 queued，未过租约的不动', () => {
+    const store = createTaskStore({ tasksDir: dir, leaseMs: 60_000 })
+    store.upsert({ id: 'orphan', status: 'running', epoch: 2, claimedAt: '2000-01-01T00:00:00Z', createdAt: '2000-01-01T00:00:00Z' })
+    store.upsert({ id: 'busy', status: 'running', claimedAt: new Date().toISOString(), createdAt: '2026-01-01T00:00:00Z' })
+    store.reclaimOrphans()
+    assert.equal(store.get('orphan').status, 'queued')
+    assert.equal(store.get('orphan').claimedAt, null)
+    assert.equal(store.get('orphan').epoch, 3)
+    assert.equal(store.get('orphan').requeueCount, 1)
+    assert.equal(store.get('busy').status, 'running')
+    assert.equal(store.stats().stuck.length, 0)
+  })
+
   it('未过租约的 running 任务不回收，claimNext 返回 null', () => {
     const store = createTaskStore({ tasksDir: dir, leaseMs: 60_000 })
     store.upsert({ id: 'busy', status: 'running', claimedAt: new Date().toISOString(), createdAt: '2026-01-01T00:00:00Z' })
