@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Lark bug triage (read-only, before any code change)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["verdict", "summary", "evidence", "relatedCommits", "owner", "questions", "nextStep"],
+  "properties": {
+    "verdict": {
+      "type": "string",
+      "enum": ["frontend_fix", "already_fixed_in_code", "not_frontend", "needs_info"],
+      "description": "frontend_fix：当前 HEAD 代码确有该缺陷且根因在本仓前端，才允许进入改代码阶段；already_fixed_in_code：当前 HEAD 代码已符合预期（多为环境未部署含修复的版本）；not_frontend：根因在后端接口/App/别的仓/产品口径或数据；needs_info：信息不足且无法从代码与提交推断"
+    },
+    "summary": { "type": "string", "minLength": 1, "description": "一句话结论，直接回群给 QA/产品看" },
+    "evidence": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "判定依据：代码位置（文件:行）+ 该处当前行为、相关提交、接口实际返回等；非 frontend_fix 时至少一条"
+    },
+    "relatedCommits": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "already_fixed_in_code 时列出实现预期行为的提交（短 sha + 提交时间 + 标题），找不到填 []"
+    },
+    "owner": { "type": ["string", "null"], "description": "需要谁跟进：not_frontend 填 后端 / App / 产品 等；already_fixed_in_code 一般填 QA；其它填 null" },
+    "questions": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "needs_info 时逐条列出需要补充的信息；其它判定填 []"
+    },
+    "nextStep": { "type": ["string", "null"], "description": "给人的下一步（一句话可照做），如：部署含 abc123 的版本到 Pre 后复测；frontend_fix 填 null" }
+  }
+}

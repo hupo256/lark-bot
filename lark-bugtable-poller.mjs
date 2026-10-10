@@ -78,6 +78,10 @@ const fetchPendingRecords = async ({ bug }) => {
     bug.projectField || BUGTABLE_FIELD_DEFAULTS.projectField,
     bug.titleField || BUGTABLE_FIELD_DEFAULTS.titleField,
     bug.descField || BUGTABLE_FIELD_DEFAULTS.descField,
+    bug.bugNoField || BUGTABLE_FIELD_DEFAULTS.bugNoField,
+    bug.envField || BUGTABLE_FIELD_DEFAULTS.envField,
+    bug.portField || BUGTABLE_FIELD_DEFAULTS.portField,
+    bug.createdField || BUGTABLE_FIELD_DEFAULTS.createdField,
   ].filter(Boolean)
 
   const all = []

@@ -124,6 +124,8 @@ AI 执行器固定为 `claude` / `codex` / `pi` / `cursor` 四种，内置默认
 
 Claude 鉴权用 `lark-bot claude-auth local|proxy` 一键切换（不带参数查看当前模式，`status` 的 executor 行也显示 `auth=`）：`proxy`（默认）走 `~/.config/fameex-lark/claude.env` 里的第三方网关 key，`local` 由 `launchd-node.sh` 剥掉 `ANTHROPIC_*` 网关变量、改走本机钥匙串登录。只写模式文件 `~/.config/fameex-lark/claude-auth`，不改 `claude.env`；切换会自动 restart。Codex、Pi、Claude 的 Worker 启动时都会真实调用一次模型做就绪探针（claude 的 `--version` 不验鉴权，网关欠费 402 或本机未登录只有真实调用才暴露），探针失败则 restart 失败。
 
+bug 表来源的修复任务在实施前先跑**只读分诊**（`lib/lark-triage.mjs`，四种执行器都跑，前后 git 快照必须一致）：Worker 先确定性采集 bug 的环境 / 涉及端口 / 创建时间、分支上未推送与 bug 创建之后的提交、已迁移到 `apps/web-next` 的模块清单，分诊结论四选一——`frontend_fix` 才进入实施（结论随实施提示下发，只改分诊定位的 app / 位置）；`already_fixed_in_code`（当前代码已符合预期，多为环境未部署含修复的版本）与 `not_frontend`（后端 / App / 产品口径）直接落 `no_change_needed` 回群说明判定、依据、相关提交与下一步，不改代码；`needs_info` 落 `waiting_confirmation`。Web 双实现口径：已迁移到 web-next 的页面以 web-next 为准，apps/web 同名旧实现不作为依据；未迁移的页面看 apps/web。群里 @ 交办的任务不分诊。
+
 Codex 使用两阶段执行：先在 `read-only` 沙箱分析并校验 git 状态，只有分析可继续时才进入 `workspace-write` 实施。Claude、Pi、Cursor 使用单阶段 Agent 工具循环。四种执行器都接收同一份精准规则上下文，并把结构化结果落盘后由 Worker 统一回写 Gateway；执行器自身不直接回调 Gateway。
 
 审计写入 `<PROJECT>/agent/lark-audits/<taskId>.json/.log`：记录附件、规则来源/指纹、分析/最终结果、Gateway 状态和 CLI 输出；该目录已 gitignore。
