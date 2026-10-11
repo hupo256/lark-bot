@@ -1805,7 +1805,6 @@ describe('parkedReminderRound（挂起催办轮次）', () => {
 
 describe('handleStatusUpdate 的 parkedAt 锚点', () => {
   const freshStore = () => createTaskStore({ tasksDir: mkdtempSync(join(tmpdir(), 'lark-parked-')), leaseMs: 1000 })
-  // 真实项目号占位：appendNotificationLog 走 resolveLegacyProjectRoot(project)，空 project 会抛；日志文件不存在则自动跳过。
   const parkedConfig = { project: 'PR-99999' }
 
   it('进入挂起态打锚点；同态重复回写不重置；离开挂起态清掉', async () => {

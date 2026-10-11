@@ -22,10 +22,9 @@ import { parseStructuredAiResult, parseStructuredAnalysisValue, parseStructuredI
 import { buildQueuedCard, buildResultCard, buildWaitingCard, resolveOwnerMention } from '../lib/lark-cards.mjs'
 import { scanDiffForViolations } from '../lib/lark-lint-diff.mjs'
 import { buildFocusedRuleContext } from '../lib/lark-rule-context.mjs'
-import { larkBotRoot, legacyPrdsRoot } from '../lib/lark-paths.mjs'
+import { larkBotRoot } from '../lib/lark-paths.mjs'
 import { requestJson } from '../lib/lark-gateway-client.mjs'
 import { gatewayStatusForAiStatus, isCompletedAiStatus } from '../lib/lark-status-meta.mjs'
-import { shouldSyncProjectDocs } from '../lib/lark-task-runner.mjs'
 import { normalizeAnalysisForTask } from '../lib/lark-worker-run.mjs'
 import {
   buildAnalysisPrompt,
@@ -110,8 +109,8 @@ describe('Codex non-interactive command', () => {
     assert.deepEqual(command.args.slice(command.args.indexOf('--model'), command.args.indexOf('--model') + 2), ['--model', 'gpt-5.6-sol'])
     assert.ok(command.args.includes('model_reasoning_effort="high"'))
     assert.ok(command.args.includes('sandbox_workspace_write.network_access=false'))
-    // workspace-write 阶段放行存量项目根（legacyPrdsRoot），否则登记文档写入被 seatbelt 拒；未配置存量根则不放行额外写目录
-    assert.equal(command.args.some((a) => /^sandbox_workspace_write\.writable_roots=/.test(a)), Boolean(legacyPrdsRoot))
+    // workspace-write 只放行 worktree 本身，不额外放行任何写目录
+    assert.equal(command.args.some((a) => /^sandbox_workspace_write\.writable_roots=/.test(a)), false)
     assert.equal(command.args.at(-1), '-')
     assert.equal(command.args.includes('--dangerously-bypass-approvals-and-sandbox'), false)
   })
@@ -413,7 +412,6 @@ describe('risk-based validation policy', () => {
     assert.match(prompt, /不要运行 docs-tdd context \/ changed \/ gate/)
     assert.match(prompt, /唯一需要人工确认的需求问题是修改范围/)
     assert.match(prompt, /不得仅因缺 G2、PRD、Figma、QA 文档、README、技术方案或历史 gate 证据返回 waiting_confirmation/)
-    assert.equal(shouldSyncProjectDocs(task), false)
   })
 
   it('群任务和 Bug 表的 G2 流程阻塞都会降级，真实范围歧义仍保留', () => {
@@ -434,7 +432,6 @@ describe('risk-based validation policy', () => {
     assert.deepEqual(groupResult.blockers, [])
     assert.equal(bugTableResult.status, 'ready')
     assert.deepEqual(bugTableResult.blockers, [])
-    assert.equal(shouldSyncProjectDocs({ ...bugTableTask, commandType: 'qa' }), false)
 
     const bugTablePrompt = buildAnalysisPrompt(
       { projectId: 'PR-01947', projectName: 'test', projectDocs: [], cwd: '/tmp/repo' },
@@ -455,7 +452,7 @@ describe('risk-based validation policy', () => {
     assert.deepEqual(ambiguous.blockers, ['消息无法定位目标页面：现货和合约页均有同名控件，需要确认修改范围'])
   })
 
-  it('非测试反馈来源保持原同步与 G2 判定，不被扩权', () => {
+  it('非测试反馈来源保持原 G2 判定，不被扩权', () => {
     const externalTask = { source: 'manual-api', commandType: 'qa' }
     const analysis = {
       status: 'blocked',
@@ -465,11 +462,9 @@ describe('risk-based validation policy', () => {
       blockers: ['缺少 G2 定稿证据'],
     }
     assert.equal(normalizeAnalysisForTask(externalTask, analysis), analysis)
-    assert.equal(shouldSyncProjectDocs(externalTask), true)
-    assert.equal(shouldSyncProjectDocs({ source: 'lark', commandType: 'docs' }), true)
   })
 
-  it('状态查询不运行写式文档同步，Prompt 明确零改动成功', () => {
+  it('状态查询 Prompt 明确零改动成功', () => {
     const task = {
       id: 'status-1',
       source: 'lark-bugtable',
@@ -477,7 +472,6 @@ describe('risk-based validation policy', () => {
       text: '状态：这个项目现在的状态是？',
       attachments: [],
     }
-    assert.equal(shouldSyncProjectDocs(task), false)
     const prompt = buildTaskPrompt(
       { projectId: 'PR-01947', projectName: '跟单设置', projectDocs: [], cwd: '/tmp/repo' },
       task,

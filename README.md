@@ -75,7 +75,6 @@ launchd 直接运行本仓代码。**改完代码不会自动生效**，要执�
 |---|---|---|---|
 | 业务主仓 `consumerRoot` | `LARK_BOT_CONSUMER_ROOT` | `consumerRoot` | `/Users/aven/github/fameex-web`（worktree 建在它的同级目录） |
 | PRD 缓存 `prdCacheRoot` | `LARK_BOT_PRD_CACHE` | — | `~/.prd-cache`（只读） |
-| 存量项目 `legacyPrdsRoot` | — | `legacyPrdsRoot` | `/Users/aven/github/docs_tdd/prds`，目录不存在就跳过 |
 
 `runtime/lark-bot.local.json` 的常用键：`project` / `title`、`botOpenId`、`taskMentionOpenIds`、`allowedChatIds` / `allowedOpenIds`、`aiExecutor`、各执行器的模型键（`codexModel`、`piModel` 等）、`scopeBudgets`、`bugTable`。字段含义见 [docs/gateway-and-worker.md](./docs/gateway-and-worker.md) §6。
 

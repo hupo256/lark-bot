@@ -4,7 +4,6 @@
 - **用途**：
   - `lib/lark-rule-context.mjs` 按任务信号从这些文件抽取章节，作为可信规则原文注入 worker 提示词。
   - `rule-router.md` 的「## 4. 上下文与验证节制」是常驻硬规则（required）；缺失时按 `VERIFY-RULE-004` fail-closed，拒绝执行任务。
-  - `lark-doc-sync.md` 在命令类任务的提示词里列为必读文档。
 - **只读不扩展**：docs_tdd 已于 2026-10-10 冻结，这里只是让 lark-bot 不再依赖 docs_tdd 仓库的快照。
   - 不在这里修改或新增规则。新的通用编码规则放 `~/.ai-rules`；lark-bot 自己的边界写在 `docs/`。
   - 改了章节标题会导致规则被静默丢弃（必需章节会直接 fail-closed）；`__tests__/lark-pure.test.mjs` 会锁住「路由表 → 章节」的对应关系。

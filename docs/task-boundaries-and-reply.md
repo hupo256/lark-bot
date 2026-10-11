@@ -16,7 +16,7 @@
 | `waiting_confirmation` | 范围、PRD、API、QA、登录账号、权限、环境或其他材料存在需人工确认 / 补充项 | 自动发送待确认 / 补信息通知，尽量 @ 具体责任人，回群等确认 |
 | `running` | 已开始改文档 / 代码 / 自测 | 持续记录进展 |
 | `verifying` | 已完成修改，正在跑 Biome、测试、type-check | 生成验证摘要 |
-| `done` | Lark 轻量链已完成、Worker 终检通过且改动已本地提交；这是**候选修复完成**，不是项目正式交付凭证 | 写通知记录；项目正式交付另走 v3.3 authoritative verify |
+| `done` | Lark 轻量链已完成、Worker 终检通过且改动已本地提交；这是**候选修复完成**，不是项目正式交付凭证 | 项目正式交付另走人工 review |
 | `done_pending_writeback` | 仅 bug 表来源：改动已提交、群里已发完成卡，但记录状态回写失败 | Gateway 每 5min 重试；到上限（默认 12 次 ≈1h）**停止重试并保持本状态**，发告警请人手动改表格。**不落 `done`**——群里说完成而表格还挂着待处理，这个不一致必须一直可见（`done` 会被每小时的终态清理抹掉、health 计数里也不再点名） |
 | `no_change_needed` | **非完成态终局**：经核对确认改动属**后台 API 服务 / 另一个 git 仓库 / 非代码职责**（判据是「不属本 git 仓库」，**不是**「不属本前端 app」——同 monorepo 内另一个 app/package 如 admin/futures-admin 仍是本仓可改，不走此态） | 发独立回执卡（既非绿完成卡也非红失败卡）说明为何本仓无需改动 + 建议的接手方；无 diff、无提交，不进规范闸与「done+空 diff 不可信」评估；bug 表记录不写完成值，留待人工重派 |
 | `blocked` | 无法继续，需要外部资料或权限 | 回群说明阻塞 |
@@ -48,9 +48,8 @@ Gateway / Worker 至少提取：
 - 小范围 bug 修复、UI 偏差修复、测试补充。
 - 运行风险分级要求的静态检查和最小测试。
 - 输出 QA / PRD / Figma 差异清单。
-- 读取 Lark PRD、Wiki、Swagger、QA 用例，读取 PRD 缓存（`~/.prd-cache/<ID>/`，prd-to-commit 新项目）、存量项目文档（`legacyPrdsRoot`，默认 `/Users/aven/github/docs_tdd/prds/<PR>/`）、Figma 记录和当前项目代码。
-- 当前项目已有文档时，把 `product/00-feature-inventory.md` 和 `product/04-frontend-tasks.md` 注入 Worker；以 `00` 的责任模块与「做 / 不做 / 延期」裁决判断任务是否属于本仓，不凭项目名称臆断。
-- 修改存量项目文档（`legacyPrdsRoot` 下）、当前项目相关前端代码；对触达 JS / TS / JSON 文件运行 Biome。
+- 读取 Lark PRD、Wiki、Swagger、QA 用例，读取 PRD 缓存（`~/.prd-cache/<ID>/`，prd-to-commit 落盘）、Figma 记录和当前项目代码。
+- 修改当前项目相关前端代码；对触达 JS / TS / JSON 文件运行 Biome。
 - 任务明确要求视觉验收时仅复用已运行页面；沙箱内不启动 dev server。
 - 回群回复阶段结果、缺信息项和验证摘要。
 
@@ -138,7 +137,7 @@ Lark 保留自己的任务生命周期、AI 分析、质量闸和本地提交链
 
 ## 4. 完成后汇报策略
 
-Worker 完成后必须回群，并写入项目通知记录。回群内容固定为：
+Worker 完成后必须回群。回群内容固定为：
 
 ```text
 标题：[<项目>] Lark 任务完成 / 阻塞 / 失败
@@ -171,7 +170,7 @@ Worker 完成后必须回群，并写入项目通知记录。回群内容固定�
 - **弱信号轻量仲裁（不引 AI）**：高置信语族没命中、但形状**疑似结单**（收工 / 到此为止 / 先放着 / 就这样吧 / 这事到这了 / 不弄这个了…`SUSPECTED_CLOSURE_RE`）的锚定消息，不再默认当补料续跑或忽略，而是升级为 `unclear`（`scope=suspected` + 猜测 `closureReason=cancelled`）去 `confirm`——零 AI、零新异步流程，只是把「疑似」交人一键裁决。仍受弱信号专用否决门 `SUSPECTED_VETO_RE` 约束（否定 / 继续 / 未完成词出现即退回，「先别收工，继续做」= 继续，不问「要结单吗」）。confirm 文案据 `scope` 分流：`partial` 问「整单关还是只取消一部分」，`suspected` 直接摆出猜测方向 + **带真实 taskId 的一键指令**（回复 `取消任务 <id>` / `结单 <id>` 结束，或补充说明继续）。
 - **重开语义（`classifyReopenIntent`）**：误结单可逆。窄语族——只认明确的重开 / 恢复 / 纠错措辞（重开 / 重新做 / 恢复执行 / 其实还要做 / 关错了 / 误关 / 不该取消），避免把「继续下一步」这类正常补料误判成重开。仅当回复的目标是一条**人工结单**任务（`superseded` 且带 `externalResolution`）时才生效。
 - **路由决策（`decideControlAction`）硬不变量**：锚定到的任务为**活动态**（`received/queued/running/verifying/waiting_confirmation/blocked/failed`）时，任何意图都不返回 `passthrough` —— 即**回复活动任务卡的消息永远不会新建任务**。纯确认 / 寒暄（如 `OK`、`收到`、`👌`）和仅要求他人稍后补充的协调话术属于 `ignore`：无论原任务处于活动态还是终态，都在控制通道内静默消费，不续跑、不发提示卡、不创建 `[OK]` 一类任务；带附件或方案、字段、样例等实质内容不忽略。仅「终态任务 + 有实质内容的非结单/非重开表达」放行老路径，允许在已了结话题里发起真正的新请求。
-  - `close`：`closeAsExternallyResolved` 落终态 `superseded` + `epoch++`（拦截已领取 worker 的迟到回写）+ 清排队/催办/待发回执；`closureReason` 写入落态存档与通知日志——**取消类绝不记成「已完成」**（通知日志状态列 `已取消` / `外部完成`）。**running 中取消**除 AI 前和提交前检查外，还在 AI 执行期间轮询 Gateway；检出 `superseded`/换代立即用独立 `AbortController` 终止 AI 子进程。所有 prompt 都禁止 AI 自行 commit，提交只由 Worker 在最终状态与 epoch 闸通过后执行，因此已取消任务零 commit；半成品由既有收尾策略保留并写入审计供人工检查。
+  - `close`：`closeAsExternallyResolved` 落终态 `superseded` + `epoch++`（拦截已领取 worker 的迟到回写）+ 清排队/催办/待发回执；`closureReason` 写入落态存档——**取消类绝不记成「已完成」**。**running 中取消**除 AI 前和提交前检查外，还在 AI 执行期间轮询 Gateway；检出 `superseded`/换代立即用独立 `AbortController` 终止 AI 子进程。所有 prompt 都禁止 AI 自行 commit，提交只由 Worker 在最终状态与 epoch 闸通过后执行，因此已取消任务零 commit；半成品由既有收尾策略保留并写入审计供人工检查。
   - `reopen`：`reopenClosed` 把人工结单的任务复活回 `queued` + `epoch++`，把本次结单存档进 `closureHistory` 留痕后清 `closureReason`/`externalResolution`；显式指令保存去掉指令前缀后的补充正文，回复式重开保存真实正文、附件与操作消息 ID 到任务历史。复用原 `task.id` → 复用原分支/worktree。兄弟归并 `supersede`（有 `supersededBy` 无 `externalResolution`）与 `done` 一律不可重开。
   - `pause`：仅确认暂停表达，不改变任务状态、不触发 parked 任务续跑、不新建任务，并明确回执当前状态。
   - `confirm`：意图不明，回一句让用户澄清「结束整个任务 or 只取消一部分」，原任务不变、不新建。

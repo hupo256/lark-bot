@@ -18,7 +18,7 @@ Claude / Codex / Pi / Cursor Worker 领取任务
   ↓
 按任务类型改文档 / 改代码 / 自测 / 输出差异
   ↓
-回群通知结果并记录通知日志
+回群通知结果
 ```
 
 ## 2. Bot Gateway 要求
@@ -93,28 +93,20 @@ Job 至少包含：
 
 Claude / Codex / Pi / Cursor Worker 领取任务后：
 
-1. 先读取 Worker 在提示词里列出的文档：本仓 `docs/task-boundaries-and-reply.md`、命令类任务的 `rules/lark-doc-sync.md`，以及当前项目文档。项目文档优先取 PRD 缓存 `~/.prd-cache/<ID>/`：rev 最大的 `r<rev>/prd.md`（没有则 `manual/prd.md`）加 `<ID>/` 下的 `checklist.md` / `plan.md`；缓存里没有该项目时才回落存量 docs_tdd 项目（`legacyPrdsRoot`，默认 `/Users/aven/github/docs_tdd/prds/<PR>/`），取 `product/00-feature-inventory.md`、`product/04-frontend-tasks.md`、`agent/lark-integration.md`、`agent/README.md` 中实际存在的文件，其中 `00` 是 scope 裁决真值源。
+1. 先读取 Worker 在提示词里列出的文档：本仓 `docs/task-boundaries-and-reply.md`，以及当前项目文档。项目文档优先取 PRD 缓存 `~/.prd-cache/<ID>/`：rev 最大的 `r<rev>/prd.md`（没有则 `manual/prd.md`）加 `<ID>/` 下的 `checklist.md` / `plan.md`；缓存里没有该项目时不列项目文档（docs_tdd 已归档，不再读取）。
 2. 按命令类型决定只改文档、改代码、跑自测或输出差异；任务正文含 Figma 链接时，非只读任务先用 `figma-spec.mjs` 把规格落到本轮审计目录并注入 prompt。
 3. 改代码前先更新必要文档或任务说明。
 4. 代码变更后运行触达文件 Biome。
 5. UI / 交互变更后验证桌面、390px H5、dark / light。
 6. 输出 diff 摘要、验证结果、风险和待确认项。
-7. 完成后回群通知结果，并写入通知记录。结果卡连续发送失败时持久化为 `result_pending_receipt`，由 Gateway 定时重试，送达前不进入可自动清理的终态；修复发送能力后可用 `lark-bot receipt-retry <id>` 恢复重试，且不会重复执行 AI 或提交。Worker 仍会用内置扫描器（`scripts/code-rules.mjs --json`，默认基线 `origin/online`，见 [lark-code-rules.mjs](../lib/lark-code-rules.mjs)；扫描器缺失或跑不成时只记 `ran:false`）在任务 worktree 里跑规则扫描：命中本次改动文件的 error 会阻断（出口是修掉，或在该行/上一行写 `code-rules-ignore <RULE-ID>: <理由>`），扫描详情或解析失败原因只写审计与日志，不展示在普通群结果卡中。
+7. 完成后回群通知结果。结果卡连续发送失败时持久化为 `result_pending_receipt`，由 Gateway 定时重试，送达前不进入可自动清理的终态；修复发送能力后可用 `lark-bot receipt-retry <id>` 恢复重试，且不会重复执行 AI 或提交。Worker 仍会用内置扫描器（`scripts/code-rules.mjs --json`，默认基线 `origin/online`，见 [lark-code-rules.mjs](../lib/lark-code-rules.mjs)；扫描器缺失或跑不成时只记 `ran:false`）在任务 worktree 里跑规则扫描：命中本次改动文件的 error 会阻断（出口是修掉，或在该行/上一行写 `code-rules-ignore <RULE-ID>: <理由>`），扫描详情或解析失败原因只写审计与日志，不展示在普通群结果卡中。
 8. 完成后 bot 会把**自己产生的改动**本地提交（临时 worktree 提交到其 hotfix 分支；命中已有 worktree 提交到其当前分支），但**从不 push、不开 PR、不合并**，留待人工 review。提交正文带 `lark-task: <id>` trailer（标题里的 `[<id>]` 给人看，trailer 供 `git log --grep '^lark-task: <id>'` 精确对到「群里哪条反馈 → 哪个提交」）。绝不自动提交人类的既存 WIP：命中的已有 worktree 在任务开始前若已有未提交改动，任务会改路由到隔离的临时 worktree，bot 的改动落隔离分支、完全不碰人类工作区。
 
 任务生命周期、自动执行 / 必须确认的具体边界与回复格式见 [task-boundaries-and-reply.md](./task-boundaries-and-reply.md)。
 
 ## 6. 项目级配置要求
 
-需要群内 @ 应用触发任务的存量 docs_tdd 项目，`<legacyPrdsRoot>/<PROJECT-ID>/agent/` 下必须包含（prd-to-commit 新项目没有这套目录，bot 直接读 `~/.prd-cache/<ID>/`）：
-
-- 事件订阅配置说明。
-- Bot Gateway 白名单（群 id、用户 id）。
-- 任务队列接入方式。
-- Worker 处理边界（可处理哪些命令类型、哪些需确认）。
-- 通知记录位置（`agent/notification-log.md`）。
-
-该 bot 是**机器级全局单例**（一个 gateway + 一个 worker，launchd 常驻），代码与运行时集中在 lark-bot 仓库（`/Users/aven/github/lark-bot`）：启动薄包装 `runtime/lark-worker.mjs` 只调用仓库根的 `lark-worker.mjs` 并传入 `runtime/lark-bot.local.json` 的绝对路径。Gateway 轮询、任务领取、Codex prompt、状态回写、空任务失败处理和兜底完成消息都由公共 Worker 维护；不得在项目目录复制完整 Worker 实现。单例配置（webhook/appToken/bug 表等，gitignore）为 `runtime/lark-bot.local.json`；路径类配置（`consumerRoot`、`legacyPrdsRoot`）与环境变量的优先级见 [../README.md](../README.md)。
+该 bot 是**机器级全局单例**（一个 gateway + 一个 worker，launchd 常驻），代码与运行时集中在 lark-bot 仓库（`/Users/aven/github/lark-bot`）：启动薄包装 `runtime/lark-worker.mjs` 只调用仓库根的 `lark-worker.mjs` 并传入 `runtime/lark-bot.local.json` 的绝对路径。Gateway 轮询、任务领取、Codex prompt、状态回写、空任务失败处理和兜底完成消息都由公共 Worker 维护；不得在项目目录复制完整 Worker 实现。单例配置（webhook/appToken/bug 表等，gitignore）为 `runtime/lark-bot.local.json`；路径类配置（`consumerRoot`、`prdCacheRoot`）与环境变量的优先级见 [../README.md](../README.md)。
 
 AI 执行器固定为 `claude` / `codex` / `pi` / `cursor` 四种，内置默认值是 `claude`。选择优先级为：任务指定的 `aiExecutor` > `lark-bot.local.json.aiExecutor` > wrapper 参数 > 内置默认值。执行器选择**不读取环境变量**，避免 launchd 或终端残留环境覆盖本机配置。
 
