@@ -54,7 +54,7 @@ import { allRuleRefs, buildFocusedRuleContext, classifyLarkTask, extractMarkdown
 import { larkBotRoot } from '../lib/lark-paths.mjs'
 import { assessDoneResult, crossCheckChangedFiles, detectChangeTier, isTestOnlyDiff, splitViolations } from '../lib/lark-quality-gate.mjs'
 import { buildCodeRulesBlockedResult, codeRuleErrorsInDiff, runCodeRulesScan, summarizeCodeRules } from '../lib/lark-code-rules.mjs'
-import { validateConfig } from '../lib/lark-config.mjs'
+import { configTitleFor, validateConfig } from '../lib/lark-config.mjs'
 import { pruneStaleAudits } from '../lib/lark-worker-audit.mjs'
 import { appendPublicCompletionEvidence, classifyWorkerFailure } from '../lib/lark-worker-results.mjs'
 import { resolveWorkContext, safeProject, tempWorktreeContextFor, validateWorkContextRoute } from '../lib/lark-work-context.mjs'
@@ -1485,6 +1485,18 @@ describe('runCodeRulesScan（内置 scripts/code-rules.mjs 端到端）', () => 
     assert.match(copy[2], /不要在本仓直接改/)
     copy.splice(1, 2)
     assert.equal(copy.join('\n'), readFileSync(upstream, 'utf8'), '副本与权威版本漂移：先同步权威版本到 scripts/ 并更新文件头 sha')
+  })
+})
+
+describe('configTitleFor（项目名只属于 config.project）', () => {
+  const config = { project: 'PR-01947', title: 'CopyTrading 跟单设置' }
+  it('项目号与 config.project 一致才带项目名', () => {
+    assert.equal(configTitleFor('PR-01947', config), 'CopyTrading 跟单设置')
+  })
+  it('别的项目 / 无项目号不挂 config.title（2026-10-11 真机：PR-02233 被叫成跟单设置）', () => {
+    assert.equal(configTitleFor('PR-02233', config), undefined)
+    assert.equal(configTitleFor(null, config), undefined)
+    assert.equal(configTitleFor('', config), undefined)
   })
 })
 
