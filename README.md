@@ -1,5 +1,9 @@
 # lark-bot
 
+to: 人类
+用 lark-cli 的能力搭建的 AI Bot，用来自动处理 Lark 群里 @bot 或 @我 的消息，同时也处理 bug 列表里分配到我头上的 bug。拿到信息后会：自动分析 → 生成 task → 调用 AI coding → 更新 bug 状态 → 结果回群。
+
+to: AI
 FameEX 本机常驻的 Lark 自动处理服务：群里 @ 机器人（或 bug 多维表格派单）→ 本地 worker 调 AI CLI（claude / codex / pi / cursor）在 fameex-web 的 git worktree 里改代码 → 终检 → **只做本地提交，从不 push、不开 PR** → 结果卡片回群。
 
 2026-10-11 从 docs_tdd `common/lark-bot/` 带历史拆出，不再依赖 docs_tdd 的任何代码。
