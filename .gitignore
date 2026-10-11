@@ -1,0 +1,11 @@
+.DS_Store
+*.log
+node_modules/
+
+# 本机配置与运行态：含 appToken / chat_id / 群内容，只留在本机
+runtime/*.local.json
+runtime/lark-tasks/
+runtime/lark-attachments/
+runtime/lark-audits/
+runtime/lark-bugtable-state.json
+runtime/lark-worker-state.json
