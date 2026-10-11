@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
@@ -12,6 +12,7 @@ import {
   buildClaudeReadinessCommand,
   buildCodexReadinessCommand,
   buildPiReadinessCommand,
+  executorReadableDirs,
   formatStructuredAiResult,
   isTransientAiError,
   resolveAiExecutor,
@@ -21,6 +22,7 @@ import { parseStructuredAiResult, parseStructuredIntentResult } from '../lib/lar
 import { buildQueuedCard, buildResultCard, buildWaitingCard, resolveOwnerMention } from '../lib/lark-cards.mjs'
 import { scanDiffForViolations } from '../lib/lark-lint-diff.mjs'
 import { buildFocusedRuleContext } from '../lib/lark-rule-context.mjs'
+import { larkBotRoot, legacyPrdsRoot } from '../lib/lark-paths.mjs'
 import { requestJson } from '../lib/lark-gateway-client.mjs'
 import { gatewayStatusForAiStatus, isCompletedAiStatus } from '../lib/lark-status-meta.mjs'
 import { shouldSyncProjectDocs } from '../lib/lark-task-runner.mjs'
@@ -107,8 +109,8 @@ describe('Codex non-interactive command', () => {
     assert.deepEqual(command.args.slice(command.args.indexOf('--model'), command.args.indexOf('--model') + 2), ['--model', 'gpt-5.6-sol'])
     assert.ok(command.args.includes('model_reasoning_effort="high"'))
     assert.ok(command.args.includes('sandbox_workspace_write.network_access=false'))
-    // workspace-write 阶段放行 docs_tdd 软链目标，否则登记文档写入被 seatbelt 拒
-    assert.ok(command.args.some((a) => /^sandbox_workspace_write\.writable_roots=/.test(a)))
+    // workspace-write 阶段放行存量项目根（legacyPrdsRoot），否则登记文档写入被 seatbelt 拒；未配置存量根则不放行额外写目录
+    assert.equal(command.args.some((a) => /^sandbox_workspace_write\.writable_roots=/.test(a)), Boolean(legacyPrdsRoot))
     assert.equal(command.args.at(-1), '-')
     assert.equal(command.args.includes('--dangerously-bypass-approvals-and-sandbox'), false)
   })
@@ -196,6 +198,25 @@ describe('Codex non-interactive command', () => {
     assert.deepEqual(command.args.slice(command.args.indexOf('--tools'), command.args.indexOf('--tools') + 2), ['--tools', 'Read'])
     assert.equal(command.args.includes('--dangerously-skip-permissions'), false)
     assert.ok(command.args.includes('--json-schema'))
+    // cwd 外的附件 / PRD 缓存 / 存量项目经 --add-dir 放行；变长参数之后必须紧跟选项，prompt 仍在末尾
+    const addDirAt = command.args.indexOf('--add-dir')
+    assert.ok(addDirAt > 0)
+    assert.ok(command.args.slice(addDirAt + 1).find((a) => a.startsWith('--')))
+    assert.equal(command.args.at(-1), 'classify it')
+  })
+
+  it('只读放行目录覆盖 lark-bot 仓库，且只含实际存在的目录', () => {
+    const dirs = executorReadableDirs()
+    assert.ok(dirs.length >= 1)
+    assert.ok(dirs.every((dir) => existsSync(dir)))
+    assert.ok(dirs.includes(realpathSync(larkBotRoot)))
+  })
+
+  it('Cursor 每个放行目录单独一个 --add-dir', () => {
+    const command = buildAiExecutorCommand({ executor: 'cursor', promptText: 'fix it', cwd: '/tmp/repo' })
+    const dirs = command.args.flatMap((arg, index) => (arg === '--add-dir' ? [command.args[index + 1]] : []))
+    assert.deepEqual(dirs, executorReadableDirs())
+    assert.equal(command.args.at(-1), 'fix it')
   })
 })
 

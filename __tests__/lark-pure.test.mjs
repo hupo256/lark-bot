@@ -51,7 +51,7 @@ import {
 import { isProjectId, matchProjectId, matchProjectIds } from '../lib/lark-project-id.mjs'
 import { allRuleRefs, buildFocusedRuleContext, classifyLarkTask, extractMarkdownSection } from '../lib/lark-rule-context.mjs'
 import { assessDoneResult, crossCheckChangedFiles, detectChangeTier, isTestOnlyDiff, splitViolations } from '../lib/lark-quality-gate.mjs'
-import { buildCodeRulesBlockedResult, codeRuleErrorsInDiff, summarizeCodeRules } from '../lib/lark-code-rules.mjs'
+import { buildCodeRulesBlockedResult, codeRuleErrorsInDiff, runCodeRulesScan, summarizeCodeRules } from '../lib/lark-code-rules.mjs'
 import { validateConfig } from '../lib/lark-config.mjs'
 import { pruneStaleAudits } from '../lib/lark-worker-audit.mjs'
 import { appendPublicCompletionEvidence, classifyWorkerFailure } from '../lib/lark-worker-results.mjs'
@@ -1360,6 +1360,11 @@ describe('summarizeCodeRules（bot 改动过一次同一把静态尺子）', () 
     const summary = summarizeCodeRules({ changedFiles: ['a.ts'], findings: [] })
     assert.deepEqual({ ok: summary.ok, error: summary.error, warn: summary.warn }, { ok: true, error: 0, warn: 0 })
   })
+  it('扫描器副本未安装 → ran:false 且不抛（只记审计，不阻断任务）', () => {
+    const outcome = runCodeRulesScan({ cwd: tmpdir(), scanScript: join(tmpdir(), 'no-such-code-rules.mjs') })
+    assert.equal(outcome.ran, false)
+    assert.match(outcome.reason, /未安装/)
+  })
 })
 
 describe('codeRuleErrorsInDiff / buildCodeRulesBlockedResult（文件级归因硬闸）', () => {
@@ -1596,11 +1601,11 @@ describe('classifyWorkerFailure', () => {
 })
 
 // ---------------------------------------------------------------------------
-// pruneStaleAudits：按 mtime 龄清理各项目 lark-audits/，只删超期、保留新近与非审计目录
+// pruneStaleAudits：按 mtime 龄清理 runtime/lark-audits/<项目>/，只删超期、保留新近文件
 // ---------------------------------------------------------------------------
 describe('pruneStaleAudits', () => {
   const mkAudit = (root, project, name, ageMs) => {
-    const dir = join(root, project, 'agent/lark-audits')
+    const dir = join(root, project)
     mkdirSync(dir, { recursive: true })
     const file = join(dir, name)
     writeFileSync(file, 'x')
@@ -1635,10 +1640,11 @@ describe('pruneStaleAudits', () => {
     }
   })
 
-  it('无 lark-audits 目录 / 缺失 root 均不抛错', () => {
+  it('空项目目录 / root 下的散文件 / 缺失 root 均不抛错', () => {
     const root = mkdtempSync(join(tmpdir(), 'lark-audit-'))
     try {
-      mkdirSync(join(root, 'PR-99999'), { recursive: true }) // 有项目目录但无 agent/lark-audits
+      mkdirSync(join(root, 'PR-99999'), { recursive: true }) // 有项目目录但无审计文件
+      writeFileSync(join(root, 'stray.txt'), 'x') // root 直接子项不是目录：跳过
       assert.doesNotThrow(() => pruneStaleAudits(root, 1000))
       assert.doesNotThrow(() => pruneStaleAudits(join(root, 'does-not-exist'), 1000))
     } finally {
@@ -1693,7 +1699,7 @@ describe('parkedReminderRound（挂起催办轮次）', () => {
 
 describe('handleStatusUpdate 的 parkedAt 锚点', () => {
   const freshStore = () => createTaskStore({ tasksDir: mkdtempSync(join(tmpdir(), 'lark-parked-')), leaseMs: 1000 })
-  // 真实项目号占位：appendNotificationLog 走 docsDir(project)，空 project 会抛；日志文件不存在则自动跳过。
+  // 真实项目号占位：appendNotificationLog 走 resolveLegacyProjectRoot(project)，空 project 会抛；日志文件不存在则自动跳过。
   const parkedConfig = { project: 'PR-99999' }
 
   it('进入挂起态打锚点；同态重复回写不重置；离开挂起态清掉', async () => {
@@ -1923,10 +1929,10 @@ describe('rotateLogIfLarge（launchd 日志轮转）', () => {
   })
 })
 
-// sweepAttachments：按目录 mtime TTL 清理各项目 lark-attachments，天然连孤儿一起回收
+// sweepAttachments：按目录 mtime TTL 清理 runtime/lark-attachments/<PR>/<msgId>，天然连孤儿一起回收
 describe('sweepAttachments（附件保留期清扫）', () => {
-  const mkAttach = (prdsRoot, project, msgId, ageMs, now) => {
-    const dir = join(prdsRoot, project, 'agent/lark-attachments', msgId)
+  const mkAttach = (attachmentsRoot, project, msgId, ageMs, now) => {
+    const dir = join(attachmentsRoot, project, msgId)
     mkdirSync(dir, { recursive: true })
     writeFileSync(join(dir, '1.img'), 'x')
     const t = (now - ageMs) / 1000
@@ -1936,28 +1942,28 @@ describe('sweepAttachments（附件保留期清扫）', () => {
 
   it('只删 mtime 超过保留期的 <msgId> 目录，保留期内的不动', () => {
     const now = 1_000_000_000_000
-    const prdsRoot = mkdtempSync(join(tmpdir(), 'lark-retention-'))
+    const attachmentsRoot = mkdtempSync(join(tmpdir(), 'lark-retention-'))
     const maxAgeMs = 7 * 24 * 3600000
-    const oldDir = mkAttach(prdsRoot, 'PR-00001', 'om_old', maxAgeMs + 3600000, now) // 超期
-    const freshDir = mkAttach(prdsRoot, 'PR-00001', 'om_fresh', 3600000, now) // 1h 前，保留
-    const orphanDir = mkAttach(prdsRoot, 'PR-00002', 'om_orphan', maxAgeMs * 2, now) // 别的项目的孤儿，超期
+    const oldDir = mkAttach(attachmentsRoot, 'PR-00001', 'om_old', maxAgeMs + 3600000, now) // 超期
+    const freshDir = mkAttach(attachmentsRoot, 'PR-00001', 'om_fresh', 3600000, now) // 1h 前，保留
+    const orphanDir = mkAttach(attachmentsRoot, 'PR-00002', 'om_orphan', maxAgeMs * 2, now) // 别的项目的孤儿，超期
 
-    const { removed, freedDirs } = sweepAttachments({ prdsRoot, maxAgeMs, now })
+    const { removed, freedDirs } = sweepAttachments({ attachmentsRoot, maxAgeMs, now })
     assert.equal(removed, 2)
     assert.equal(existsSync(oldDir), false)
     assert.equal(existsSync(orphanDir), false)
     assert.equal(existsSync(freshDir), true, '保留期内的附件不应被删')
     assert.ok(freedDirs.includes(oldDir) && freedDirs.includes(orphanDir))
-    rmSync(prdsRoot, { recursive: true, force: true })
+    rmSync(attachmentsRoot, { recursive: true, force: true })
   })
 
   it('根不存在 / maxAgeMs<=0 时安全返回 0，不误删', () => {
-    assert.deepEqual(sweepAttachments({ prdsRoot: '/no/such/root', maxAgeMs: 1000 }), { removed: 0, freedDirs: [] })
-    const prdsRoot = mkdtempSync(join(tmpdir(), 'lark-retention-'))
-    const dir = mkAttach(prdsRoot, 'PR-00001', 'om_x', 999 * 24 * 3600000, 1_000_000_000_000)
-    assert.equal(sweepAttachments({ prdsRoot, maxAgeMs: 0, now: 1_000_000_000_000 }).removed, 0)
+    assert.deepEqual(sweepAttachments({ attachmentsRoot: '/no/such/root', maxAgeMs: 1000 }), { removed: 0, freedDirs: [] })
+    const attachmentsRoot = mkdtempSync(join(tmpdir(), 'lark-retention-'))
+    const dir = mkAttach(attachmentsRoot, 'PR-00001', 'om_x', 999 * 24 * 3600000, 1_000_000_000_000)
+    assert.equal(sweepAttachments({ attachmentsRoot, maxAgeMs: 0, now: 1_000_000_000_000 }).removed, 0)
     assert.equal(existsSync(dir), true, 'maxAgeMs=0（关闭）不得删任何东西')
-    rmSync(prdsRoot, { recursive: true, force: true })
+    rmSync(attachmentsRoot, { recursive: true, force: true })
   })
 })
 

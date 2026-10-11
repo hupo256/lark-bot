@@ -31,7 +31,8 @@ import { retryPendingWriteback } from './lib/lark-bugtable-writeback.mjs'
 import { retryPendingReceipts } from './lib/lark-status.mjs'
 import { remindParkedTasks } from './lib/lark-parked-reminder.mjs'
 import { startLogRotation } from './lib/lark-log-rotate.mjs'
-import { prdsRootDir, sweepAttachments } from './lib/lark-retention.mjs'
+import { sweepAttachments } from './lib/lark-retention.mjs'
+import { larkAttachmentsRoot } from './lib/lark-paths.mjs'
 import { createRequestHandler } from './lib/lark-routes.mjs'
 import { createRuntimeVersion } from './lib/lark-runtime-version.mjs'
 import { GATEWAY_HOST, defaultGatewayPort, defaultTaskLeaseMs } from './lib/lark-constants.mjs'
@@ -125,7 +126,7 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   const attachmentMaxAgeMs = Number(config.attachmentRetentionDays ?? 7) * 24 * 3600000
   const sweepAttachmentsOnce = () => {
     try {
-      const { removed } = sweepAttachments({ prdsRoot: prdsRootDir(), maxAgeMs: attachmentMaxAgeMs })
+      const { removed } = sweepAttachments({ attachmentsRoot: larkAttachmentsRoot, maxAgeMs: attachmentMaxAgeMs })
       if (removed) console.log(`[lark-gateway] 清理过期附件目录 ${removed} 个（保留期 ${attachmentMaxAgeMs / 86400000} 天）`)
     } catch (error) {
       console.error(`[lark-gateway] 附件清扫异常：${String(error).slice(0, 120)}`)
