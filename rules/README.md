@@ -9,3 +9,4 @@
   - 不在这里修改或新增规则。新的通用编码规则放 `~/.ai-rules`；lark-bot 自己的边界写在 `docs/`。
   - 改了章节标题会导致规则被静默丢弃（必需章节会直接 fail-closed）；`__tests__/lark-pure.test.mjs` 会锁住「路由表 → 章节」的对应关系。
 - **文内链接**：文件里指向 docs_tdd 其它文档的相对链接保持原样，在本仓库内可能失效，以 docs_tdd `165b070` 为准。
+- **过时的工具名**：快照原文里提到的 `verify-code-rules.mjs`、`docs-tdd changed`、`agent/rule-waivers.json`、G5/G6 门禁都是 docs_tdd 的旧机制。lark-bot 现在只用 `scripts/code-rules.mjs` 扫描代码规则，豁免方式是在该行或上一行写 `code-rules-ignore <RULE-ID>: <理由>`。以本仓库的实现为准，不运行这些旧命令。
