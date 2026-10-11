@@ -545,6 +545,22 @@ describe('parseCommandType', () => {
     assert.equal(inferCommandType('新增一个项目进度汇报页面'), null) // 写操作（新增）一票否决
   })
 
+  it('分支 / 合并 / 上线等仓库事实问法归只读 status（真机漏判修复）', () => {
+    // 2026-10-11 真机：「当前这个项目所在的分支还在吗」主题词不命中，落成新需求被放行闸拦下。
+    assert.equal(inferCommandType('当前这个项目所在的分支还在吗'), 'status')
+    assert.equal(inferCommandType('PR-01947 的分支是哪个'), 'status')
+    assert.equal(inferCommandType('这个需求上线了吗'), 'status')
+    assert.equal(inferCommandType('代码合并了没'), 'status')
+    assert.equal(inferCommandType('worktree 还在不在'), 'status')
+    // 指令式仓库操作不是查询：由 REPO_WRITE_RE / 写操作否决。
+    assert.equal(inferCommandType('把分支合并到 dev'), null)
+    assert.equal(inferCommandType('帮我新建一个分支'), null)
+    assert.equal(inferCommandType('分支删了吧'), null)
+    // 缺陷信号仍一票否决。
+    assert.equal(inferCommandType('分支切换按钮不显示'), null)
+    assert.equal(inferCommandType('上线了吗？页面报错了'), null)
+  })
+
   it('缺陷信号一票否决：报障式描述绝不当只读查询', () => {
     // 这些都含项目级主题词 + 查询提示，但带缺陷信号 → 必须判 null（此前「项目状态一直转圈」被误判成 status）。
     assert.equal(inferCommandType('这个项目的状态一直转圈，是什么原因？'), null)
