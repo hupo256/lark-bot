@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Thin local entrypoint; the versioned implementation lives in the lark-bot repo.
+# 安装：cp scripts/lark-bot-shim ~/.local/bin/lark-bot && chmod +x ~/.local/bin/lark-bot（只在切换时做一次）。
+# CLI 的入口路径或参数契约变了，要同步更新这里并重新安装。
+set -euo pipefail
+
+LARK_BOT_ROOT="${LARK_BOT_ROOT:-/Users/aven/github/lark-bot}"
+export LARK_BOT_ROOT
+exec "$LARK_BOT_ROOT/scripts/lark-bot" "$@"

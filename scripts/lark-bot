@@ -4,10 +4,14 @@
 set -euo pipefail
 
 REPO="/Users/aven/github/fameex-web"
-DOCS_ROOT="${LARK_BOT_DOCS_ROOT:-/Users/aven/github/docs_tdd}"
-GW="$DOCS_ROOT/common/lark-bot/runtime/lark-gateway.mjs"
-WK="$DOCS_ROOT/common/lark-bot/runtime/lark-worker.mjs"
-POLLER="$DOCS_ROOT/common/lark-bot/runtime/lark-bugtable-poller.mjs"
+# lark-bot 仓库根：固定默认值，与 runtime/*.plist 里写死的路径一致；env LARK_BOT_ROOT 可覆盖（调试用）。
+# 不按脚本自身位置推导：从别的 worktree 跑本脚本也要控制同一套常驻服务，而不是按 worktree 路径找进程。
+# 进程匹配（pgrep -f）与 plist 来源都以它为准，故仓库位置变更后，旧位置启动的进程要用旧 CLI 停。
+LARK_BOT_ROOT="${LARK_BOT_ROOT:-/Users/aven/github/lark-bot}"
+RUNTIME_DIR="$LARK_BOT_ROOT/runtime"
+GW="$RUNTIME_DIR/lark-gateway.mjs"
+WK="$RUNTIME_DIR/lark-worker.mjs"
+POLLER="$RUNTIME_DIR/lark-bugtable-poller.mjs"
 LOGDIR="$HOME/Library/Logs/fameex-lark"
 HEALTH="http://127.0.0.1:3005/lark/health"
 TASKS="http://127.0.0.1:3005/lark/tasks"
@@ -119,7 +123,7 @@ start() {
   launchctl bootout "$DOMAIN/$LEGACY_WK_LABEL" 2>/dev/null || true
   launchctl bootout "$DOMAIN/$LEGACY_GW_LABEL" 2>/dev/null || true
   if ! _loaded "$GW_LABEL"; then _stop_script "$GW"; fi
-  install_agent "$GW_LABEL" "$DOCS_ROOT/common/lark-bot/runtime/$GW_LABEL.plist" "$GW_PLIST"
+  install_agent "$GW_LABEL" "$RUNTIME_DIR/$GW_LABEL.plist" "$GW_PLIST"
   echo "• gateway supervised by launchd → $LOGDIR/gateway.log"
   if ! wait_until "gateway" gateway_ready; then
     tail -n 20 "$LOGDIR/gateway.log" 2>/dev/null || true
@@ -127,7 +131,7 @@ start() {
     return 1
   fi
   if ! _loaded "$WK_LABEL"; then _stop_script "$WK"; fi
-  install_agent "$WK_LABEL" "$DOCS_ROOT/common/lark-bot/runtime/$WK_LABEL.plist" "$WK_PLIST"
+  install_agent "$WK_LABEL" "$RUNTIME_DIR/$WK_LABEL.plist" "$WK_PLIST"
   echo "• worker supervised by launchd  → $LOGDIR/worker.log"
   if ! wait_until "worker/model" worker_ready; then
     tail -n 30 "$LOGDIR/worker.log" 2>/dev/null || true
@@ -151,7 +155,7 @@ poll_on() {
   if _running "$POLLER"; then
     echo "• poller already running"
   else
-    install_agent "$POLLER_LABEL" "$DOCS_ROOT/common/lark-bot/runtime/$POLLER_LABEL.plist" "$POLLER_PLIST"
+    install_agent "$POLLER_LABEL" "$RUNTIME_DIR/$POLLER_LABEL.plist" "$POLLER_PLIST"
     echo "• poller supervised by launchd → $LOGDIR/poller.log（空闲 4h 无新 bug 自动收工）"
   fi
 }

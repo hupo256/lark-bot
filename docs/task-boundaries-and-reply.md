@@ -34,7 +34,7 @@ Gateway / Worker 至少提取：
 
 - 任务类型：`docs / fix / test / api / qa / status`。
 - 项目范围：优先从消息中的项目名、PR 号、路由、文档路径推断；推断不到则回群询问。
-- 目标文件或页面：如 `/tradfi`、`apps/web/src/apps/TradFi`、`docs_tdd/common`。
+- 目标文件或页面：如 `/tradfi`、`apps/web/src/apps/TradFi`、`packages/ui`。
 - 上下文与附件：合并被引用父消息及同话题其他真人回复的文字；父消息、当前消息和兄弟回复中的图片都必须进入 task，并通过 lark-cli bot 身份下载成 `localPath`，让 AI 可以直接看图。下载失败须保留 `imageKey/width/height/downloadError`。
 - 是否需要确认：群任务和 Bug 表反馈只确认修改范围；安全动作仍按原边界处理，不混成 G2。
 - 责任人：优先从 @ 对象、消息上下文、项目文档负责人字段、QA / API / 设计归属推断；无法推断时标记为项目负责人 / 群内负责人。
@@ -48,9 +48,9 @@ Gateway / Worker 至少提取：
 - 小范围 bug 修复、UI 偏差修复、测试补充。
 - 运行风险分级要求的静态检查和最小测试。
 - 输出 QA / PRD / Figma 差异清单。
-- 读取 Lark PRD、Wiki、Swagger、QA 用例，读取 `apps/web/docs_tdd/**`、Figma 记录和当前项目代码。
+- 读取 Lark PRD、Wiki、Swagger、QA 用例，读取存量项目文档（`legacyPrdsRoot`，默认 `/Users/aven/github/docs_tdd/prds/<PR>/`）、Figma 记录和当前项目代码。
 - 当前项目已有文档时，把 `product/00-feature-inventory.md` 和 `product/04-frontend-tasks.md` 注入 Worker；以 `00` 的责任模块与「做 / 不做 / 延期」裁决判断任务是否属于本仓，不凭项目名称臆断。
-- 修改 `apps/web/docs_tdd/**` 文档、当前项目相关前端代码；对触达 JS / TS / JSON 文件运行 Biome。
+- 修改存量项目文档（`legacyPrdsRoot` 下）、当前项目相关前端代码；对触达 JS / TS / JSON 文件运行 Biome。
 - 任务明确要求视觉验收时仅复用已运行页面；沙箱内不启动 dev server。
 - 回群回复阶段结果、缺信息项和验证摘要。
 

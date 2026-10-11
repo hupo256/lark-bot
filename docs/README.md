@@ -1,8 +1,8 @@
 # Lark Bot 子系统文档
 
 > Lark 自动修 bug 常驻服务（网关 / worker / bug 表 / 调度）的**运维手册**，按需查阅。
-> 它是 `common/lark-bot/` 服务本体的配套文档，不是编码规则，因此不参与规则指纹链（见 `rule-release.mjs` 的 `isLarkPlumbing`）。
-> 主动发阶段通知的 webhook 规则见 [../../rules/collaboration-and-notifications.md](../../rules/collaboration-and-notifications.md)、[../../rules/lark-active-notification.md](../../rules/lark-active-notification.md)。
+> 它是 lark-bot 仓库（`/Users/aven/github/lark-bot`，仓库说明见 [../README.md](../README.md)）的配套文档，不是编码规则。
+> 2026-10-11 起从 docs_tdd `common/lark-bot/` 带历史拆出为独立仓库；主动发阶段通知的 webhook 规则原在 docs_tdd `common/rules/collaboration-and-notifications.md`、`common/rules/lark-active-notification.md`（随 docs_tdd 冻结，未复制进本仓）。
 
 群内 @ 应用（或 @ 配置的项目负责人）触发开发任务的完整链路，拆为一份入门介绍 + 三份主题文档：
 

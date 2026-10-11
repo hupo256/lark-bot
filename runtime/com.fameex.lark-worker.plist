@@ -6,8 +6,8 @@
   <string>com.fameex.lark-worker</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/Users/aven/github/docs_tdd/common/lark-bot/runtime/launchd-node.sh</string>
-    <string>/Users/aven/github/docs_tdd/common/lark-bot/runtime/lark-worker.mjs</string>
+    <string>/Users/aven/github/lark-bot/runtime/launchd-node.sh</string>
+    <string>/Users/aven/github/lark-bot/runtime/lark-worker.mjs</string>
   </array>
   <key>WorkingDirectory</key>
   <string>/Users/aven/github/fameex-web</string>

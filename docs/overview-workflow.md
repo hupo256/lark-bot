@@ -7,7 +7,7 @@
 
 lark-bot 是跑在**本机**的一套常驻服务：群里 @ 一下机器人（或在 bug 多维表格里派一条记录），它就自动领取任务、调 AI CLI（Claude / Codex / Pi / Cursor）在 git worktree 里修代码、跑校验、本地提交，然后把结果卡片发回群里。
 
-它是**机器级全局单例**（一个 gateway + 一个 worker + 按需的 poller），代码集中在 `common/lark-bot/`，由 macOS launchd 托管，不依赖公网 tunnel。
+它是**机器级全局单例**（一个 gateway + 一个 worker + 按需的 poller），代码集中在 lark-bot 仓库（`/Users/aven/github/lark-bot`），由 macOS launchd 托管，不依赖公网 tunnel。
 
 ## 2. 整体架构
 
@@ -77,7 +77,7 @@ lark-bot 是跑在**本机**的一套常驻服务：群里 @ 一下机器人（�
 - **执行器切换**：任务 `[claude]`/`[codex]`/`[pi]`/`[cursor]` 标签 > 配置 `aiExecutor` > 内置默认 `claude`；入队时锁定，卡片上可见。
 - **运维入口**：`lark-bot {start|stop|restart|status|logs|poll-on|poll-off|failed|retry|clean}`（`scripts/lark-bot`，`~/.local/bin/lark-bot` 为薄入口）。
 - **观测**：`lark-bot status` 汇总 gateway/worker/poller 健康、执行器与模型 readiness、任务积压、挂起盘点、代码/配置 stale。
-- **审计**：`<PROJECT>/agent/lark-audits/<taskId>.json/.log`，标记 `assuranceMode=lark-lightweight`、`deliveryAuthority=false`。
+- **审计**：`runtime/lark-audits/<PROJECT>/<taskId>-e<epoch>.json/.log`，标记 `assuranceMode=lark-lightweight`、`deliveryAuthority=false`。
 
 ## 6. 进一步阅读
 

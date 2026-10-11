@@ -376,6 +376,8 @@ describe('risk-based validation policy', () => {
     )
     const docsList = prompt.slice(prompt.indexOf('请在 /tmp/repo 中完成任务'), prompt.indexOf('Worker 已按任务语义精准加载'))
     assert.doesNotMatch(docsList, /lark-doc-sync\.md/)
+    // bot 边界文档给 lark-bot 仓库内的绝对路径（cwd 是业务 worktree，相对路径读不到）
+    assert.ok(docsList.includes(join(larkBotRoot, 'docs/task-boundaries-and-reply.md')))
     assert.match(analysisPrompt, /修改范围/)
     assert.match(analysisPrompt, /缺 G2、README、技术方案、rule session、历史 gate 证据/)
     assert.match(analysisPrompt, /范围能从现有事实唯一确定时必须返回 ready/)

@@ -14,7 +14,7 @@ Bot Gateway 校验、解析、幂等入队
   ↓
 Claude / Codex / Pi / Cursor Worker 领取任务
   ↓
-读取 docs_tdd 与当前项目代码
+读取存量项目文档与当前项目代码
   ↓
 按任务类型改文档 / 改代码 / 自测 / 输出差异
   ↓
@@ -37,7 +37,7 @@ Bot Gateway 是独立的本机常驻服务，不放进 `apps/web` 运行时。�
 
 - 收发消息、读取话题和下载图片统一使用 `lark-cli` 已登录的 bot 身份（keychain）；自定义机器人 `webhookUrl/secret` 只能作为发消息通道，不能读取上下文或图片。
 - 当 @ 消息位于话题内，Gateway 会合并被引用消息和同话题其他真人回复，并下载父消息、当前消息及兄弟回复中的图片；机器人卡片不回灌给 AI。读取话题需群消息历史权限。
-- 图片按实际任务项目保存到 `<PROJECT-ID>/agent/lark-attachments/<messageId>/`，`localPath` 写入 task；下载失败时保留 `imageKey/width/height/downloadError`，明确报告技术原因，不泛化成“任务信息不足”。
+- 图片按实际任务项目保存到 `runtime/lark-attachments/<PROJECT-ID>/<messageId>/`，`localPath` 写入 task；下载失败时保留 `imageKey/width/height/downloadError`，明确报告技术原因，不泛化成“任务信息不足”。
 - 附件目录默认保留 7 天，Gateway 启动时及此后每小时按目录 mtime 清扫；可用 `attachmentRetentionDays` 调整。
 
 ## 3. 推荐命令类型
@@ -93,20 +93,20 @@ Job 至少包含：
 
 Claude / Codex / Pi / Cursor Worker 领取任务后：
 
-1. 先读取 `apps/web/docs_tdd/AGENTS.md`、`CONTEXT.md`、`common/README.md` 和当前项目文档；项目输入至少包含 `product/00-feature-inventory.md`、`product/04-frontend-tasks.md`、`agent/lark-integration.md`、`agent/README.md` 中实际存在的文件，其中 `00` 是 scope 裁决真值源。
+1. 先读取 Worker 在提示词里列出的文档：本仓 `docs/task-boundaries-and-reply.md`、命令类任务的 `rules/lark-doc-sync.md`，以及当前项目文档。存量 docs_tdd 项目（`legacyPrdsRoot`，默认 `/Users/aven/github/docs_tdd/prds/<PR>/`）至少包含 `product/00-feature-inventory.md`、`product/04-frontend-tasks.md`、`agent/lark-integration.md`、`agent/README.md` 中实际存在的文件，其中 `00` 是 scope 裁决真值源。
 2. 按命令类型决定只改文档、改代码、跑自测或输出差异；任务正文含 Figma 链接时，非只读任务先用 `figma-spec.mjs` 把规格落到本轮审计目录并注入 prompt。
 3. 改代码前先更新必要文档或任务说明。
 4. 代码变更后运行触达文件 Biome。
 5. UI / 交互变更后验证桌面、390px H5、dark / light。
 6. 输出 diff 摘要、验证结果、风险和待确认项。
-7. 完成后回群通知结果，并写入通知记录。结果卡连续发送失败时持久化为 `result_pending_receipt`，由 Gateway 定时重试，送达前不进入可自动清理的终态；修复发送能力后可用 `lark-bot receipt-retry <id>` 恢复重试，且不会重复执行 AI 或提交。Worker 仍会用与人类 `docs-tdd changed` 同一把尺子（`verify-code-rules.mjs --project <ID>`，见 [lark-code-rules.mjs](../lib/lark-code-rules.mjs)）在任务 worktree 里跑规则扫描：命中本次改动文件的 error 会阻断，扫描详情或解析失败原因只写审计与日志，不展示在普通群结果卡中。
+7. 完成后回群通知结果，并写入通知记录。结果卡连续发送失败时持久化为 `result_pending_receipt`，由 Gateway 定时重试，送达前不进入可自动清理的终态；修复发送能力后可用 `lark-bot receipt-retry <id>` 恢复重试，且不会重复执行 AI 或提交。Worker 仍会用内置扫描器（`scripts/code-rules.mjs --json --project <ID>`，见 [lark-code-rules.mjs](../lib/lark-code-rules.mjs)；扫描器未安装时只记 `ran:false`）在任务 worktree 里跑规则扫描：命中本次改动文件的 error 会阻断，扫描详情或解析失败原因只写审计与日志，不展示在普通群结果卡中。
 8. 完成后 bot 会把**自己产生的改动**本地提交（临时 worktree 提交到其 hotfix 分支；命中已有 worktree 提交到其当前分支），但**从不 push、不开 PR、不合并**，留待人工 review。提交正文带 `lark-task: <id>` trailer（标题里的 `[<id>]` 给人看，trailer 供 `git log --grep '^lark-task: <id>'` 精确对到「群里哪条反馈 → 哪个提交」）。绝不自动提交人类的既存 WIP：命中的已有 worktree 在任务开始前若已有未提交改动，任务会改路由到隔离的临时 worktree，bot 的改动落隔离分支、完全不碰人类工作区。
 
 任务生命周期、自动执行 / 必须确认的具体边界与回复格式见 [task-boundaries-and-reply.md](./task-boundaries-and-reply.md)。
 
 ## 6. 项目级配置要求
 
-需要群内 @ 应用触发任务的项目，`<PROJECT-ID>/agent/` 下必须包含：
+需要群内 @ 应用触发任务的存量 docs_tdd 项目，`<legacyPrdsRoot>/<PROJECT-ID>/agent/` 下必须包含：
 
 - 事件订阅配置说明。
 - Bot Gateway 白名单（群 id、用户 id）。
@@ -114,13 +114,13 @@ Claude / Codex / Pi / Cursor Worker 领取任务后：
 - Worker 处理边界（可处理哪些命令类型、哪些需确认）。
 - 通知记录位置（`agent/notification-log.md`）。
 
-该 bot 是**机器级全局单例**（一个 gateway + 一个 worker，launchd 常驻），代码与运行时集中在 `common/lark-bot/`：启动薄包装 `common/lark-bot/runtime/lark-worker.mjs` 只调用 `common/lark-bot/lark-worker.mjs` 并传入项目编号、项目名称和需要读取的项目文档。Gateway 轮询、任务领取、Codex prompt、状态回写、空任务失败处理和兜底完成消息都由公共 Worker 维护；不得在项目目录复制完整 Worker 实现。单例配置（webhook/appToken/bug 表等，gitignore）为 `common/lark-bot/runtime/lark-bot.local.json`。
+该 bot 是**机器级全局单例**（一个 gateway + 一个 worker，launchd 常驻），代码与运行时集中在 lark-bot 仓库（`/Users/aven/github/lark-bot`）：启动薄包装 `runtime/lark-worker.mjs` 只调用仓库根的 `lark-worker.mjs` 并传入 `runtime/lark-bot.local.json` 的绝对路径。Gateway 轮询、任务领取、Codex prompt、状态回写、空任务失败处理和兜底完成消息都由公共 Worker 维护；不得在项目目录复制完整 Worker 实现。单例配置（webhook/appToken/bug 表等，gitignore）为 `runtime/lark-bot.local.json`；路径类配置（`consumerRoot`、`legacyPrdsRoot`）与环境变量的优先级见 [../README.md](../README.md)。
 
 AI 执行器固定为 `claude` / `codex` / `pi` / `cursor` 四种，内置默认值是 `claude`。选择优先级为：任务指定的 `aiExecutor` > `lark-bot.local.json.aiExecutor` > wrapper 参数 > 内置默认值。执行器选择**不读取环境变量**，避免 launchd 或终端残留环境覆盖本机配置。
 
 群消息首个文本位置可用 `[claude]` / `[codex]` / `[pi]` / `[cursor]` 单次覆盖，标签后可直接接正文；消息最前面的连续图片占位符不算正文，因此“图片 + `[pi]` + 正文”仍由 Pi 执行。正文已经开始后出现的标签不触发切换。外部投递可在任务体中传 `aiExecutor`。未知值拒绝；Gateway 在入队时确定并持久化执行器，排队卡和结果卡均显示实际执行器，因此修改默认配置不会改写已经入队的任务。
 
-机器级默认值写在 `common/lark-bot/runtime/lark-bot.local.json` 的 `aiExecutor`，修改后执行 `lark-bot restart`，再用 `lark-bot status` 检查实际执行器。模型配置按执行器分开：Codex 使用 `codexModel` / `codexReasoningEffort`，Pi 使用 `piProvider` / `piModel` / `piReasoningEffort`，Cursor 使用 `cursorModel`；未配置时由对应 CLI 使用自身默认值。
+机器级默认值写在 `runtime/lark-bot.local.json` 的 `aiExecutor`，修改后执行 `lark-bot restart`，再用 `lark-bot status` 检查实际执行器。模型配置按执行器分开：Codex 使用 `codexModel` / `codexReasoningEffort`，Pi 使用 `piProvider` / `piModel` / `piReasoningEffort`，Cursor 使用 `cursorModel`；未配置时由对应 CLI 使用自身默认值。
 
 Claude 鉴权用 `lark-bot claude-auth local|proxy` 一键切换（不带参数查看当前模式，`status` 的 executor 行也显示 `auth=`）：`proxy`（默认）走 `~/.config/fameex-lark/claude.env` 里的第三方网关 key，`local` 由 `launchd-node.sh` 剥掉 `ANTHROPIC_*` 网关变量、改走本机钥匙串登录。只写模式文件 `~/.config/fameex-lark/claude-auth`，不改 `claude.env`；切换会自动 restart。Codex、Pi、Claude 的 Worker 启动时都会真实调用一次模型做就绪探针（claude 的 `--version` 不验鉴权，网关欠费 402 或本机未登录只有真实调用才暴露），探针失败则 restart 失败。
 
@@ -128,4 +128,4 @@ bug 表来源的修复任务在实施前先跑**只读分诊**（`lib/lark-triag
 
 Codex 使用两阶段执行：先在 `read-only` 沙箱分析并校验 git 状态，只有分析可继续时才进入 `workspace-write` 实施。Claude、Pi、Cursor 使用单阶段 Agent 工具循环。四种执行器都接收同一份精准规则上下文，并把结构化结果落盘后由 Worker 统一回写 Gateway；执行器自身不直接回调 Gateway。
 
-审计写入 `<PROJECT>/agent/lark-audits/<taskId>.json/.log`：记录附件、规则来源/指纹、分析/最终结果、Gateway 状态和 CLI 输出；该目录已 gitignore。
+审计写入 `runtime/lark-audits/<PROJECT>/<taskId>-e<epoch>.json/.log`：记录附件、规则来源/版本、分析/最终结果、Gateway 状态和 CLI 输出；该目录已 gitignore。

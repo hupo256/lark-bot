@@ -15,7 +15,7 @@
 //
 // Examples:
 //   node figma-spec.mjs "https://www.figma.com/design/KEY/x?node-id=19782-4898"
-//   node figma-spec.mjs KEY 19782-4898 --out ./prds/PR-02172/evidence/figma
+//   node figma-spec.mjs KEY 19782-4898 --out ~/.prd-cache/PR-02172/figma
 //
 // Output (to <out>/<fileKey>-<firstNodeId>/):
 //   spec.json   normalized geometry tree + variables/styles + raw (with --raw) + meta

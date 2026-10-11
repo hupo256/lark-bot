@@ -4,7 +4,7 @@
 #
 # 为什么要 wrapper：launchd 不 source ~/.zshrc，直接跑 node 会让 worker 里 spawn 的 claude
 # 拿不到 key/base_url → "Not logged in"。凭据只存 0600 文件、不落进 world-readable 的 plist。
-# WorkingDirectory 由 launchd 在 exec 前设好，wrapper 原样继承，不影响 config/roots 解析。
+# WorkingDirectory 由 launchd 在 exec 前设好，wrapper 原样继承；配置与路径由 lib/lark-paths.mjs 按文件位置解析，与 cwd 无关。
 
 CRED="$HOME/.config/fameex-lark/claude.env"
 if [ -f "$CRED" ]; then
