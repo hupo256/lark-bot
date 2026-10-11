@@ -49,7 +49,8 @@ import {
   resolveMessageTrigger,
 } from '../lib/lark-message.mjs'
 import { isProjectId, matchProjectId, matchProjectIds } from '../lib/lark-project-id.mjs'
-import { allRuleRefs, buildFocusedRuleContext, classifyLarkTask, extractMarkdownSection } from '../lib/lark-rule-context.mjs'
+import { allRuleRefs, buildFocusedRuleContext, classifyLarkTask, extractMarkdownSection, readRuleRevisions } from '../lib/lark-rule-context.mjs'
+import { larkBotRoot } from '../lib/lark-paths.mjs'
 import { assessDoneResult, crossCheckChangedFiles, detectChangeTier, isTestOnlyDiff, splitViolations } from '../lib/lark-quality-gate.mjs'
 import { buildCodeRulesBlockedResult, codeRuleErrorsInDiff, runCodeRulesScan, summarizeCodeRules } from '../lib/lark-code-rules.mjs'
 import { validateConfig } from '../lib/lark-config.mjs'
@@ -1523,18 +1524,26 @@ describe('buildFocusedRuleContext（正常场景零 warnings，全路由章节�
     }
   })
 
-  it('绑定当前发布指纹；同一章节在规则链变化后上下文指纹必须变化', () => {
+  it('绑定规则来源版本；同一章节在规则仓库换版后上下文指纹必须变化', () => {
     const first = buildFocusedRuleContext({
       taskText: '调整页面样式',
-      ruleChain: { ruleReleaseFingerprint: 'l3-a', effectiveRulesFingerprint: 'effective-a' },
+      ruleRevisions: { aiRulesRevision: 'aaa1111', larkBotRevision: 'bbb1111' },
     })
     const second = buildFocusedRuleContext({
       taskText: '调整页面样式',
-      ruleChain: { ruleReleaseFingerprint: 'l3-b', effectiveRulesFingerprint: 'effective-b' },
+      ruleRevisions: { aiRulesRevision: 'aaa1111', larkBotRevision: 'bbb2222' },
     })
-    assert.equal(first.ruleReleaseFingerprint, 'l3-a')
-    assert.equal(first.effectiveRulesFingerprint, 'effective-a')
+    assert.equal(first.aiRulesRevision, 'aaa1111')
+    assert.equal(first.larkBotRevision, 'bbb1111')
     assert.notEqual(first.fingerprint, second.fingerprint)
+  })
+
+  it('readRuleRevisions：读 git 短 sha；非 git 目录 / git 失败记 null 不抛', () => {
+    const revisions = readRuleRevisions({ larkBotDir: larkBotRoot, aiRulesDir: tmpdir() })
+    assert.match(revisions.larkBotRevision, /^[a-f0-9]{7,}$/)
+    assert.equal(revisions.aiRulesRevision, null)
+    const throwing = () => { throw new Error('spawn failed') }
+    assert.deepEqual(readRuleRevisions({ spawn: throwing }), { aiRulesRevision: null, larkBotRevision: null })
   })
 
   it('required（常驻硬规则）章节缺失 → fail-closed 阻断', () => {
