@@ -97,7 +97,18 @@ Gateway / Worker 至少提取：
 
 关键：`resolveAnalysisGate` **从不覆写 AI 的判断**，只把 blockers 分门别类，再由 workKind 决定哪些类构成停机（`hard` + 非快车道时的 `process`）。这取代了旧的 `SCOPE_OR_ACCESS_BLOCKER_RE`「命不中就整条改写成 ready」的默认放行。
 
-**新需求放行闸（混合兜底）**（`requirementGate`，在 [lark-task-runner.mjs](../lib/lark-task-runner.mjs) 里于**跑 AI、动 worktree 之前**执行）：判为 `requirement` 且人尚未放行过（无 `resumeCount`/`waitingHistory`/`qaReturnCount`）时——**仅当连自评材料都没有（`requirementHasSpecContext` 为 false：无附件，且正文短于 `REQUIREMENT_SELF_ASSESS_MIN_CHARS`=24 的裸一句话）**——才直接回一张 `waiting_confirmation` 卡、一次 AI 都不跑（这种消息 AI 也只能空手，先问一句比烧一次 AI 省）。**其余新需求（有附件 / 正文有细节）不再盲拦**，一律放行到 AI 由能读上下文的它自评。历史上这里对**每条**新需求盲拦，靠纯正则读不到话题讨论 / 设计稿，把已说清的新需求也退回补料——正是「太烦人」的根因。自评按执行模式落地：`claude` / `pi` / `cursor` 单趟无独立只读分析阶段，故 `buildTaskPrompt` 给未放行新需求内置「开工前只读自评」段（能从上下文唯一推导规格就直接做，不够再 `waiting_confirmation` 并**具体**列出缺口）；`codex` 沿用其只读分析阶段 + `resolveAnalysisGate` 自评。人回复卡片补一句预期行为即视为放行、续跑。
+**新需求放行闸（混合兜底）**（`requirementGate`，在 [lark-task-runner.mjs](../lib/lark-task-runner.mjs) 里于**跑 AI、动 worktree 之前**执行）：判为 `requirement` 且人尚未放行过（无 `resumeCount`/`waitingHistory`/`qaReturnCount`）时——**仅当连自评材料都没有（`requirementHasSpecContext` 为 false：无附件，且正文短于 `REQUIREMENT_SELF_ASSESS_MIN_CHARS`=24 的裸一句话）**——才直接回一张 `waiting_confirmation` 卡、一次 AI 都不跑（这种消息 AI 也只能空手，先问一句比烧一次 AI 省）。**其余新需求（有附件 / 正文有细节）不再盲拦**，一律放行到 AI 由能读上下文的它自评。历史上这里对**每条**新需求盲拦，靠纯正则读不到话题讨论 / 设计稿，把已说清的新需求也退回补料——正是「太烦人」的根因。自评在只读分析阶段做（四种执行器同一阶段，`buildAnalysisPrompt` 的「新需求自评」段）：能从上下文唯一推导规格就 `ready` 直接做，不够再 `blocked` 并**具体**列出缺口，经 `resolveAnalysisGate` 归类。人回复卡片补一句预期行为即视为放行、续跑。
+
+## 3.1.1 只读分析阶段与修改范围契约
+
+实装在 [lark-scope-contract.mjs](../lib/lark-scope-contract.mjs)（纯函数，`node --test __tests__/lark-scope-contract.test.mjs` 直测），编排在 `runAI` 与 task-runner 收尾。
+
+- **所有执行器先只读分析**：非只读任务不分 `claude` / `codex` / `pi` / `cursor`，一律「只读分析 → 实施」两阶段，分析前后 git status/diff 必须一致；只读查询除 codex 外仍单趟。bug 表任务是「分诊 → 分析 → 实施」三次调用。
+- **分析输出 `scope`**：`targets`（必须改的文件 + symbols + 理由）与 `siblings`（同因搜索词 + 全部命中逐项 include/exclude + 理由）。集合型任务（`detectSetOperationCue` 命中「统一 / 全部 / 涉及 N 处」等）提示里点名命中词，`siblings.items` 不得为空。
+- **实施只改契约内文件**：契约作为可信输入注入实施提示；实施中发现必须改契约外文件时停下返回 `waiting_confirmation`，在 blockers 写明文件与理由。
+- **收尾硬检查**（会改代码的 workKind：bugfix / qa_feedback / requirement，且非 test/docs 命令）：在 `assessDoneResult` 判可信之后、提交之前核对「实测改动 ⊆ targets ∪ include 的 siblings ∪ 自动放行 ∪ 人工批准」，并检查禁区（`FORBIDDEN_PATH_RULES`：package.json、lockfile、pnpm-workspace.yaml、.npmrc、Biome / TS / Turbo 配置、packages/config、.github、.husky）、行数上限（默认 bugfix 120 / qa_feedback 200 / requirement 400，本机 `scopeBudgets` 可覆盖）与集合型兄弟清单。不通过 → **不提交、不回滚**，以 `waiting_confirmation` 挂起；声明纳入但实测没改的兄弟位置只作提醒。审计记 `scopeCheck`。
+- **卡片**：完成卡与阻断卡都在结论之后、系统实测之前附「修改范围契约」段落（契约目标、搜索词、纳入 / 排除理由、自动放行、越界、禁区、超行数、人工批准）。
+- **放行（确认扩大范围）复用续跑出口**：挂起时 worker 回写 `scopeRequest`（被拦文件 / 超行数 / 缺兄弟清单）。人回复该卡片「确认扩大范围」（可附额外文件路径；裸「确认 / 可以」不算，带「不要 / 只改」等否定不算），续跑时 `resumeWithSupplement` 记入 `task.scopeApprovals: [{ paths, allowOverBudget, waiveSiblings, approvedBy, at }]`，重跑的分析阶段把它们列为可信额外目标、收尾并入允许集合；禁区文件也必须显式出现在批准里。回复的是收窄说明（「不要改 X，只改 Y」）则按普通补料续跑，不放行任何文件。
 
 ## 3.2 人类 WIP 隔离与 L2 契约改动的 type-check 闸
 

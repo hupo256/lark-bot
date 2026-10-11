@@ -53,9 +53,9 @@ lark-bot 是跑在**本机**的一套常驻服务：群里 @ 一下机器人（�
   ↓ ④ 立即回群「已收到」排队卡
   ↓ ⑤ Worker 按 workContext 领取（同 worktree 串行，不同并行，上限 3）
   ↓ ⑥ 准备/复用 worktree（有人类 WIP 则改路由到隔离 hotfix 分支）
-  ↓ ⑦ 注入规则上下文 + 项目文档 → spawn AI CLI 执行（默认 30min 硬超时）
-  ↓ ⑧ Worker 亲自跑终检：git diff --check + 触达文件 Biome + done 可信度评估
-  ↓ ⑨ 通过 → 本地 commit（带 lark-task: <id> trailer）；不通过 → failed
+  ↓ ⑦ 注入规则上下文 + 项目文档 → spawn AI CLI：先只读分析出修改范围契约，再实施（默认 30min 硬超时）
+  ↓ ⑧ Worker 亲自跑终检：git diff --check + 触达文件 Biome + done 可信度评估 + 范围契约核对
+  ↓ ⑨ 通过 → 本地 commit（带 lark-task: <id> trailer）；不通过 → failed（越界 → 待确认扩大范围）
   ↓ ⑩ 回写 Gateway → 发结果卡（绿完成 / 红失败 / 橙待确认 / 灰无需改动）
   ↓ ⑪ bug 表来源额外回写记录状态（回写成功才落 done）
 ```
@@ -70,6 +70,7 @@ lark-bot 是跑在**本机**的一套常驻服务：群里 @ 一下机器人（�
 - **人类 WIP 不可侵犯**：目标 worktree 已有未提交改动时，任务改道隔离 hotfix worktree；命中人类分支时只 scoped 提交本任务实测文件。
 - **无人值守防线**：任务租约回收孤儿（40min）+ claim epoch fencing（迟到回写 409）+ 死信 cap + AI 超时 < 租约的启动断言。
 - **不谎报完成**：done 但零 diff、修复类只动测试文件、L2 契约改动缺 type-check 证据 → 一律降级人工复核，不发绿卡。
+- **改动边界可核对**：会改代码的任务先只读分析出 `scope` 契约，收尾用实测 diff 核对；越界 / 碰禁区 / 超行数不提交，回复卡片「确认扩大范围」后续跑。
 
 ## 5. 配置与运维
 

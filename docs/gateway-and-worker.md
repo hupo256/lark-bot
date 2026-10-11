@@ -120,12 +120,12 @@ AI 执行器固定为 `claude` / `codex` / `pi` / `cursor` 四种，内置默认
 
 群消息首个文本位置可用 `[claude]` / `[codex]` / `[pi]` / `[cursor]` 单次覆盖，标签后可直接接正文；消息最前面的连续图片占位符不算正文，因此“图片 + `[pi]` + 正文”仍由 Pi 执行。正文已经开始后出现的标签不触发切换。外部投递可在任务体中传 `aiExecutor`。未知值拒绝；Gateway 在入队时确定并持久化执行器，排队卡和结果卡均显示实际执行器，因此修改默认配置不会改写已经入队的任务。
 
-机器级默认值写在 `runtime/lark-bot.local.json` 的 `aiExecutor`，修改后执行 `lark-bot restart`，再用 `lark-bot status` 检查实际执行器。模型配置按执行器分开：Codex 使用 `codexModel` / `codexReasoningEffort`，Pi 使用 `piProvider` / `piModel` / `piReasoningEffort`，Cursor 使用 `cursorModel`；未配置时由对应 CLI 使用自身默认值。
+机器级默认值写在 `runtime/lark-bot.local.json` 的 `aiExecutor`，修改后执行 `lark-bot restart`，再用 `lark-bot status` 检查实际执行器。模型配置按执行器分开：Codex 使用 `codexModel` / `codexReasoningEffort`，Pi 使用 `piProvider` / `piModel` / `piReasoningEffort`，Cursor 使用 `cursorModel`；未配置时由对应 CLI 使用自身默认值。范围契约的改动行数上限用 `scopeBudgets` 覆盖（如 `{ "bugfix": 150, "qaFeedback": 250 }`，键可写 workKind 取值或 `WORK_KINDS` 键名，填 `null` / `0` 表示不设上限），缺省 bugfix 120 / qa_feedback 200 / requirement 400。
 
 Claude 鉴权用 `lark-bot claude-auth local|proxy` 一键切换（不带参数查看当前模式，`status` 的 executor 行也显示 `auth=`）：`proxy`（默认）走 `~/.config/fameex-lark/claude.env` 里的第三方网关 key，`local` 由 `launchd-node.sh` 剥掉 `ANTHROPIC_*` 网关变量、改走本机钥匙串登录。只写模式文件 `~/.config/fameex-lark/claude-auth`，不改 `claude.env`；切换会自动 restart。Codex、Pi、Claude 的 Worker 启动时都会真实调用一次模型做就绪探针（claude 的 `--version` 不验鉴权，网关欠费 402 或本机未登录只有真实调用才暴露），探针失败则 restart 失败。
 
 bug 表来源的修复任务在实施前先跑**只读分诊**（`lib/lark-triage.mjs`，四种执行器都跑，前后 git 快照必须一致）：Worker 先确定性采集 bug 的环境 / 涉及端口 / 创建时间、分支上未推送与 bug 创建之后的提交、已迁移到 `apps/web-next` 的模块清单，分诊结论四选一——`frontend_fix` 才进入实施（结论随实施提示下发，只改分诊定位的 app / 位置）；`already_fixed_in_code`（当前代码已符合预期，多为环境未部署含修复的版本）与 `not_frontend`（后端 / App / 产品口径）直接落 `no_change_needed` 回群说明判定、依据、相关提交与下一步，不改代码；`needs_info` 落 `waiting_confirmation`。Web 双实现口径：已迁移到 web-next 的页面以 web-next 为准，apps/web 同名旧实现不作为依据；未迁移的页面看 apps/web。群里 @ 交办的任务不分诊。
 
-Codex 使用两阶段执行：先在 `read-only` 沙箱分析并校验 git 状态，只有分析可继续时才进入 `workspace-write` 实施。Claude、Pi、Cursor 使用单阶段 Agent 工具循环。四种执行器都接收同一份精准规则上下文，并把结构化结果落盘后由 Worker 统一回写 Gateway；执行器自身不直接回调 Gateway。
+非只读任务四种执行器都走两阶段：先只读分析（输出结构化修改范围契约 `scope`），前后校验 git status/diff 不变，分析可继续才进入实施；只读查询中 Claude、Pi、Cursor 仍单趟（Codex 保持原两阶段）。只读分析的权限：Codex 用 `read-only` 沙箱，Claude 只放 Read/Grep/Glob 与只读 git/rg（`--json-schema` 结构化输出），Pi / Cursor 靠前后快照兜底。收尾时 Worker 用实测改动核对契约，越界 / 碰禁区 / 超行数不提交、挂起待人回复「确认扩大范围」，详见 [task-boundaries-and-reply.md](./task-boundaries-and-reply.md) §3.1.1。四种执行器都接收同一份精准规则上下文，并把结构化结果落盘后由 Worker 统一回写 Gateway；执行器自身不直接回调 Gateway。
 
 审计写入 `runtime/lark-audits/<PROJECT>/<taskId>-e<epoch>.json/.log`：记录附件、规则来源/版本、分析/最终结果、Gateway 状态和 CLI 输出；该目录已 gitignore。
