@@ -18,7 +18,7 @@ import {
   resolveAiExecutor,
   validateAiExecutor,
 } from '../lib/lark-ai-executor.mjs'
-import { parseStructuredAiResult, parseStructuredIntentResult } from '../lib/lark-ai-result.mjs'
+import { parseStructuredAiResult, parseStructuredAnalysisValue, parseStructuredIntentResult } from '../lib/lark-ai-result.mjs'
 import { buildQueuedCard, buildResultCard, buildWaitingCard, resolveOwnerMention } from '../lib/lark-cards.mjs'
 import { scanDiffForViolations } from '../lib/lark-lint-diff.mjs'
 import { buildFocusedRuleContext } from '../lib/lark-rule-context.mjs'
@@ -204,6 +204,31 @@ describe('Codex non-interactive command', () => {
     assert.ok(addDirAt > 0)
     assert.ok(command.args.slice(addDirAt + 1).find((a) => a.startsWith('--')))
     assert.equal(command.args.at(-1), 'classify it')
+  })
+
+  it('Claude 只读分析：无写工具、不跳过权限，--json-schema 用含 scope 的分析 Schema，结果走 stdout', () => {
+    const command = buildAiExecutorCommand({
+      executor: 'claude',
+      promptText: 'analyze it',
+      cwd: '/tmp/repo',
+      resultPath: '/tmp/analysis.json',
+      resultKind: 'analysis',
+    })
+    assert.equal(command.resultMode, 'stdout-structured')
+    assert.deepEqual(command.args.slice(command.args.indexOf('--tools'), command.args.indexOf('--tools') + 2), ['--tools', 'Read,Grep,Glob,Bash'])
+    assert.equal(command.args.includes('--dangerously-skip-permissions'), false)
+    assert.match(command.args[command.args.indexOf('--allowedTools') + 1], /^Bash\(git log:\*\)/)
+    const schema = JSON.parse(command.args[command.args.indexOf('--json-schema') + 1])
+    assert.equal(schema.$schema, undefined)
+    assert.ok(schema.required.includes('scope'))
+    assert.equal(command.args.at(-1), 'analyze it')
+  })
+
+  it('分析结果解析：claude envelope（含代码围栏）可解析，scope 只认对象 / null', () => {
+    const analysis = { status: 'ready', summary: 'ok', applicableRules: [], requirements: [], blockers: [], scope: null }
+    assert.deepEqual(parseStructuredAnalysisValue(`\`\`\`json\n${JSON.stringify(analysis)}\n\`\`\``), analysis)
+    assert.throws(() => parseStructuredAnalysisValue({ ...analysis, scope: [] }), /scope 必须是对象或 null/)
+    assert.throws(() => parseStructuredAnalysisValue({ ...analysis, status: 'done' }), /合法 status/)
   })
 
   it('只读放行目录覆盖 lark-bot 仓库，且只含实际存在的目录', () => {
