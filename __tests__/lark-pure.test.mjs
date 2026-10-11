@@ -8,8 +8,9 @@
  */
 
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
@@ -1399,7 +1400,75 @@ describe('codeRuleErrorsInDiff / buildCodeRulesBlockedResult（文件级归因�
     assert.match(text, /PR-02306-1/)
     assert.match(text, /命中 1 处 error/)
     assert.match(text, /CODE-MSW-002 apps\/web\/src\/a\.tsx:12/)
-    assert.match(text, /rule-waivers\.json/)
+    assert.match(text, /code-rules-ignore <RULE-ID>: <理由>/)
+    assert.doesNotMatch(text, /rule-waivers\.json/, '旧引擎的豁免台账已下线，不再指给用户')
+  })
+})
+
+// 端到端：真实的 scripts/code-rules.mjs 在临时 git 仓库里跑，验证 lark 侧解析与文件级归因接得上新扫描器
+describe('runCodeRulesScan（内置 scripts/code-rules.mjs 端到端）', () => {
+  const git = (cwd, args) => {
+    const result = spawnSync('git', ['-c', 'user.name=lark-test', '-c', 'user.email=lark-test@example.com', '-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=/dev/null', ...args], { cwd, encoding: 'utf8' })
+    assert.equal(result.status, 0, `git ${args.join(' ')} 失败：${result.stderr}`)
+  }
+  const withRepo = (fn) => {
+    const cwd = mkdtempSync(join(tmpdir(), 'lark-code-rules-'))
+    try {
+      git(cwd, ['init', '-q'])
+      writeFileSync(join(cwd, 'package.json'), '{}\n')
+      git(cwd, ['add', '.'])
+      git(cwd, ['commit', '-q', '-m', 'base'])
+      fn(cwd)
+    } finally {
+      rmSync(cwd, { recursive: true, force: true })
+    }
+  }
+  const file = 'apps/web/src/apps/X/X.tsx'
+  const writeComponent = (cwd, lines) => {
+    mkdirSync(join(cwd, 'apps/web/src/apps/X'), { recursive: true })
+    writeFileSync(join(cwd, file), `${lines.join('\n')}\n`)
+  }
+
+  it('新增组件直连 fetch → ran:true 命中 CODE-ARCH-001，且能归因到本次改动文件', () => {
+    withRepo((cwd) => {
+      writeComponent(cwd, ['export const X = () => {', "  fetch('/api/x')", '  return null', '}'])
+      const summary = runCodeRulesScan({ cwd })
+      assert.equal(summary.ran, true, summary.reason)
+      assert.equal(summary.ok, false)
+      assert.equal(summary.baseResolved, false, '临时仓库没有 origin/online，扫描器降级为工作区 + untracked')
+      assert.deepEqual(summary.errorFindings, [{ ruleId: 'CODE-ARCH-001', file, line: 2 }])
+      assert.deepEqual(codeRuleErrorsInDiff({ summary, changedFiles: [file] }).map((hit) => hit.ruleId), ['CODE-ARCH-001'])
+      assert.deepEqual(codeRuleErrorsInDiff({ summary, changedFiles: ['apps/web/src/apps/Y/Y.tsx'] }), [], '不在本次改动清单里的文件不归因')
+    })
+  })
+  it('上一行带 code-rules-ignore <RULE-ID>: <理由> → 不命中', () => {
+    withRepo((cwd) => {
+      writeComponent(cwd, ['export const X = () => {', '  // code-rules-ignore CODE-ARCH-001: 下载海报 blob，不走 query 层', "  fetch('/api/x')", '  return null', '}'])
+      const summary = runCodeRulesScan({ cwd })
+      assert.equal(summary.ran, true, summary.reason)
+      assert.equal(summary.ok, true)
+      assert.deepEqual(codeRuleErrorsInDiff({ summary, changedFiles: [file] }), [])
+    })
+  })
+  it('非 git 目录（扫描器退出码 2）→ ran:false 且不抛', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'lark-code-rules-nogit-'))
+    try {
+      const summary = runCodeRulesScan({ cwd })
+      assert.equal(summary.ran, false)
+      assert.match(summary.reason, /exit 2/)
+    } finally {
+      rmSync(cwd, { recursive: true, force: true })
+    }
+  })
+
+  // 副本只允许比权威版本多出第 2–3 行的同步说明；权威版本不在本机（CI/他人机器）时跳过，不让测试依赖外部文件
+  const upstream = join(homedir(), '.ai-rules/skills/prd-to-commit/scripts/code-rules.mjs')
+  it('scripts/code-rules.mjs 去掉同步文件头后与 ~/.ai-rules 权威版本逐字一致', { skip: !existsSync(upstream) && `权威版本不存在：${upstream}` }, () => {
+    const copy = readFileSync(join(larkBotRoot, 'scripts/code-rules.mjs'), 'utf8').split('\n')
+    assert.match(copy[1], /~\/\.ai-rules@[0-9a-f]{7,}/, '第 2 行须写明来源 sha')
+    assert.match(copy[2], /不要在本仓直接改/)
+    copy.splice(1, 2)
+    assert.equal(copy.join('\n'), readFileSync(upstream, 'utf8'), '副本与权威版本漂移：先同步权威版本到 scripts/ 并更新文件头 sha')
   })
 })
 

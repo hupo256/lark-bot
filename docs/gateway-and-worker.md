@@ -99,7 +99,7 @@ Claude / Codex / Pi / Cursor Worker 领取任务后：
 4. 代码变更后运行触达文件 Biome。
 5. UI / 交互变更后验证桌面、390px H5、dark / light。
 6. 输出 diff 摘要、验证结果、风险和待确认项。
-7. 完成后回群通知结果，并写入通知记录。结果卡连续发送失败时持久化为 `result_pending_receipt`，由 Gateway 定时重试，送达前不进入可自动清理的终态；修复发送能力后可用 `lark-bot receipt-retry <id>` 恢复重试，且不会重复执行 AI 或提交。Worker 仍会用内置扫描器（`scripts/code-rules.mjs --json --project <ID>`，见 [lark-code-rules.mjs](../lib/lark-code-rules.mjs)；扫描器未安装时只记 `ran:false`）在任务 worktree 里跑规则扫描：命中本次改动文件的 error 会阻断，扫描详情或解析失败原因只写审计与日志，不展示在普通群结果卡中。
+7. 完成后回群通知结果，并写入通知记录。结果卡连续发送失败时持久化为 `result_pending_receipt`，由 Gateway 定时重试，送达前不进入可自动清理的终态；修复发送能力后可用 `lark-bot receipt-retry <id>` 恢复重试，且不会重复执行 AI 或提交。Worker 仍会用内置扫描器（`scripts/code-rules.mjs --json`，默认基线 `origin/online`，见 [lark-code-rules.mjs](../lib/lark-code-rules.mjs)；扫描器缺失或跑不成时只记 `ran:false`）在任务 worktree 里跑规则扫描：命中本次改动文件的 error 会阻断（出口是修掉，或在该行/上一行写 `code-rules-ignore <RULE-ID>: <理由>`），扫描详情或解析失败原因只写审计与日志，不展示在普通群结果卡中。
 8. 完成后 bot 会把**自己产生的改动**本地提交（临时 worktree 提交到其 hotfix 分支；命中已有 worktree 提交到其当前分支），但**从不 push、不开 PR、不合并**，留待人工 review。提交正文带 `lark-task: <id>` trailer（标题里的 `[<id>]` 给人看，trailer 供 `git log --grep '^lark-task: <id>'` 精确对到「群里哪条反馈 → 哪个提交」）。绝不自动提交人类的既存 WIP：命中的已有 worktree 在任务开始前若已有未提交改动，任务会改路由到隔离的临时 worktree，bot 的改动落隔离分支、完全不碰人类工作区。
 
 任务生命周期、自动执行 / 必须确认的具体边界与回复格式见 [task-boundaries-and-reply.md](./task-boundaries-and-reply.md)。

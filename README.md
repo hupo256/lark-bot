@@ -34,7 +34,7 @@ FameEX 本机常驻的 Lark 自动处理服务：群内 @ 机器人 / bug 多维
 - Node（launchd 用 `/opt/homebrew/bin/node`），无 npm 依赖。
 - 已登录的 `lark-cli`（bot 身份在 keychain）；所用 AI CLI 已登录。
 - `~/.ai-rules`（只读规则，L1）；`~/.config/fameex-lark/`（gateway-secret、claude.env、claude-auth）。
-- 可选：`scripts/code-rules.mjs` 代码规则扫描器（未放入时扫描记 `ran:false`，不阻断）。
+- 内置：`scripts/code-rules.mjs` 代码规则扫描器（`~/.ai-rules` prd-to-commit 权威版本的钉版副本，零依赖；同步方法见 `AGENTS.md`）。只报 error 级，豁免只有行内或上一行 `code-rules-ignore <RULE-ID>: <理由>`；脚本缺失或跑不成时记 `ran:false`，不阻断。
 
 ## 测试
 
