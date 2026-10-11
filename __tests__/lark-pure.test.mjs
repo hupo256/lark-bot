@@ -58,7 +58,7 @@ import { appendPublicCompletionEvidence, classifyWorkerFailure } from '../lib/la
 import { resolveWorkContext, safeProject, tempWorktreeContextFor, validateWorkContextRoute } from '../lib/lark-work-context.mjs'
 import { decideControlAction, isRegisteredBotReceiptReply, resolveManualCloseTarget, resolveResumeTarget } from '../lib/lark-ingest.mjs'
 import { isExecutionSuperseded, monitorExecutionCancellation } from '../lib/lark-task-runner.mjs'
-import { validateSource } from '../../engine/agent-scripts/sync-lark-docs.mjs'
+import { validateSource } from '../lib/vendor/lark-command.mjs'
 
 const BOT = 'ou_bot'
 const ME = 'ou_me'

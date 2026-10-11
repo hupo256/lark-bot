@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
-import { validateSource } from '../../engine/agent-scripts/lib/lark-command.mjs'
+import { resolveLocalMarkdownSource, validateSource } from '../lib/vendor/lark-command.mjs'
 import { extractLarkDocUrls, larkDocSlug, sourceTypeFromLarkUrl, taskReferencesLarkDocs } from '../lib/lark-doc.mjs'
 
 describe('extractLarkDocUrls（任务正文里的 Lark 文档链接，去重）', () => {
@@ -68,6 +71,26 @@ describe('validateSource 走的是只读安全闸（证明预取命令不含写�
       assert.ok(command.includes('+fetch'))
       assert.ok(command.includes('--as') && command.includes('user'))
       assert.ok(!command.some((t) => /(create|update|delete|write|upload|send|reply)/i.test(t)))
+    }
+  })
+})
+
+describe('vendor resolveLocalMarkdownSource（本地 markdown 源只认存量项目根内的真实文件）', () => {
+  it('根内文件放行；根外 / 软链逃逸 / 未配置存量根一律拒绝', () => {
+    const root = mkdtempSync(join(tmpdir(), 'lark-vendor-prds-'))
+    const outside = mkdtempSync(join(tmpdir(), 'lark-vendor-out-'))
+    try {
+      mkdirSync(join(root, 'PR-00001'), { recursive: true })
+      writeFileSync(join(root, 'PR-00001', 'prd.md'), '# prd')
+      writeFileSync(join(outside, 'secret.md'), 'x')
+      symlinkSync(join(outside, 'secret.md'), join(root, 'PR-00001', 'escape.md'))
+      assert.equal(resolveLocalMarkdownSource({ path: 'PR-00001/prd.md' }, { prdsRoot: root }), realpathSync(join(root, 'PR-00001', 'prd.md')))
+      assert.throws(() => resolveLocalMarkdownSource({ path: join(outside, 'secret.md') }, { prdsRoot: root }), /must stay inside/)
+      assert.throws(() => resolveLocalMarkdownSource({ path: 'PR-00001/escape.md' }, { prdsRoot: root }), /must stay inside/)
+      assert.throws(() => resolveLocalMarkdownSource({ path: 'PR-00001/prd.md' }, { prdsRoot: null }), /legacyPrdsRoot/)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+      rmSync(outside, { recursive: true, force: true })
     }
   })
 })
