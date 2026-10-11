@@ -17,6 +17,7 @@ import {
   resolveLegacyProjectRoot,
   resolvePrdCacheRoot,
 } from '../lib/lark-paths.mjs'
+import { prdCacheDocsFor, projectDocsFor } from '../lib/lark-work-context.mjs'
 
 describe('lark-paths 基座', () => {
   it('larkBotRoot 锚定到本仓根，运行态目录都在 runtime/ 下', () => {
@@ -57,6 +58,65 @@ describe('lark-paths 基座', () => {
       assert.throws(() => resolveLegacyProjectRoot('PR-00003', { prdsRoot: root }), /changeId/)
     } finally {
       rmSync(root, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('projectDocsFor（PRD 缓存优先，其次存量项目文档）', () => {
+  const touch = (path) => {
+    mkdirSync(dirname(path), { recursive: true })
+    writeFileSync(path, 'x')
+  }
+
+  it('取 rev 最大且含 prd.md 的 r<rev>，并带上同项目根下的 checklist / plan', () => {
+    const cacheRoot = mkdtempSync(join(tmpdir(), 'lark-prd-cache-'))
+    try {
+      touch(join(cacheRoot, 'PR-00001/r98/prd.md'))
+      touch(join(cacheRoot, 'PR-00001/r1679/prd.md'))
+      mkdirSync(join(cacheRoot, 'PR-00001/r2000'), { recursive: true }) // 新 rev 没有 prd.md（抓取未完成）：跳过
+      touch(join(cacheRoot, 'PR-00001/checklist.md'))
+      assert.deepEqual(prdCacheDocsFor('PR-00001', { cacheRoot }), [
+        join(cacheRoot, 'PR-00001/r1679/prd.md'),
+        join(cacheRoot, 'PR-00001/checklist.md'),
+      ])
+    } finally {
+      rmSync(cacheRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('没有 r<rev> 时用 manual/prd.md；项目目录不存在 → 空', () => {
+    const cacheRoot = mkdtempSync(join(tmpdir(), 'lark-prd-cache-'))
+    try {
+      touch(join(cacheRoot, 'PR-00002/manual/prd.md'))
+      touch(join(cacheRoot, 'PR-00002/plan.md'))
+      assert.deepEqual(prdCacheDocsFor('PR-00002', { cacheRoot }), [
+        join(cacheRoot, 'PR-00002/manual/prd.md'),
+        join(cacheRoot, 'PR-00002/plan.md'),
+      ])
+      assert.deepEqual(prdCacheDocsFor('PR-09999', { cacheRoot }), [])
+    } finally {
+      rmSync(cacheRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('缓存有 → 只用缓存；缓存无 → 存量项目文档；都没有 / 无存量根 → 空', () => {
+    const cacheRoot = mkdtempSync(join(tmpdir(), 'lark-prd-cache-'))
+    const prdsRoot = mkdtempSync(join(tmpdir(), 'lark-prds-'))
+    try {
+      touch(join(cacheRoot, 'PR-00001/r1/prd.md'))
+      touch(join(prdsRoot, 'PR-00001/product/00-feature-inventory.md'))
+      touch(join(prdsRoot, 'PR-00003/product/00-feature-inventory.md'))
+      touch(join(prdsRoot, 'PR-00003/agent/README.md'))
+      assert.deepEqual(projectDocsFor('PR-00001', { cacheRoot, prdsRoot }), [join(cacheRoot, 'PR-00001/r1/prd.md')])
+      assert.deepEqual(projectDocsFor('PR-00003', { cacheRoot, prdsRoot }), [
+        join(prdsRoot, 'PR-00003/product/00-feature-inventory.md'),
+        join(prdsRoot, 'PR-00003/agent/README.md'),
+      ])
+      assert.deepEqual(projectDocsFor('PR-00004', { cacheRoot, prdsRoot }), [])
+      assert.deepEqual(projectDocsFor('PR-00003', { cacheRoot, prdsRoot: null }), [])
+    } finally {
+      rmSync(cacheRoot, { recursive: true, force: true })
+      rmSync(prdsRoot, { recursive: true, force: true })
     }
   })
 })

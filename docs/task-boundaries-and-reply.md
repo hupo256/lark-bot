@@ -48,7 +48,7 @@ Gateway / Worker 至少提取：
 - 小范围 bug 修复、UI 偏差修复、测试补充。
 - 运行风险分级要求的静态检查和最小测试。
 - 输出 QA / PRD / Figma 差异清单。
-- 读取 Lark PRD、Wiki、Swagger、QA 用例，读取存量项目文档（`legacyPrdsRoot`，默认 `/Users/aven/github/docs_tdd/prds/<PR>/`）、Figma 记录和当前项目代码。
+- 读取 Lark PRD、Wiki、Swagger、QA 用例，读取 PRD 缓存（`~/.prd-cache/<ID>/`，prd-to-commit 新项目）、存量项目文档（`legacyPrdsRoot`，默认 `/Users/aven/github/docs_tdd/prds/<PR>/`）、Figma 记录和当前项目代码。
 - 当前项目已有文档时，把 `product/00-feature-inventory.md` 和 `product/04-frontend-tasks.md` 注入 Worker；以 `00` 的责任模块与「做 / 不做 / 延期」裁决判断任务是否属于本仓，不凭项目名称臆断。
 - 修改存量项目文档（`legacyPrdsRoot` 下）、当前项目相关前端代码；对触达 JS / TS / JSON 文件运行 Biome。
 - 任务明确要求视觉验收时仅复用已运行页面；沙箱内不启动 dev server。

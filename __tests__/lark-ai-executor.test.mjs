@@ -31,6 +31,7 @@ import {
   buildAnalysisPrompt,
   buildIntentClassificationPrompt,
   buildTaskPrompt,
+  buildTriagePrompt,
   buildValidationRequirements,
   resolveTaskMode,
 } from '../lib/lark-worker-prompts.mjs'
@@ -839,5 +840,13 @@ describe('unattended diff quality gate', () => {
     // {t('x')} 表达式节点、以及 .ts 非 JSX 文件不误报
     assert.deepEqual(scanDiffForViolations("+++ b/apps/web/src/x.tsx\n+<button>{t('ns:ok')}</button>"), [])
     assert.deepEqual(scanDiffForViolations('+++ b/apps/web/src/x.ts\n+const label = "确定"'), [])
+  })
+})
+
+describe('分诊 Prompt 的 PRD 来源', () => {
+  it('PRD 缓存与存量项目都没有时如实说明并引导 needs_info，不给不存在的路径', () => {
+    const prompt = buildTriagePrompt({ projectId: 'PR-00009', projectName: 'test', cwd: '/tmp/repo' }, { id: 't1', text: '埋点未上报' }, '（无）')
+    assert.match(prompt, /本地没有该项目的 PRD 落盘/)
+    assert.doesNotMatch(prompt, /apps\/web\/docs_tdd/)
   })
 })

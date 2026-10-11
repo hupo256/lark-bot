@@ -14,7 +14,7 @@ Bot Gateway 校验、解析、幂等入队
   ↓
 Claude / Codex / Pi / Cursor Worker 领取任务
   ↓
-读取存量项目文档与当前项目代码
+读取 PRD 缓存 / 存量项目文档与当前项目代码
   ↓
 按任务类型改文档 / 改代码 / 自测 / 输出差异
   ↓
@@ -93,7 +93,7 @@ Job 至少包含：
 
 Claude / Codex / Pi / Cursor Worker 领取任务后：
 
-1. 先读取 Worker 在提示词里列出的文档：本仓 `docs/task-boundaries-and-reply.md`、命令类任务的 `rules/lark-doc-sync.md`，以及当前项目文档。存量 docs_tdd 项目（`legacyPrdsRoot`，默认 `/Users/aven/github/docs_tdd/prds/<PR>/`）至少包含 `product/00-feature-inventory.md`、`product/04-frontend-tasks.md`、`agent/lark-integration.md`、`agent/README.md` 中实际存在的文件，其中 `00` 是 scope 裁决真值源。
+1. 先读取 Worker 在提示词里列出的文档：本仓 `docs/task-boundaries-and-reply.md`、命令类任务的 `rules/lark-doc-sync.md`，以及当前项目文档。项目文档优先取 PRD 缓存 `~/.prd-cache/<ID>/`：rev 最大的 `r<rev>/prd.md`（没有则 `manual/prd.md`）加 `<ID>/` 下的 `checklist.md` / `plan.md`；缓存里没有该项目时才回落存量 docs_tdd 项目（`legacyPrdsRoot`，默认 `/Users/aven/github/docs_tdd/prds/<PR>/`），取 `product/00-feature-inventory.md`、`product/04-frontend-tasks.md`、`agent/lark-integration.md`、`agent/README.md` 中实际存在的文件，其中 `00` 是 scope 裁决真值源。
 2. 按命令类型决定只改文档、改代码、跑自测或输出差异；任务正文含 Figma 链接时，非只读任务先用 `figma-spec.mjs` 把规格落到本轮审计目录并注入 prompt。
 3. 改代码前先更新必要文档或任务说明。
 4. 代码变更后运行触达文件 Biome。
@@ -106,7 +106,7 @@ Claude / Codex / Pi / Cursor Worker 领取任务后：
 
 ## 6. 项目级配置要求
 
-需要群内 @ 应用触发任务的存量 docs_tdd 项目，`<legacyPrdsRoot>/<PROJECT-ID>/agent/` 下必须包含：
+需要群内 @ 应用触发任务的存量 docs_tdd 项目，`<legacyPrdsRoot>/<PROJECT-ID>/agent/` 下必须包含（prd-to-commit 新项目没有这套目录，bot 直接读 `~/.prd-cache/<ID>/`）：
 
 - 事件订阅配置说明。
 - Bot Gateway 白名单（群 id、用户 id）。
