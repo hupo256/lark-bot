@@ -1749,6 +1749,23 @@ describe('handleStatusUpdate no_change_needed 终态', () => {
   })
 })
 
+describe('handleStatusUpdate 的 scopeRequest（范围契约待批准请求）', () => {
+  const freshStore = () => createTaskStore({ tasksDir: mkdtempSync(join(tmpdir(), 'lark-scope-req-')), leaseMs: 1000 })
+  const options = { config: {}, sendMessage: async () => ({ ok: true }), resolveGroupChat: async () => null }
+
+  it('waiting_confirmation 持久化清洗后的请求；后续其它状态回写一律清空', async () => {
+    const store = freshStore()
+    store.upsert({ id: 't', status: 'running', createdAt: '2026-01-01T00:00:00Z', chatId: null })
+    await handleStatusUpdate({ ...options, store, id: 't', status: 'waiting_confirmation', result: '需人工复核', scopeRequest: { paths: ['./apps/web/src/b.ts', '../x.ts'], overBudget: true } })
+    assert.deepEqual(store.get('t').scopeRequest.paths, ['apps/web/src/b.ts'])
+    assert.equal(store.get('t').scopeRequest.overBudget, true)
+    await handleStatusUpdate({ ...options, store, id: 't', status: 'running' })
+    assert.ok(store.get('t').scopeRequest) // running 不触碰本轮终态字段
+    await handleStatusUpdate({ ...options, store, id: 't', status: 'failed', result: '失败', scopeRequest: { paths: ['a.ts'] } })
+    assert.equal(store.get('t').scopeRequest, null)
+  })
+})
+
 describe('任务回执持久化重试', () => {
   const freshStore = () => createTaskStore({ tasksDir: mkdtempSync(join(tmpdir(), 'lark-receipt-')), leaseMs: 1000 })
 

@@ -556,4 +556,38 @@ describe('createTaskStore', () => {
       assert.equal(store.reopenClosed({ id: 'missing' }), null)
     })
   })
+
+  // 范围契约越界挂起后，「确认扩大范围」走续跑出口：被拦文件记入 scopeApprovals，请求被消费。
+  describe('resumeWithSupplement × 范围批准', () => {
+    const parkScopeBlocked = (store) => store.upsert({
+      id: 'scope-1',
+      status: 'waiting_confirmation',
+      text: '名称列显示错误',
+      createdAt: '2026-10-11T00:00:00Z',
+      scopeRequest: { paths: ['apps/web/src/neighbor.ts', 'package.json'], overBudget: false, siblingsRequired: false, missingScope: false },
+    })
+
+    it('确认话术 → 追加批准记录（含回复里点名的文件与操作人），清空请求并回队', () => {
+      const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+      parkScopeBlocked(store)
+      const resumed = store.resumeWithSupplement({ id: 'scope-1', supplementText: '确认扩大范围，apps/web/src/extra.ts 也可以改', operator: 'ou_qa' })
+      assert.equal(resumed.status, 'queued')
+      assert.equal(resumed.scopeRequest, null)
+      assert.equal(resumed.scopeApprovals.length, 1)
+      assert.deepEqual(resumed.scopeApprovals[0].paths, ['apps/web/src/neighbor.ts', 'package.json', 'apps/web/src/extra.ts'])
+      assert.equal(resumed.scopeApprovals[0].approvedBy, 'ou_qa')
+      // 持久化后重载仍在
+      assert.deepEqual(createTaskStore({ tasksDir: dir, leaseMs: 1000 }).get('scope-1').scopeApprovals[0].paths.length, 3)
+    })
+
+    it('非确认话术（收窄范围）→ 只当补料续跑，不产出批准，请求同样被消费', () => {
+      const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+      parkScopeBlocked(store)
+      const resumed = store.resumeWithSupplement({ id: 'scope-1', supplementText: '不要改 neighbor，只改 a.ts' })
+      assert.equal(resumed.status, 'queued')
+      assert.equal(resumed.scopeApprovals, undefined)
+      assert.equal(resumed.scopeRequest, null)
+      assert.match(resumed.text, /【补料】\n不要改 neighbor/)
+    })
+  })
 })
