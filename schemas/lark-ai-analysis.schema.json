@@ -3,7 +3,7 @@
   "title": "Lark AI task analysis",
   "type": "object",
   "additionalProperties": false,
-  "required": ["status", "summary", "applicableRules", "requirements", "blockers"],
+  "required": ["status", "summary", "applicableRules", "requirements", "blockers", "scope"],
   "properties": {
     "status": {
       "type": "string",
@@ -32,6 +32,51 @@
     "blockers": {
       "type": "array",
       "items": { "type": "string", "minLength": 1 }
+    },
+    "scope": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "description": "修改范围契约：实施阶段实际改动的文件必须落在 targets ∪ include=true 的 siblings ∪ 自动放行（已声明 locale 文件同 namespace 的其它语言、已声明源文件的同名测试）之内，否则不提交、降级人工复核。只读查询 / blocked / 无法确定范围时填 null",
+      "required": ["targets", "siblings"],
+      "properties": {
+        "targets": {
+          "type": "array",
+          "description": "本次必须改的文件：仓库相对路径，具体到文件；不写目录、通配符、绝对路径或 ..",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "symbols", "reason"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1, "description": "仓库相对文件路径，如 apps/admin/src/apps/Foo/utils/useColumns.tsx" },
+              "symbols": { "type": "array", "items": { "type": "string", "minLength": 1 }, "description": "要改的符号 / 列 dataIndex / i18n key；说不清填 []" },
+              "reason": { "type": "string", "minLength": 1, "description": "为什么改这个文件：对应需求或缺陷的哪一点，以及它是首个出错位置的依据" }
+            }
+          }
+        },
+        "siblings": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "同因搜索（防漏改）：按需求谓词里的名词（字段名 / 中文文案 / i18n key / 组件名）搜同类位置，逐项判定改不改",
+          "required": ["searchQueries", "items"],
+          "properties": {
+            "searchQueries": { "type": "array", "items": { "type": "string", "minLength": 1 }, "description": "实际执行过的搜索词（如 rg 的 pattern），供人复核搜索是否充分" },
+            "items": {
+              "type": "array",
+              "description": "搜索命中的候选位置；集合型任务（统一 / 全部 / 涉及 N 处）不能为空",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["path", "include", "reason"],
+                "properties": {
+                  "path": { "type": "string", "minLength": 1, "description": "仓库相对文件路径" },
+                  "include": { "type": "boolean", "description": "true=本次一并修改（纳入范围）；false=排除，不改" },
+                  "reason": { "type": "string", "minLength": 1, "description": "纳入或排除的理由（如「同字段详情页 label」/「另一特性的同名文案，语义不同」）" }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
