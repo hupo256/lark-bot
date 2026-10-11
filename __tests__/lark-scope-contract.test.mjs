@@ -14,9 +14,17 @@ import { describe, it } from 'node:test'
 import {
   DEFAULT_LINE_BUDGETS,
   FORBIDDEN_PATH_RULES,
+  applyScopeApprovals,
   autoAllowedPaths,
   buildScopeBlockedResult,
+  buildScopeRequest,
   checkScopeContract,
+  extractRepoPaths,
+  isScopeApprovalReply,
+  normalizeScopeRequest,
+  resolveScopeApproval,
+  resolveScopeGate,
+  scopeRequestFromBlockers,
   countBudgetLines,
   detectSetOperationCue,
   formatScopeSection,
@@ -162,9 +170,9 @@ describe('FORBIDDEN_PATH_RULES / 行数口径', () => {
     for (const path of [
       'package.json', 'apps/web/package.json', 'pnpm-lock.yaml', 'yarn.lock', 'biome.json',
       'tsconfig.json', 'apps/web/tsconfig.build.json', 'turbo.json', 'packages/config/tailwind-preset.js',
-      '.github/workflows/ci.yml', '.husky/pre-commit',
+      '.github/workflows/ci.yml', '.husky/pre-commit', 'pnpm-workspace.yaml', '.npmrc', 'apps/web/.npmrc',
     ]) assert.ok(matchForbiddenPath(path), path)
-    for (const path of ['apps/web/src/package.ts', 'apps/web/src/config/index.ts', 'packages/ui/src/Button.tsx']) {
+    for (const path of ['apps/web/src/package.ts', 'apps/web/src/config/index.ts', 'packages/ui/src/Button.tsx', 'docs/pnpm-workspace.md', 'apps/web/src/npmrc.ts']) {
       assert.equal(matchForbiddenPath(path), null, path)
     }
     assert.ok(FORBIDDEN_PATH_RULES.every((rule) => rule.re instanceof RegExp && rule.reason))
@@ -405,7 +413,125 @@ describe('formatScopeSection / buildScopeBlockedResult', () => {
     assert.match(text, /契约外的文件：apps\/web\/src\/neighbor\.ts/)
     assert.match(text, /package\.json（依赖清单 package\.json）/)
     assert.match(text, /改动 200 行，超出缺陷修复上限 120 行/)
-    assert.match(text, /回复本卡片确认扩大范围后重跑/)
+    assert.match(text, /回复本卡片「确认扩大范围」/)
+    assert.match(text, /继续任务 t1 确认扩大范围/)
+    assert.match(text, /不要改 X，只改 Y/)
     assert.match(text, /未提交、未回滚/)
+  })
+})
+
+describe('人工确认扩大范围（scopeRequest → scopeApprovals）', () => {
+  const blockedTask = { id: 't-scope', text: '名称列显示错误' }
+  const scope = scopeOf([target('apps/web/src/a.ts')])
+  const changed = ['apps/web/src/a.ts', 'apps/web/src/neighbor.ts', 'package.json']
+
+  it('确认话术：点明扩大 / 放行 / 允许改才算；裸「确认 / 可以」与带否定的回复不算', () => {
+    for (const text of ['确认扩大范围', '同意扩大范围', '确认放行', '可以改', '允许一并修改 b.ts', '批准']) assert.ok(isScopeApprovalReply(text), text)
+    for (const text of ['确认', '可以', 'ok', '好的', '确认扩大范围，但 package.json 不要改', '只改 a.ts，其余撤回', '别动 neighbor']) {
+      assert.equal(isScopeApprovalReply(text), false, text)
+    }
+  })
+
+  it('extractRepoPaths：提取带扩展名的仓库相对路径（含 Next.js 路由与 dotfile），拒绝绝对路径与 ..', () => {
+    assert.deepEqual(
+      extractRepoPaths('确认扩大范围，`apps/web-next/src/app/[lang]/(dashboard)/page.tsx`、apps/web/src/b.test.ts 和 .npmrc 也可以改；/etc/hosts.json 与 ../x.ts 不算'),
+      ['apps/web-next/src/app/[lang]/(dashboard)/page.tsx', 'apps/web/src/b.test.ts', '.npmrc'],
+    )
+    assert.deepEqual(extractRepoPaths('没有路径'), [])
+  })
+
+  it('越界 → resolveScopeGate 给出阻断文案、契约段落与待批准请求（含禁区文件）', () => {
+    const gate = resolveScopeGate({ task: blockedTask, scope, actualChangedFiles: changed, workKind: WORK_KINDS.bugfix, now: '2026-10-11T00:00:00Z' })
+    assert.equal(gate.check.ok, false)
+    assert.match(gate.blockedText, /^需人工复核/)
+    assert.match(gate.blockedText, /修改范围契约：/)
+    assert.match(gate.blockedText, /实测越界（1）/)
+    assert.deepEqual(gate.scopeRequest, {
+      paths: ['apps/web/src/neighbor.ts', 'package.json'],
+      overBudget: false,
+      siblingsRequired: false,
+      missingScope: false,
+      requestedAt: '2026-10-11T00:00:00Z',
+    })
+  })
+
+  it('放行后重跑：确认话术把被拦文件并入 scopeApprovals，同一份改动不再被拦，卡片注明人工扩大', () => {
+    const first = resolveScopeGate({ task: blockedTask, scope, actualChangedFiles: changed, workKind: WORK_KINDS.bugfix })
+    const approval = resolveScopeApproval({ request: first.scopeRequest, supplementText: '确认扩大范围', approvedBy: 'ou_x', at: '2026-10-11T01:00:00Z' })
+    assert.deepEqual(approval.paths, ['apps/web/src/neighbor.ts', 'package.json'])
+    assert.equal(approval.approvedBy, 'ou_x')
+    const rerun = resolveScopeGate({ task: { ...blockedTask, scopeApprovals: [approval] }, scope, actualChangedFiles: changed, workKind: WORK_KINDS.bugfix })
+    assert.equal(rerun.check.ok, true)
+    assert.equal(rerun.blockedText, null)
+    assert.deepEqual(rerun.check.approved, ['apps/web/src/neighbor.ts', 'package.json'])
+    assert.match(rerun.section, /人工确认扩大范围（2）/)
+  })
+
+  it('批准只放行点名的文件：禁区文件不在批准里照样拦，批准外的新越界照样拦', () => {
+    const approvals = [{ paths: ['apps/web/src/neighbor.ts'] }]
+    const check = checkScopeContract({ scope, actualChangedFiles: [...changed, 'apps/web/src/other.ts'], workKind: WORK_KINDS.bugfix, approvals })
+    assert.equal(check.ok, false)
+    assert.deepEqual(check.outOfScope, ['apps/web/src/other.ts'])
+    assert.deepEqual(check.forbiddenTouched.map((item) => item.path), ['package.json'])
+  })
+
+  it('回复里点名的额外文件一并放行；非确认话术不产出批准', () => {
+    const request = { paths: ['apps/web/src/neighbor.ts'] }
+    assert.deepEqual(
+      resolveScopeApproval({ request, supplementText: '确认扩大范围，apps/web/src/extra.ts 也一起' }).paths,
+      ['apps/web/src/neighbor.ts', 'apps/web/src/extra.ts'],
+    )
+    assert.equal(resolveScopeApproval({ request, supplementText: '不要改 neighbor，只改 a.ts' }), null)
+    assert.equal(resolveScopeApproval({ request: null, supplementText: '确认扩大范围' }), null)
+  })
+
+  it('超行数 / 集合型缺兄弟清单的批准：allowOverBudget / waiveSiblings 解除对应阻断', () => {
+    const numstat = numstatOf([[300, 0, 'apps/web/src/a.ts']])
+    const blocked = checkScopeContract({ scope, actualChangedFiles: ['apps/web/src/a.ts'], numstat, workKind: WORK_KINDS.bugfix, taskText: '统一改为余额' })
+    assert.ok(blocked.overBudget && blocked.siblingsRequired)
+    const approval = resolveScopeApproval({ request: buildScopeRequest({ check: blocked, actualChangedFiles: ['apps/web/src/a.ts'] }), supplementText: '确认放行' })
+    assert.deepEqual({ allowOverBudget: approval.allowOverBudget, waiveSiblings: approval.waiveSiblings }, { allowOverBudget: true, waiveSiblings: true })
+    const passed = checkScopeContract({ scope, actualChangedFiles: ['apps/web/src/a.ts'], numstat, workKind: WORK_KINDS.bugfix, taskText: '统一改为余额', approvals: [approval] })
+    assert.equal(passed.ok, true)
+  })
+
+  it('分析阶段没给 scope：待批准对象是全部实测改动，批准后以批准清单为契约', () => {
+    const blocked = checkScopeContract({ scope: null, actualChangedFiles: ['apps/web/src/a.ts'], workKind: WORK_KINDS.bugfix })
+    assert.equal(blocked.missingScope, true)
+    const request = buildScopeRequest({ check: blocked, actualChangedFiles: ['apps/web/src/a.ts'] })
+    assert.deepEqual(request.paths, ['apps/web/src/a.ts'])
+    const approval = resolveScopeApproval({ request, supplementText: '确认扩大范围' })
+    assert.deepEqual(applyScopeApprovals(null, [approval]).targets.map((item) => item.path), ['apps/web/src/a.ts'])
+    assert.equal(checkScopeContract({ scope: null, actualChangedFiles: ['apps/web/src/a.ts'], workKind: WORK_KINDS.bugfix, approvals: [approval] }).ok, true)
+  })
+
+  it('实施阶段自停请求追加文件：从 blockers 提取契约外路径成为待批准请求，契约内路径不重复', () => {
+    const request = scopeRequestFromBlockers({
+      scope,
+      blockers: ['需要同步修改 apps/web/src/detail.tsx 的同字段 label', 'apps/web/src/a.ts 已在契约内'],
+      now: '2026-10-11T00:00:00Z',
+    })
+    assert.deepEqual(request.paths, ['apps/web/src/detail.tsx'])
+    assert.equal(request.source, 'implementation')
+    assert.equal(scopeRequestFromBlockers({ scope, blockers: ['缺产品口径'] }), null)
+  })
+
+  it('normalizeScopeRequest：清洗 HTTP 回写的请求形状，非法路径丢弃，空请求为 null', () => {
+    assert.deepEqual(normalizeScopeRequest({ paths: ['./a.ts', '../b.ts', 7], overBudget: 'yes', source: 'x' }), {
+      paths: ['a.ts'], overBudget: false, siblingsRequired: false, missingScope: false, requestedAt: null, source: 'scope_check',
+    })
+    assert.equal(normalizeScopeRequest({ paths: [] }), null)
+    assert.equal(normalizeScopeRequest('nope'), null)
+  })
+
+  it('missingIncludedSiblings 只进 warnNotes，不阻断', () => {
+    const gate = resolveScopeGate({
+      task: blockedTask,
+      scope: scopeOf([target('a.ts')], [sibling('b.ts', true)]),
+      actualChangedFiles: ['a.ts'],
+      workKind: WORK_KINDS.bugfix,
+    })
+    assert.equal(gate.blockedText, null)
+    assert.match(gate.warnNotes[0], /疑似漏改.*b\.ts/)
   })
 })
