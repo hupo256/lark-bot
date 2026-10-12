@@ -21,6 +21,7 @@ import { startLogRotation } from './lib/lark-log-rotate.mjs'
 import { createRuntimeVersion, versionWarnings, writeWorkerHeartbeat } from './lib/lark-runtime-version.mjs'
 import { larkRuntimeDir } from './lib/lark-repo.mjs'
 import { defaultTaskLeaseMs } from './lib/lark-constants.mjs'
+import { listRepoProfiles, registerRepoProfiles } from './lib/lark-repo-profile.mjs'
 
 function printHelp() {
   console.log(`usage: lark-worker.mjs [--once] [--preflight] [--help]
@@ -49,6 +50,8 @@ export async function runLarkWorker({
   configPath,
 }) {
   const localConfig = loadWorkerLocalConfig(configPath)
+  // 多仓 profile 注册（与 gateway 同一份配置）：路由 / 规则 / 模型 / 基线按仓取。
+  registerRepoProfiles(localConfig)
   // 版本快照要在装配前拍（= 本进程真正加载的源码版本）。worker 无 HTTP 端口，故靠心跳文件让
   // gateway 的 /lark/health 代为上报——「gateway 重启了但 worker 还是旧的」是最容易漏的半重启态。
   const runtimeVersion = createRuntimeVersion({ configPath })
@@ -62,10 +65,12 @@ export async function runLarkWorker({
   // 否则 AI 还在跑，gateway 已判租约过期把任务重投/领走，两个 AI 同 worktree 改文件打架。
   // 默认 30min < 40min 成立；env 覆盖（LARK_WORKER_AI_TIMEOUT_MS / LARK_TASK_LEASE_MS）可能破坏，故启动即断言。
   const leaseMs = defaultTaskLeaseMs
-  if (Number.isFinite(aiTimeoutMs) && aiTimeoutMs > 0 && aiTimeoutMs >= leaseMs) {
+  // 各仓 profile 可把 AI 超时调大（功能级任务 30min 不够），断言对所有生效值取最大。
+  const maxAiTimeoutMs = Math.max(aiTimeoutMs, ...listRepoProfiles().map((profile) => Number(profile.aiTimeoutMs) || 0))
+  if (Number.isFinite(maxAiTimeoutMs) && maxAiTimeoutMs > 0 && maxAiTimeoutMs >= leaseMs) {
     throw new Error(
-      `[lark-worker] 配置冲突：AI 超时(${aiTimeoutMs}ms) 必须小于任务租约 LARK_TASK_LEASE_MS(${leaseMs}ms)，` +
-        '否则孤儿回收会与活着的 AI 双跑同一 worktree。请调低 LARK_WORKER_AI_TIMEOUT_MS 或调高 LARK_TASK_LEASE_MS。',
+      `[lark-worker] 配置冲突：AI 超时(${maxAiTimeoutMs}ms，含各 repo profile 的 aiTimeoutMs) 必须小于任务租约 LARK_TASK_LEASE_MS(${leaseMs}ms)，` +
+        '否则孤儿回收会与活着的 AI 双跑同一 worktree。请调低 LARK_WORKER_AI_TIMEOUT_MS / repos.*.aiTimeoutMs 或调高 LARK_TASK_LEASE_MS。',
     )
   }
 
@@ -81,6 +86,13 @@ export async function runLarkWorker({
     probeModel: ['codex', 'pi', 'claude'].includes(startupExecutor),
   })
   console.log(`[lark-worker] AI executor=${startupExecutor}${executorProfile} readiness=${readiness.modelProbe}（task > config > wrapper > default）`)
+  // 非默认仓若指定了自己的 claude 模型，启动时同样真实探一次（Fable 等新模型账号没权限只有真调才暴露）。
+  const repoReadiness = {}
+  for (const profile of listRepoProfiles().filter((item) => !item.isDefault && item.claudeModel)) {
+    repoReadiness[profile.key] = preflightAiExecutor('claude', { localConfig, repoProfile: profile, probeModel: true })
+    console.log(`[lark-worker] repo ${profile.key}: claude model=${repoReadiness[profile.key].model} effort=${repoReadiness[profile.key].reasoningEffort} probe=${repoReadiness[profile.key].modelProbe}`)
+  }
+  readiness.repos = repoReadiness
   console.log(`[lark-worker] code=${runtimeVersion.codeHash} startedAt=${runtimeVersion.startedAt}`)
 
   if (argv.includes('--preflight')) {

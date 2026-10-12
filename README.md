@@ -78,6 +78,8 @@ launchd 直接运行本仓代码。**改完代码不会自动生效**，要执�
 
 `runtime/lark-bot.local.json` 的常用键：`project` / `title`、`botOpenId`、`taskMentionOpenIds`、`allowedChatIds` / `allowedOpenIds`、`aiExecutor`、各执行器的模型键（`codexModel`、`piModel` 等）、`scopeBudgets`、`bugTable`。字段含义见 [docs/gateway-and-worker.md](./docs/gateway-and-worker.md) §6。
 
+多仓：`repos.<key>` 给每个业务仓一个 profile（根目录、基线分支、群、webhook、文档、规则、模型、预算、归属规则），群 → 仓优先于群名解析项目号；不配即只有默认的 fameex 单仓行为。见 [docs/falive-repo-profile.md](./docs/falive-repo-profile.md)。
+
 执行器的选择优先级：任务里的 `[claude]` / `[codex]` / `[pi]` / `[cursor]` 标签 > 配置 `aiExecutor` > 内置默认 `claude`。执行器在入队时锁定。
 
 运行态（均 gitignore）：任务队列 `runtime/lark-tasks/`，附件 `runtime/lark-attachments/<PR>/<messageId>/`，审计 `runtime/lark-audits/<PR>/`。

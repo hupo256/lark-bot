@@ -36,6 +36,7 @@ import { larkAttachmentsRoot } from './lib/lark-paths.mjs'
 import { createRequestHandler } from './lib/lark-routes.mjs'
 import { createRuntimeVersion } from './lib/lark-runtime-version.mjs'
 import { GATEWAY_HOST, defaultGatewayPort, defaultTaskLeaseMs } from './lib/lark-constants.mjs'
+import { listRepoProfiles, registerRepoProfiles } from './lib/lark-repo-profile.mjs'
 
 // 任务领取租约：worker 领走后置 running；超过此时长仍 running 视为孤儿，下次 claim 时自动重入队。
 // 必须 > worker 的 AI 执行超时（默认 30min），避免误回收正在跑的长任务。
@@ -56,6 +57,8 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   const config = { ...loadedConfig, aiExecutor: normalizeAiExecutor(loadedConfig.aiExecutor) }
   // 结构校验前置：字段缺失/类型错会让下游静默跑歪（bugTable 尤甚），缺了直接拒绝启动。
   assertConfigOrExit(config, 'lark-gateway')
+  // 多仓 profile 注册（进程级单例）：群 → 仓路由、projectKey 放行、卡片改投都从这张表取。
+  registerRepoProfiles(config)
   const membershipMode = config.allowedChatIds === 'auto'
   // 本地 API 鉴权是硬前置：没有共享密钥时本机任一进程都能 POST 触发改代码 / commit / prune，
   // 「只绑 127.0.0.1」不构成边界。与 isWhitelisted 同一立场——缺配置就拒绝启动，而不是降级放行。
@@ -106,6 +109,9 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   server.listen(port, GATEWAY_HOST, () => {
     console.log(`[lark-gateway] listening on http://${GATEWAY_HOST}:${port} for ${config.project}`)
     console.log(`[lark-gateway] whitelist chats=${config.allowedChatIds === 'auto' ? 'auto(bot 所在群)' : ((config.allowedChatIds || []).join(',') || '(none)')} consume=im.message.receive_v1`)
+    for (const profile of listRepoProfiles().filter((item) => !item.isDefault)) {
+      console.log(`[lark-gateway] repo ${profile.key}: project=${profile.projectKey} root=${profile.root} base=${profile.baseRef} chats=${profile.chatIds.join(',') || '(none)'} deliver=${profile.webhook ? 'webhook' : profile.notifyChatId ? `redirect:${profile.notifyChatId}` : 'bot'}`)
+    }
     console.log(`[lark-gateway] code=${runtimeVersion.codeHash} startedAt=${runtimeVersion.startedAt}（health.version 会在磁盘代码变更后报 codeStale）`)
   })
 

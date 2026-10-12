@@ -53,4 +53,8 @@ esac
 mkdir -p "$TMPDIR"
 export TMPDIR
 
+# 任务租约：各 repo profile 的 AI 超时可调到 60min（功能级任务），租约必须更长（worker 启动断言）。
+# 默认仓仍是 30min AI 超时 / 这里 75min 租约；只改这一处即可，不进 plist。
+export LARK_TASK_LEASE_MS="${LARK_TASK_LEASE_MS:-4500000}"
+
 exec /opt/homebrew/bin/node "$@"

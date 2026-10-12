@@ -3,11 +3,21 @@
   "title": "Lark AI task analysis",
   "type": "object",
   "additionalProperties": false,
-  "required": ["status", "summary", "applicableRules", "requirements", "blockers", "scope"],
+  "required": [
+    "status",
+    "summary",
+    "applicableRules",
+    "requirements",
+    "blockers",
+    "scope"
+  ],
   "properties": {
     "status": {
       "type": "string",
-      "enum": ["ready", "blocked"]
+      "enum": [
+        "ready",
+        "blocked"
+      ]
     },
     "summary": {
       "type": "string",
@@ -18,26 +28,47 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["source", "application"],
+        "required": [
+          "source",
+          "application"
+        ],
         "properties": {
-          "source": { "type": "string", "minLength": 1 },
-          "application": { "type": "string", "minLength": 1 }
+          "source": {
+            "type": "string",
+            "minLength": 1
+          },
+          "application": {
+            "type": "string",
+            "minLength": 1
+          }
         }
       }
     },
     "requirements": {
       "type": "array",
-      "items": { "type": "string", "minLength": 1 }
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
     },
     "blockers": {
       "type": "array",
-      "items": { "type": "string", "minLength": 1 }
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
     },
     "scope": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": false,
       "description": "修改范围契约：实施阶段实际改动的文件必须落在 targets ∪ include=true 的 siblings ∪ 自动放行（已声明 locale 文件同 namespace 的其它语言、已声明源文件的同名测试）之内，否则不提交、降级人工复核。只读查询 / blocked / 无法确定范围时填 null",
-      "required": ["targets", "siblings"],
+      "required": [
+        "targets",
+        "siblings"
+      ],
       "properties": {
         "targets": {
           "type": "array",
@@ -45,11 +76,30 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["path", "symbols", "reason"],
+            "required": [
+              "path",
+              "symbols",
+              "reason"
+            ],
             "properties": {
-              "path": { "type": "string", "minLength": 1, "description": "仓库相对文件路径，如 apps/admin/src/apps/Foo/utils/useColumns.tsx" },
-              "symbols": { "type": "array", "items": { "type": "string", "minLength": 1 }, "description": "要改的符号 / 列 dataIndex / i18n key；说不清填 []" },
-              "reason": { "type": "string", "minLength": 1, "description": "为什么改这个文件：对应需求或缺陷的哪一点，以及它是首个出错位置的依据" }
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "description": "仓库相对文件路径，如 apps/admin/src/apps/Foo/utils/useColumns.tsx"
+              },
+              "symbols": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "description": "要改的符号 / 列 dataIndex / i18n key；说不清填 []"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "description": "为什么改这个文件：对应需求或缺陷的哪一点，以及它是首个出错位置的依据"
+              }
             }
           }
         },
@@ -57,23 +107,78 @@
           "type": "object",
           "additionalProperties": false,
           "description": "同因搜索（防漏改）：按需求谓词里的名词（字段名 / 中文文案 / i18n key / 组件名）搜同类位置，逐项判定改不改",
-          "required": ["searchQueries", "items"],
+          "required": [
+            "searchQueries",
+            "items"
+          ],
           "properties": {
-            "searchQueries": { "type": "array", "items": { "type": "string", "minLength": 1 }, "description": "实际执行过的搜索词（如 rg 的 pattern），供人复核搜索是否充分" },
+            "searchQueries": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": "实际执行过的搜索词（如 rg 的 pattern），供人复核搜索是否充分"
+            },
             "items": {
               "type": "array",
               "description": "搜索命中的候选位置；集合型任务（统一 / 全部 / 涉及 N 处）不能为空",
               "items": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["path", "include", "reason"],
+                "required": [
+                  "path",
+                  "include",
+                  "reason"
+                ],
                 "properties": {
-                  "path": { "type": "string", "minLength": 1, "description": "仓库相对文件路径" },
-                  "include": { "type": "boolean", "description": "true=本次一并修改（纳入范围）；false=排除，不改" },
-                  "reason": { "type": "string", "minLength": 1, "description": "纳入或排除的理由（如「同字段详情页 label」/「另一特性的同名文案，语义不同」）" }
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "仓库相对文件路径"
+                  },
+                  "include": {
+                    "type": "boolean",
+                    "description": "true=本次一并修改（纳入范围）；false=排除，不改"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "纳入或排除的理由（如「同字段详情页 label」/「另一特性的同名文案，语义不同」）"
+                  }
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "ownership": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "description": "负责人归属（仅多人分工且 Worker 在提示里给出归属规则的仓库填；其它仓填 null）：mine=true 表示改动全部落在 bot 代理人负责的功能内；mine=false 表示核心改动属别的前端负责人，owner 填其名字、featureIds 填功能总表序号，Worker 将跳过实施并转交",
+      "required": [
+        "mine",
+        "owner",
+        "featureIds"
+      ],
+      "properties": {
+        "mine": {
+          "type": "boolean"
+        },
+        "owner": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "featureIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
           }
         }
       }
