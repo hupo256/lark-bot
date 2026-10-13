@@ -38,6 +38,7 @@ import { createRuntimeVersion } from './lib/lark-runtime-version.mjs'
 import { GATEWAY_HOST, defaultGatewayPort, defaultTaskLeaseMs } from './lib/lark-constants.mjs'
 import { listRepoProfiles, registerRepoProfiles } from './lib/lark-repo-profile.mjs'
 import { startChatPoller } from './lib/lark-chat-poller.mjs'
+import { startDailyReportScheduler } from './lib/lark-daily-report.mjs'
 
 // 任务领取租约：worker 领走后置 running；超过此时长仍 running 视为孤儿，下次 claim 时自动重入队。
 // 必须 > worker 的 AI 执行超时（默认 30min），避免误回收正在跑的长任务。
@@ -108,6 +109,8 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
 
   // 外部群（仓库 profile 配了 chatIds）：用户身份轮询拉消息喂同一条 ingest 链路。
   const chatPoller = startChatPoller({ config, store, ingest: ingestLarkEvent })
+  // 日报：每天固定时刻把当天进度 / 卡点 / 需要支持整理成卡片（试运行期私发负责人）。
+  const dailyReport = startDailyReportScheduler({ config, store })
 
   const server = createServer(createRequestHandler({ config, store, consumer, port, runtimeVersion, chatPoller }))
   server.listen(port, GATEWAY_HOST, () => {
@@ -190,6 +193,7 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
     if (logTimer) clearInterval(logTimer)
     consumer.stop()
     chatPoller.stop()
+    dailyReport.stop()
     server.close()
     process.exit(0)
   }
