@@ -107,6 +107,13 @@ gateway 内置：对每个配了 `chatIds` 的非默认仓，用用户身份 `la
 - **串行**：`concurrency=1`，一次只跑一条 falive 任务。
 - 试运行期所有卡片只发 aven 私聊（`cardsToNotifyOnly`）。
 
+### 6.2 群回复（aven 2026-10-13 定 A 方案，`lib/lark-group-reply.mjs`）
+
+外部群不发卡片。任务落 done / no_change_needed 时以 **aven 的用户身份**往原群发人话（webhook 已删，用户身份是唯一能发进外部群的通道）：
+- 全部对接完：`✅ <groupReply>（分支 …）— 由 aven 的助手整理`。
+- 还需对方跟进：执行器把待确认项按负责人分节写成 `docs/delivery/pending/<主题>-待确认-<日期>.md`（随分支提交），gateway 从分支里取出该文件发进群，再发一句 `@负责人 …` + 条目摘要；负责人名字经 `ownerMap`（群成员 open_id）解析。
+- failed / blocked / waiting 不进群，只私发 aven。
+
 ## 7. 日报（已实现，`lib/lark-daily-report.mjs`）
 
 每天 `profile.dailyReport.at`（19:00）由 gateway 调度，当天只发一次（状态落盘防重启重发）。脚本确定性采集：aven 的工作 = 本地 `feature/phase-3-api` 当天提交 + 工作区未提交数；其他人 = `origin/pre`（先 fetch）当天提交按 `people` 别名归到人名，Merge 只计次；功能总表按状态 / 负责人统计并与上次快照 diff 出「今日升级」；交付路线图「可交付分三档」原文；bot 当天的任务结果。再交给 Opus 5.5（plan 模式、只读、cwd 在仓库可翻文档）按固定模板写：整体 / 今日完成（按人）/ 未完成与卡点 / 今日 pre 无提交 / 需要支持。正文与事实存 `runtime/lark-daily-report/falive/<日期>.md`。试运行期 `to` = aven 私聊；2026-10-13 已手动跑通一次。
