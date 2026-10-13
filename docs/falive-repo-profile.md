@@ -107,13 +107,22 @@ gateway 内置：对每个配了 `chatIds` 的非默认仓，用用户身份 `la
 - **并行**：`concurrency=3`，同主题串行、不同主题并行。
 - 试运行期所有卡片只发 aven 私聊（`cardsToNotifyOnly`）。
 
-### 6.2 群回复（aven 2026-10-13 定 A 方案，`lib/lark-group-reply.mjs`）
+### 6.2 出口：人话消息，不发卡（aven 2026-10-13 晚定，`lib/lark-repo-delivery.mjs`）
 
-外部群不发卡片。任务落 done / no_change_needed 时以 **aven 的用户身份**往原群发人话（webhook 已删，用户身份是唯一能发进外部群的通道）：
-- 全部对接完：`✅ <groupReply>（分支 …）— 由 aven 的助手整理`。
-- 还需对方跟进：执行器把待确认项按负责人分节写成 `docs/delivery/pending/<主题>-待确认-<日期>.md`（随分支提交），gateway 从分支里取出该文件发进群，再发一句 `@负责人 …` + 条目摘要；负责人名字经 `ownerMap`（群成员 open_id）解析。
-- failed / blocked / waiting 不进群，只私发 aven。
+仓库 profile 的任务**不走**默认仓那套卡片 / 回执 / 催办 / 收尾知会（`isHumanDeliveryTask` 分流，fameex 原逻辑一字不动）。出口只有两条：
 
+- **负责人私聊**（bot 身份 Markdown）：开始一行 `🛠 开始做：…（群名）`；结束一条：`✅ 人话结论 / 分支 · 改了 n 个文件 / 要谁跟进：云文档链接 / 群里已回「…」或「群里没发（没配 webhook），要回可以转发这段」`；停下来 `⏸ … 要：… 回复这条消息把材料补上就会继续`；不用改 `ℹ️`；失败 `⛔`；疑似 `❓ 可能是你的事 … 是 → 回「继续任务 id 做」`。结果正文里的范围契约、系统实测、终检明细只进审计不上消息（`humanizeResult`）。不催办。
+- **外部群**：只在 done 时发一句（`✅ groupReply`）；有待跟进 → 执行器落盘的 `docs/delivery/pending/<主题>-待确认-<日期>.md` 从分支取出、以 aven 身份建成 Lark 云文档（链接可读），群里发 `@负责人 一句话 + 链接 + 每人要点`。走该群自定义机器人 webhook（`webhooksByChat`）；没配就不发，私聊里附上要发的话。回群消息走 webhook 没有 message_id，续跑靠回复私聊那条。
+
+### 6.3 代答提问 + 收尾口径
+
+- 分类多一类 `question`：群里向 aven 提的问题（接口怎么调、前端现在怎么处理、某字段用不用、做没做、能不能复测），靠仓库代码 / 文档能答的才算。走只读 `status` 命令（不开 worktree），执行器把答案写进 `groupReply`（≤150 字）直接回群，署名「aven 的助手」；找不到依据就不回群只私聊。
+- 分类上下文除被引用消息、话题回复外，再并上这条之前 3 小时内最近 8 条真人消息（`【群里这条之前的消息】`），一句话消息不再脱离前文判断。
+- 后端答复类 / 缺材料的任务：先把不依赖那份材料的部分做完，缺什么写进待确认清单（`followUpDoc` / `followUps`）后按 done 收尾；只有整条一步都做不了才 blocked / waiting。不再因为「还有条目没答」就挂起刷消息。
+
+### 6.4 并行
+
+`concurrency=3`：同主题串行（同一份对接文档 / 功能一次只跑一条，后来的消息并入原任务、复用原分支），不同主题并行；临时 worktree 跑完即回收，分支保留给人 review。
 ## 7. 日报（已实现，`lib/lark-daily-report.mjs`）
 
 每天 `profile.dailyReport.at`（19:00）由 gateway 调度，当天只发一次（状态落盘防重启重发）。脚本确定性采集：aven 的工作 = 本地 `feature/phase-3-api` 当天提交 + 工作区未提交数；其他人 = `origin/pre`（先 fetch）当天提交按 `people` 别名归到人名，Merge 只计次；功能总表按状态 / 负责人统计并与上次快照 diff 出「今日升级」；交付路线图「可交付分三档」原文；bot 当天的任务结果。再交给 Opus 5.5（plan 模式、只读、cwd 在仓库可翻文档）按固定模板写：整体 / 今日完成（按人）/ 未完成与卡点 / 今日 pre 无提交 / 需要支持。正文与事实存 `runtime/lark-daily-report/falive/<日期>.md`。投递：用户身份发不进外部群（230027），群走各群自定义机器人 webhook 的富文本（`sendTo`），试运行期以 bot 身份私聊负责人发 Markdown。**云文档版**（`docTemplate`）：按仓库里的交接报告模板写当天完整版（全量功能表 / API 缺什么有问题 / 其它没做的 / 一句话现状），用户身份 `docs +create --doc-format markdown` 建成 Lark 云文档，短消息末尾带链接；完整版 md 也落在 `runtime/lark-daily-report/falive/`。2026-10-13 两种都已跑通。
