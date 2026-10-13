@@ -48,9 +48,9 @@ webhook 发出的卡片没有 `message_id`，不能作为「回复卡片」的�
 | `projectKey` | 任务的 `project` 值（大写，缺省 = key 大写） | `FALIVE` |
 | `branchPrefix` | 临时分支前缀（缺省 `lark/<key>`） | `lark/falive` |
 | `worktreesDir` | 临时 worktree 目录（缺省 `<root>/../.lark-<key>`） | `~/github/.lark-falive` |
-| `chatIds` | 属于该仓的群（优先于群名解析项目号；视同白名单） | 待 im scope 批下来后填 |
+| `chatIds` / `chatNames` | 属于该仓的群（优先于群名解析项目号；视同白名单）；只填群名时 gateway 启动用用户身份 chat-search 解析成 id | falive后端go天团、Falive PHP后端群 |
 | `taskMentionOpenIds` | 该仓群里 @ 谁会触发只读意图分类（与全局叠加） | aven |
-| `webhook` | `{ file }` 指向 0600 JSON（`webhookUrl` / `secret`）或 inline `{ url, secret }`；bot 发不进群时的兜底 | `~/.config/fameex-lark/falive-webhook.json` |
+| `webhook` / `webhooksByChat` | `{ file }` 指向 0600 JSON（`webhookUrl` / `secret`）或 inline；`webhooksByChat` 按群名各配一个（每个外部群的自定义机器人 webhook 不同）；bot 发不进群时的兜底 | 两个群各一个文件 |
 | `notifyChatId` | bot 与 webhook 都不可用时改投（私聊 open_id 或群） | aven 私聊 |
 | `docs` | 注入 prompt 的项目文档（仓库相对） | CLAUDE.md、交付路线图、功能总表、对接状态总览 |
 | `readableDirs` | `--add-dir` 只读放行的目录 | `x9_web_react` |
@@ -59,6 +59,11 @@ webhook 发出的卡片没有 `message_id`，不能作为「回复卡片」的�
 | `scopeBudgets` | 行数上限覆盖 | bugfix 200 / qa_feedback 300 / requirement 1200 |
 | `ownership` | `{ me, meOpenIds, table }` 归属规则 | me=aven，表=功能总表 |
 | `ownerMap` | 人名 → open_id（结果卡 @ 负责人用） | 待补 |
+| `docIntakeDir` | 群里别人发来的对接文档落到仓库的目录；配了即启用文档消息自动进分类 | `docs/delivery/待对接` |
+| `contextTrigger` | 外部群按上下文判任务：别人发的实质消息都进 Opus 4.8 只读分类（缺省开） | 开 |
+| `quietQueuedCards` | 外部群排队卡改发 notifyChatId，群里只出结果卡（缺省开） | 开 |
+| `commitPrefix` | bot 提交标题前缀，满足仓库 commit-msg 钩子 | `feat(bot)` |
+| `poll` / `dailyReport` | 轮询频率 / 日报（见 §6、§7） | 见下 |
 | `claudeModel` / `claudeEffort` | 实施阶段模型 | opus-5-5 / medium |
 | `claudeAnalysisModel` / `claudeAnalysisEffort` | 只读分析 / 分诊阶段模型 | opus-5-5 / high |
 | `claudeIntentModel` | 意图 / 信息分类模型 | opus-4-8 |
