@@ -6,7 +6,10 @@ import {
   buildRepoNote,
   buildRepoStartNote,
   buildRepoSuspectedNote,
+  deliverRepoAck,
+  deliverRepoIgnoredAfterAck,
   deliverRepoOutcome,
+  mentionsMe,
   humanizeResult,
   isHumanDeliveryTask,
 } from '../lib/lark-repo-delivery.mjs'
@@ -82,5 +85,23 @@ describe('仓库任务的人话出口', () => {
     const store = { list: () => [parked({ repo: 'falive' })], upsert: (task) => upserts.push(task), recordReceipt: () => {} }
     await remindParkedTasks({ config: { project: 'PR-00001', ownerMap: {} }, store, now })
     assert.equal(upserts.length, 0, '仓库任务不催办、不记轮次')
+  })
+})
+
+describe('直接 @ 负责人先回「收到」', () => {
+  afterEach(() => resetRepoProfiles())
+  it('@ 到负责人才回；有 webhook 才发；判 ignore 后私聊说明', async () => {
+    registerRepoProfiles({ repos: { falive: { root: '/tmp/f', baseRef: 'main', chatIds: ['oc_t'], notifyChatId: 'ou_aven', taskMentionOpenIds: ['ou_aven'], ownership: { me: 'aven' } } } })
+    const profile = repoProfile('falive')
+    assert.equal(mentionsMe({ profile, mentions: [{ id: 'ou_aven' }] }), true)
+    assert.equal(mentionsMe({ profile, mentions: [{ id: 'ou_x' }] }), false)
+    const hooks = []
+    const ok = await deliverRepoAck({ task: { id: 't', chatId: 'oc_t', repo: 'falive' }, deps: { webhookFor: () => ({ url: 'u' }), sendWebhookMessage: async (a) => { hooks.push(a); return { ok: true } } } })
+    assert.equal(ok.ok, true)
+    assert.match(hooks[0].text, /^收到，我查一下/)
+    assert.equal((await deliverRepoAck({ task: { id: 't', chatId: 'oc_t', repo: 'falive' }, deps: { webhookFor: () => null } })).skipped, true)
+    const notes = []
+    await deliverRepoIgnoredAfterAck({ task: { id: 't', chatId: 'oc_t', repo: 'falive', summary: '直播详情页还差什么接口', intake: { classification: { reason: '问进度' } } }, deps: { sendMarkdown: async (a) => { notes.push(a); return { ok: true } } } })
+    assert.match(notes[0].markdown, /判断不用我处理.*\n理由：问进度\n判错了就回「继续任务 t 做」/)
   })
 })
