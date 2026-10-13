@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, it } from 'node:test'
 
-import { chatListMessageToEvent, isPollableMessage, nextDelayMs, startChatPoller, toEpochMs } from '../lib/lark-chat-poller.mjs'
+import { chatListMessageToEvent, flattenThreadReplies, isPollableMessage, nextDelayMs, startChatPoller, toEpochMs } from '../lib/lark-chat-poller.mjs'
 import { extractInlineFileAttachments, hasDocAttachment, normalizeMessage, parseTextAndAttachments, resolveMessageTrigger } from '../lib/lark-message.mjs'
 import { DEFAULT_POLL, registerRepoProfiles, resetRepoProfiles } from '../lib/lark-repo-profile.mjs'
 
@@ -89,9 +89,13 @@ describe('轮询一轮（IO 全注入）', () => {
     let failing = false
     const nowMs = Date.parse('2026-10-13T10:00:00+04:00')
     const messages = [
-      { message_id: 'om_a', msg_type: 'text', create_time: String(nowMs + 1000), sender: { id: 'ou_x', sender_type: 'user' }, content: 'hi' },
+      { message_id: 'om_a', msg_type: 'text', create_time: String(nowMs + 1000), sender: { id: 'ou_x', sender_type: 'user' }, content: 'hi', thread_id: 'omt_1',
+        thread_replies: [{ message_id: 'om_a_r1', msg_type: 'text', create_time: String(nowMs + 1500), sender: { id: 'ou_y', sender_type: 'user' }, content: '@Aven 这个要改' }] },
       { message_id: 'om_card', msg_type: 'interactive', create_time: String(nowMs + 2000), sender: { id: 'ou_bot', sender_type: 'app' }, content: '{}' },
     ]
+    // 旧话题里后来冒出的回复：不在列消息窗口里，靠话题补抓拿到
+    const lateReplies = [{ message_id: 'om_a_r2', msg_type: 'text', create_time: String(nowMs + 90_000), sender: { id: 'ou_z', sender_type: 'user' }, content: '补充字段' }]
+    let threadCalls = 0
     try {
       const poller = startChatPoller({
         config: {},
@@ -108,17 +112,23 @@ describe('轮询一轮（IO 全注入）', () => {
             return { ok: true, messages, hasMore: false, pageToken: null }
           },
           sendChatMessage: async (args) => { sent.push(args); return { ok: true } },
+          listThreadMessages: async ({ threadId }) => { threadCalls += 1; assert.equal(threadId, 'omt_1'); return { ok: true, messages: threadCalls >= 2 ? lateReplies : [] } },
         },
       })
       assert.deepEqual(poller.targets, [{ chatId: 'oc_falive', repo: 'falive' }])
       const target = { chatId: 'oc_falive', profile: { ...registerRepoProfiles({ repos: { falive: { root: '/tmp/falive-react', baseRef: 'main', chatIds: ['oc_falive'], notifyChatId: 'ou_aven' } } }).get('falive') } }
       await poller.pollOnce(target)
-      assert.deepEqual(ingested, ['om_a'])
-      await poller.pollOnce(target) // 同一批再拉：seen 去重，不重复喂
-      assert.deepEqual(ingested, ['om_a'])
+      assert.deepEqual(ingested, ['om_a', 'om_a_r1'], '话题回复随 host 一起拍平喂入')
+      await poller.pollOnce(target) // 同一批再拉：seen 去重；活跃话题补抓拿到迟到回复
+      assert.deepEqual(ingested, ['om_a', 'om_a_r1', 'om_a_r2'])
       const saved = JSON.parse(readFileSync(statePath, 'utf8'))
-      assert.equal(saved.chats.oc_falive.cursorMs, nowMs + 2000)
-      assert.deepEqual(saved.chats.oc_falive.seen, ['om_a', 'om_card'])
+      assert.equal(saved.chats.oc_falive.cursorMs, nowMs + 90_000)
+      assert.deepEqual(saved.chats.oc_falive.seen, ['om_a', 'om_a_r1', 'om_card', 'om_a_r2'])
+      assert.equal(saved.chats.oc_falive.threads.omt_1.hostMessageId, 'om_a')
+      const flat = flattenThreadReplies(messages[0])
+      assert.equal(flat[0].root_id, 'om_a')
+      assert.equal(flat[0].thread_id, 'omt_1')
+      assert.equal(normalizeMessage(chatListMessageToEvent(flat[0], { chatId: 'oc_falive' })).threadRootId, 'omt_1')
       assert.equal(saved.chats.oc_falive.lastNewMessageAt, nowMs)
       failing = true
       for (let i = 0; i < 10; i += 1) await poller.pollOnce(target)
