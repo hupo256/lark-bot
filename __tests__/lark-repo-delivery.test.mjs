@@ -14,7 +14,7 @@ import {
   humanizeResult,
   isHumanDeliveryTask,
 } from '../lib/lark-repo-delivery.mjs'
-import { findCompletionContradiction } from '../lib/lark-completion-rule.mjs'
+import { findCompletionContradiction, findCountMismatch, findGroupReplyContradiction } from '../lib/lark-completion-rule.mjs'
 import { parkedReminderRound, remindParkedTasks } from '../lib/lark-parked-reminder.mjs'
 import { addRepoChatIds, registerRepoProfiles, repoProfile, resetRepoProfiles } from '../lib/lark-repo-profile.mjs'
 
@@ -128,5 +128,23 @@ describe('「完成」口径的机械检查', () => {
     })
     assert.equal(hooks.length, 0)
     assert.match(out.note, /自相矛盾，我没发/)
+  })
+  it('结论行「还剩 N 项」+ 条目数 ≠ N（后面又接了一组已做的）= 前后对不上，不发群', async () => {
+    const bad = '首页做了 H5 自适应，不过还剩 2 项要确认：\n- 底部导航还在等设计走查\n- 真机效果没验证\n已做的：\n- 三档还原\n- Hero 重排\n- 汉堡菜单'
+    assert.deepEqual(findCountMismatch(bad), { lead: '还剩 2 项', expected: 2, actual: 5 })
+    assert.equal(findCountMismatch('首页做了 H5 自适应，不过还剩 2 项要确认：\n- 底部导航还在等设计走查\n- 真机效果没验证'), null)
+    assert.equal(findCountMismatch('直播详情页还有两项没通：\n- getRoomInfo 报 500\n- 举报分类为空\n能用的：预告、礼物、推荐。'), null)
+    assert.equal(findCountMismatch('首页做了 H5 自适应，pre 可以看。'), null)
+    assert.equal(findCountMismatch('还剩 2 项要确认：底部导航走查、真机验证。'), null)
+    assert.match(findGroupReplyContradiction(bad), /第一行说「还剩 2 项」，下面却列了 5 条/)
+    register()
+    const hooks = []
+    const out = await deliverRepoOutcome({
+      task: { id: 'q2', chatId: 'oc_falive', repo: 'falive', commandType: 'status', groupReply: bad },
+      status: 'done', result: 'x',
+      deps: { sendMarkdown: async () => ({ ok: true }), sendWebhookMessage: async (a) => { hooks.push(a); return { ok: true } }, webhookFor: () => ({ url: 'u' }) },
+    })
+    assert.equal(hooks.length, 0)
+    assert.match(out.note, /前后对不上，我没发/)
   })
 })
