@@ -23,7 +23,7 @@ import { assertConfigOrExit, gatewaySecret, loadConfig, resolveNotifyChatId } fr
 import { hardenRuntimeFiles, larkRuntimeDir, larkTasksDir } from './lib/lark-repo.mjs'
 import { normalizeAiExecutor } from './lib/lark-http.mjs'
 import { buildCardContent } from './lib/lark-cards.mjs'
-import { sendChatMessage } from './lib/lark-cli.mjs'
+import { searchChatIdsByName, sendChatMessage } from './lib/lark-cli.mjs'
 import { createTaskStore } from './lib/lark-task-store.mjs'
 import { startConsumer } from './lib/lark-consumer.mjs'
 import { ingestLarkEvent } from './lib/lark-ingest.mjs'
@@ -36,7 +36,7 @@ import { larkAttachmentsRoot } from './lib/lark-paths.mjs'
 import { createRequestHandler } from './lib/lark-routes.mjs'
 import { createRuntimeVersion } from './lib/lark-runtime-version.mjs'
 import { GATEWAY_HOST, defaultGatewayPort, defaultTaskLeaseMs } from './lib/lark-constants.mjs'
-import { listRepoProfiles, registerRepoProfiles } from './lib/lark-repo-profile.mjs'
+import { addRepoChatIds, listRepoProfiles, registerRepoProfiles } from './lib/lark-repo-profile.mjs'
 import { startChatPoller } from './lib/lark-chat-poller.mjs'
 import { startDailyReportScheduler } from './lib/lark-daily-report.mjs'
 
@@ -107,6 +107,17 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
       }),
   })
 
+  // 群名 → chat_id：profile 只填了群名（外部群事先拿不到 id）时，启动用用户身份解析后并入 chatIds；
+  // scope 未批时解析失败只告警，轮询器对该仓不启动，批下来 restart 即可。
+  for (const profile of listRepoProfiles().filter((item) => !item.isDefault && item.chatNames.length)) {
+    const resolved = await searchChatIdsByName(profile.chatNames)
+    if (resolved.size) {
+      addRepoChatIds(profile.key, [...resolved.values()])
+      console.log(`[lark-gateway] repo ${profile.key} 群名解析：${[...resolved].map(([name, id]) => `${name}=${id}`).join('，')}`)
+    }
+    const missing = profile.chatNames.filter((name) => !resolved.has(name))
+    if (missing.length) console.warn(`[lark-gateway] ⚠ repo ${profile.key} 以下群名未解析到 chat_id（scope 未批或群名不符）：${missing.join('、')}`)
+  }
   // 外部群（仓库 profile 配了 chatIds）：用户身份轮询拉消息喂同一条 ingest 链路。
   const chatPoller = startChatPoller({ config, store, ingest: ingestLarkEvent })
   // 日报：每天固定时刻把当天进度 / 卡点 / 需要支持整理成卡片（试运行期私发负责人）。
