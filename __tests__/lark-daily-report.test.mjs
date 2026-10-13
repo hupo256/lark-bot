@@ -95,6 +95,8 @@ describe('事实采集与日报生成（IO 注入）', () => {
       assert.match(docPrompt, /总体进度：xx\.x%/)
       assert.match(docPrompt, /以「10-13：」开头/)
       assert.match(docPrompt, /不再写「四、一句话现状」/)
+      assert.match(docPrompt, /三、需要再跟进的工作/)
+      assert.doesNotMatch(docPrompt, /2\.3 已接通/)
 
       registerRepoProfiles({})
       const sent = []
