@@ -100,13 +100,13 @@ describe('事实采集与日报生成（IO 注入）', () => {
           runtimeDir: dir,
           collectFacts: () => facts,
           generateText: async ({ prompt: p }) => { assert.match(p, /日报撰写者/); return '【Falive Web 日报 2026-10-13】\n整体：3 项里 1 项可用\n今日完成\n- aven：搜索' },
-          sendChatMessage: async (args) => { sent.push(args); return { ok: true } },
+          sendUserMarkdown: async (args) => { sent.push(args); return { ok: true } },
         },
       })
       assert.equal(outcome.ok, true)
       assert.equal(outcome.to, 'ou_aven')
-      assert.equal(sent[0].idempotencyKey, 'daily-falive-2026-10-13')
-      assert.match(sent[0].card, /日报 2026-10-13/)
+      assert.equal(sent[0].chatId, 'ou_aven')
+      assert.match(sent[0].markdown, /日报 2026-10-13/)
       assert.ok(outcome.reportPath.endsWith('/lark-daily-report/falive/FaliveWeb日报-2026-10-13.md'))
       // 第二次采集：快照已落盘，diff 应能比出状态变化
       const facts2 = collectDailyFacts({ profile, store, now, git, readFile: (path) => (path.endsWith('table.md') ? TABLE.replace('| 🟠 |', '| ✅ |') : files[path] ?? ''), snapshotDir: join(dir, 'lark-daily-report', 'falive') })
