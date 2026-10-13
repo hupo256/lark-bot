@@ -1,0 +1,49 @@
+{
+  "chats": {
+    "oc_90ad8cab0e80bd923e922b1d2b268ebb": {
+      "cursorMs": 1791876840000,
+      "seen": [
+        "om_x100b63e9bf3650a8ffbc91bd8e71e86"
+      ],
+      "lastNewMessageAt": 0,
+      "threads": {}
+    },
+    "oc_c2a63ac7c217235e14407ed1bba69d06": {
+      "cursorMs": 1791877200000,
+      "seen": [
+        "om_x100b63e99c5dd0a0ed430a7be0c63a6",
+        "om_x100b63e99c5fa8b4ed4e21d3eb2a72d",
+        "om_x100b63e998d060b0ed5070e9093abdf",
+        "om_x100b63e9992af4a4ed3fa061f114aa9",
+        "om_x100b63e9974aa8a8ed68edeb6a3a728",
+        "om_x100b63e995c564a4eed15acd8e16690",
+        "om_x100b63e994e930a0ed6c3bb8a1d8cc4",
+        "om_x100b63e995d3e8aced63e9e4d32f16b",
+        "om_x100b63e995d3e8a0ed3d423efac02a0",
+        "om_x100b63e99060c8a0eed4912fafd7740",
+        "om_x100b63e991c91ca8eedc26faded4fc9",
+        "om_x100b63e9acb470a0ed3f94c6c665928",
+        "om_x100b63e9ad77d538eed7fdbee585c46",
+        "om_x100b63e9ad0f48a0ed559d538a17e2c",
+        "om_x100b63e9aba848a4ed50761ee5d12b8",
+        "om_x100b63e9a8f9a8a4ed5990c5b68dc42",
+        "om_x100b63e9a972a0aced4dcaffe2b0033",
+        "om_x100b63e9a6269ca4ed4c869eae01ede",
+        "om_x100b63e9a5aeb934ed591697f5ed3f9",
+        "om_x100b63ea4951ecaceed19a9ef0beb59",
+        "om_x100b63ea46cd2ca0ed4f9ed1ee919fa"
+      ],
+      "lastNewMessageAt": 1791877270670,
+      "threads": {
+        "omt_19a855e0044e5978": {
+          "hostMessageId": "om_x100b63e99c5fa8b4ed4e21d3eb2a72d",
+          "lastActivityMs": 1791877200000
+        },
+        "omt_19a856aa644f5979": {
+          "hostMessageId": "om_x100b63e9a8f9a8a4ed5990c5b68dc42",
+          "lastActivityMs": 1791876720000
+        }
+      }
+    }
+  }
+}
