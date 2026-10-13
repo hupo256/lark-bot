@@ -96,6 +96,7 @@ describe('轮询一轮（IO 全注入）', () => {
     // 旧话题里后来冒出的回复：不在列消息窗口里，靠话题补抓拿到
     const lateReplies = [{ message_id: 'om_a_r2', msg_type: 'text', create_time: String(nowMs + 90_000), sender: { id: 'ou_z', sender_type: 'user' }, content: '补充字段' }]
     let threadCalls = 0
+    let botMember = false
     try {
       const poller = startChatPoller({
         config: {},
@@ -113,6 +114,7 @@ describe('轮询一轮（IO 全注入）', () => {
           },
           sendChatMessage: async (args) => { sent.push(args); return { ok: true } },
           listThreadMessages: async ({ threadId }) => { threadCalls += 1; assert.equal(threadId, 'omt_1'); return { ok: true, messages: threadCalls >= 2 ? lateReplies : [] } },
+          isChatMember: async () => botMember,
         },
       })
       assert.deepEqual(poller.targets, [{ chatId: 'oc_falive', repo: 'falive' }])
@@ -141,6 +143,15 @@ describe('轮询一轮（IO 全注入）', () => {
       await poller.pollOnce(target)
       assert.equal(poller.observe().oc_falive.consecutiveFailures, 0)
       assert.equal(sent.length, 2, '恢复后发一次恢复通知')
+      // 应用机器人进群后：本群停止轮询，不再调列消息接口
+      botMember = true
+      const callsBefore = listCalls
+      await poller.pollOnce(target)
+      assert.equal(listCalls, callsBefore)
+      assert.equal(poller.observe().oc_falive.skippedBotMember, true)
+      botMember = false
+      await poller.pollOnce(target)
+      assert.equal(listCalls, callsBefore + 1)
       assert.ok(listCalls >= 13)
       poller.stop()
     } finally {
