@@ -44,7 +44,8 @@ describe('外部群任务入口：准确优先', () => {
     store.claimById('omt_thread2')
     out = store.resolveIntake({ id: 'omt_thread2', epoch: 0, classification: { decision: 'bug', confidence: 'high', forMe: false, summary: 's', reason: 'r' } })
     assert.equal(out.actionable, false)
-    assert.equal(out.suspected, true)
+    assert.equal(out.suspected, false, '别人的功能（forMe=false）静默忽略，不算疑似')
+    assert.equal(out.task.status, 'ignored')
 
     received(store, { id: 'omt_thread3', threadRootId: 'omt_thread3' })
     store.claimById('omt_thread3')

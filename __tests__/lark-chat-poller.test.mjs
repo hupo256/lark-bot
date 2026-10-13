@@ -130,7 +130,8 @@ describe('轮询一轮（IO 全注入）', () => {
       const flat = flattenThreadReplies(messages[0])
       assert.equal(flat[0].root_id, 'om_a')
       assert.equal(flat[0].thread_id, 'omt_1')
-      assert.equal(normalizeMessage(chatListMessageToEvent(flat[0], { chatId: 'oc_falive' })).threadRootId, 'omt_1')
+      // 话题键用 root_id（首条消息 id）：首条建任务时还没有 thread_id，回复要能对回去
+      assert.equal(normalizeMessage(chatListMessageToEvent(flat[0], { chatId: 'oc_falive' })).threadRootId, 'om_a')
       assert.equal(saved.chats.oc_falive.lastNewMessageAt, nowMs)
       failing = true
       for (let i = 0; i < 10; i += 1) await poller.pollOnce(target)
