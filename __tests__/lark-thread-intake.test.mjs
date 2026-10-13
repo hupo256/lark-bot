@@ -98,6 +98,8 @@ describe('外部群任务入口：准确优先', () => {
     assert.equal(store.mergeIntoTask({ fromId: 'from2', intoId: 'into_r' }).mode, 'rerun_after_done'); assert.equal(store.get('into_r').rerunAfterDone, true)
     mk('into_w', 'waiting_confirmation', { epoch: 1 }); mk('from3', 'received')
     assert.equal(store.mergeIntoTask({ fromId: 'from3', intoId: 'into_w' }).mode, 'resumed'); assert.equal(store.get('into_w').status, 'queued'); assert.equal(store.get('into_w').epoch, 2)
+    mk('into_s', 'waiting_confirmation', { epoch: 1, suspected: true }); mk('from3b', 'received')
+    assert.equal(store.mergeIntoTask({ fromId: 'from3b', intoId: 'into_s' }).mode, 'appended_suspected', '疑似任务不因新消息自动开跑'); assert.equal(store.get('into_s').status, 'waiting_confirmation')
     mk('into_d', 'done', { epoch: 4, result: 'old' }); mk('from4', 'received')
     assert.equal(store.mergeIntoTask({ fromId: 'from4', intoId: 'into_d' }).mode, 'reopened'); assert.equal(store.get('into_d').status, 'queued'); assert.equal(store.get('into_d').epoch, 5); assert.equal(store.get('into_d').threadHistory.length, 1)
     const recent = store.listRecentForChat('oc_x', { excludeId: 'into_q' })
