@@ -13,7 +13,7 @@
 | @aven 自动入队 | **打开**（`taskMentionOpenIds`，经只读意图分类） |
 | 群消息读取权限 | 用户身份 `im` scope 已提交企业管理员审批，待批 |
 | push | **不允许**，与 fameex 一致 |
-| 执行器 | 只读分析 / 分诊 **Opus 4.8 `--effort high`**（分析要全面精确）；实施 **Opus 5.5 `--effort medium`**；意图 / 信息分类 **Sonnet 5.5**；鉴权保持 `local`（2026-10-13 从 Fable 5.1 改） |
+| 执行器 | 意图 / 信息分类 **Opus 4.8**；只读分析 / 分诊 **Opus 5.5 `--effort high`**；实施 **Opus 5.5 `--effort medium`**；鉴权保持 `local`（2026-10-13 定） |
 
 ## 2. 为什么不能直接拉群
 
@@ -31,10 +31,10 @@ Gateway ingest：chatIds → repo profile → project=FALIVE, task.repo=falive
   ▼
 Worker：profile.root 上 git worktree add（基线 feature/phase-3-api）→ lark/falive-<id>
   │  规则 profile=falive（CLAUDE.md 固定前提 + 硬规则 required，add-module / msw-policy / coding-quality 按信号）
-  │  Opus 4.8 high 只读分析（含 ownership 判定）→ Opus 5.5 medium 实施 → biome / 相关测试 / tsc
+  │  Opus 5.5 high 只读分析（含 ownership 判定）→ Opus 5.5 medium 实施 → biome / 相关测试 / tsc
   │  别人负责 → no_change_needed(other_owner) + @ 负责人
   ▼
-结果卡：profile.webhook（自定义机器人）；试运行期无 webhook → 改投 notifyChatId（aven 私聊）
+结果卡：先 bot 身份发（进得了群就有 message_id）→ 发不进再 webhook（自定义机器人）→ 再改投 notifyChatId（aven 私聊）；bot 失败记忆 1 小时
 ```
 
 webhook 发出的卡片没有 `message_id`，不能作为「回复卡片」的锚点；控制通道改用**回复原任务消息**或显式指令 `继续任务 <id>` / `取消任务 <id>` / `结单 <id>`（已有能力）。
@@ -50,8 +50,8 @@ webhook 发出的卡片没有 `message_id`，不能作为「回复卡片」的�
 | `worktreesDir` | 临时 worktree 目录（缺省 `<root>/../.lark-<key>`） | `~/github/.lark-falive` |
 | `chatIds` | 属于该仓的群（优先于群名解析项目号；视同白名单） | 待 im scope 批下来后填 |
 | `taskMentionOpenIds` | 该仓群里 @ 谁会触发只读意图分类（与全局叠加） | aven |
-| `webhook` | `{ file }` 指向 0600 JSON（`webhookUrl` / `secret`）或 inline `{ url, secret }` | 试运行期未配 |
-| `notifyChatId` | 无 webhook 时改投（私聊 open_id 或群） | aven 私聊 |
+| `webhook` | `{ file }` 指向 0600 JSON（`webhookUrl` / `secret`）或 inline `{ url, secret }`；bot 发不进群时的兜底 | `~/.config/fameex-lark/falive-webhook.json` |
+| `notifyChatId` | bot 与 webhook 都不可用时改投（私聊 open_id 或群） | aven 私聊 |
 | `docs` | 注入 prompt 的项目文档（仓库相对） | CLAUDE.md、交付路线图、功能总表、对接状态总览 |
 | `readableDirs` | `--add-dir` 只读放行的目录 | `x9_web_react` |
 | `ruleProfile` | 规则来源表（`fameex` / `falive`） | `falive` |
@@ -60,8 +60,8 @@ webhook 发出的卡片没有 `message_id`，不能作为「回复卡片」的�
 | `ownership` | `{ me, meOpenIds, table }` 归属规则 | me=aven，表=功能总表 |
 | `ownerMap` | 人名 → open_id（结果卡 @ 负责人用） | 待补 |
 | `claudeModel` / `claudeEffort` | 实施阶段模型 | opus-5-5 / medium |
-| `claudeAnalysisModel` / `claudeAnalysisEffort` | 只读分析 / 分诊阶段模型 | opus-4-8 / high |
-| `claudeIntentModel` | 意图 / 信息分类模型 | sonnet-5-5 |
+| `claudeAnalysisModel` / `claudeAnalysisEffort` | 只读分析 / 分诊阶段模型 | opus-5-5 / high |
+| `claudeIntentModel` | 意图 / 信息分类模型 | opus-4-8 |
 | `aiTimeoutMs` | 该仓 AI 硬超时（必须 < `LARK_TASK_LEASE_MS`，launchd wrapper 已设 75min） | 60min |
 
 默认仓 `fameex` 不写也存在，行为与拆仓前一致；`repos.fameex` 只允许覆盖模型 / 预算 / 人员表。
@@ -98,7 +98,7 @@ webhook 发出的卡片没有 `message_id`，不能作为「回复卡片」的�
 ## 8. 试跑与运维
 
 ```sh
-lark-bot restart && lark-bot status           # worker 日志应出现 repo falive: claude model=claude-opus-5-5 … analysis model=claude-opus-4-8 probe=passed
+lark-bot restart && lark-bot status           # worker 日志应出现 repo falive: claude model=claude-opus-5-5 effort=medium probe=passed
 # 手工投一条 falive 任务（group 未接入前的试跑入口）
 curl -s -X POST http://127.0.0.1:3005/lark/tasks \
   -H "x-lark-gateway-secret: $(cat ~/.config/fameex-lark/gateway-secret)" -H 'Content-Type: application/json' \
