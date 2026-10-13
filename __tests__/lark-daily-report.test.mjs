@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { afterEach, describe, it } from 'node:test'
 
 import {
+  buildDailyDocPrompt,
   buildDailyReportPrompt,
   collectDailyFacts,
   diffFeatureTables,
@@ -89,6 +90,11 @@ describe('事实采集与日报生成（IO 注入）', () => {
       assert.match(prompt, /# Falive Web 日报 2026-10-13/)
       assert.match(prompt, /henry：1 个提交/)
       assert.match(prompt, /\[blocked\] 主播公告/)
+      const docPrompt = buildDailyDocPrompt(facts, profile.dailyReport)
+      assert.match(docPrompt, /<callout emoji="📝"/)
+      assert.match(docPrompt, /总体进度：xx\.x%/)
+      assert.match(docPrompt, /以「10-13：」开头/)
+      assert.match(docPrompt, /不再写「四、一句话现状」/)
 
       registerRepoProfiles({})
       const sent = []
