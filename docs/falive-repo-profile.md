@@ -13,7 +13,7 @@
 | @aven 自动入队 | **打开**（`taskMentionOpenIds`，经只读意图分类） |
 | 群消息读取权限 | 用户身份 `im` scope 已提交企业管理员审批，待批 |
 | push | **不允许**，与 fameex 一致 |
-| 执行器 | Claude **Fable 5.1 `--effort medium`**；意图 / 信息分类 **Sonnet 5.5**；鉴权保持 `local` |
+| 执行器 | 只读分析 / 分诊 **Opus 4.8 `--effort high`**（分析要全面精确）；实施 **Opus 5.5 `--effort medium`**；意图 / 信息分类 **Sonnet 5.5**；鉴权保持 `local`（2026-10-13 从 Fable 5.1 改） |
 
 ## 2. 为什么不能直接拉群
 
@@ -31,7 +31,7 @@ Gateway ingest：chatIds → repo profile → project=FALIVE, task.repo=falive
   ▼
 Worker：profile.root 上 git worktree add（基线 feature/phase-3-api）→ lark/falive-<id>
   │  规则 profile=falive（CLAUDE.md 固定前提 + 硬规则 required，add-module / msw-policy / coding-quality 按信号）
-  │  Fable 5.1 medium：只读分析（含 ownership 判定）→ 实施 → biome / 相关测试 / tsc
+  │  Opus 4.8 high 只读分析（含 ownership 判定）→ Opus 5.5 medium 实施 → biome / 相关测试 / tsc
   │  别人负责 → no_change_needed(other_owner) + @ 负责人
   ▼
 结果卡：profile.webhook（自定义机器人）；试运行期无 webhook → 改投 notifyChatId（aven 私聊）
@@ -59,7 +59,9 @@ webhook 发出的卡片没有 `message_id`，不能作为「回复卡片」的�
 | `scopeBudgets` | 行数上限覆盖 | bugfix 200 / qa_feedback 300 / requirement 1200 |
 | `ownership` | `{ me, meOpenIds, table }` 归属规则 | me=aven，表=功能总表 |
 | `ownerMap` | 人名 → open_id（结果卡 @ 负责人用） | 待补 |
-| `claudeModel` / `claudeEffort` / `claudeIntentModel` | 该仓的模型 | fable-5-1 / medium / sonnet-5-5 |
+| `claudeModel` / `claudeEffort` | 实施阶段模型 | opus-5-5 / medium |
+| `claudeAnalysisModel` / `claudeAnalysisEffort` | 只读分析 / 分诊阶段模型 | opus-4-8 / high |
+| `claudeIntentModel` | 意图 / 信息分类模型 | sonnet-5-5 |
 | `aiTimeoutMs` | 该仓 AI 硬超时（必须 < `LARK_TASK_LEASE_MS`，launchd wrapper 已设 75min） | 60min |
 
 默认仓 `fameex` 不写也存在，行为与拆仓前一致；`repos.fameex` 只允许覆盖模型 / 预算 / 人员表。
@@ -96,7 +98,7 @@ webhook 发出的卡片没有 `message_id`，不能作为「回复卡片」的�
 ## 8. 试跑与运维
 
 ```sh
-lark-bot restart && lark-bot status           # worker 日志应出现 repo falive: claude model=claude-fable-5-1 probe=passed
+lark-bot restart && lark-bot status           # worker 日志应出现 repo falive: claude model=claude-opus-5-5 … analysis model=claude-opus-4-8 probe=passed
 # 手工投一条 falive 任务（group 未接入前的试跑入口）
 curl -s -X POST http://127.0.0.1:3005/lark/tasks \
   -H "x-lark-gateway-secret: $(cat ~/.config/fameex-lark/gateway-secret)" -H 'Content-Type: application/json' \

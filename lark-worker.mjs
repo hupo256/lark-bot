@@ -91,6 +91,16 @@ export async function runLarkWorker({
   for (const profile of listRepoProfiles().filter((item) => !item.isDefault && item.claudeModel)) {
     repoReadiness[profile.key] = preflightAiExecutor('claude', { localConfig, repoProfile: profile, probeModel: true })
     console.log(`[lark-worker] repo ${profile.key}: claude model=${repoReadiness[profile.key].model} effort=${repoReadiness[profile.key].reasoningEffort} probe=${repoReadiness[profile.key].modelProbe}`)
+    // 分析阶段若用了另一个模型，也真实探一次（账号没该模型权限只有真调才暴露）。
+    if (profile.claudeAnalysisModel && profile.claudeAnalysisModel !== profile.claudeModel) {
+      const analysisProbe = preflightAiExecutor('claude', {
+        localConfig,
+        repoProfile: { ...profile, claudeModel: profile.claudeAnalysisModel, claudeEffort: profile.claudeAnalysisEffort || profile.claudeEffort },
+        probeModel: true,
+      })
+      repoReadiness[profile.key].analysis = { model: analysisProbe.model, reasoningEffort: analysisProbe.reasoningEffort, modelProbe: analysisProbe.modelProbe }
+      console.log(`[lark-worker] repo ${profile.key}: analysis model=${analysisProbe.model} effort=${analysisProbe.reasoningEffort} probe=${analysisProbe.modelProbe}`)
+    }
   }
   readiness.repos = repoReadiness
   console.log(`[lark-worker] code=${runtimeVersion.codeHash} startedAt=${runtimeVersion.startedAt}`)
