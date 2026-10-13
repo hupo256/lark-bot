@@ -112,7 +112,7 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   for (const profile of listRepoProfiles().filter((item) => !item.isDefault && item.chatNames.length)) {
     const resolved = await searchChatIdsByName(profile.chatNames)
     if (resolved.size) {
-      addRepoChatIds(profile.key, [...resolved.values()])
+      addRepoChatIds(profile.key, [...resolved.values()], Object.fromEntries([...resolved].map(([name, id]) => [id, name])))
       console.log(`[lark-gateway] repo ${profile.key} 群名解析：${[...resolved].map(([name, id]) => `${name}=${id}`).join('，')}`)
     }
     const missing = profile.chatNames.filter((name) => !resolved.has(name))
