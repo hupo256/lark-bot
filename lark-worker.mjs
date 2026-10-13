@@ -21,7 +21,7 @@ import { startLogRotation } from './lib/lark-log-rotate.mjs'
 import { createRuntimeVersion, versionWarnings, writeWorkerHeartbeat } from './lib/lark-runtime-version.mjs'
 import { larkRuntimeDir } from './lib/lark-repo.mjs'
 import { defaultTaskLeaseMs } from './lib/lark-constants.mjs'
-import { listRepoProfiles, registerRepoProfiles } from './lib/lark-repo-profile.mjs'
+import { listRepoProfiles, registerRepoProfiles, repoProfileForTask } from './lib/lark-repo-profile.mjs'
 
 function printHelp() {
   console.log(`usage: lark-worker.mjs [--once] [--preflight] [--help]
@@ -177,8 +177,16 @@ export async function runLarkWorker({
       let pickedCtx = null
       for (const candidate of candidates) {
         if (skipThisRound.has(candidate.id)) continue
+        // 分类去抖：还在安静期的外部群任务先不领。
+        if (candidate.status === 'received' && candidate.intake?.notBefore && Date.now() < Date.parse(candidate.intake.notBefore)) continue
         const ctx = resolveWorkContext(workerConfig, candidate)
         if (inFlight.has(ctx.cwd)) continue
+        // 仓库级并发上限（falive 串行：不要同时开好几个分支互相打架）。
+        const profile = repoProfileForTask(candidate)
+        if (!profile.isDefault && !(candidate.status === 'received' && candidate.intake?.required)) {
+          const runningForRepo = [...inFlight.values()].filter((item) => item.repo === profile.key).length
+          if (runningForRepo >= profile.concurrency) continue
+        }
         picked = candidate
         pickedCtx = ctx
         break
@@ -211,7 +219,7 @@ export async function runLarkWorker({
       const key = pickedCtx.cwd
       const running = runTask(claimed, pickedCtx, { signal: shutdownController.signal })
         .finally(() => inFlight.delete(key))
-      inFlight.set(key, { promise: running, taskId: claimed.id })
+      inFlight.set(key, { promise: running, taskId: claimed.id, repo: repoProfileForTask(claimed).key })
     }
 
     if (shuttingDown) return

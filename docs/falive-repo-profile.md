@@ -60,7 +60,8 @@ webhook 发出的卡片没有 `message_id`，不能作为「回复卡片」的�
 | `ownership` | `{ me, meOpenIds, table }` 归属规则 | me=aven，表=功能总表 |
 | `ownerMap` | 人名 → open_id（结果卡 @ 负责人用） | 待补 |
 | `docIntakeDir` | 群里别人发来的对接文档落到仓库的目录；配了即启用文档消息自动进分类 | `docs/delivery/待对接` |
-| `contextTrigger` | 外部群按上下文判任务：别人发的实质消息都进 Opus 4.8 只读分类（缺省开） | 开 |
+| `contextTrigger` / `intakeDebounceMs` | 外部群按上下文判任务：别人发的实质消息都进 Opus 4.8 只读分类（缺省开）；收到后等安静期（缺省 90s）再一次性分类，同话题连发合并 | 开 / 90s |
+| `concurrency` | 该仓同时最多跑几条任务（缺省 1 = 串行，不开多个分支互相打架） | 1 |
 | `quietQueuedCards` | 外部群排队卡改发 notifyChatId，群里只出结果卡（缺省开） | 开 |
 | `commitPrefix` | bot 提交标题前缀，满足仓库 commit-msg 钩子 | `feat(bot)` |
 | `poll` / `dailyReport` | 轮询频率 / 日报（见 §6、§7） | 见下 |
@@ -97,6 +98,14 @@ webhook 发出的卡片没有 `message_id`，不能作为「回复卡片」的�
 gateway 内置：对每个配了 `chatIds` 的非默认仓，用用户身份 `lark-cli --as user im +chat-messages-list --chat-id <oc> --start <游标-2min>` 拉新消息，message_id 去重后转成与长连接同形的事件喂 `ingestLarkEvent`。首次启动游标从「现在」起，不回灌历史；只喂 `sender_type=user` 的消息（自家 webhook 卡 / 系统消息 / 已撤回一律丢）。频率（`profile.poll`，aven 定）：08:00–19:00 活跃（30 分钟内有新消息）30s、空闲 120s；19:00–08:00 15min；出错按 2 倍退避到 15min，连续失败 10 次给负责人发一次告警、恢复再发一次。状态落 `runtime/lark-chat-poller-state.json`；`/lark/health` 的 `chatPoller` 字段可观测。
 
 **对接文档自动接入**：外部群里直接发 `.md / .pdf / .docx …` 文件（无需 @）→ 文件消息进只读意图分类（`docAttachmentsTrigger`）→ 判为需求即入队为 `api` 任务，附件用用户身份下载到 `runtime/lark-attachments/FALIVE/<messageId>/`；实施 prompt 要求先把文件原样拷到 `profile.docIntakeDir`（falive：`docs/delivery/待对接/`），再按归属接 schema / queries / mapper，缺字段写进 summary「待后端支持」。
+
+### 6.1 入口规则（aven 2026-10-13 定：准确分类、同话题一个任务、少开 worktree、确实是 aven 的才建任务）
+
+- **一个话题一条任务**：外部群里话题内的消息用话题 id 做任务 id；话题里再来消息，任务未了结就并入（在跑的跑完再带补充跑一轮），已了结就**重开同一任务**（同一分支 / worktree）重新分类。非话题消息才按消息 id 建任务。
+- **分类去抖**：收到后等 `intakeDebounceMs`（90s）没有新消息再分类，连发的几条合成一次分类，带完整话题上下文（被引用消息 + 话题其它回复 + 附件）给 Opus 4.8。
+- **门槛**：分类输出 `decision` / `confidence` / `forMe`。只有 **high 且 forMe≠false** 才自动开跑；判为任务但 medium 或 forMe 不确定 → **疑似**：挂待确认、不催办，只私发 aven 一张卡（`继续任务 <id> 做` 开跑 / `取消任务 <id>` 关掉）；ignore 静默。被代理人自己发的消息不分类。
+- **串行**：`concurrency=1`，一次只跑一条 falive 任务。
+- 试运行期所有卡片只发 aven 私聊（`cardsToNotifyOnly`）。
 
 ## 7. 日报（已实现，`lib/lark-daily-report.mjs`）
 

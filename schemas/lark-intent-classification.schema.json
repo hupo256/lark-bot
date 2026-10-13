@@ -35,6 +35,10 @@
     "reason": {
       "type": "string",
       "minLength": 1
+    },
+    "forMe": {
+      "type": "boolean",
+      "description": "这件事是否需要本 bot 代理的那个人（提示里的负责人）动前端代码或复核前端；不是他的事填 false"
     }
   }
 }
