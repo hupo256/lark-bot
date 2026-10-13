@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { afterEach, describe, it } from 'node:test'
 
 import {
+  buildGroupCard,
   buildRepoGroupText,
   buildRepoNote,
   buildRepoStartNote,
@@ -13,6 +14,7 @@ import {
   humanizeResult,
   isHumanDeliveryTask,
 } from '../lib/lark-repo-delivery.mjs'
+import { findCompletionContradiction } from '../lib/lark-completion-rule.mjs'
 import { parkedReminderRound, remindParkedTasks } from '../lib/lark-parked-reminder.mjs'
 import { addRepoChatIds, registerRepoProfiles, repoProfile, resetRepoProfiles } from '../lib/lark-repo-profile.mjs'
 
@@ -34,7 +36,7 @@ describe('仓库任务的人话出口', () => {
     register()
     const profile = repoProfile('falive')
     const task = { id: 't1', chatId: 'oc_falive', repo: 'falive', summary: 'upcoming 接好了', branch: 'lark/falive-1', changedFiles: ['a', 'b', 'c'], followUpDoc: 'docs/delivery/pending/x-待确认.md' }
-    const done = buildRepoNote({ task, status: 'done', profile, result: '已完成，待发布。\n1. upcoming 的昵称和预约状态按 A1–A7 接好了，pre 可以复测。', docUrl: 'https://doc/1', groupOutcome: { ok: false, reason: 'falive后端go天团 还没配 webhook', text: '<at user_id="ou_ache">Ache</at> 接完了。\n— 由 aven 的助手整理' }, mentions: [{ owner: 'Ache', openId: 'ou_ache', items: ['A9'] }] })
+    const done = buildRepoNote({ task, status: 'done', profile, result: '已完成，待发布。\n1. upcoming 的昵称和预约状态按 A1–A7 接好了，pre 可以复测。', docUrl: 'https://doc/1', groupOutcome: { ok: false, reason: 'falive后端go天团 还没配 webhook', text: '@Ache 接完了。' }, mentions: [{ owner: 'Ache', openId: 'ou_ache', items: ['A9'] }] })
     assert.equal(done, '✅ upcoming 的昵称和预约状态按 A1–A7 接好了，pre 可以复测。\n分支 lark/falive-1 · 改了 3 个文件\n要 Ache 跟进：https://doc/1\n群里没发（falive后端go天团 还没配 webhook），要回可以转发这段：\n@Ache 接完了。')
     const blocked = buildRepoNote({ task, status: 'blocked', profile, result: '已阻塞，需外部材料 / 权限后才能继续。\n1. 录播详情接口没有。\n2. 待补充：R2 详情接口；pre 灌数据' })
     assert.equal(blocked, '⏸ 停下来了（falive后端go天团）：录播详情接口没有。\n要：R2 详情接口；pre 灌数据\n回复这条消息把材料补上就会继续。')
@@ -45,9 +47,14 @@ describe('仓库任务的人话出口', () => {
   })
 
   it('群里那句：done 一句 ✅；有待跟进 → @ + 链接 + 每人要点；提问代答只发答案', () => {
-    assert.equal(buildRepoGroupText({ task: { groupReply: '接好了，pre 可以复测。' } }), '✅ 接好了，pre 可以复测\n— 由 aven 的助手整理')
-    assert.equal(buildRepoGroupText({ task: { groupReply: 'A2 已接完' }, mentions: [{ owner: 'Ache', openId: 'ou_ache', items: ['A9', 'A10'] }], docUrl: 'https://doc/1' }), '<at user_id="ou_ache">Ache</at> A2 已接完。待确认的几点在这里：https://doc/1\nAche：A9；A10\n— 由 aven 的助手整理')
-    assert.equal(buildRepoGroupText({ task: { commandType: 'status', groupReply: '前端只用了 info.start_the_transaction' } }), '前端只用了 info.start_the_transaction\n— 由 aven 的助手整理')
+    assert.equal(buildRepoGroupText({ task: { groupReply: '接好了，pre 可以复测。' } }), '✅ 接好了，pre 可以复测。')
+    const mentions = [{ owner: 'Ache', openId: 'ou_ache', items: ['A9', 'A10'] }]
+    const body = buildRepoGroupText({ task: { groupReply: 'A2 已接完。' }, mentions, docUrl: 'https://doc/1' })
+    assert.equal(body, '@Ache A2 已接完。\n待确认的几点在这里：https://doc/1\n- Ache：A9；A10')
+    const card = buildGroupCard({ body, mentions })
+    assert.equal(card.elements[0].content, '<at id=ou_ache></at> A2 已接完。\n待确认的几点在这里：https://doc/1\n- Ache：A9；A10')
+    assert.deepEqual(card.elements[1], { tag: 'note', elements: [{ tag: 'plain_text', content: '由 aven 的助手整理' }] }, '署名是灰色 note')
+    assert.equal(buildRepoGroupText({ task: { commandType: 'status', groupReply: '前端只用了 info.start_the_transaction' } }), '前端只用了 info.start_the_transaction')
   })
 
   it('deliverRepoOutcome：有 webhook 发群 + 私聊；没 webhook 只私聊并附要发的话；非仓库任务跳过', async () => {
@@ -66,9 +73,9 @@ describe('仓库任务的人话出口', () => {
     assert.equal(out.ok, true)
     assert.equal(out.messageId, 'om_note')
     assert.equal(hooks.length, 1)
-    assert.match(hooks[0].text, /<at user_id="ou_encone">Encone<\/at> 接完了。待确认的几点在这里：https:\/\/doc\/2/)
+    assert.match(hooks[0].card.elements[0].content, /^<at id=ou_encone><\/at> 接完了\n待确认的几点在这里：https:\/\/doc\/2/)
     assert.equal(sent[0].chatId, 'ou_aven')
-    assert.match(sent[0].markdown, /群里已回：「Encone 接完了。待确认的几点在这里：https:\/\/doc\/2」/)
+    assert.match(sent[0].markdown, /群里已回：「@Encone 接完了」/)
     const noHook = await deliverRepoOutcome({ task: { ...task, followUpDoc: null, followUps: null }, status: 'done', result: 'x', deps: { ...deps, webhookFor: () => null } })
     assert.match(noHook.note, /群里没发（falive后端go天团 还没配 webhook），要回可以转发这段：\n✅ 接完了/)
     assert.equal(hooks.length, 1)
@@ -98,10 +105,28 @@ describe('直接 @ 负责人先回「收到」', () => {
     const hooks = []
     const ok = await deliverRepoAck({ task: { id: 't', chatId: 'oc_t', repo: 'falive' }, deps: { webhookFor: () => ({ url: 'u' }), sendWebhookMessage: async (a) => { hooks.push(a); return { ok: true } } } })
     assert.equal(ok.ok, true)
-    assert.match(hooks[0].text, /^收到，我查一下/)
+    assert.equal(hooks[0].card.elements[0].content, '收到，我查一下，稍后回复。')
     assert.equal((await deliverRepoAck({ task: { id: 't', chatId: 'oc_t', repo: 'falive' }, deps: { webhookFor: () => null } })).skipped, true)
     const notes = []
     await deliverRepoIgnoredAfterAck({ task: { id: 't', chatId: 'oc_t', repo: 'falive', summary: '直播详情页还差什么接口', intake: { classification: { reason: '问进度' } } }, deps: { sendMarkdown: async (a) => { notes.push(a); return { ok: true } } } })
     assert.match(notes[0].markdown, /判断不用我处理.*\n理由：问进度\n判错了就回「继续任务 t 做」/)
+  })
+})
+
+describe('「完成」口径的机械检查', () => {
+  afterEach(() => resetRepoProfiles())
+  it('总括完成词 + 未完成信号 = 自相矛盾，不发群', async () => {
+    assert.ok(findCompletionContradiction('直播详情页我这边的接口都已对完（排行榜、预告）。还差后端在 pre 补：非主播 getRoomInfo 报 500。'))
+    assert.equal(findCompletionContradiction('直播详情页还有 5 项没通：\n- getRoomInfo 非主播报 500'), null)
+    assert.equal(findCompletionContradiction('预告、礼物、推荐都通了，pre 已实测。'), null)
+    register()
+    const hooks = []
+    const out = await deliverRepoOutcome({
+      task: { id: 'q', chatId: 'oc_falive', repo: 'falive', commandType: 'status', groupReply: '接口都已对完，还差举报分类为空。' },
+      status: 'done', result: 'x',
+      deps: { sendMarkdown: async () => ({ ok: true }), sendWebhookMessage: async (a) => { hooks.push(a); return { ok: true } }, webhookFor: () => ({ url: 'u' }) },
+    })
+    assert.equal(hooks.length, 0)
+    assert.match(out.note, /自相矛盾，我没发/)
   })
 })
