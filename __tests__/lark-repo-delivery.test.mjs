@@ -148,3 +148,14 @@ describe('「完成」口径的机械检查', () => {
     assert.match(out.note, /前后对不上，我没发/)
   })
 })
+
+describe('pre 结论必须实测', () => {
+  it('说了 pre 状态但没有 preChecks → 不发群；有实测记录 → 放行；没配 verify 不查', async () => {
+    const { findGroupReplyContradiction } = await import('../lib/lark-completion-rule.mjs')
+    const verify = { probeCommand: 'node scripts/pre-probe.mjs', env: 'pre' }
+    const text = '直播详情页：通了 1 项，没通 1 项\n- ⚠️ 留言板：pre 举报分类为空，不显示'
+    assert.match(findGroupReplyContradiction(text, { verify, preChecks: null }), /没在 pre 上实测过/)
+    assert.equal(findGroupReplyContradiction(text, { verify, preChecks: [{ endpoint: '/api/report/classifyList', outcome: 'code 0，0 条' }] }), null)
+    assert.equal(findGroupReplyContradiction(text), null)
+  })
+})

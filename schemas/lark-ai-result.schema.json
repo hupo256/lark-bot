@@ -202,6 +202,30 @@
         }
       },
       "description": "需要谁跟进什么；没有填 null"
+    },
+    "preChecks": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "description": "本次实测过的环境接口（仓库配了 verify 时必填）：每条一个接口与实测结果",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "endpoint",
+          "outcome"
+        ],
+        "properties": {
+          "endpoint": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string",
+            "description": "实测结果一句话：code、条数、关键字段，或「连不上」"
+          }
+        }
+      }
     }
   }
 }
