@@ -340,6 +340,10 @@ case "${1:-}" in
   start)    start ;;
   stop)     stop ;;
   restart)  restart ;;
+  resume)
+    [ -n "${2:-}" ] && [ -n "${3:-}" ] || { echo "usage: lark-bot resume <taskId> \"<补充说明>\""; exit 1; }
+    curl -s -X POST "$TASKS/$2/resume" -H "x-lark-gateway-secret: $(cat "$SECRET_FILE")" -H 'Content-Type: application/json' \
+      -d "$(node -e 'process.stdout.write(JSON.stringify({ supplementText: process.argv[1], operator: "cli" }))' "$3")"; echo ;;
   status)   status ;;
   logs)     tail -n 40 -f "$LOGDIR"/gateway.log "$LOGDIR"/worker.log ;;
   poll-on)  poll_on ;;
@@ -349,5 +353,5 @@ case "${1:-}" in
   receipt-retry) receipt_retry "${2:-}" ;;
   clean)    clean "${2:-}" "${3:-}" ;;
   claude-auth) claude_auth "${2:-}" ;;
-  *) echo "usage: lark-bot {start|stop|restart|status|logs|poll-on|poll-off|failed|retry <id>|receipt-retry <id>|clean [hours]|clean --failed [hours]|claude-auth [local|proxy]}"; exit 1 ;;
+  *) echo "usage: lark-bot {start|stop|restart|status|logs|poll-on|poll-off|failed|retry <id>|resume <id> \"<补充>\"|receipt-retry <id>|clean [hours]|clean --failed [hours]|claude-auth [local|proxy]}"; exit 1 ;;
 esac
