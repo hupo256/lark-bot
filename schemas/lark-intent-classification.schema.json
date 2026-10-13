@@ -16,9 +16,10 @@
         "bug",
         "requirement",
         "api_reply",
+        "question",
         "ignore"
       ],
-      "description": "bug=缺陷反馈；requirement=交办的新增/调整；api_reply=对方（后端/运维/产品）对我方对接问题的答复或接口/字段/环境变化，需要据此更新前端或复核；ignore=闲聊/知会/催办"
+      "description": "bug=缺陷反馈；requirement=交办的新增/调整；api_reply=对方（后端/运维/产品）对我方对接问题的答复或接口/字段/环境变化，需要据此更新前端或复核；ignore=闲聊/知会/催办；question=群里有人向被代理人提问（接口怎么调、前端现在怎么处理、某字段用不用、某功能做没做），靠仓库代码 / 文档能回答"
     },
     "confidence": {
       "type": "string",

@@ -54,6 +54,12 @@ describe('外部群任务入口：准确优先', () => {
     assert.equal(out.task.status, 'queued')
     assert.equal(out.task.commandType, 'api')
 
+    received(store, { id: 'omt_thread5', threadRootId: 'omt_thread5' })
+    store.claimById('omt_thread5')
+    out = store.resolveIntake({ id: 'omt_thread5', epoch: 0, classification: { decision: 'question', confidence: 'high', forMe: true, summary: 's', reason: 'r' } })
+    assert.equal(out.actionable, true, '群里向负责人提的问题：只读代答')
+    assert.equal(out.task.commandType, 'status')
+
     received(store, { id: 'omt_thread4', threadRootId: 'omt_thread4' })
     store.claimById('omt_thread4')
     out = store.resolveIntake({ id: 'omt_thread4', epoch: 0, classification: { decision: 'ignore', confidence: 'high', forMe: false, summary: 's', reason: 'r' } })
