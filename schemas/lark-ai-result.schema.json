@@ -3,34 +3,99 @@
   "title": "Lark AI task result",
   "type": "object",
   "additionalProperties": false,
-  "required": ["status", "taskState", "rootCauseLayer", "evidence", "summary", "checks", "changedFiles", "warnings", "blockers", "owner", "failureKind", "nextStep"],
+  "required": [
+    "status",
+    "taskState",
+    "rootCauseLayer",
+    "evidence",
+    "summary",
+    "checks",
+    "changedFiles",
+    "warnings",
+    "blockers",
+    "owner",
+    "failureKind",
+    "nextStep"
+  ],
   "properties": {
     "status": {
       "type": "string",
-      "enum": ["done", "done_with_warnings", "no_change_needed", "blocked", "failed", "waiting_confirmation"],
+      "enum": [
+        "done",
+        "done_with_warnings",
+        "no_change_needed",
+        "blocked",
+        "failed",
+        "waiting_confirmation"
+      ],
       "description": "no_change_needed：经核对确认本仓（前端）无对应改动，需求属后台 API / 别的仓 / 别的职责；changedFiles 填 []，summary 说明为何本仓无需改动，owner 尽量指向承接方，nextStep 给「转 X 处理」"
     },
     "taskState": {
-      "type": ["string", "null"],
-      "enum": ["diagnosing", "root_cause_confirmed", "awaiting_owner_fix", "fix_verifying", "completed", null],
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "diagnosing",
+        "root_cause_confirmed",
+        "awaiting_owner_fix",
+        "fix_verifying",
+        "completed",
+        null
+      ],
       "description": "诊断状态机（防线1）：diagnosing 待诊断 → root_cause_confirmed 根因已确认 → awaiting_owner_fix 待对应端修复 → fix_verifying 修复验证中 → completed 已完成。无 root_cause_confirmed 不得改业务代码。缺陷类任务必填；非缺陷/纯需求任务可填 null"
     },
     "rootCauseLayer": {
-      "type": ["string", "null"],
-      "enum": ["frontend-logic", "frontend-data", "backend-data", "backend-contract", "product-spec", "cross-boundary", null],
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "frontend-logic",
+        "frontend-data",
+        "backend-data",
+        "backend-contract",
+        "product-spec",
+        "cross-boundary",
+        null
+      ],
       "description": "根因所在层（防线2）：frontend-logic 前端逻辑 / frontend-data 前端数据层(mapper) / backend-data 后端数据错 / backend-contract 后端契约缺口 / product-spec 产品口径 / cross-boundary 跨层。判定：API 已错前端仅展示→backend-*；API 对 mapper 错→frontend-data；数据层对 UI 组合错→frontend-logic。取不到证据→填 null 并置 taskState=diagnosing，禁止猜测修复"
     },
     "evidence": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": false,
       "description": "高风险字段（金额/状态/权限）或 rootCauseLayer=backend-* 时的结构化证据链（防线2）；沿 API→schema/mapper→state→UI 定位首个出错位置",
       "properties": {
-        "userSeenValue": { "type": "string", "minLength": 1, "description": "用户实际看到的错误值" },
-        "apiActualValue": { "type": "string", "minLength": 1, "description": "API 实际返回值（Network/日志证据）" },
-        "contractExpectedValue": { "type": "string", "minLength": 1, "description": "契约/产品口径应有的值" },
-        "dataFlowFirstErrorLocation": { "type": "string", "minLength": 1, "description": "数据链上首个出错位置（如「API 响应 availableTrialFee 字段」）" }
+        "userSeenValue": {
+          "type": "string",
+          "minLength": 1,
+          "description": "用户实际看到的错误值"
+        },
+        "apiActualValue": {
+          "type": "string",
+          "minLength": 1,
+          "description": "API 实际返回值（Network/日志证据）"
+        },
+        "contractExpectedValue": {
+          "type": "string",
+          "minLength": 1,
+          "description": "契约/产品口径应有的值"
+        },
+        "dataFlowFirstErrorLocation": {
+          "type": "string",
+          "minLength": 1,
+          "description": "数据链上首个出错位置（如「API 响应 availableTrialFee 字段」）"
+        }
       },
-      "required": ["userSeenValue", "apiActualValue", "contractExpectedValue", "dataFlowFirstErrorLocation"]
+      "required": [
+        "userSeenValue",
+        "apiActualValue",
+        "contractExpectedValue",
+        "dataFlowFirstErrorLocation"
+      ]
     },
     "summary": {
       "type": "string",
@@ -38,34 +103,105 @@
     },
     "checks": {
       "type": "array",
-      "items": { "type": "string", "minLength": 1 }
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
     },
     "changedFiles": {
       "type": "array",
-      "items": { "type": "string", "minLength": 1 }
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
     },
     "warnings": {
       "type": "array",
-      "items": { "type": "string", "minLength": 1 },
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
       "description": "实现和风险分级必需检查已完成，但额外视觉验收、无关历史门禁等非阻塞验证未完成时逐条列出；仅 done_with_warnings 使用"
     },
     "blockers": {
-      "type": ["array", "null"],
-      "items": { "type": "string", "minLength": 1 },
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
       "description": "status=blocked/waiting_confirmation 时逐条列出缺什么 / 卡在哪个环节 / 需要谁补；其它状态填 null"
     },
     "owner": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "可推断到的责任人或角色（如 产品 / QA / 设计），用于回群 @ 提示；推断不到填 null"
     },
     "failureKind": {
-      "type": ["string", "null"],
-      "enum": ["tool", "env", "permission", "requirement", null],
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "tool",
+        "env",
+        "permission",
+        "requirement",
+        null
+      ],
       "description": "status=failed 时的失败归因：tool 工具失败 / env 环境失败 / permission 权限失败 / requirement 需求不清；非 failed 填 null"
     },
     "nextStep": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "status=failed/blocked/waiting_confirmation 时给人的下一步建议（一句话，人能照做）；done/done_with_warnings 填 null"
+    },
+    "groupReply": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "给项目群看的一句话（≤ 60 字，人话，不带路径 / sha / 内部状态）：做成了什么、对方现在可以做什么；没有可说的填 null"
+    },
+    "followUpDoc": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "还需要对方（后端 / 运维 / 产品 / 其他前端）跟进时，落盘的待确认清单 markdown 的仓库相对路径；没有待跟进项填 null"
+    },
+    "followUps": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "owner",
+          "items"
+        ],
+        "properties": {
+          "owner": {
+            "type": "string",
+            "description": "负责人名字（群里显示名，如 Ache / Encone / Eddie）或角色（live 后端 / 运维 / 产品）"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "description": "需要谁跟进什么；没有填 null"
     }
   }
 }
