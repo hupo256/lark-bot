@@ -37,6 +37,7 @@ import { createRequestHandler } from './lib/lark-routes.mjs'
 import { createRuntimeVersion } from './lib/lark-runtime-version.mjs'
 import { GATEWAY_HOST, defaultGatewayPort, defaultTaskLeaseMs } from './lib/lark-constants.mjs'
 import { listRepoProfiles, registerRepoProfiles } from './lib/lark-repo-profile.mjs'
+import { startChatPoller } from './lib/lark-chat-poller.mjs'
 
 // 任务领取租约：worker 领走后置 running；超过此时长仍 running 视为孤儿，下次 claim 时自动重入队。
 // 必须 > worker 的 AI 执行超时（默认 30min），避免误回收正在跑的长任务。
@@ -105,7 +106,10 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
       }),
   })
 
-  const server = createServer(createRequestHandler({ config, store, consumer, port, runtimeVersion }))
+  // 外部群（仓库 profile 配了 chatIds）：用户身份轮询拉消息喂同一条 ingest 链路。
+  const chatPoller = startChatPoller({ config, store, ingest: ingestLarkEvent })
+
+  const server = createServer(createRequestHandler({ config, store, consumer, port, runtimeVersion, chatPoller }))
   server.listen(port, GATEWAY_HOST, () => {
     console.log(`[lark-gateway] listening on http://${GATEWAY_HOST}:${port} for ${config.project}`)
     console.log(`[lark-gateway] whitelist chats=${config.allowedChatIds === 'auto' ? 'auto(bot 所在群)' : ((config.allowedChatIds || []).join(',') || '(none)')} consume=im.message.receive_v1`)
@@ -185,6 +189,7 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
     clearInterval(parkedTimer)
     if (logTimer) clearInterval(logTimer)
     consumer.stop()
+    chatPoller.stop()
     server.close()
     process.exit(0)
   }
