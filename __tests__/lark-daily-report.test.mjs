@@ -67,19 +67,20 @@ describe('事实采集与日报生成（IO 注入）', () => {
         dailyReport: { at: '19:00', othersRef: 'origin/pre', featureTable: 'table.md', roadmap: 'README.md', people: { aven: ['aven.tong'], henry: ['henry'], eric: ['eric'] }, fetch: false },
       })
       const git = (root, args) => {
-        if (args[0] === 'log' && args[1] === 'feature/phase-3-api') return { ok: true, stdout: 'a1|aven|aven@x|feat: 搜索\n' }
-        if (args[0] === 'log') return { ok: true, stdout: 'b2|henry|h@x|feat: 群组\nm3|aven|aven@x|Merge branch x into pre\n' }
-        if (args[0] === 'status') return { ok: true, stdout: ' M a.ts\n' }
+        if (args[0] === 'log') return { ok: true, stdout: 'b2|henry|h@x|feat: 群组\nm3|aven|aven@x|Merge branch x into pre\na1|aven|aven@x|feat: 搜索\n' }
+        if (args[0] === 'rev-parse') return { ok: true, stdout: '2a074a7\n' }
         return { ok: true, stdout: '' }
       }
       const files = { [join(dir, 'table.md')]: TABLE, [join(dir, 'README.md')]: '# x\n\n## 一、分档\n\n| L1 | … | 卡运维 O11 | 运维 |\n\n## 三、对接文档\n' }
       const store = { list: () => [{ id: 't1', repo: 'falive', status: 'blocked', summary: '主播公告', result: '已阻塞。\n1. 字段确认不了', updatedAt: '2026-10-13T05:00:00.000Z' }] }
       const now = new Date(2026, 9, 13, 19, 0, 0)
-      const facts = collectDailyFacts({ profile, store, now, git, readFile: (path) => files[path] ?? '', snapshotDir: join(dir, 'snap') })
+      const checkout = { dir, note: '' }
+      const facts = collectDailyFacts({ profile, store, now, git, readFile: (path) => files[path] ?? '', snapshotDir: join(dir, 'snap'), checkout })
       assert.equal(facts.date, '2026-10-13')
-      assert.equal(facts.mine.commits.length, 1)
-      assert.equal(facts.mine.uncommittedFiles, 1)
+      assert.equal(facts.reviewHead, '2a074a7')
       assert.deepEqual(Object.keys(facts.others), ['henry', 'aven'])
+      assert.equal(facts.others.aven.commits.length, 1)
+      assert.equal(facts.others.aven.merges, 1)
       assert.equal(facts.table.summary.total, 3)
       assert.equal(facts.botTasks.length, 1)
       assert.match(facts.roadmapSection, /卡运维 O11/)
@@ -109,7 +110,7 @@ describe('事实采集与日报生成（IO 注入）', () => {
       assert.match(sent[0].markdown, /日报 2026-10-13/)
       assert.ok(outcome.reportPath.endsWith('/lark-daily-report/falive/FaliveWeb日报-2026-10-13.md'))
       // 第二次采集：快照已落盘，diff 应能比出状态变化
-      const facts2 = collectDailyFacts({ profile, store, now, git, readFile: (path) => (path.endsWith('table.md') ? TABLE.replace('| 🟠 |', '| ✅ |') : files[path] ?? ''), snapshotDir: join(dir, 'lark-daily-report', 'falive') })
+      const facts2 = collectDailyFacts({ profile, store, now, git, readFile: (path) => (path.endsWith('table.md') ? TABLE.replace('| 🟠 |', '| ✅ |') : files[path] ?? ''), snapshotDir: join(dir, 'lark-daily-report', 'falive'), checkout })
       assert.deepEqual(facts2.table.changes, [{ no: 1, feature: '用户资料', owner: 'henry', from: '🟠', to: '✅' }])
     } finally {
       rmSync(dir, { recursive: true, force: true })
