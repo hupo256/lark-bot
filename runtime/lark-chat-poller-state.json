@@ -1,9 +1,11 @@
 {
   "chats": {
     "oc_90ad8cab0e80bd923e922b1d2b268ebb": {
-      "cursorMs": 1791889061104,
-      "seen": [],
-      "lastNewMessageAt": 0,
+      "cursorMs": 1791898920000,
+      "seen": [
+        "om_x100b63d71d82d4a4ff788f380649e95"
+      ],
+      "lastNewMessageAt": 1791898976123,
       "threads": {}
     },
     "oc_c2a63ac7c217235e14407ed1bba69d06": {

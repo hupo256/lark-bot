@@ -85,7 +85,7 @@ describe('事实采集与日报生成（IO 注入）', () => {
       assert.match(facts.roadmapSection, /卡运维 O11/)
       const prompt = buildDailyReportPrompt(facts)
       assert.match(prompt, /今天在 origin\/pre 上没有提交的人：eric/)
-      assert.match(prompt, /【Falive Web 日报 2026-10-13】/)
+      assert.match(prompt, /# Falive Web 日报 2026-10-13/)
       assert.match(prompt, /henry：1 个提交/)
       assert.match(prompt, /\[blocked\] 主播公告/)
 

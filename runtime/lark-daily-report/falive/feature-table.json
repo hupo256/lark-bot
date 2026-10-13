@@ -1,5 +1,5 @@
 {
-  "savedAt": "2026-10-13T06:09:25.956Z",
+  "savedAt": "2026-10-13T13:43:22.401Z",
   "rows": [
     {
       "no": 1,
@@ -27,7 +27,7 @@
       "feature": "节目表-全部",
       "owner": "aven",
       "server": "live",
-      "status": "🟠",
+      "status": "✅",
       "location": "`modules/upcoming`",
       "note": "页面与导航已改名「直播预告」（F5）。10-12 改接 `/api/front/upcoming`（替代已下线的 `new_schedule/upcoming`，`live_list_type=1`），节目卡用接口封面；pre 暂无数据（对接-01 A4），主播昵称缺字段显示 `--`（A2）；「进行中」跳 `/room/<uid>`"
     },
@@ -39,7 +39,7 @@
       "server": "live",
       "status": "🟠",
       "location": "`modules/upcoming/data/mutations.ts`",
-      "note": "10-12 预约改 `POST /api/live/reserveMatch`（`live_id`，toggle），未登录先弹登录框；是否已预约缺字段（A2），按钮初始恒为「预约」；第二 tab 已按产品改名「预约」（G1 过渡：内容仍 `follow_only=1`，等 L5 换成「我预约的节目」）"
+      "note": "10-13 pre 脚本实测：关注 + `follow_only=1` ✅、`is_reserve` 字段 ✅；**`reserveMatch` 对 upcoming 的 `live_id` 返回「预约的直播不存在」（A5-2，后端数据 / 口径问题）**。前端 `reserveMatch` + `live_id` toggle、未登录弹登录、乐观切换均就位；第二 tab 已改名「预约」（内容 = 已关注主播的预告，产品 10-13 定）"
     },
     {
       "no": 5,
@@ -77,19 +77,19 @@
       "feature": "直播推荐-节目表",
       "owner": "aven",
       "server": "live",
-      "status": "🟠",
+      "status": "✅",
       "location": "`modules/upcoming/blocks/HomeProgramsBlock.tsx`",
       "note": "10-12 晚改接真实：SSR `preload/upcoming` + 客户端 `front/upcoming` 前 6 条，卡片复用节目卡（预约 / 进行中可点）；区块移入 upcoming 模块；pre 无数据时不显示（A4），缺昵称 / 已预约（A2）"
     },
     {
       "no": 9,
-      "module": "推荐直播",
+      "module": "首页",
       "feature": "推荐的视频（营销上传视频）",
       "owner": "aven",
       "server": "live",
-      "status": "🟡",
-      "location": "`modules/home/blocks/RecommendedVideosBlock.tsx`",
-      "note": "纯 mock；10-12 产品已定一期要做（P8 已定），live 后端 Encone 已加录播 API、等接口文档再接（对接-01 L6 / L7）；「更多」无效"
+      "status": "🟠",
+      "location": "`modules/live/blocks/RecommendedVideosBlock.tsx`",
+      "note": "10-13 后端 A1：点播用 `video/getList`（非 robotManualList）。已接：列表 + `getInfo` 详情 + 播放页 `/video/<id>`（`addView` 计观看，mp4 / m3u8 都能播），`video[]` 按后端 V2 `{img,video}` 解析；pre 无数据（V1）"
     },
     {
       "no": 10,
@@ -276,10 +276,10 @@
       "module": "直播",
       "feature": "热门主播-个人主页-**直播存档** 🆕",
       "owner": "broker",
-      "server": "chat（hichat）",
+      "server": "live",
       "status": "❌",
       "location": "—",
-      "note": "spec `b2b/recordVideoList/{streamHostMemberId}`（hichat，无域名）；10-12 产品确认性质为**直播录播**（Eddie），服务端归属待 Encone 录播接口文档确认（可能改走 live）"
+      "note": "10-13 晚 live 后端给直播站接口 `front/anchorRecordListCursor?uid=`（按 live uid，pre 有数据，`pull` 签名 m3u8），不再走 hichat；broker 接（对接-前端同事-2 B3）"
     },
     {
       "no": 29,
@@ -297,9 +297,9 @@
       "feature": "录播——推荐的视频（运营上传）",
       "owner": "aven",
       "server": "live",
-      "status": "🟡",
-      "location": "`live/components/RecordedVideoCard.tsx`",
-      "note": "纯 mock；10-12 产品已定一期要做（P8 已定），Encone 已加录播 API、等接口文档再接（对接-01 L6 / L7）；观看数字段有无待文档确认"
+      "status": "🟠",
+      "location": "`live/LivesPage.tsx` 录播 tab、`RecordedVideoCard.tsx`、`VideoPage.tsx`",
+      "note": "同 #9：列表 / 详情 / 播放页已接，pre 无数据"
     },
     {
       "no": 31,
@@ -317,9 +317,9 @@
       "feature": "直播视频区域",
       "owner": "henry",
       "server": "live",
-      "status": "🟠",
+      "status": "✅",
       "location": "`live/components/LiveIframePlayer/*`",
-      "note": "10-11 aven 改 hls.js 直接播放 + `pickLiveStream`；**pre 拉流 403（腾讯云播放域名配置，Referer 白名单，已转运维 O11；对接-01 L0）**；flv/清晰度未做"
+      "note": "10-11 aven 改 hls.js 直接播放 + `pickLiveStream`；10-13 用推流中的房间 260 实测 m3u8 拉流 200（此前 403 只因无房间推流），播放通；同日补「直播间播文件」：pull 为 mp4 / webm 时原生 `<video>` 播（Ache 房间 283 实测：pull_type=1、三个 pull 字段同一 mp4，已按扩展名归类；avi 等格式等后端转码口径 F1）；flv / 清晰度未做（henry）"
     },
     {
       "no": 33,
@@ -374,12 +374,12 @@
     {
       "no": 38,
       "module": "直播详情页",
-      "feature": "右侧-礼物（一期：免费）",
+      "feature": "右侧-礼物（~~一期：免费~~ → 只保留老 falive 付费送礼）",
       "owner": "aven",
       "server": "live",
-      "status": "🟠",
+      "status": "✅",
       "location": "`live/components/Gift/*`",
-      "note": "列表真实 `Gift/getList`；10-12 付费送礼 `handSelGift` + 余额 `Member/info.balances` 已接；帮助文案改「如何获得积分」+ 规则（P11）；免费礼物后端没有（L2），等产品定规则（P21）"
+      "note": "列表真实 `Gift/getList`；10-12 付费送礼 `handSelGift` + 余额 `Member/info.balances` 已接；帮助文案改「如何获得积分」+ 规则（P11）；免费礼物后端没有（L2）→ **10-13 周会定：礼物只保留老 falive 功能**，免费礼物 / 每日额度 / 分类 Tab 不做（World 转达，cc 产品）；pre 送礼需登录回归"
     },
     {
       "no": 39,
@@ -387,9 +387,9 @@
       "feature": "右侧-表情",
       "owner": "aven",
       "server": "live",
-      "status": "🟡",
+      "status": "✅",
       "location": "`Chat/EmojiPicker.tsx`",
-      "note": "本地数据；10-12 产品回复 P12：直播间不做「贴纸」分段，贴纸 = 免费礼物（等 P21）"
+      "note": "本地表情（同 x9，无接口）；贴纸 = 免费礼物，不做（10-13 周会定礼物只保留老 falive 功能）"
     },
     {
       "no": 40,
@@ -407,9 +407,9 @@
       "feature": "留言板#",
       "owner": "aven",
       "server": "live",
-      "status": "🟠",
+      "status": "✅",
       "location": "`live/components/MessageBoard.tsx`",
-      "note": "UI 完成，提交为「敬请期待」；后端没有留言板（L8），等产品定做不做（P22）"
+      "note": "10-13 按后台口径（L8：留言板 = 悄悄话 / 举报）接通：分类 `report/classifyList`，提交 `report_user/insert`（type=4 直播间，需登录）；接口无文本字段，去掉文本框；pre 分类字典有无数据待后端确认"
     },
     {
       "no": 42,
@@ -417,7 +417,7 @@
       "feature": "直播推荐（节目表）",
       "owner": "aven",
       "server": "live",
-      "status": "🟠",
+      "status": "✅",
       "location": "`modules/upcoming/blocks/RoomProgramsBlock.tsx`",
       "note": "10-12 晚改接真实（同 #8，room.main order 20）"
     },
@@ -486,20 +486,20 @@
       "module": "个人主页",
       "feature": "**直播存档** 🆕",
       "owner": "broker",
-      "server": "chat（hichat）",
+      "server": "live",
       "status": "❌",
       "location": "—",
-      "note": "同 #28；`RecordList` 是观看记录，不是存档"
+      "note": "同 #28"
     },
     {
       "no": 50,
       "module": "礼物",
-      "feature": "基础送礼-免费礼物",
+      "feature": "基础送礼-~~免费礼物~~ → 只保留老 falive 功能",
       "owner": "aven",
       "server": "live",
-      "status": "🟠",
+      "status": "✅",
       "location": "`live/components/Gift/*`",
-      "note": "同 #38"
+      "note": "同 #38：付费送礼已通；**10-13 周会定只保留老 falive 功能**，免费礼物不做（任务拆解表 D55「只保留老falive功能」）"
     },
     {
       "no": 51,
