@@ -3,15 +3,30 @@
   "title": "Lark mentioned-message intent classification",
   "type": "object",
   "additionalProperties": false,
-  "required": ["decision", "confidence", "summary", "reason"],
+  "required": [
+    "decision",
+    "confidence",
+    "summary",
+    "reason"
+  ],
   "properties": {
     "decision": {
       "type": "string",
-      "enum": ["bug", "requirement", "ignore"]
+      "enum": [
+        "bug",
+        "requirement",
+        "api_reply",
+        "ignore"
+      ],
+      "description": "bug=缺陷反馈；requirement=交办的新增/调整；api_reply=对方（后端/运维/产品）对我方对接问题的答复或接口/字段/环境变化，需要据此更新前端或复核；ignore=闲聊/知会/催办"
     },
     "confidence": {
       "type": "string",
-      "enum": ["high", "medium", "low"]
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ]
     },
     "summary": {
       "type": "string",
