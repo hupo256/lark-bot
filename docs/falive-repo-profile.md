@@ -87,13 +87,15 @@ webhook 发出的卡片没有 `message_id`，不能作为「回复卡片」的�
 | `lark-gateway.mjs` / `lark-worker.mjs` | 启动注册 profile；worker 对各仓模型做就绪探针；租约断言取各仓最大超时 |
 | `runtime/launchd-node.sh` | `LARK_TASK_LEASE_MS` 默认 75min |
 
-## 6. 群消息轮询器（阶段③，待 im scope）
+## 6. 群消息轮询器（已实现，`lib/lark-chat-poller.mjs`；待 im scope + chatIds）
 
-用户身份 `lark-cli im +chat-messages-list --as user --chat-id <oc> --start <上次时间>`，按 message_id 幂等后喂给 `ingestLarkEvent`。频率（aven 定）：08:00–19:00 活跃（30 分钟内有新消息）30s、空闲 120s；19:00–08:00 15min；拉取出错退避到 15min，连续失败 10 次发告警给 aven。bot 自己的 webhook 卡片 `sender_type` 非 `user`，摄入前丢弃。
+gateway 内置：对每个配了 `chatIds` 的非默认仓，用用户身份 `lark-cli --as user im +chat-messages-list --chat-id <oc> --start <游标-2min>` 拉新消息，message_id 去重后转成与长连接同形的事件喂 `ingestLarkEvent`。首次启动游标从「现在」起，不回灌历史；只喂 `sender_type=user` 的消息（自家 webhook 卡 / 系统消息 / 已撤回一律丢）。频率（`profile.poll`，aven 定）：08:00–19:00 活跃（30 分钟内有新消息）30s、空闲 120s；19:00–08:00 15min；出错按 2 倍退避到 15min，连续失败 10 次给负责人发一次告警、恢复再发一次。状态落 `runtime/lark-chat-poller-state.json`；`/lark/health` 的 `chatPoller` 字段可观测。
 
-## 7. 日报（阶段②）
+**对接文档自动接入**：外部群里直接发 `.md / .pdf / .docx …` 文件（无需 @）→ 文件消息进只读意图分类（`docAttachmentsTrigger`）→ 判为需求即入队为 `api` 任务，附件用用户身份下载到 `runtime/lark-attachments/FALIVE/<messageId>/`；实施 prompt 要求先把文件原样拷到 `profile.docIntakeDir`（falive：`docs/delivery/待对接/`），再按归属接 schema / queries / mapper，缺字段写进 summary「待后端支持」。
 
-每天 19:00。aven 的工作看本地 `feature/phase-3-api`，其他人看 `origin/pre`（aven 要求每人每天至少 MR 一次到 pre）。脚本确定性采集（当天提交按作者、功能总表状态与昨日快照 diff、交付路线图的「还差什么 / 卡在谁」、inbox），再由 Fable 按固定模板写：整体进度 / 今日完成（按人）/ 未完成与卡点 / 今日 pre 无提交的人 / 需要支持。试运行一周只私发 aven。
+## 7. 日报（已实现，`lib/lark-daily-report.mjs`）
+
+每天 `profile.dailyReport.at`（19:00）由 gateway 调度，当天只发一次（状态落盘防重启重发）。脚本确定性采集：aven 的工作 = 本地 `feature/phase-3-api` 当天提交 + 工作区未提交数；其他人 = `origin/pre`（先 fetch）当天提交按 `people` 别名归到人名，Merge 只计次；功能总表按状态 / 负责人统计并与上次快照 diff 出「今日升级」；交付路线图「可交付分三档」原文；bot 当天的任务结果。再交给 Opus 5.5（plan 模式、只读、cwd 在仓库可翻文档）按固定模板写：整体 / 今日完成（按人）/ 未完成与卡点 / 今日 pre 无提交 / 需要支持。正文与事实存 `runtime/lark-daily-report/falive/<日期>.md`。试运行期 `to` = aven 私聊；2026-10-13 已手动跑通一次。
 
 ## 8. 试跑与运维
 
