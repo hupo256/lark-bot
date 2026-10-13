@@ -61,7 +61,7 @@ webhook 发出的卡片没有 `message_id`，不能作为「回复卡片」的�
 | `ownerMap` | 人名 → open_id（结果卡 @ 负责人用） | 待补 |
 | `docIntakeDir` | 群里别人发来的对接文档落到仓库的目录；配了即启用文档消息自动进分类 | `docs/delivery/待对接` |
 | `contextTrigger` / `intakeDebounceMs` | 外部群按上下文判任务：别人发的实质消息都进 Opus 4.8 只读分类（缺省开）；收到后等安静期（缺省 90s）再一次性分类，同话题连发合并 | 开 / 90s |
-| `concurrency` | 该仓同时最多跑几条任务（缺省 1 = 串行，不开多个分支互相打架） | 1 |
+| `concurrency` | 该仓同时最多跑几条任务；同主题串行、不同主题并行（缺省 3） | 3 |
 | `quietQueuedCards` | 外部群排队卡改发 notifyChatId，群里只出结果卡（缺省开） | 开 |
 | `commitPrefix` | bot 提交标题前缀，满足仓库 commit-msg 钩子 | `feat(bot)` |
 | `poll` / `dailyReport` | 轮询频率 / 日报（见 §6、§7） | 见下 |
@@ -101,10 +101,10 @@ gateway 内置：对每个配了 `chatIds` 的非默认仓，用用户身份 `la
 
 ### 6.1 入口规则（aven 2026-10-13 定：准确分类、同话题一个任务、少开 worktree、确实是 aven 的才建任务）
 
-- **一个话题一条任务**：外部群里话题内的消息用话题 id 做任务 id；话题里再来消息，任务未了结就并入（在跑的跑完再带补充跑一轮），已了结就**重开同一任务**（同一分支 / worktree）重新分类。非话题消息才按消息 id 建任务。
+- **按主题归并、按主题并行**（aven 2026-10-13「并行处理，尽快落实」）：分类器输出 `topic`（短的稳定标识）和 `relatedTaskId`（提示里给了最近 7 天同群任务列表，让它判断本条是哪条的延续）。判为延续 → `store.mergeIntoTask` 并入那条（未开跑追加、在跑完成后再跑一轮、挂起当补料续跑、已了结重开同分支），本条落 superseded；新主题 → 新任务。话题 id 只是提示（同话题默认同主题，但话题里夹的无关内容不硬归）。worker 调度：同主题串行、不同主题并行，`concurrency` 缺省 3。
 - **分类去抖**：收到后等 `intakeDebounceMs`（90s）没有新消息再分类，连发的几条合成一次分类，带完整话题上下文（被引用消息 + 话题其它回复 + 附件）给 Opus 4.8。
 - **门槛**：分类输出 `decision` / `confidence` / `forMe`。只有 **high 且 forMe≠false** 才自动开跑；判为任务但 medium 或 forMe 不确定 → **疑似**：挂待确认、不催办，只私发 aven 一张卡（`继续任务 <id> 做` 开跑 / `取消任务 <id>` 关掉）；ignore 静默。被代理人自己发的消息不分类。
-- **串行**：`concurrency=1`，一次只跑一条 falive 任务。
+- **并行**：`concurrency=3`，同主题串行、不同主题并行。
 - 试运行期所有卡片只发 aven 私聊（`cardsToNotifyOnly`）。
 
 ### 6.2 群回复（aven 2026-10-13 定 A 方案，`lib/lark-group-reply.mjs`）

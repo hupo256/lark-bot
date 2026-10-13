@@ -181,11 +181,12 @@ export async function runLarkWorker({
         if (candidate.status === 'received' && candidate.intake?.notBefore && Date.now() < Date.parse(candidate.intake.notBefore)) continue
         const ctx = resolveWorkContext(workerConfig, candidate)
         if (inFlight.has(ctx.cwd)) continue
-        // 仓库级并发上限（falive 串行：不要同时开好几个分支互相打架）。
+        // 仓库级并发上限 + 同主题串行：不同主题并行跑，同一主题（同一份对接文档 / 功能）一次只跑一条。
         const profile = repoProfileForTask(candidate)
         if (!profile.isDefault && !(candidate.status === 'received' && candidate.intake?.required)) {
-          const runningForRepo = [...inFlight.values()].filter((item) => item.repo === profile.key).length
-          if (runningForRepo >= profile.concurrency) continue
+          const running = [...inFlight.values()].filter((item) => item.repo === profile.key && !item.intake)
+          if (running.length >= profile.concurrency) continue
+          if (candidate.topic && running.some((item) => item.topic && item.topic === candidate.topic)) continue
         }
         picked = candidate
         pickedCtx = ctx
@@ -219,7 +220,7 @@ export async function runLarkWorker({
       const key = pickedCtx.cwd
       const running = runTask(claimed, pickedCtx, { signal: shutdownController.signal })
         .finally(() => inFlight.delete(key))
-      inFlight.set(key, { promise: running, taskId: claimed.id, repo: repoProfileForTask(claimed).key })
+      inFlight.set(key, { promise: running, taskId: claimed.id, repo: repoProfileForTask(claimed).key, topic: claimed.topic || null, intake: Boolean(claimed.intake?.required) })
     }
 
     if (shuttingDown) return

@@ -87,4 +87,20 @@ describe('外部群任务入口：准确优先', () => {
     // 活动态不可重开
     assert.equal(store.reopenForThread({ id: 'omt_thread1', supplementText: 'again' }), null)
   }))
+
+  it('主题归并：并入未开跑 / 在跑 / 挂起 / 已了结的目标，本条落 superseded；最近任务候选排除自身与已归并', () => withStore((store) => {
+    const mk = (id, status, extra = {}) => store.upsert({ id, source: 'lark', repo: 'falive', chatId: 'oc_x', text: `t-${id}`, status, topic: 'live-2', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), ...extra })
+    mk('into_q', 'queued'); mk('from1', 'received', { commandType: 'api' })
+    let out = store.mergeIntoTask({ fromId: 'from1', intoId: 'into_q' })
+    assert.equal(out.mode, 'appended'); assert.match(store.get('into_q').text, /【同主题补充 .*】t-from1/); assert.equal(store.get('from1').status, 'superseded'); assert.equal(store.get('into_q').commandType, 'api')
+    mk('into_r', 'running'); mk('from2', 'received')
+    assert.equal(store.mergeIntoTask({ fromId: 'from2', intoId: 'into_r' }).mode, 'rerun_after_done'); assert.equal(store.get('into_r').rerunAfterDone, true)
+    mk('into_w', 'waiting_confirmation', { epoch: 1 }); mk('from3', 'received')
+    assert.equal(store.mergeIntoTask({ fromId: 'from3', intoId: 'into_w' }).mode, 'resumed'); assert.equal(store.get('into_w').status, 'queued'); assert.equal(store.get('into_w').epoch, 2)
+    mk('into_d', 'done', { epoch: 4, result: 'old' }); mk('from4', 'received')
+    assert.equal(store.mergeIntoTask({ fromId: 'from4', intoId: 'into_d' }).mode, 'reopened'); assert.equal(store.get('into_d').status, 'queued'); assert.equal(store.get('into_d').epoch, 5); assert.equal(store.get('into_d').threadHistory.length, 1)
+    const recent = store.listRecentForChat('oc_x', { excludeId: 'into_q' })
+    assert.ok(recent.every((task) => task.status !== 'superseded' && task.id !== 'into_q'))
+    assert.equal(store.mergeIntoTask({ fromId: 'nope', intoId: 'into_q' }), null)
+  }))
 })

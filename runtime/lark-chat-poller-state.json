@@ -1,0 +1,16 @@
+{
+  "chats": {
+    "oc_90ad8cab0e80bd923e922b1d2b268ebb": {
+      "cursorMs": 1791889061104,
+      "seen": [],
+      "lastNewMessageAt": 0,
+      "threads": {}
+    },
+    "oc_c2a63ac7c217235e14407ed1bba69d06": {
+      "cursorMs": 1791889060443,
+      "seen": [],
+      "lastNewMessageAt": 0,
+      "threads": {}
+    }
+  }
+}

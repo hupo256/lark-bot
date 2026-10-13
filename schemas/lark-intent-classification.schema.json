@@ -39,6 +39,20 @@
     "forMe": {
       "type": "boolean",
       "description": "这件事是否需要本 bot 代理的那个人（提示里的负责人）动前端代码或复核前端；不是他的事填 false"
+    },
+    "topic": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "这条消息所属的主题短标识（稳定、可复用），如 对接-live后端-2 / 对接-运维-2 / #52-一键跟单 / upcoming；ignore 时可填 null"
+    },
+    "relatedTaskId": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "若这条消息是提示里「最近任务」中某一条的延续 / 补充 / 答复，填那条任务的 id；是新主题或无关填 null"
     }
   }
 }
