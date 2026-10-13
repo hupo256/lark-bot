@@ -116,7 +116,7 @@ gateway 内置：对每个配了 `chatIds` 的非默认仓，用用户身份 `la
 
 ## 7. 日报（已实现，`lib/lark-daily-report.mjs`）
 
-每天 `profile.dailyReport.at`（19:00）由 gateway 调度，当天只发一次（状态落盘防重启重发）。脚本确定性采集：aven 的工作 = 本地 `feature/phase-3-api` 当天提交 + 工作区未提交数；其他人 = `origin/pre`（先 fetch）当天提交按 `people` 别名归到人名，Merge 只计次；功能总表按状态 / 负责人统计并与上次快照 diff 出「今日升级」；交付路线图「可交付分三档」原文；bot 当天的任务结果。再交给 Opus 5.5（plan 模式、只读、cwd 在仓库可翻文档）按固定模板写：整体 / 今日完成（按人）/ 未完成与卡点 / 今日 pre 无提交 / 需要支持。正文与事实存 `runtime/lark-daily-report/falive/<日期>.md`。试运行期 `to` = aven 私聊；2026-10-13 已手动跑通一次。
+每天 `profile.dailyReport.at`（19:00）由 gateway 调度，当天只发一次（状态落盘防重启重发）。脚本确定性采集：aven 的工作 = 本地 `feature/phase-3-api` 当天提交 + 工作区未提交数；其他人 = `origin/pre`（先 fetch）当天提交按 `people` 别名归到人名，Merge 只计次；功能总表按状态 / 负责人统计并与上次快照 diff 出「今日升级」；交付路线图「可交付分三档」原文；bot 当天的任务结果。再交给 Opus 5.5（plan 模式、只读、cwd 在仓库可翻文档）按固定模板写：整体 / 今日完成（按人）/ 未完成与卡点 / 今日 pre 无提交 / 需要支持。正文与事实存 `runtime/lark-daily-report/falive/<日期>.md`。投递：用户身份发不进外部群（230027），群走各群自定义机器人 webhook 的富文本（`sendTo`），试运行期以 bot 身份私聊负责人发 Markdown。**云文档版**（`docTemplate`）：按仓库里的交接报告模板写当天完整版（全量功能表 / API 缺什么有问题 / 其它没做的 / 一句话现状），用户身份 `docs +create --doc-format markdown` 建成 Lark 云文档，短消息末尾带链接；完整版 md 也落在 `runtime/lark-daily-report/falive/`。2026-10-13 两种都已跑通。
 
 ## 8. 试跑与运维
 
