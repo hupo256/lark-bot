@@ -107,7 +107,7 @@ describe('事实采集与日报生成（IO 注入）', () => {
       assert.equal(outcome.to, 'ou_aven')
       assert.equal(sent[0].idempotencyKey, 'daily-falive-2026-10-13')
       assert.match(sent[0].card, /日报 2026-10-13/)
-      assert.ok(outcome.reportPath.endsWith('/lark-daily-report/falive/2026-10-13.md'))
+      assert.ok(outcome.reportPath.endsWith('/lark-daily-report/falive/FaliveWeb日报-2026-10-13.md'))
       // 第二次采集：快照已落盘，diff 应能比出状态变化
       const facts2 = collectDailyFacts({ profile, store, now, git, readFile: (path) => (path.endsWith('table.md') ? TABLE.replace('| 🟠 |', '| ✅ |') : files[path] ?? ''), snapshotDir: join(dir, 'lark-daily-report', 'falive') })
       assert.deepEqual(facts2.table.changes, [{ no: 1, feature: '用户资料', owner: 'henry', from: '🟠', to: '✅' }])
