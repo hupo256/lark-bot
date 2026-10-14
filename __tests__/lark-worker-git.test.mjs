@@ -306,3 +306,43 @@ describe('finalizeExistingWorktree（命中已有 worktree 的定向收尾提交
     rmSync(alien, { recursive: true, force: true })
   })
 })
+
+describe('集成分支（整改 #10）', () => {
+  it('建分支 + 常驻 worktree；同步 base；任务分支 no-ff 合回；冲突 abort 并报文件', async () => {
+    const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    const { spawnSync } = await import('node:child_process')
+    const { ensureIntegrationBranch, mergeIntoIntegration } = await import('../lib/lark-worker-git.mjs')
+    const root = mkdtempSync(join(tmpdir(), 'lark-integ-'))
+    const g = (args, cwd = root) => { const r = spawnSync('git', ['-C', cwd, ...args], { encoding: 'utf8' }); if (r.status !== 0) throw new Error(r.stderr); return r.stdout.trim() }
+    try {
+      g(['init', '-b', 'feature/base']); g(['config', 'user.email', 't@x']); g(['config', 'user.name', 't'])
+      writeFileSync(join(root, 'a.txt'), '1\n'); g(['add', '-A']); g(['commit', '-m', 'base'])
+      const wt = join(root, '.wt', 'integration')
+      const first = ensureIntegrationBranch({ root, integrationBranch: 'lark/integ', baseRef: 'feature/base', worktreePath: wt })
+      assert.equal(first.ok, true)
+      // base 前进 → 再 ensure 时合进来
+      writeFileSync(join(root, 'b.txt'), '2\n'); g(['add', '-A']); g(['commit', '-m', 'base2'])
+      const second = ensureIntegrationBranch({ root, integrationBranch: 'lark/integ', baseRef: 'feature/base', worktreePath: wt })
+      assert.equal(second.ok, true)
+      assert.equal(g(['merge-base', '--is-ancestor', 'feature/base', 'lark/integ']), '')
+      // 任务分支从集成分支开、提交、合回
+      g(['branch', 'lark/t1', 'lark/integ'])
+      const t1 = join(root, '.wt', 't1'); g(['worktree', 'add', t1, 'lark/t1'])
+      writeFileSync(join(t1, 'c.txt'), '3\n'); g(['add', '-A'], t1); g(['commit', '-m', 't1'], t1)
+      const merged = mergeIntoIntegration({ root, worktreePath: wt, branch: 'lark/t1', integrationBranch: 'lark/integ', message: 'merge t1' })
+      assert.equal(merged.ok, true); assert.equal(merged.merged, true)
+      assert.equal(g(['merge-base', '--is-ancestor', 'lark/t1', 'lark/integ']), '')
+      // 冲突：t2 与集成分支改同一文件
+      g(['branch', 'lark/t2', 'feature/base'])
+      const t2 = join(root, '.wt', 't2'); g(['worktree', 'add', t2, 'lark/t2'])
+      writeFileSync(join(t2, 'c.txt'), 'conflict\n'); g(['add', '-A'], t2); g(['commit', '-m', 't2'], t2)
+      const conflict = mergeIntoIntegration({ root, worktreePath: wt, branch: 'lark/t2', integrationBranch: 'lark/integ', message: 'merge t2' })
+      assert.equal(conflict.ok, false); assert.deepEqual(conflict.conflicts, ['c.txt'])
+      assert.equal(g(['status', '--porcelain'], wt), '', '冲突已 abort，集成 worktree 干净')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+})
