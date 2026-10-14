@@ -23,7 +23,7 @@ import { assertConfigOrExit, gatewaySecret, loadConfig, resolveNotifyChatId } fr
 import { hardenRuntimeFiles, larkRuntimeDir, larkTasksDir } from './lib/lark-repo.mjs'
 import { normalizeAiExecutor } from './lib/lark-http.mjs'
 import { buildCardContent } from './lib/lark-cards.mjs'
-import { searchChatIdsByName, sendBotMarkdown, sendChatMessage } from './lib/lark-cli.mjs'
+import { listChatCustomBots, searchChatIdsByName, sendBotMarkdown, sendChatMessage } from './lib/lark-cli.mjs'
 import { createTaskStore } from './lib/lark-task-store.mjs'
 import { startConsumer } from './lib/lark-consumer.mjs'
 import { ingestLarkEvent } from './lib/lark-ingest.mjs'
@@ -117,6 +117,18 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
     }
     const missing = profile.chatNames.filter((name) => !resolved.has(name))
     if (missing.length) console.warn(`[lark-gateway] ⚠ repo ${profile.key} 以下群名未解析到 chat_id（scope 未批或群名不符）：${missing.join('、')}`)
+  }
+  // 群里的自定义机器人（@Aven.Bot）open_id 按名字自动发现（每个群的自定义机器人是独立的，id 各不相同）。
+  for (const profile of listRepoProfiles().filter((item) => !item.isDefault && item.botName)) {
+    for (const chatId of profile.chatIds) {
+      if (profile.botMentionOpenIds[chatId]) continue
+      const bots = await listChatCustomBots(chatId)
+      const hit = bots.find((bot) => bot.name.replace(/\s+/g, '') === profile.botName.replace(/\s+/g, ''))
+      if (hit) {
+        profile.botMentionOpenIds[chatId] = hit.openId
+        console.log(`[lark-gateway] repo ${profile.key} 群 ${profile.chatNameById?.[chatId] || chatId} 的 ${profile.botName} = ${hit.openId}`)
+      }
+    }
   }
   // 外部群（仓库 profile 配了 chatIds）：用户身份轮询拉消息喂同一条 ingest 链路。
   const chatPoller = startChatPoller({ config, store, ingest: ingestLarkEvent })

@@ -217,3 +217,17 @@ describe('待确认清单按主题复用云文档（#13）与兜底话术（#15�
     }
   })
 })
+
+describe('显式 @ 机器人通道', () => {
+  afterEach(() => resetRepoProfiles())
+  it('按群识别自定义机器人的 open_id；判 ignore 时群里回「收到，记下了」', async () => {
+    registerRepoProfiles({ repos: { falive: { root: '/tmp/f', baseRef: 'main', chatIds: ['oc_php'], notifyChatId: 'ou_aven', botMentionOpenIds: { oc_php: 'ou_bot' } } } })
+    const { mentionsBot, deliverRepoNoted } = await import('../lib/lark-repo-delivery.mjs')
+    const profile = repoProfile('falive')
+    assert.equal(mentionsBot({ profile, chatId: 'oc_php', mentions: [{ id: 'ou_bot' }] }), true)
+    assert.equal(mentionsBot({ profile, chatId: 'oc_other', mentions: [{ id: 'ou_bot' }] }), false)
+    const hooks = []
+    await deliverRepoNoted({ task: { id: 'n', chatId: 'oc_php', repo: 'falive', intake: { classification: { summary: 'golang 第一次部署 pre，等部署完' } } }, deps: { webhookFor: () => ({ url: 'u' }), sendWebhookMessage: async (a) => { hooks.push(a); return { ok: true } } } })
+    assert.equal(hooks[0].card.elements[0].content, '收到，记下了：golang 第一次部署 pre，等部署完。')
+  })
+})
