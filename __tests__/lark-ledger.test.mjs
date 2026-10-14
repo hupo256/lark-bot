@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
-import { ledgerSummary, loadLedger, markLedgerItems, parsePendingItems, recordLedgerEvent, saveLedger, syncLedgerFromPending, workKeyFor } from '../lib/lark-ledger.mjs'
+import { ledgerSummary, loadLedger, markLedgerItems, parsePendingItems, recordLedgerEvent, saveLedger, setStandingInstruction, syncLedgerFromPending, takeStandingInstructions, workKeyFor } from '../lib/lark-ledger.mjs'
 
 describe('对接台账（事实层）', () => {
   it('pending 文档 → 条目：小标题编号与表格首列编号', () => {
@@ -45,5 +45,22 @@ describe('对接台账（事实层）', () => {
     }
     void syncLedgerFromPending
     void profile
+  })
+})
+
+describe('待命指令闭环', () => {
+  it('交办挂在条目上并标 waiting；材料到了取出指令，条目回 answered；通知不把 waiting 降级', () => {
+    const ledger = { items: { 'a#1': { id: 'a#1', title: 'x', status: 'open', updatedAt: 't', lastEvent: null } }, events: [] }
+    setStandingInstruction(ledger, ['a#1'], { taskId: 'om_1', text: '等新文档后开工登录', waitsFor: '新版 PM-3217 文档', by: 'ou_aven' })
+    assert.equal(ledger.items['a#1'].status, 'waiting')
+    assert.match(ledgerSummary(ledger), /等：新版 PM-3217 文档（到了就开工）/)
+    recordLedgerEvent(ledger, { messageId: 'om_2', chatId: 'oc', decision: 'ignore', items: [{ id: 'a#1', transition: 'notify' }] })
+    assert.equal(ledger.items['a#1'].status, 'waiting', '普通通知不解除等待')
+    const taken = takeStandingInstructions(ledger, ['a#1'])
+    assert.equal(taken.length, 1)
+    assert.equal(taken[0].text, '等新文档后开工登录')
+    assert.equal(ledger.items['a#1'].status, 'answered')
+    assert.equal(ledger.items['a#1'].standing, undefined)
+    assert.deepEqual(takeStandingInstructions(ledger, ['a#1']), [])
   })
 })

@@ -101,6 +101,13 @@
         "null"
       ],
       "description": "消息里明确说了「等 X 到了再做」的那个 X（如「新版 PM-3217 文档」「Encone 的部署域名」）；没有这种等待条件填 null。有它时 bot 不会再去群里要材料，只记台账等"
+    },
+    "satisfiesWait": {
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "description": "台账里某条目正在等材料（提示里会标「等：X」），这条消息是不是把 X 带来了（发了文档 / 给了域名 / 说可以了）。是 → true；不相关 → null"
     }
   }
 }
