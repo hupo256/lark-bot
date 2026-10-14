@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, it } from 'node:test'
@@ -89,23 +89,25 @@ describe('事实采集与日报生成（IO 注入）', () => {
       assert.equal(facts.table.summary.total, 3)
       assert.equal(facts.botTasks.length, 1)
       assert.match(facts.roadmapSection, /卡运维 O11/)
-      const prompt = buildDailyReportPrompt(facts)
+      const prompt = buildDailyReportPrompt(facts, { headline: '总体进度 **50.0%**，已接通 **1 / 3**。', fullDoc: '# 完整版正文' })
       assert.match(prompt, /今天在 origin\/pre 上没有提交的人：eric/)
-      assert.match(prompt, /# Falive Web 日报 2026-10-13/)
       assert.match(prompt, /henry：1 个提交/)
-      assert.match(prompt, /\[blocked\] 主播公告/)
+      assert.match(prompt, /脚本定的数字（只能引用，不能改）：总体进度 \*\*50\.0%\*\*/)
+      assert.match(prompt, /# 完整版正文/)
       const docPrompt = buildDailyDocPrompt(facts, profile.dailyReport)
       assert.match(docPrompt, /<callout emoji="📝"/)
-      assert.match(docPrompt, /## 总体进度：xx\.x%/)
-      assert.ok(docPrompt.indexOf('## 总体进度') < docPrompt.indexOf('高亮框引子'), '总体进度在高亮框之前')
-      assert.doesNotMatch(docPrompt, /\*\*总体进度/)
-      assert.match(docPrompt, /不能只抄待对接目录/)
+      assert.match(docPrompt, /## 总体进度：待脚本填/)
+      assert.match(docPrompt, /所有状态以 origin\/pre（2a074a7）的真实代码为准/)
+      assert.match(docPrompt, /它的状态列是人手维护的、经常落后，不作数/)
+      assert.match(docPrompt, /每个负责人都一样/)
+      assert.match(docPrompt, /已经解决的整行删掉/)
+      assert.match(docPrompt, /\| 事项 \| 说明 \| 负责人 \|/)
+      assert.match(docPrompt, /aven 的在最前/)
+      assert.match(docPrompt, /<!-- STATUS_JSON/)
+      assert.match(docPrompt, /覆盖总表全部 3 个功能（#1 #2 #28）/)
       assert.match(docPrompt, /全项目接口缺口线索/)
-      assert.match(docPrompt, /不缺接口的未完成功能/)
       assert.match(docPrompt, /以「10-13：」开头/)
-      assert.match(docPrompt, /不再写「四、一句话现状」/)
-      assert.match(docPrompt, /三、需要再跟进的工作/)
-      assert.doesNotMatch(docPrompt, /2\.3 已接通/)
+      assert.doesNotMatch(docPrompt, /状态列以功能总表（人维护）为准/)
 
       registerRepoProfiles({})
       const sent = []
@@ -117,14 +119,17 @@ describe('事实采集与日报生成（IO 注入）', () => {
         deps: {
           runtimeDir: dir,
           collectFacts: () => facts,
-          generateText: async ({ prompt: p }) => { assert.match(p, /日报撰写者/); return '【Falive Web 日报 2026-10-13】\n整体：3 项里 1 项可用\n今日完成\n- aven：搜索' },
+          generateText: async ({ prompt: p }) => { assert.match(p, /日报撰写者/); return '## 今天\n- **aven**：搜索' },
           sendUserMarkdown: async (args) => { sent.push(args); return { ok: true } },
         },
       })
       assert.equal(outcome.ok, true)
       assert.equal(outcome.to, 'ou_aven')
-      assert.equal(sent[0].chatId, 'ou_aven')
-      assert.match(sent[0].markdown, /日报 2026-10-13/)
+      // 没配完整版：短版数字回落总表，私信核对单说明
+      assert.match(sent.find((item) => /日报核对/.test(item.markdown)).markdown, /完整版没生成，短版数字回落功能总表/)
+      const short = sent.find((item) => /^# Falive Web 日报 2026-10-13/.test(item.markdown)).markdown
+      assert.match(short, /已接通 \*\*1 \/ 3\*\*/)
+      assert.match(short, /## 今天\n- \*\*aven\*\*：搜索/)
       assert.ok(outcome.reportPath.endsWith('/lark-daily-report/falive/FaliveWeb日报-2026-10-13.md'))
       // 第二次采集：快照已落盘，diff 应能比出状态变化
       const facts2 = collectDailyFacts({ profile, store, now, git, readFile: (path) => (path.endsWith('table.md') ? TABLE.replace('| 🟠 |', '| ✅ |') : files[path] ?? ''), snapshotDir: join(dir, 'lark-daily-report', 'falive'), checkout })
@@ -171,5 +176,66 @@ describe('日报实测（#17）与本地领先（#11）', () => {
     const profile = normalizeRepoProfile('falive', { root: '/tmp/f', baseRef: 'main', verify: { probeCommand: 'node scripts/pre-probe.mjs' }, dailyReport: { at: '19:00', featureChecks: [{ features: [41], label: '举报分类', path: '/api/report/classifyList' }, { features: [36], label: '话痨榜', path: '/api/ranking/speaking', params: { type: 'daily' } }] } })
     const out = runFeatureChecks({ profile, checks: profile.dailyReport.featureChecks, probe: () => '### GET /api/report/classifyList {} -> 0 ok [ {\n### SUMMARY GET /api/report/classifyList {} -> 0 {"type":"array","len":1}\n### SUMMARY GET /api/ranking/speaking {"type":"daily"} -> 0 {"type":"array","len":0}\n' })
     assert.deepEqual(out.map((c) => c.status), ['可用', '没数据'])
+  })
+})
+
+describe('完整版：状态以 pre 代码为准 + 台账', () => {
+  it('剥 JSON、按代码状态回写与计数、比对前一天台账、私信核对单、短版数字与完整版一致', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'lark-daily-full-'))
+    try {
+      const profile = normalizeRepoProfile('falive', {
+        root: dir,
+        baseRef: 'feature/phase-3-api',
+        title: 'Falive Web',
+        notifyChatId: 'ou_aven',
+        dailyReport: { at: '19:00', featureTable: 'table.md', people: { aven: ['aven'], henry: ['henry'] }, fetch: false, docTemplate: 'tpl.md' },
+      })
+      const reportDir = join(dir, 'lark-daily-report', 'falive')
+      mkdirSync(reportDir, { recursive: true })
+      const previous = `# 日报\n\n## 三、需要再跟进的工作\n\n| 事项 | 说明 | 负责人 |\n|---|---|---|\n| help 改名「聊天」 | x | **henry** |\n| 分支流程 | x | 待确认 |\n| 发邮件部署 | x | **aven** |\n`
+      writeFileSync(join(reportDir, 'FaliveWeb日报-2026-10-13-完整版.md'), previous)
+      const rows = parseFeatureTable(TABLE)
+      const facts = {
+        date: '2026-10-14', title: 'Falive Web', othersRef: 'origin/pre', reviewHead: 'abc', reviewDir: dir, fetchNote: '', others: {}, people: ['aven', 'henry'],
+        table: { rows, summary: summarizeFeatureTable(rows), changes: [], hadSnapshot: false }, botTasks: [], docPaths: { featureTable: 't', pendingDir: 'p', roadmap: 'r', docTemplate: 'tpl.md' },
+        previousReport: { path: join(reportDir, 'FaliveWeb日报-2026-10-13-完整版.md'), date: '2026-10-13' }, apiGapSources: null,
+      }
+      const full = `# Falive Web 一期 · 日报（2026-10-14）\n\n## 总体进度：待脚本填\n\n<callout><p><b>henry：</b>负责 1 项，0 项 ✅。</p></callout>\n\n## 一、功能进度总览\n\n| # | 功能 | 负责人 | 状态 | 还剩什么 | 需要谁支持 |\n|---|---|---|---|---|---|\n| 1 | 用户资料 | henry | ⬜ | x | y |\n| 2 | 节目表 | aven | ⬜ | x | y |\n| 28 | 直播存档 | broker | ⬜ | x | y |\n\n**计数**\n\n## 二、API：还缺什么、哪些有问题\n\n| 功能 | 缺什么 | 现状 | 找谁 | 文档 |\n|---|---|---|---|---|\n| #28 | anchorRecordList | 没 UI | broker | B3 |\n\n## 三、需要再跟进的工作\n\n| 事项 | 说明 | 负责人 |\n|---|---|---|\n| 发邮件部署 | x | **aven** |\n\n<!-- STATUS_JSON\n${JSON.stringify({ features: [{ no: 1, status: '✅', pre: '能用', evidence: 'pre 已接' }, { no: 2, status: '✅', pre: '看不到', reason: '没数据' }, { no: 28, status: '❌' }], resolved: [{ section: '三', key: 'help 改名「聊天」', evidence: 'pre a58b92b' }] })}\nSTATUS_JSON -->`
+      const sent = []
+      const prompts = []
+      const outcome = await runDailyReport({
+        config: {}, store: null, profile, now: new Date(2026, 9, 14, 19, 0),
+        deps: {
+          runtimeDir: dir,
+          collectFacts: () => facts,
+          generateText: async ({ prompt }) => { prompts.push(prompt); return /完整版日报（云文档）/.test(prompt) ? full : '## 今天\n- **henry**：资料' },
+          createLarkDoc: async () => ({ ok: true, url: 'https://doc/x', documentId: 'x' }),
+          sendUserMarkdown: async (args) => { sent.push(args); return { ok: true } },
+        },
+      })
+      assert.equal(outcome.ok, true)
+      assert.equal(outcome.doc.path, join(reportDir, 'FaliveWeb日报-2026-10-14-完整版.md'))
+      const doc = readFileSync(outcome.doc.path, 'utf8')
+      assert.doesNotMatch(doc, /STATUS_JSON/)
+      assert.match(doc, /^## 总体进度：66\.7%（✅ 2 \/ 3）$/m)
+      assert.match(doc, /\| 1 \| 用户资料 \| henry \| ✅ \|/)
+      assert.match(doc, /\*\*计数\*\*（不含 #54）：✅ 2 项（aven 1、henry 1）。未完成 1 项：\n- broker 1 项：#28/)
+      assert.match(doc, /^## 三、需要再跟进的工作（剩 1 行，今日删 1 行）$/m)
+      // 短版：数字行来自脚本，和完整版一致；短版提示里带完整版正文
+      const short = sent.find((item) => /^# Falive Web 日报/.test(item.markdown)).markdown
+      assert.match(short, /总体进度 \*\*66\.7%\*\*，已接通 \*\*2 \/ 3\*\*。其中 1 项在 pre 上还看不到效果：#2 没数据。/)
+      assert.match(short, /完整版（云文档）：https:\/\/doc\/x/)
+      assert.match(prompts[1], /\| 1 \| 用户资料 \| henry \| ✅ \|/)
+      // 私信核对单：无依据消失的行、今天删的行、总表要改的状态、高亮框数字不一致
+      const note = sent.find((item) => /日报核对/.test(item.markdown)).markdown
+      assert.match(note, /三节：分支流程/)
+      assert.match(note, /三节：help 改名「聊天」——pre a58b92b/)
+      assert.match(note, /#1 用户资料（henry）：总表 🟠 → pre 代码 ✅/)
+      assert.match(note, /henry：高亮框写「负责 1 项，0 项 ✅」，按状态算是 1 项、1 项 ✅/)
+      // 第二天：今日 +n 以代码状态快照为基线
+      assert.equal(JSON.parse(readFileSync(join(reportDir, 'code-status.json'), 'utf8')).done, 2)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
