@@ -11,6 +11,8 @@ import {
   collectDailyFacts,
   diffFeatureTables,
   groupCommitsByPerson,
+  judgeFeatureCheck,
+  runFeatureChecks,
   parseMockUsages,
   parseFeatureTable,
   resolvePerson,
@@ -152,5 +154,21 @@ describe('全项目接口缺口线索', () => {
     assert.deepEqual(sources.msw.map((item) => item.path), ['*/api/a'])
     assert.deepEqual(sources.mockUsages, [])
     assert.deepEqual(collectApiGapSources({ dir: '/none', rows: [], git: () => ({ ok: false }), readFile: () => { throw new Error('x') } }).msw, [])
+  })
+})
+
+describe('日报实测（#17）与本地领先（#11）', () => {
+  afterEach(() => resetRepoProfiles())
+  it('探针行 → 可用 / 没数据 / 不可用；pick / field 口径；本地领先与疑似进事实', () => {
+    const nonEmpty = { label: '礼物', path: '/api/Gift/getList', params: {}, pick: null, expect: 'nonEmpty', features: [38] }
+    assert.equal(judgeFeatureCheck(nonEmpty, '### GET /api/Gift/getList {} -> 0 操作成功 [ { "id": 1 } ]').status, '可用')
+    assert.equal(judgeFeatureCheck(nonEmpty, '### GET /api/Gift/getList {} -> 0 操作成功 []').status, '没数据')
+    assert.equal(judgeFeatureCheck(nonEmpty, '### GET /api/Gift/getList {} -> UNREACHABLE pre 连不上 null').status, '不可用')
+    assert.equal(judgeFeatureCheck(nonEmpty, '### GET /api/Gift/getList {} -> -1 系统错误 null').status, '不可用')
+    assert.equal(judgeFeatureCheck({ ...nonEmpty, pick: 'list' }, '### GET /x {} -> 0 ok { "total": 0, "list": [] }').status, '没数据')
+    assert.equal(judgeFeatureCheck({ ...nonEmpty, pick: 'info', expect: 'field:pull' }, '### GET /x {} -> 0 ok { "info": { "pull": "https://a.m3u8" } }').status, '可用')
+    const profile = normalizeRepoProfile('falive', { root: '/tmp/f', baseRef: 'main', verify: { probeCommand: 'node scripts/pre-probe.mjs' }, dailyReport: { at: '19:00', featureChecks: [{ features: [41], label: '举报分类', path: '/api/report/classifyList' }, { features: [36], label: '话痨榜', path: '/api/ranking/speaking', params: { type: 'daily' } }] } })
+    const out = runFeatureChecks({ profile, checks: profile.dailyReport.featureChecks, probe: () => '### GET /api/report/classifyList {} -> 0 操作成功 [ { "id": 1 } ]\n### GET /api/ranking/speaking {"type":"daily"} -> 0 操作成功 []\n' })
+    assert.deepEqual(out.map((c) => c.status), ['可用', '没数据'])
   })
 })
