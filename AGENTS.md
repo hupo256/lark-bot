@@ -8,3 +8,7 @@
 - **CLI 契约**：`scripts/lark-bot` 的入口路径或参数变了，要同步 `scripts/lark-bot-shim`，并提醒用户重新安装到 `~/.local/bin/lark-bot`。Gateway HTTP 契约变了，同步检查 `scripts/lark-bot` 里的 curl 调用。
 - **代码规则扫描器是同步副本**：`scripts/code-rules.mjs` 的权威版本在 `~/.ai-rules/skills/prd-to-commit/scripts/code-rules.mjs`，本仓不直接改。同步方法：先改权威版本并在 `~/.ai-rules` 提交 → 整文件复制到 `scripts/`（保留第 2–3 行同步说明）→ 把第 2 行的 `~/.ai-rules@<sha>` 改成新 sha → `node scripts/code-rules.mjs --self-test` 并跑 `__tests__/lark-pure.test.mjs`（含副本与权威版本一致性检查）。
 - **本机数据不进仓库**：`runtime/*.local.json`、任务 / 附件 / 审计 / state 文件都在 `.gitignore` 里，不要 `git add -f`。
+
+## 出错处理原则（aven 2026-10-14）
+
+bot 在 falive 群里出错时，**不只修那一次**：每个错误都要落成规则（提示词 / 文档口径）或闸（代码里的机械检查，发出去之前查一遍），记进 `docs/falive-lessons.md`，写明怎么验。只有规则没有闸的，再出一次就补闸。改默认仓（fameex）之外的逻辑一律走仓库 profile 分支，不碰 fameex 路径。
