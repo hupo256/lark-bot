@@ -361,6 +361,9 @@ case "${1:-}" in
   receipt-retry) receipt_retry "${2:-}" ;;
   clean)    clean "${2:-}" "${3:-}" ;;
   claude-auth) claude_auth "${2:-}" ;;
+  sweep)
+    curl -s -X POST "http://127.0.0.1:3005/lark/sweep" -H "x-lark-gateway-secret: $(cat "$SECRET_FILE")" -H 'Content-Type: application/json' \
+      -d "$(node -e 'process.stdout.write(JSON.stringify({ repo: process.argv[1] || "falive", date: process.argv[2] || "" }))' "${2:-falive}" "${3:-}")"; echo ;;
   daily-report) ( cd "$LARK_BOT_ROOT" && node scripts/lark-daily-report-now.mjs "${2:-falive}" "${@:3}" ) ;;
-  *) echo "usage: lark-bot {start|stop|restart|status|logs|poll-on|poll-off|failed|retry <id>|resume <id> \"<补充>\"|receipt-retry <id>|clean [hours]|clean --failed [hours]|claude-auth [local|proxy]|daily-report [repo] [--private] [--to <id>]}"; exit 1 ;;
+  *) echo "usage: lark-bot {start|stop|restart|status|logs|poll-on|poll-off|failed|retry <id>|resume <id> \"<补充>\"|receipt-retry <id>|clean [hours]|clean --failed [hours]|claude-auth [local|proxy]|daily-report [repo] [--private] [--to <id>]|sweep [repo] [YYYY-MM-DD]}"; exit 1 ;;
 esac
