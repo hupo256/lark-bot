@@ -123,6 +123,10 @@ gateway 内置：对每个配了 `chatIds` 的非默认仓，用用户身份 `la
 ### 6.4 并行
 
 `concurrency=3`：同主题串行（同一份对接文档 / 功能一次只跑一条，后来的消息并入原任务、复用原分支），不同主题并行；临时 worktree 跑完即回收，分支保留给人 review。
+### 6.5 负责人私聊 = 仓库控制通道（2026-10-14，`lib/lark-principal-channel.mjs`）
+
+仓库的疑似 / 开始 / 结果 / 判不处理通知都发到 aven 和 bot 的私聊；aven 在那里回一句，是对**上一条通知**说的，不是给 fameex 主仓下 hotfix。私聊消息先锚定：回复了哪条通知就是哪条任务；没回复就取 bot 最近一条私聊通知所属的仓库任务（`principalReplyWindowMs` 内，缺省 12h，且比同一会话里最近的 fameex 回执新）。锚到了只走仓库通道：任务还挂着 → 当补料续跑；其它状态 → 建「私聊指示」任务（身份是私聊消息，群 / 发送人 / 话题沿用原群消息，`privateOrigin`），和群里 @Aven.Bot 走同一条分类 → 台账 → 派工 / 回群路径，回群对着原发送人说；私聊里只回一句「当作对「…」的指示处理，不是就回取消任务」。锚不到 → 放行老路径，fameex 私聊 hotfix 行为不变。
+
 ## 7. 日报（已实现，`lib/lark-daily-report.mjs`）
 
 每天 `profile.dailyReport.at`（19:00）由 gateway 调度，当天只发一次（状态落盘防重启重发）。脚本确定性采集：aven 的工作 = 本地 `feature/phase-3-api` 当天提交 + 工作区未提交数；其他人 = `origin/pre`（先 fetch）当天提交按 `people` 别名归到人名，Merge 只计次；功能总表按状态 / 负责人统计并与上次快照 diff 出「今日升级」；交付路线图「可交付分三档」原文；bot 当天的任务结果。再交给 Opus 5.5（plan 模式、只读、cwd 在仓库可翻文档）按固定模板写：整体 / 今日完成（按人）/ 未完成与卡点 / 今日 pre 无提交 / 需要支持。正文与事实存 `runtime/lark-daily-report/falive/<日期>.md`。投递：用户身份发不进外部群（230027），群走各群自定义机器人 webhook 的富文本（`sendTo`），试运行期以 bot 身份私聊负责人发 Markdown。**云文档版**（`docTemplate`）：按仓库里的交接报告模板写当天完整版（全量功能表 / API 缺什么有问题 / 其它没做的 / 一句话现状），用户身份 `docs +create --doc-format markdown` 建成 Lark 云文档，短消息末尾带链接；完整版 md 也落在 `runtime/lark-daily-report/falive/`。2026-10-13 两种都已跑通。手动补跑 `lark-bot daily-report falive`（照 profile 投递，会发群）；试跑加 `--private`（或 `--to <id>`）只私聊、不发群。
