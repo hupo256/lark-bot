@@ -159,16 +159,17 @@ describe('全项目接口缺口线索', () => {
 
 describe('日报实测（#17）与本地领先（#11）', () => {
   afterEach(() => resetRepoProfiles())
-  it('探针行 → 可用 / 没数据 / 不可用；pick / field 口径；本地领先与疑似进事实', () => {
+  it('摘要行 → 可用 / 没数据 / 不可用；pick / field 口径', () => {
     const nonEmpty = { label: '礼物', path: '/api/Gift/getList', params: {}, pick: null, expect: 'nonEmpty', features: [38] }
-    assert.equal(judgeFeatureCheck(nonEmpty, '### GET /api/Gift/getList {} -> 0 操作成功 [ { "id": 1 } ]').status, '可用')
-    assert.equal(judgeFeatureCheck(nonEmpty, '### GET /api/Gift/getList {} -> 0 操作成功 []').status, '没数据')
-    assert.equal(judgeFeatureCheck(nonEmpty, '### GET /api/Gift/getList {} -> UNREACHABLE pre 连不上 null').status, '不可用')
-    assert.equal(judgeFeatureCheck(nonEmpty, '### GET /api/Gift/getList {} -> -1 系统错误 null').status, '不可用')
-    assert.equal(judgeFeatureCheck({ ...nonEmpty, pick: 'list' }, '### GET /x {} -> 0 ok { "total": 0, "list": [] }').status, '没数据')
-    assert.equal(judgeFeatureCheck({ ...nonEmpty, pick: 'info', expect: 'field:pull' }, '### GET /x {} -> 0 ok { "info": { "pull": "https://a.m3u8" } }').status, '可用')
+    assert.equal(judgeFeatureCheck(nonEmpty, '### SUMMARY GET /api/Gift/getList {} -> 0 {"type":"array","len":2}').status, '可用')
+    assert.equal(judgeFeatureCheck(nonEmpty, '### SUMMARY GET /api/Gift/getList {} -> 0 {"type":"array","len":0}').status, '没数据')
+    assert.equal(judgeFeatureCheck(nonEmpty, '### SUMMARY GET /api/Gift/getList {} -> UNREACHABLE {"type":"null"}').status, '不可用')
+    assert.equal(judgeFeatureCheck(nonEmpty, '### SUMMARY GET /api/Gift/getList {} -> -1 {"type":"null"}').status, '不可用')
+    assert.equal(judgeFeatureCheck({ ...nonEmpty, pick: 'data' }, '### SUMMARY GET /x {} -> 0 {"type":"object","keys":{"total":{"type":"number","value":0},"data":{"type":"array","len":0}}}').status, '没数据')
+    assert.equal(judgeFeatureCheck({ ...nonEmpty, pick: 'list.data' }, '### SUMMARY GET /x {} -> 0 {"type":"object","keys":{"list":{"type":"object","keys":{"data":{"type":"array","len":1}}}}}').status, '可用')
+    assert.equal(judgeFeatureCheck({ ...nonEmpty, pick: 'info', expect: 'field:pull' }, '### SUMMARY GET /x {} -> 0 {"type":"object","keys":{"info":{"type":"object","keys":{"pull":{"type":"string","len":85,"empty":false}}}}}').status, '可用')
     const profile = normalizeRepoProfile('falive', { root: '/tmp/f', baseRef: 'main', verify: { probeCommand: 'node scripts/pre-probe.mjs' }, dailyReport: { at: '19:00', featureChecks: [{ features: [41], label: '举报分类', path: '/api/report/classifyList' }, { features: [36], label: '话痨榜', path: '/api/ranking/speaking', params: { type: 'daily' } }] } })
-    const out = runFeatureChecks({ profile, checks: profile.dailyReport.featureChecks, probe: () => '### GET /api/report/classifyList {} -> 0 操作成功 [ { "id": 1 } ]\n### GET /api/ranking/speaking {"type":"daily"} -> 0 操作成功 []\n' })
+    const out = runFeatureChecks({ profile, checks: profile.dailyReport.featureChecks, probe: () => '### GET /api/report/classifyList {} -> 0 ok [ {\n### SUMMARY GET /api/report/classifyList {} -> 0 {"type":"array","len":1}\n### SUMMARY GET /api/ranking/speaking {"type":"daily"} -> 0 {"type":"array","len":0}\n' })
     assert.deepEqual(out.map((c) => c.status), ['可用', '没数据'])
   })
 })
