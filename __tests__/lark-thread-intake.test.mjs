@@ -142,3 +142,12 @@ describe('对接文档不看归属先入库', () => {
     assert.equal(out.task.commandType, 'api')
   }))
 })
+
+describe('负责人本人 @ 机器人', () => {
+  it('medium 也直接开跑，不挂疑似', () => withStore((store) => {
+    received(store, { id: 'omt_me', threadRootId: null, addressedToBot: true, fromPrincipal: true })
+    store.claimById('omt_me')
+    const out = store.resolveIntake({ id: 'omt_me', epoch: 0, classification: { decision: 'requirement', confidence: 'medium', forMe: true, summary: 's', reason: 'r' } })
+    assert.equal(out.actionable, true)
+  }))
+})
