@@ -107,10 +107,10 @@ describe('直接 @ 负责人先回「收到」', () => {
     assert.equal(mentionsMe({ profile, mentions: [{ id: 'ou_aven' }] }), true)
     assert.equal(mentionsMe({ profile, mentions: [{ id: 'ou_x' }] }), false)
     const hooks = []
-    const ok = await deliverRepoAck({ task: { id: 't', chatId: 'oc_t', repo: 'falive' }, deps: { webhookFor: () => ({ url: 'u' }), sendWebhookMessage: async (a) => { hooks.push(a); return { ok: true } } } })
+    const ok = await deliverRepoAck({ task: { id: 't', chatId: 'oc_t', repo: 'falive' }, deps: { composeAck: async () => null, webhookFor: () => ({ url: 'u' }), sendWebhookMessage: async (a) => { hooks.push(a); return { ok: true } } } })
     assert.equal(ok.ok, true)
     assert.equal(hooks[0].card.elements[0].content, '收到，我查一下，稍后回复。')
-    assert.equal((await deliverRepoAck({ task: { id: 't', chatId: 'oc_t', repo: 'falive' }, deps: { webhookFor: () => null } })).skipped, true)
+    assert.equal((await deliverRepoAck({ task: { id: 't', chatId: 'oc_t', repo: 'falive' }, deps: { composeAck: async () => null, webhookFor: () => null } })).skipped, true)
     const notes = []
     await deliverRepoIgnoredAfterAck({ task: { id: 't', chatId: 'oc_t', repo: 'falive', summary: '直播详情页还差什么接口', intake: { classification: { reason: '问进度' } } }, deps: { sendMarkdown: async (a) => { notes.push(a); return { ok: true } } } })
     assert.match(notes[0].markdown, /判断不用我处理.*\n理由：问进度\n判错了就回「继续任务 t 做」/)
