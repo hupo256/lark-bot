@@ -17,6 +17,7 @@ import {
   isReportDay,
   parseReportDays,
   renderCounts,
+  shortReason,
   splitStatusBlock,
   tableMismatches,
   validateStatusData,
@@ -174,5 +175,14 @@ describe('网络实测（注入 fetch）', () => {
     assert.equal((await checkStreamUrl({ url: 'https://cdn/x.m3u8', fetchImpl: async () => response(200, '#EXTM3U\n#EXTINF') })).ok, true)
     const hang = (url, { signal }) => new Promise((_, reject) => signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' }))))
     assert.match((await checkStreamUrl({ url: 'https://cdn/x.m3u8', fetchImpl: hang, timeoutMs: 20 })).detail, /无响应/)
+  })
+})
+
+describe('短版原因', () => {
+  it('去提交号 / 文件名 / schema 名，截第一个分句，空原因给兜底', () => {
+    assert.equal(shortReason({ reason: 'pre 返回的 updatetime 是字符串，不过 origin/pre 上的 bannerSchema；修复在本地 4aa76f4 未合 pre' }), 'pre 返回的 updatetime 是字符串，…')
+    assert.equal(shortReason({ reason: '测试房间断流' }), '测试房间断流')
+    assert.equal(shortReason({ reason: '' }), '原因待补')
+    assert.equal(shortReason({ reason: '', pre: '未部署' }), '待部署')
   })
 })
