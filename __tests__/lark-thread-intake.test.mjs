@@ -132,3 +132,13 @@ describe('疑似任务 48h 过期（#8）', () => {
     assert.equal(store.listSuspected().length, 1)
   }))
 })
+
+describe('对接文档不看归属先入库', () => {
+  it('带文档附件的仓库任务，分类 ignore 也进执行器（api 命令）', () => withStore((store) => {
+    received(store, { id: 'omt_doc', threadRootId: null, attachments: [{ type: 'file', fileName: 'PM-3217-对接文档.md', localPath: '/tmp/x.md' }] })
+    store.claimById('omt_doc')
+    const out = store.resolveIntake({ id: 'omt_doc', epoch: 0, classification: { decision: 'ignore', confidence: 'high', forMe: false, summary: 's', reason: 'r' } })
+    assert.equal(out.actionable, true)
+    assert.equal(out.task.commandType, 'api')
+  }))
+})
