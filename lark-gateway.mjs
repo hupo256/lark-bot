@@ -23,7 +23,7 @@ import { assertConfigOrExit, gatewaySecret, loadConfig, resolveNotifyChatId } fr
 import { hardenRuntimeFiles, larkRuntimeDir, larkTasksDir } from './lib/lark-repo.mjs'
 import { normalizeAiExecutor } from './lib/lark-http.mjs'
 import { buildCardContent } from './lib/lark-cards.mjs'
-import { searchChatIdsByName, sendChatMessage } from './lib/lark-cli.mjs'
+import { searchChatIdsByName, sendBotMarkdown, sendChatMessage } from './lib/lark-cli.mjs'
 import { createTaskStore } from './lib/lark-task-store.mjs'
 import { startConsumer } from './lib/lark-consumer.mjs'
 import { ingestLarkEvent } from './lib/lark-ingest.mjs'
@@ -36,7 +36,7 @@ import { larkAttachmentsRoot } from './lib/lark-paths.mjs'
 import { createRequestHandler } from './lib/lark-routes.mjs'
 import { createRuntimeVersion } from './lib/lark-runtime-version.mjs'
 import { GATEWAY_HOST, defaultGatewayPort, defaultTaskLeaseMs } from './lib/lark-constants.mjs'
-import { addRepoChatIds, listRepoProfiles, registerRepoProfiles } from './lib/lark-repo-profile.mjs'
+import { addRepoChatIds, listRepoProfiles, registerRepoProfiles, repoProfileForTask } from './lib/lark-repo-profile.mjs'
 import { startChatPoller } from './lib/lark-chat-poller.mjs'
 import { startDailyReportScheduler } from './lib/lark-daily-report.mjs'
 
@@ -188,6 +188,23 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
     remindParkedTasks({ config, store }).catch((error) =>
       console.error(`[lark-gateway] 挂起催办异常：${String(error).slice(0, 120)}`),
     )
+    // 疑似任务 48h 无人放行自动关闭（整改 #8），按仓汇总私聊负责人一句。
+    try {
+      const expired = store.expireSuspected()
+      const byRepo = new Map()
+      for (const task of expired) {
+        const profile = repoProfileForTask(task)
+        if (!profile || profile.isDefault || !profile.notifyChatId) continue
+        if (!byRepo.has(profile.notifyChatId)) byRepo.set(profile.notifyChatId, [])
+        byRepo.get(profile.notifyChatId).push(task)
+      }
+      for (const [chatId, tasks] of byRepo) {
+        const lines = tasks.slice(0, 8).map((task) => `- ${(task.summary || task.id).slice(0, 60)}`)
+        void sendBotMarkdown({ chatId, markdown: `🗂 ${tasks.length} 条疑似任务挂了 48 小时没人放行，已自动关闭：\n${lines.join('\n')}${tasks.length > 8 ? '\n- …' : ''}`, logPrefix: 'suspected expired' })
+      }
+    } catch (error) {
+      console.error(`[lark-gateway] 疑似任务过期清理异常：${String(error).slice(0, 120)}`)
+    }
   }, 15 * 60 * 1000)
   parkedTimer.unref?.()
 

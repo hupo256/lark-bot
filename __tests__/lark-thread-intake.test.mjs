@@ -118,3 +118,17 @@ describe('外部群任务入口：准确优先', () => {
     assert.equal(store.mergeIntoTask({ fromId: 'nope', intoId: 'into_q' }), null)
   }))
 })
+
+describe('疑似任务 48h 过期（#8）', () => {
+  it('挂满 48h 的疑似任务自动 ignored 并返回；未满的不动', () => withStore((store) => {
+    const old = new Date(Date.now() - 49 * 3600_000).toISOString()
+    store.upsert({ id: 's1', source: 'lark', repo: 'falive', chatId: 'oc_x', text: 'a', summary: '录播接口', status: 'waiting_confirmation', suspected: true, parkedAt: old, createdAt: old, updatedAt: old })
+    store.upsert({ id: 's2', source: 'lark', repo: 'falive', chatId: 'oc_x', text: 'b', status: 'waiting_confirmation', suspected: true, parkedAt: new Date().toISOString(), createdAt: new Date().toISOString() })
+    assert.equal(store.listSuspected().length, 2)
+    const expired = store.expireSuspected()
+    assert.deepEqual(expired.map((t) => t.id), ['s1'])
+    assert.equal(store.get('s1').status, 'ignored')
+    assert.match(store.get('s1').result, /自动关闭/)
+    assert.equal(store.listSuspected().length, 1)
+  }))
+})

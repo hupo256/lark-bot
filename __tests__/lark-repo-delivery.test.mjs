@@ -3,7 +3,9 @@ import { afterEach, describe, it } from 'node:test'
 
 import {
   buildGroupCard,
+  FALLBACK_TEXT,
   buildRepoBlockedGroupText,
+  followUpTopicKey,
   buildRepoGroupText,
   extractBlockers,
   buildRepoNote,
@@ -178,5 +180,40 @@ describe('阻塞时群里 @ 责任人要材料（整改 #12）', () => {
     assert.match(sent[0].markdown, /⏸ 停下来了.*\n要：R2 单条详情接口\n.*\n群里已回：「@Ache 「录播 tab 接详情」这边卡住了，需要你们帮忙：」/s)
     await deliverRepoOutcome({ task: { id: 'b2', chatId: 'oc_falive', repo: 'falive', summary: 's', suspected: true }, status: 'waiting_confirmation', result: 'x', deps })
     assert.equal(hooks.length, 1, '疑似任务不往群里要材料')
+  })
+})
+
+describe('待确认清单按主题复用云文档（#13）与兜底话术（#15）', () => {
+  afterEach(() => resetRepoProfiles())
+  it('同主题第二次走 overwrite 不新建；主题缺省取文件名去日期；守门拦下且群里回过收到 → 发兜底', async () => {
+    register()
+    const { mkdtempSync, rmSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    const dir = mkdtempSync(join(tmpdir(), 'lark-followup-reg-'))
+    try {
+      assert.equal(followUpTopicKey({ followUpDoc: 'docs/delivery/pending/对接-live后端-3-待确认-2026-10-14.md' }), '对接-live后端-3-待确认')
+      const calls = []
+      const deps = {
+        docRegistryDir: dir,
+        sendMarkdown: async () => ({ ok: true }),
+        sendWebhookMessage: async (a) => { calls.push(a.logPrefix); return { ok: true } },
+        webhookFor: () => ({ url: 'u' }),
+        materializeDoc: () => ({ dir: '/tmp', file: 'x.md' }),
+        createLarkDoc: async () => { calls.push('create'); return { ok: true, url: 'https://doc/A', documentId: 'docA' } },
+        overwriteLarkDoc: async ({ documentId }) => { calls.push(`overwrite:${documentId}`); return { ok: true } },
+      }
+      const base = { chatId: 'oc_falive', repo: 'falive', topic: 'live-3', branch: 'b', groupReply: '接完了', followUpDoc: 'docs/x-待确认-2026-10-14.md', followUps: [{ owner: 'Ache', items: ['A9'] }] }
+      const first = await deliverRepoOutcome({ task: { ...base, id: 'd1' }, status: 'done', result: 'x', deps })
+      const second = await deliverRepoOutcome({ task: { ...base, id: 'd2' }, status: 'done', result: 'x', deps })
+      assert.equal(first.docUrl, 'https://doc/A')
+      assert.equal(second.docUrl, 'https://doc/A', '同主题复用同一份')
+      assert.deepEqual(calls.filter((c) => c === 'create' || c.startsWith('overwrite')), ['create', 'overwrite:docA'])
+      calls.length = 0
+      await deliverRepoOutcome({ task: { id: 'g', chatId: 'oc_falive', repo: 'falive', commandType: 'status', groupReply: '接口都已对完，还差举报分类为空。', ackedInGroup: true }, status: 'done', result: 'x', deps })
+      assert.deepEqual(calls, ['repo fallback g'], '守门拦下 + 群里回过收到 → 只发兜底')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
