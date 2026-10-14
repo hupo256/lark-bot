@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -242,6 +243,56 @@ describe('完整版：状态以 pre 代码为准 + 台账', () => {
 })
 
 describe('待对接文档最新视图', () => {
+  // 真 git：三个分支各改同一份文件的不同行（隔开至少一行；相邻行的修改 git 会判冲突，那种走回落） → 视图里三处都在；同一行各改各的 → 冲突回落取较新、标 conflict。
+  const realRepo = () => {
+    const dir = mkdtempSync(join(tmpdir(), 'lark-docs-merge-'))
+    const run = (...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8', env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t', ...(run.at ? { GIT_COMMITTER_DATE: run.at } : {}) } })
+    const write = (file, text) => { mkdirSync(join(dir, 'docs/p'), { recursive: true }); writeFileSync(join(dir, file), text) }
+    // 「较新」按提交时间（%ct）判，提交时间也要固定。
+    const commit = (msg, at) => { run('add', '-A'); run.at = at; run('-c', 'commit.gpgsign=false', 'commit', '-q', '-m', msg, '--date', at); run.at = null }
+    run('init', '-q', '-b', 'base')
+    write('docs/p/a.md', 'E1 待答复\n-\nE2 待答复\n-\nE3 待答复\n')
+    write('docs/p/c.md', 'X 待答复\n')
+    commit('base', '2026-10-14T10:00:00')
+    run('checkout', '-q', '-b', 'pre'); write('docs/p/a.md', 'E1 待答复\n-\nE2 待答复\n-\nE3 已复测\n'); write('docs/p/c.md', 'X pre 版\n'); write('docs/p/sweep.md', '清扫结论\n'); commit('pre', '2026-10-14T12:00:00')
+    run('checkout', '-q', 'base'); run('checkout', '-q', '-b', 'work'); write('docs/p/a.md', 'E1 待答复\n-\nE2 已实测\n-\nE3 待答复\n'); write('docs/p/c.md', 'X 工作分支版\n'); commit('work', '2026-10-14T13:00:00')
+    run('checkout', '-q', 'base'); run('checkout', '-q', '-b', 'integ'); write('docs/p/a.md', 'E1 已答复\n-\nE2 待答复\n-\nE3 待答复\n'); commit('integ', '2026-10-14T11:00:00')
+    return dir
+  }
+
+  it('三分支合并：各改的行都保留，只在一边有的文件也带上；真冲突回落取较新并标 conflict', () => {
+    const dir = realRepo()
+    try {
+      const out = buildDocsView({ root: dir, refs: ['pre', 'work', 'integ'], relDir: 'docs/p', outDir: join(dir, 'view') })
+      assert.equal(out.merged, true)
+      assert.equal(readFileSync(join(dir, 'view', 'a.md'), 'utf8'), 'E1 已答复\n-\nE2 已实测\n-\nE3 已复测\n')
+      assert.equal(readFileSync(join(dir, 'view', 'sweep.md'), 'utf8'), '清扫结论\n')
+      // c.md 在 pre 与工作分支同一行冲突 → 取最后提交较新的工作分支版，不写冲突标记
+      assert.equal(readFileSync(join(dir, 'view', 'c.md'), 'utf8'), 'X 工作分支版\n')
+      assert.deepEqual(out.picked, [
+        { file: 'docs/p/a.md', ref: 'merged' },
+        { file: 'docs/p/c.md', ref: 'work', conflict: true },
+        { file: 'docs/p/sweep.md', ref: 'merged' },
+      ])
+      // 不动分支、不动工作区
+      assert.equal(execFileSync('git', ['-C', dir, 'branch', '--show-current'], { encoding: 'utf8' }).trim(), 'integ')
+      assert.equal(execFileSync('git', ['-C', dir, 'status', '--porcelain', '--', 'docs'], { encoding: 'utf8' }).trim(), '')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('集成分支不存在：照样合并其余分支', () => {
+    const dir = realRepo()
+    try {
+      const out = buildDocsView({ root: dir, refs: ['pre', 'work', 'no-such-branch'], relDir: 'docs/p', outDir: join(dir, 'view') })
+      assert.equal(out.merged, true)
+      assert.equal(readFileSync(join(dir, 'view', 'a.md'), 'utf8'), 'E1 待答复\n-\nE2 已实测\n-\nE3 已复测\n')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('同一份文件取 pre 与工作分支里提交较新的那版，只在一边有的也带上', () => {
     const dir = mkdtempSync(join(tmpdir(), 'lark-docs-view-'))
     try {
