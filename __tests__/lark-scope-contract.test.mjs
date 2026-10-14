@@ -535,3 +535,12 @@ describe('人工确认扩大范围（scopeRequest → scopeApprovals）', () => 
     assert.match(gate.warnNotes[0], /疑似漏改.*b\.ts/)
   })
 })
+
+describe('resolveScopeGate 豁免目录', () => {
+  it('对接文档落点下的文件不算越界、不计行数', async () => {
+    const { resolveScopeGate } = await import('../lib/lark-scope-contract.mjs')
+    const scope = scopeOf([{ path: 'src/a.ts', reason: 'x' }], [], ['a'])
+    const gate = resolveScopeGate({ task: { text: 'fix a' }, scope, actualChangedFiles: ['src/a.ts', 'docs/delivery/pending/PM-3217-对接文档.md'], numstat: numstatOf([[3, 1, 'src/a.ts'], [700, 0, 'docs/delivery/pending/PM-3217-对接文档.md']]), workKind: 'bugfix', budgets: { bugfix: 200 }, exemptPrefixes: ['docs/delivery/pending'] })
+    assert.equal(gate.blockedText, null, `应放行：${gate.blockedText}`)
+  })
+})
