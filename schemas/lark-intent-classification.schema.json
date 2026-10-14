@@ -54,6 +54,39 @@
         "null"
       ],
       "description": "若这条消息是提示里「最近任务」中某一条的延续 / 补充 / 答复，填那条任务的 id；是新主题或无关填 null"
+    },
+    "items": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "description": "这条消息触及的对接台账条目（台账见提示）。id 用台账里的条目 id（如 对接-live后端-3#2）；台账里没有、群里新冒出来的事 id 填 new；transition：answer=对方答复了这条 / ask=向我方提问 / notify=通知或进度同步 / confirm=确认已好、可以了 / new=新条目；note 一句话说明",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "transition"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "transition": {
+            "type": "string",
+            "enum": [
+              "answer",
+              "ask",
+              "notify",
+              "confirm",
+              "new"
+            ]
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      }
     }
   }
 }
