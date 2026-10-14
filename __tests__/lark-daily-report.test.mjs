@@ -7,6 +7,7 @@ import { afterEach, describe, it } from 'node:test'
 import {
   buildDailyDocPrompt,
   buildDailyReportPrompt,
+  buildDocsView,
   collectApiGapSources,
   collectDailyFacts,
   diffFeatureTables,
@@ -234,6 +235,27 @@ describe('完整版：状态以 pre 代码为准 + 台账', () => {
       assert.match(note, /henry：高亮框写「负责 1 项，0 项 ✅」，按状态算是 1 项、1 项 ✅/)
       // 第二天：今日 +n 以代码状态快照为基线
       assert.equal(JSON.parse(readFileSync(join(reportDir, 'code-status.json'), 'utf8')).done, 2)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('待对接文档最新视图', () => {
+  it('同一份文件取 pre 与工作分支里提交较新的那版，只在一边有的也带上', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'lark-docs-view-'))
+    try {
+      const tree = { 'origin/pre': ['docs/p/a.md', 'docs/p/sweep.md'], 'feature/x': ['docs/p/a.md', 'docs/p/b.md'] }
+      const times = { 'origin/pre:docs/p/a.md': 200, 'feature/x:docs/p/a.md': 100, 'origin/pre:docs/p/sweep.md': 300, 'feature/x:docs/p/b.md': 50 }
+      const git = (root, args) => {
+        if (args.includes('ls-tree')) return { ok: true, stdout: tree[args[args.indexOf('--name-only') + 1]].join('\n') }
+        if (args[0] === 'log') return { ok: true, stdout: String(times[`${args[3]}:${args[5]}`] || '') }
+        return { ok: false, stdout: '' }
+      }
+      const out = buildDocsView({ root: dir, refs: ['origin/pre', 'feature/x'], relDir: 'docs/p', outDir: join(dir, 'view'), git, readBlob: (ref, path) => Buffer.from(`${ref}|${path}`) })
+      assert.deepEqual(out.picked, [{ file: 'docs/p/a.md', ref: 'origin/pre' }, { file: 'docs/p/b.md', ref: 'feature/x' }, { file: 'docs/p/sweep.md', ref: 'origin/pre' }])
+      assert.equal(readFileSync(join(dir, 'view', 'a.md'), 'utf8'), 'origin/pre|docs/p/a.md')
+      assert.equal(readFileSync(join(dir, 'view', 'b.md'), 'utf8'), 'feature/x|docs/p/b.md')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
