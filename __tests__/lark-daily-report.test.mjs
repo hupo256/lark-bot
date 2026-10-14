@@ -7,9 +7,11 @@ import { afterEach, describe, it } from 'node:test'
 import {
   buildDailyDocPrompt,
   buildDailyReportPrompt,
+  collectApiGapSources,
   collectDailyFacts,
   diffFeatureTables,
   groupCommitsByPerson,
+  parseMockUsages,
   parseFeatureTable,
   resolvePerson,
   runDailyReport,
@@ -92,7 +94,12 @@ describe('事实采集与日报生成（IO 注入）', () => {
       assert.match(prompt, /\[blocked\] 主播公告/)
       const docPrompt = buildDailyDocPrompt(facts, profile.dailyReport)
       assert.match(docPrompt, /<callout emoji="📝"/)
-      assert.match(docPrompt, /总体进度：xx\.x%/)
+      assert.match(docPrompt, /## 总体进度：xx\.x%/)
+      assert.ok(docPrompt.indexOf('## 总体进度') < docPrompt.indexOf('高亮框引子'), '总体进度在高亮框之前')
+      assert.doesNotMatch(docPrompt, /\*\*总体进度/)
+      assert.match(docPrompt, /不能只抄待对接目录/)
+      assert.match(docPrompt, /全项目接口缺口线索/)
+      assert.match(docPrompt, /不缺接口的未完成功能/)
       assert.match(docPrompt, /以「10-13：」开头/)
       assert.match(docPrompt, /不再写「四、一句话现状」/)
       assert.match(docPrompt, /三、需要再跟进的工作/)
@@ -123,5 +130,27 @@ describe('事实采集与日报生成（IO 注入）', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
+  })
+})
+
+describe('全项目接口缺口线索', () => {
+  it('mock 引用按文件计数，排除测试与 mock.ts 本身', () => {
+    const out = parseMockUsages([
+      "src/modules/download/data/queries.ts:3:import { mockChannels } from './mock'",
+      'src/modules/download/data/queries.ts:9:  queryFn: () => mockChannels,',
+      "src/modules/live/data/mock.ts:1:export const mock = 1",
+      "src/modules/news/data/seo.test.ts:2:mock",
+      "src/modules/help/data/mutations.ts:8: * Phase 1：mock",
+    ].join('\n'))
+    assert.deepEqual(out, [{ file: 'src/modules/download/data/queries.ts', hits: 2 }, { file: 'src/modules/help/data/mutations.ts', hits: 1 }])
+  })
+  it('未打 ✅ 的功能、未 ready 的 MSW 登记、mock 文件三路汇总；grep 无命中不报错', () => {
+    const rows = [{ no: 1, feature: '用户资料', owner: 'henry', status: '🟠', location: 'user', note: 'mock' }, { no: 2, feature: '登录', owner: 'aven', status: '✅' }]
+    const files = { '/r/src/mocks/pending-endpoints.json': JSON.stringify({ pending: [{ path: '*/api/a', owner: 'henry', reason: 'r', ready: false }, { path: '*/api/b', ready: true }] }) }
+    const sources = collectApiGapSources({ dir: '/r', rows, git: () => ({ ok: false, stdout: '' }), readFile: (path) => files[path] })
+    assert.deepEqual(sources.unfinished.map((row) => row.no), [1])
+    assert.deepEqual(sources.msw.map((item) => item.path), ['*/api/a'])
+    assert.deepEqual(sources.mockUsages, [])
+    assert.deepEqual(collectApiGapSources({ dir: '/none', rows: [], git: () => ({ ok: false }), readFile: () => { throw new Error('x') } }).msw, [])
   })
 })
