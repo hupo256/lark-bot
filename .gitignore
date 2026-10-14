@@ -10,6 +10,7 @@ runtime/lark-audits/
 runtime/lark-bugtable-state.json
 runtime/lark-worker-state.json
 runtime/lark-daily-report/
+runtime/lark-daily-sweep/
 runtime/lark-chat-poller-state.json
 runtime/lark-followup-docs/
 runtime/lark-ledger/
