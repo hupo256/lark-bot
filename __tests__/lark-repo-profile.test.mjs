@@ -141,11 +141,12 @@ describe('工作上下文按 profile 路由', () => {
 })
 
 describe('claude 模型 / 推理强度按 profile', () => {
-  it('resolveAiModelConfig：profile > claudeModel > 旧键 model；intent 模型单独', () => {
+  it('resolveAiModelConfig：profile > claudeModel > 旧键 model；intent 模型 / 强度单独', () => {
     const profile = normalizeRepoProfile('falive', faliveRaw)
-    assert.deepEqual(resolveAiModelConfig({ model: 'old' }, 'claude'), { model: 'old', reasoningEffort: null, provider: null, intentModel: 'old', analysisModel: 'old', analysisEffort: null })
-    assert.deepEqual(resolveAiModelConfig({ claudeModel: 'opus', claudeEffort: 'high' }, 'claude'), { model: 'opus', reasoningEffort: 'high', provider: null, intentModel: 'opus', analysisModel: 'opus', analysisEffort: 'high' })
-    assert.deepEqual(resolveAiModelConfig({ claudeModel: 'opus' }, 'claude', profile), { model: 'claude-fable-5-1', reasoningEffort: 'medium', provider: null, intentModel: 'claude-sonnet-5-5', analysisModel: 'claude-opus-4-8', analysisEffort: 'high' })
+    assert.deepEqual(resolveAiModelConfig({ model: 'old' }, 'claude'), { model: 'old', reasoningEffort: null, provider: null, intentModel: 'old', intentEffort: null, analysisModel: 'old', analysisEffort: null })
+    assert.deepEqual(resolveAiModelConfig({ claudeModel: 'opus', claudeEffort: 'high' }, 'claude'), { model: 'opus', reasoningEffort: 'high', provider: null, intentModel: 'opus', intentEffort: 'high', analysisModel: 'opus', analysisEffort: 'high' })
+    assert.deepEqual(resolveAiModelConfig({ claudeModel: 'opus' }, 'claude', profile), { model: 'claude-fable-5-1', reasoningEffort: 'medium', provider: null, intentModel: 'claude-sonnet-5-5', intentEffort: 'medium', analysisModel: 'claude-opus-4-8', analysisEffort: 'high' })
+    assert.equal(resolveAiModelConfig({}, 'claude', normalizeRepoProfile('falive', { ...faliveRaw, claudeIntentEffort: 'high' })).intentEffort, 'high')
     assert.equal(resolveAiModelConfig({ codexModel: 'gpt' }, 'codex').model, 'gpt')
   })
 

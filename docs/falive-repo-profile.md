@@ -67,7 +67,7 @@ webhook 发出的卡片没有 `message_id`，不能作为「回复卡片」的�
 | `poll` / `dailyReport` | 轮询频率 / 日报（见 §6、§7） | 见下 |
 | `claudeModel` / `claudeEffort` | 实施阶段模型 | opus-5-5 / medium |
 | `claudeAnalysisModel` / `claudeAnalysisEffort` | 只读分析 / 分诊阶段模型 | opus-5-5 / high |
-| `claudeIntentModel` | 意图 / 信息分类模型 | opus-4-8 |
+| `claudeIntentModel` / `claudeIntentEffort` | 意图 / 信息分类模型与强度（强度缺省同 `claudeEffort`） | opus-5-5 / high（2026-10-14 aven：分类要准） |
 | `aiTimeoutMs` | 该仓 AI 硬超时（必须 < `LARK_TASK_LEASE_MS`，launchd wrapper 已设 75min） | 60min |
 
 默认仓 `fameex` 不写也存在，行为与拆仓前一致；`repos.fameex` 只允许覆盖模型 / 预算 / 人员表。
