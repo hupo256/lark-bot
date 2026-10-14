@@ -107,8 +107,16 @@ wait_until() {
   return 1
 }
 
+# 先停 worker 并等它退出（它要通过 gateway 把在飞任务交还队列），再停 gateway；
+# 反过来会让任务卡在 running 直到租约过期（2026-10-13 真机）。
+_wait_gone() {
+  local script="$1" i
+  for i in $(seq 1 40); do _running "$script" || return 0; sleep 0.25; done
+  return 1
+}
 stop_core() {
   launchctl bootout "$DOMAIN/$WK_LABEL" 2>/dev/null || true
+  _wait_gone "$WK" || echo "• worker 10s 内未退出，强制停止（在飞任务靠租约回收）"
   launchctl bootout "$DOMAIN/$GW_LABEL" 2>/dev/null || true
   launchctl bootout "$DOMAIN/$LEGACY_WK_LABEL" 2>/dev/null || true
   launchctl bootout "$DOMAIN/$LEGACY_GW_LABEL" 2>/dev/null || true

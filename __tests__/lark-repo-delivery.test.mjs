@@ -3,7 +3,9 @@ import { afterEach, describe, it } from 'node:test'
 
 import {
   buildGroupCard,
+  buildRepoBlockedGroupText,
   buildRepoGroupText,
+  extractBlockers,
   buildRepoNote,
   buildRepoStartNote,
   buildRepoSuspectedNote,
@@ -157,5 +159,24 @@ describe('pre 结论必须实测', () => {
     assert.match(findGroupReplyContradiction(text, { verify, preChecks: null }), /没在 pre 上实测过/)
     assert.equal(findGroupReplyContradiction(text, { verify, preChecks: [{ endpoint: '/api/report/classifyList', outcome: 'code 0，0 条' }] }), null)
     assert.equal(findGroupReplyContradiction(text), null)
+  })
+})
+
+describe('阻塞时群里 @ 责任人要材料（整改 #12）', () => {
+  afterEach(() => resetRepoProfiles())
+  it('blocked → 群里一段 @ + 条目；私聊注明群里已回；疑似任务不发', async () => {
+    register()
+    assert.deepEqual(extractBlockers('已阻塞，需外部材料 / 权限后才能继续。\n1. 录播详情接口没有。\n2. 待补充：R2 单条详情接口；pre 灌点播数据'), ['R2 单条详情接口', 'pre 灌点播数据'])
+    const text = buildRepoBlockedGroupText({ task: { summary: '录播 tab 接详情' }, mentions: [{ owner: 'Ache', openId: 'ou_ache', items: [] }], blockers: ['R2 单条详情接口'] })
+    assert.equal(text, '@Ache 「录播 tab 接详情」这边卡住了，需要你们帮忙：\n- R2 单条详情接口')
+    const hooks = []
+    const sent = []
+    const deps = { sendMarkdown: async (a) => { sent.push(a); return { ok: true } }, sendWebhookMessage: async (a) => { hooks.push(a); return { ok: true } }, webhookFor: () => ({ url: 'u' }) }
+    const out = await deliverRepoOutcome({ task: { id: 'b1', chatId: 'oc_falive', repo: 'falive', summary: '录播 tab 接详情', owner: 'Ache' }, status: 'blocked', result: '已阻塞，需外部材料 / 权限后才能继续。\n1. 没有详情接口。\n2. 待补充：R2 单条详情接口', deps })
+    assert.equal(out.ok, true)
+    assert.match(hooks[0].card.elements[0].content, /^<at id=ou_ache><\/at> 「录播 tab 接详情」这边卡住了/)
+    assert.match(sent[0].markdown, /⏸ 停下来了.*\n要：R2 单条详情接口\n.*\n群里已回：「@Ache 「录播 tab 接详情」这边卡住了，需要你们帮忙：」/s)
+    await deliverRepoOutcome({ task: { id: 'b2', chatId: 'oc_falive', repo: 'falive', summary: 's', suspected: true }, status: 'waiting_confirmation', result: 'x', deps })
+    assert.equal(hooks.length, 1, '疑似任务不往群里要材料')
   })
 })
