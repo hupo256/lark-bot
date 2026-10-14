@@ -12,6 +12,7 @@ import {
   handlePushPre,
   loadSweepState,
   parsePushPreDirective,
+  pendingSweepBranches,
   pushToPre,
   saveSweepState,
   sweepPushHint,
@@ -150,6 +151,14 @@ describe('日报清扫：结果私信', () => {
     assert.doesNotMatch(note, /你合这一条分支就够/)
     assert.equal(sweepPushHint({ ...task, changedFiles: [] }), null)
   })
+
+  it('没合回集成分支：提示推 pre 会带上这条分支，不再叫负责人手动合', () => {
+    register()
+    const task = { id: 'sweep-falive-20261014', source: 'daily-sweep', repo: 'falive', chatId: 'ou_aven', changedFiles: ['a.md'], branch: 'lark/falive-20261014', integration: { mergedBack: false, branch: 'lark/falive-integration', mergeReason: '冲突' } }
+    const note = buildRepoNote({ task, status: 'done', profile: repoProfile('falive'), result: '2026-10-14 日报 aven 待办 1 条：清掉 1 条，剩 0 条。' })
+    assert.match(note, /改动在分支 lark\/falive-20261014（没合进集成分支）。回「推 pre」我会把它一起合进 pre/)
+    assert.doesNotMatch(note, /要你手动合/)
+  })
 })
 
 describe('推 pre', () => {
@@ -188,6 +197,22 @@ describe('推 pre', () => {
     assert.match(merges[1], /lark\/falive-integration$/)
     assert.ok(calls.includes('push origin HEAD:pre'))
     assert.match(calls.at(-1), /^worktree remove --force/)
+  })
+
+  it('没合回集成分支的清扫分支：近 48 小时、有改动才带上，并排在 baseRef / 集成分支之后合', async () => {
+    register()
+    const now = new Date('2026-10-14T20:00:00Z')
+    const store = { list: () => [
+      { source: 'daily-sweep', repo: 'falive', branch: 'lark/falive-20261014', changedFiles: ['a.md'], integration: { mergedBack: false }, updatedAt: '2026-10-14T19:00:00Z' },
+      { source: 'daily-sweep', repo: 'falive', branch: 'lark/falive-20261010', changedFiles: ['a.md'], integration: { mergedBack: false }, updatedAt: '2026-10-10T19:00:00Z' },
+      { source: 'daily-sweep', repo: 'falive', branch: 'lark/falive-merged', changedFiles: ['a.md'], integration: { mergedBack: true }, updatedAt: '2026-10-14T19:00:00Z' },
+      { source: 'lark', repo: 'falive', branch: 'lark/falive-other', changedFiles: ['a.md'], updatedAt: '2026-10-14T19:00:00Z' },
+    ] }
+    const extraRefs = pendingSweepBranches({ store, profile: repoProfile('falive'), now })
+    assert.deepEqual(extraRefs, ['lark/falive-20261014'])
+    const { git, calls } = fakeGit()
+    await pushToPre({ profile: repoProfile('falive'), extraRefs, git })
+    assert.match(calls.filter((cmd) => cmd.startsWith('merge --no-ff')).at(-1), /lark\/falive-20261014$/)
   })
 
   it('冲突 → abort、不推送，告诉负责人冲突文件', async () => {
