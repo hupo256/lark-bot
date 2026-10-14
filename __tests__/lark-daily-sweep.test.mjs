@@ -238,10 +238,17 @@ describe('推 pre', () => {
     const runtimeDir = mkdtempSync(join(tmpdir(), 'lark-sweep-state-'))
     try {
       const reply = await handlePushPre({ deps: { runtimeDir, pushToPre: async () => ({ ok: true, head: 'abcdef1234', base: 'h1', commits: ['abc1234 fix: 关注接口扁平'], pushedAt: '2026-10-14T16:00:00.000Z' }) } })
-      assert.match(reply, /已推 pre（abcdef12，1 个提交）/)
+      assert.match(reply, /已推 pre（abcdef12，待部署 1 个提交）/)
       assert.match(reply, /主题：falive pre 前端部署申请/)
       assert.match(reply, /- fix: 关注接口扁平/)
       assert.equal(loadSweepState('falive', { runtimeDir }).lastPush.head, 'abcdef1234')
+      // 上一次还没部署又推了一次：复测清单 / 邮件合并两次的提交，base 取最早那次。
+      const second = await handlePushPre({ deps: { runtimeDir, pushToPre: async () => ({ ok: true, head: '9999999999', base: 'abcdef1234', commits: ['bbb2222 docs: 回填'], pushedAt: '2026-10-14T18:00:00.000Z' }) } })
+      assert.match(second, /待部署 2 个提交/)
+      assert.match(second, /- fix: 关注接口扁平/)
+      const merged = loadSweepState('falive', { runtimeDir }).lastPush
+      assert.deepEqual(merged.commits, ['bbb2222 docs: 回填', 'abc1234 fix: 关注接口扁平'])
+      assert.equal(merged.base, 'h1')
     } finally {
       rmSync(runtimeDir, { recursive: true, force: true })
     }
