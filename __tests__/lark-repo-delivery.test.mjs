@@ -52,6 +52,7 @@ describe('仓库任务的人话出口', () => {
 
   it('群里那句：done 一句 ✅；有待跟进 → @ + 链接 + 每人要点；提问代答只发答案', () => {
     assert.equal(buildRepoGroupText({ task: { groupReply: '接好了，pre 可以复测。' } }), '✅ 接好了，pre 可以复测。')
+    assert.equal(buildRepoGroupText({ task: { groupReply: '登录转发：通了 1 项，没通 1 项\n- ⚠️ 接了但还不能用 x\n📝 由 aven 的助手整理' } }), '登录转发：通了 1 项，没通 1 项\n- ⚠️ 接了但还不能用 x', '有逐项状态不加 ✅；正文里的署名剥掉')
     const mentions = [{ owner: 'Ache', openId: 'ou_ache', items: ['A9', 'A10'] }]
     const body = buildRepoGroupText({ task: { groupReply: 'A2 已接完。' }, mentions, docUrl: 'https://doc/1' })
     assert.equal(body, '@Ache A2 已接完。\n待确认的几点在这里：https://doc/1\n- Ache：A9；A10')
