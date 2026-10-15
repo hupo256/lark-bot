@@ -108,6 +108,10 @@ describe('事实采集与日报生成（IO 注入）', () => {
       assert.match(docPrompt, /<!-- STATUS_JSON/)
       assert.match(docPrompt, /覆盖总表全部 3 个功能（#1 #2 #28）/)
       assert.match(docPrompt, /全项目接口缺口线索/)
+      assert.match(docPrompt, /### 2\.1 缺接口`/)
+      assert.match(docPrompt, /### 2\.2 缺数据 \/ 缺配置`/)
+      assert.match(docPrompt, /### 2\.3 接过但有问题的接口`/)
+      assert.doesNotMatch(docPrompt, /两小节：2\.1 缺接口 \/ 缺数据 \/ 缺配置/)
       assert.match(docPrompt, /以「10-13：」开头/)
       assert.doesNotMatch(docPrompt, /状态列以功能总表（人维护）为准/)
 
