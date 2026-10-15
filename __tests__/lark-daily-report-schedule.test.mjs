@@ -66,17 +66,46 @@ describe('startDailyReportScheduler', () => {
     assert.deepEqual(runs, ['19:22'])
   })
 
-  it('失败隔 30 分钟再试，当天最多 3 次', async () => {
+  it('失败结束后隔 10 分钟再试，当天最多 3 次', async () => {
     const runs = []
     const clock = { now: at('19:00') }
     const s = scheduler({ clock, runs, ok: () => false })
-    for (const hhmm of ['19:00', '19:01', '19:29', '19:30', '20:00', '20:30', '21:00']) {
+    for (const hhmm of ['19:00', '19:01', '19:09', '19:10', '19:19', '19:20', '19:30', '21:00']) {
       clock.now = at(hhmm)
       await s.tick()
     }
-    assert.deepEqual(runs, ['19:00', '19:30', '20:00'])
+    assert.deepEqual(runs, ['19:00', '19:10', '19:20'])
     assert.equal(runs.length, DAILY_MAX_ATTEMPTS)
     assert.equal(readDailyReportState(dir).falive, undefined)
+  })
+
+  it('间隔从失败结束算，不从开跑算（生成本身要跑 20 分钟）', async () => {
+    const runs = []
+    const clock = { now: at('19:00') }
+    const s = startDailyReportScheduler({
+      config: {},
+      store: {},
+      deps: {
+        runtimeDir: dir,
+        now: () => clock.now,
+        setInterval: () => ({ unref() {} }),
+        enqueueDailySweep: () => ({ skipped: 'test' }),
+        runDailyReport: async ({ now }) => {
+          runs.push(now.toTimeString().slice(0, 5))
+          clock.now = new Date(now.getTime() + 20 * 60_000) // 跑了 20 分钟才失败
+          return { ok: false, reason: 'timeout' }
+        },
+      },
+    })
+    await s.tick() // 19:00 开跑，19:20 失败
+    for (const hhmm of ['19:21', '19:29']) {
+      clock.now = at(hhmm)
+      await s.tick()
+    }
+    assert.deepEqual(runs, ['19:00'])
+    clock.now = at('19:30')
+    await s.tick()
+    assert.deepEqual(runs, ['19:00', '19:30'])
   })
 
   it('手动补发写的状态在下次 tick 生效（不重发）', async () => {
