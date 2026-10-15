@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * 手动跑一次某仓的日报（调格式 / 补发用）：和调度器走同一条 runDailyReport 链路，
- * 结果按 profile 投递（配了 sendTo 就发群）；不写调度状态，不影响当天定时那份。
+ * 结果按 profile 投递（配了 sendTo 就发群）；发群成功会写调度状态（当天定时 / 补发不再重发），--private 试跑不写。
  * --private：不发群，只私聊 profile.dailyReport.to（试跑用）；--to 指定私聊对象，同样不发群。
  * 用法：node scripts/lark-daily-report-now.mjs [repoKey=falive] [--private] [--to <chat_id|open_id>]
  */
@@ -12,7 +12,7 @@ import { normalizeAiExecutor } from '../lib/lark-http.mjs'
 import { larkRuntimeDir, larkTasksDir } from '../lib/lark-repo.mjs'
 import { listRepoProfiles, registerRepoProfiles } from '../lib/lark-repo-profile.mjs'
 import { createTaskStore } from '../lib/lark-task-store.mjs'
-import { runDailyReport } from '../lib/lark-daily-report.mjs'
+import { localDateKey, markDailyReportSent, runDailyReport } from '../lib/lark-daily-report.mjs'
 import { defaultTaskLeaseMs } from '../lib/lark-constants.mjs'
 
 const args = process.argv.slice(2)
@@ -30,6 +30,8 @@ if (!profile || !profile.dailyReport?.at) {
 if (toIndex >= 0) profile.dailyReport.to = args[toIndex + 1]
 if (privateOnly) profile.dailyReport.sendTo = []
 const store = createTaskStore({ tasksDir: larkTasksDir, leaseMs: defaultTaskLeaseMs })
-const outcome = await runDailyReport({ config, store, profile, now: new Date() })
+const now = new Date()
+const outcome = await runDailyReport({ config, store, profile, now })
+if (outcome.ok && !privateOnly) markDailyReportSent({ key: profile.key, date: localDateKey(now) })
 console.log(JSON.stringify({ ok: outcome.ok, reason: outcome.reason, to: outcome.to, reportPath: outcome.reportPath, doc: outcome.doc?.url || null }, null, 2))
 process.exit(outcome.ok ? 0 : 1)
