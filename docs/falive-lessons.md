@@ -37,6 +37,7 @@
 | 23 | 10-15 | Arthur「@Aven.Bot 重跑一次」被答「没看出是哪条」，1 分钟前 bot 自己刚说「需要的话我重跑一次」 | ① 轮询拉到的 `create_time` 是 `2026-10-15 13:49` 字符串，`Number()` 成 NaN → `createTimeMs` 空 → 「群里这条之前的消息」从没拉过（37 条任务 0 条有）；② 拉上下文只留 `sender_type=user`，bot 自己的卡全丢 | 闸：`toEpochMs` 统一进 `normalizeMessage`；`pickRecentContext` 放行本群自定义机器人（`open_bot_id ∈ botMentionOpenIds`）的卡，剥署名、标「（bot，我们自己）」 | 单测 `lark-pure`（三种时间形态）、`lark-chat-poller`（bot 卡保留 / 别家机器人丢）；回放集 `__tests__/fixtures/falive-intake` |
 | 24 | 10-15 | Arthur 回复 bot 卡说「直接发群里」，分类器写「有人（大概率是 aven）…发送人没有标明」判 medium 还要 aven 确认 | 分类提示里没有发送人；ownerMap 有名字但没用 | 规则 + 数据：`describeSender` 把「本条发送人：Arthur（后端）」写进身份段；profile 新增 `memberRoles` | 回放集第 5 条；`lark-prompt-budget` |
 | 25 | 10-15 | `lark-prompt-budget` 红了但没人管（5740 / 4800） | 测试量的是整份提示，台账数据块从真实 runtime 读，台账涨到 50 行就超 | 闸修正：`buildIntentClassificationPrompt` 可注入 `ledger`，测试传空台账只量规则 | 测试转绿 |
+| 26 | 10-15 | aven 回复 Encone「google 登陆好了，再试试」并 @Aven.Bot「帮我在 pre 上试一下」，bot 没反应；Encone 原消息按被动只记台账 | 原消息是主楼（无话题 id），「话题补充」只按 threadRootId 找目标找不到；发送人不同「同人连发」也不中；落到控制通道，回复「还没了结的任务」被判 notice 整条吞掉 | 闸：① 话题补充目标也认 `replyTo === 任务 id`（直接回复原消息）；② 控制通道 notice 分支外部群里 @ 了机器人的回复放行成自己的任务，不再吞 | 真实重发同一条；回放集待补（原消息 + 回复两条） |
 
 ## 还没有闸、只有规则的（再出一次就补闸）
 - #13 待命指令触发后「材料不完美也开工」：目前靠提示词；若再出现「找理由不开工」，加闸：待命触发的工单不允许 blocked，只能 done + 待确认清单。
