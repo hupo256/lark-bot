@@ -83,7 +83,7 @@ webhook 发出去的卡片没有 message_id，bot 现在不记得自己对谁说
 
 验证：单测；重启后数一天群里 bot 消息条数。
 
-## 阶段 6 · 指标与调参（小，持续）
+## 阶段 6 · 指标与调参（小，持续）✅ 10-15 脚本 + CLI（`lark-bot intake-stats falive [days]`）；日报私信版加一行、一周后调参待做
 
 - 任务上记 `receivedAt / classifiedAt / firstOutputAt`，台账事件带上。
 - `lark-bot intake-stats falive [days]`：中位响应、分道占比、合并率、出口拦截数、锚点命中 / 纠正数。
