@@ -7,6 +7,7 @@ import { afterEach, describe, it } from 'node:test'
 import { chatListMessageToEvent, flattenThreadReplies, isPollableMessage, nextDelayMs, startChatPoller, toEpochMs } from '../lib/lark-chat-poller.mjs'
 import { extractInlineFileAttachments, hasDocAttachment, normalizeMessage, parseTextAndAttachments, resolveMessageTrigger } from '../lib/lark-message.mjs'
 import { DEFAULT_POLL, registerRepoProfiles, resetRepoProfiles } from '../lib/lark-repo-profile.mjs'
+import { pickRecentContext } from '../lib/lark-cli.mjs'
 
 const at = (hour, minute = 0) => new Date(2026, 9, 13, hour, minute, 0)
 
@@ -158,5 +159,29 @@ describe('轮询一轮（IO 全注入）', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
+  })
+})
+
+describe('群里之前的消息：真人 + 本群 Aven.Bot 自己的卡（2026-10-15「重跑一次」）', () => {
+  const BOT = 'ou_caf1610a679ff12b9b92204f37572491'
+  const messages = [
+    { message_id: 'om_1', create_time: '2026-10-15 13:44', msg_type: 'text', sender: { id: 'ou_arthur', sender_type: 'user', name: 'Arthur.a' }, content: '@Aven.Bot 把本次请求时间、请求头提供一下' },
+    { message_id: 'om_2', create_time: '2026-10-15 13:48', msg_type: 'interactive', sender: { id: 'cli_x', sender_type: 'app', name: 'Aven.Bot', open_bot_id: BOT }, content: '<card>\n@Arthur.a(ou_arthur) 那次请求信息如下\n需要的话我重跑一次\n📝 由 aven 的助手整理\n</card>' },
+    { message_id: 'om_3', create_time: '2026-10-15 13:48', msg_type: 'interactive', sender: { id: 'cli_other', sender_type: 'app', name: '别的机器人', open_bot_id: 'ou_other' }, content: '<card>广告</card>' },
+    { message_id: 'om_4', create_time: '2026-10-15 13:49', msg_type: 'text', sender: { id: 'ou_arthur', sender_type: 'user', name: 'Arthur.a' }, content: '@Aven.Bot 重跑一次' },
+    { message_id: 'om_5', create_time: '2026-10-15 13:50', msg_type: 'text', sender: { id: 'ou_x', sender_type: 'user', name: '后来的人' }, content: '晚于本条，不该出现' },
+  ]
+  it('保留真人与自家 bot 的卡（剥 <card> 与署名、标「bot，我们自己」），丢别家机器人、排除本条与晚于本条的', () => {
+    const beforeMs = Date.parse('2026-10-15 13:49') + 46_000
+    const out = pickRecentContext(messages, { beforeMs, excludeIds: ['om_4'], botOpenIds: [BOT] })
+    assert.deepEqual(out.map((item) => item.messageId), ['om_1', 'om_2'])
+    assert.equal(out[1].sender, 'Aven.Bot（bot，我们自己）')
+    assert.equal(out[1].bot, true)
+    assert.equal(out[1].text, '@Arthur.a(ou_arthur) 那次请求信息如下\n需要的话我重跑一次')
+    assert.equal(out[0].bot, undefined)
+  })
+  it('没配 botOpenIds 时机器人消息一律不要（旧行为）', () => {
+    const out = pickRecentContext(messages, { beforeMs: Date.parse('2026-10-15 13:49') + 46_000, excludeIds: ['om_4'] })
+    assert.deepEqual(out.map((item) => item.messageId), ['om_1'])
   })
 })

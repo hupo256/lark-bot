@@ -1,0 +1,45 @@
+{
+  "id": "om_x100b623df3a534a4ed4ffc41746dd0d",
+  "source": "lark",
+  "chatId": "oc_c2a63ac7c217235e14407ed1bba69d06",
+  "messageId": "om_x100b623df3a534a4ed4ffc41746dd0d",
+  "threadRootId": null,
+  "operator": "ou_9c6ebed1f44bd1fa7b59f32236c1932f",
+  "project": "FALIVE",
+  "repo": "falive",
+  "commandType": "api",
+  "projectTitle": "Falive Web",
+  "text": "@Aven.tong \n\n预约的部份要改下\nmatchId 已经完全移除了 要改方式请求\n\n【预约改版说明】仅按直播间 live_id 预约（去掉 match_id）\n分支：pre-b2b/26-10/01#14\n提交：dd2c10d\n生效：拉更新后需重启 php-swoole\n\n一、口径变更\n- 预约对象 = 直播间（cmf_live.id），字段名 live_id\n- 不再使用赛事 match_id / match_id_type 作为预约键\n- reserveMatch2（赛事预约）已 stub，调用会直接参数错误，不要用\n\n二、预约 / 取消（toggle）\n接口：POST /api/live/reserveMatch\n鉴权：需登录\n参数：live_id = upcoming / getReserveLiveList 返回的 live_id\n行为：未预约 → 预约；已预约同一 live_id → 取消\n成功：业务 data 为空数组即可\n\n三、列表里的 is_reserve\n以下接口登录后会标 is_reserve（0/1），按 live_id 对齐：\n- GET /api/front/upcoming（及 preload 同名）\n- GET /api/li_stre/getReserveLiveList?uid=主播id\n- GET /api/live_streaming/getReserveLiveList?uid=主播id（旧版同口径）\n未登录：is_reserve 恒为 0\n\n四、主播预告列表 getReserveLiveList\n数据源改为：该主播未开播（islive=0）且 starttime 未过期的 cmf_live\n列表项：\n- id / live_id：均为直播间 id（可直接传给 reserveMatch）\n- match_id：固定 0（兼容字段，勿再当预约键）\n- title / thumb / starttime / type / typeName 等照旧有\n\n五、前端注意\n1. 预约按钮：只用 live_id，不要再拼 match_id + type\n2. 按钮态：以列表返回的 is_reserve 为准；操作成功后本地可乐观翻转，或重拉列表\n3. 旧版「预约的直播不存在」：多半是把 upcoming 的 live_id 误当成 live_reserve.id；现已按 cmf_live 查\n4. 请求须带渠道 Header（X-Site-Platform / 渠道号），否则列表可能空或 403\n\n六、自测建议\n1. upcoming 取一条未开播，记下 live_id\n2. 登录后 POST reserveMatch?live_id=xxx → 再拉 upcoming，该条 is_reserve=1\n3. 再调一次同 live_id → is_reserve=0\n4. 进直播间调 getReserveLiveList?uid=主播 → 列表有该场且 is_reserve 正确\n\n【话题补充 09:25】@Aven.Bot \n帮记录提醒下",
+  "summary": "live 后端答复了预约改版（分支 pre-b2b/26-10/01#14，提交 dd2c10d），点名 @Aven.tong，并请 Aven.Bot 记下来提",
+  "attachments": [],
+  "status": "ignored",
+  "createdAt": "2026-10-15T09:24:44.946Z",
+  "topic": "对接-live后端-3#1",
+  "addressedToBot": null,
+  "fromPrincipal": null,
+  "passiveLedgerOnly": true,
+  "intake": {
+    "required": true,
+    "trigger": "task_mention",
+    "receivedAt": "2026-10-15T09:24:44.946Z",
+    "classification_at_capture": {
+      "decision": "api_reply",
+      "forMe": true,
+      "confidence": "high",
+      "summary": "live 后端答复了预约改版（分支 pre-b2b/26-10/01#14，提交 dd2c10d），点名 @Aven.tong，并请 Aven.Bot 记下来提醒。改动如下：预约现在只认直播间 live_id，match_id / match_id_type 已全部去掉；POST /api/live/reserveMatch 传 live_id，同一个 live_id 再调一次就是取消；reserveMatch2 已经停用，不要调。upcoming 和 getReserveLiveList 登录后按 live_id 返回 is_reserve，没登录恒为 0。getReserveLiveList 的数据源改成该主播还没开播、开播时间也没过的 cmf_live，列表里 id 和 live_id 都是直播间 id，match_id 固定为 0。请求要带渠道 Header（X-Site-Platform / 渠道号）。",
+      "reason": "按功能总表，节目表-预约（#4）和右侧-直播预告（#37）的前端都是 aven 的。这条是后端对台账 对接-live后端-3#1「预约接口认不到即将开播的 live_id」的正式答复，明确要求前端把预约按钮的请求改成只传 live_id、不再拼 match_id，按钮状态以 is_reserve 为准，所以要动前端代码。",
+      "items": [
+        {
+          "id": "对接-live后端-3#1",
+          "transition": "answer",
+          "note": "后端改版：预约只按 cmf_live.id（live_id）toggle，match_id 已去掉，reserveMatch2 停用；upcoming / getReserveLiveList 返回 is_reserve；前端预约按钮要改成只传 live_id"
+        }
+      ],
+      "topic": "对接-live后端-3#1",
+      "relatedTaskId": null,
+      "reply": "已记下：预约改成只传 live_id，按钮态看 is_reserve，前端照这个改",
+      "satisfiesWait": null,
+      "waitsFor": null
+    }
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "id": "om_x100b623e4981b8aced3d91ddb15b8a9",
+  "source": "lark",
+  "chatId": "oc_c2a63ac7c217235e14407ed1bba69d06",
+  "messageId": "om_x100b623e4981b8aced3d91ddb15b8a9",
+  "threadRootId": "om_x100b623db375c4aced48fdfa8f90179",
+  "operator": "ou_a0c48d661b36b1e16bf0d89b4a3bb775",
+  "project": "FALIVE",
+  "repo": "falive",
+  "commandType": "status",
+  "projectTitle": "Falive Web",
+  "text": "【被引用消息】\n<card>\n@Arthur.a(ou_a0c48d661b36b1e16bf0d89b4a3bb775) @HQUCEncone(ou_0474e2a35ff1054cdbc0bb9d9d9c9766) portal 登录发的三种 token：通了 3 项，没通 1 项（10-15 17:39（+8）pre 复测）\n- ⚠️ 接了但还不能用 hichat_token 调嗨聊：GET [https://pre-hailiao.hai-liao-pre.com/api/member/profile/my](https://pre-hailiao.hai-liao-pre.com/api/member/profile/my)，请求头 Authorization: hiApp（不带空格），返回 HTTP 200 / code 500「Failed」。昨天是 401，不带 token 和带 portal token 现在仍是 401，所以签名已经认了，但查资料这一步报错，卡在 Encone / hichat 后端。测试号 hichat_id 129172；token 里 sub 是「LIVE_WEB@」（@ 后面没有用户名），有效期 180 天，但登录返回 expires_in 7 天，请帮忙看下日志\n- ✅ 通了 portal token 查 portal 资料：HTTP 200 / code 0\n- ✅ 通了 live_token 查 live 资料：code 0\n- ✅ 通了 live_token 连直播间 WS：能建连，收到 open 帧，没被断开\n嗨聊这个 500 修好后在群里说一声，我马上复测；任务中心、跑马灯、资料这几块要等它通了才能用登录态\n待确认的几点在这里：[https://qfglxo2m3dc.sg.larksuite.com/docx/Y0cjdVvD3o2YSxxpsyclAuSng9g](https://qfglxo2m3dc.sg.larksuite.com/docx/Y0cjdVvD3o2YSxxpsyclAuSng9g)\n- Encone：hichat_token 已过嗨聊验签，但调 /api/member/profile/my 回 code 500「Failed」（hichat_id 129172），请和 hichat 后端一起看日志；token 里 sub 是「LIVE_WEB@」（@ 后面没有用户名），确认是不是这里导致的；token 有效期 180 天，登录返回 expires_in 7 天，请统一\n📝 由 aven 的助手整理\n</card>\n\n【本条 @】@Aven.Bot 把本次请求时间、请求头、请求参数以及url提供一下",
+  "summary": "后端（Encone/hichat 一侧）请 aven 提供 10-15 17:39 那次 hichat_token 调嗨聊 /api/member/profil",
+  "attachments": [],
+  "status": "done",
+  "createdAt": "2026-10-15T09:44:33.294Z",
+  "topic": "q:om_x100b623e4981b8aced3d91ddb15b8a9",
+  "addressedToBot": true,
+  "fromPrincipal": null,
+  "passiveLedgerOnly": null,
+  "intake": {
+    "required": true,
+    "trigger": "task_mention",
+    "receivedAt": "2026-10-15T09:44:33.294Z",
+    "classification_at_capture": {
+      "decision": "question",
+      "forMe": true,
+      "confidence": "high",
+      "summary": "后端（Encone/hichat 一侧）请 aven 提供 10-15 17:39 那次 hichat_token 调嗨聊 /api/member/profile/my 的复测细节：请求时间、请求头、请求参数和 URL。他们要拿这些去查 code 500「Failed」的日志",
+      "reason": "被引用的卡片是 aven 的助手发的 portal 三种 token 复测结果。这条直接 @ 机器人，要的是复现材料，从复测记录就能给出。登录 / token 链路属于 #2 用户账号状态-对齐和已分给 aven 的登录注册，所以是 aven 的事。要的是一份信息，不是改代码，归为 question",
+      "topic": "new#63a595",
+      "relatedTaskId": null,
+      "reply": "收到，这就整理 17:39 那次复测的请求时间、URL、请求头和参数发群里",
+      "waitsFor": null,
+      "satisfiesWait": null,
+      "items": [
+        {
+          "id": "new#63a595",
+          "transition": "ask",
+          "note": "后端为查 hichat_token 调 profile/my 返回 code 500 的日志，要 10-15 17:39（+8）复测的请求时间、请求头、参数和 URL"
+        }
+      ]
+    }
+  }
+}

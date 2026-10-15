@@ -94,6 +94,13 @@ describe('normalizeMessage', () => {
     assert.equal(msg.replyTo, 'om_parent')
   })
 
+  it('createTimeMs 吃三种 create_time：毫秒串 / 列消息的本机时间串 / 空（2026-10-15：时间串成 NaN 导致从没拉过群上下文）', () => {
+    const base = { message_id: 'om_t', chat_id: 'oc_1', chat_type: 'group', message_type: 'text', sender_id: ME, content: 'x', mentions: [] }
+    assert.equal(normalizeMessage({ ...base, create_time: '1760342400000' }).createTimeMs, 1760342400000)
+    assert.equal(normalizeMessage({ ...base, create_time: '2026-10-15 13:21' }).createTimeMs, Date.parse('2026-10-15 13:21'))
+    assert.equal(normalizeMessage({ ...base }).createTimeMs, null)
+  })
+
   it('官方嵌套 webhook：event.message.* + content JSON 串 + mention.id.open_id', () => {
     const msg = normalizeMessage({
       event: {

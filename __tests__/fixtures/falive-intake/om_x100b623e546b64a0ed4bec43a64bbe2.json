@@ -1,0 +1,39 @@
+{
+  "id": "om_x100b623e546b64a0ed4bec43a64bbe2",
+  "source": "lark",
+  "chatId": "oc_c2a63ac7c217235e14407ed1bba69d06",
+  "messageId": "om_x100b623e546b64a0ed4bec43a64bbe2",
+  "threadRootId": null,
+  "operator": "ou_a0c48d661b36b1e16bf0d89b4a3bb775",
+  "project": "FALIVE",
+  "repo": "falive",
+  "commandType": null,
+  "projectTitle": "Falive Web",
+  "text": "@Aven.Bot 重跑一次",
+  "summary": "@Aven.Bot 重跑一次",
+  "attachments": [],
+  "status": "ignored",
+  "createdAt": "2026-10-15T09:49:46.722Z",
+  "topic": null,
+  "addressedToBot": true,
+  "fromPrincipal": null,
+  "passiveLedgerOnly": null,
+  "intake": {
+    "required": true,
+    "trigger": "task_mention",
+    "receivedAt": "2026-10-15T09:49:46.722Z",
+    "classification_at_capture": {
+      "decision": "ignore",
+      "confidence": "low",
+      "summary": "有人 @ 机器人说「重跑一次」，但没引用消息，也没指明要重跑哪个工单或哪个条目",
+      "reason": "正文只有「重跑一次」，没有被引用消息、话题回复或附件，看不出要重跑的是哪一条任务，也看不出是不是 aven 的功能。不能靠猜去关联台账里的某个条目，所以先按 ignore 处理，并回一句请对方指明要重跑的是哪条",
+      "forMe": false,
+      "items": [],
+      "topic": null,
+      "relatedTaskId": null,
+      "reply": "收到「重跑」，但没看出是哪条，请引用要重跑的原消息再 @ 我",
+      "satisfiesWait": null,
+      "waitsFor": null
+    }
+  }
+}

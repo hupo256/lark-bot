@@ -19,7 +19,8 @@ describe('提示词规则预算', () => {
     try {
       registerRepoProfiles({ repos: { falive: { root: dir, baseRef: 'main', chatIds: ['oc'], ownership: { me: 'aven', meAliases: ['Aven'] }, docIntakeDir: 'docs/pending', verify: { probeCommand: 'node scripts/pre-probe.mjs', schemaCheck: 'x' }, groupPostAsUser: true } } })
       const task = { id: 'x', repo: 'falive', chatId: 'oc', text: 'm', addressedToBot: true, attachments: [], intake: { classification: { decision: 'api_reply' } }, commandType: 'api' }
-      const classifier = buildIntentClassificationPrompt(task)
+      // 传空台账：量的是规则字数，不是运行期 runtime/lark-ledger 的数据量（10-15 台账涨到 50 行把本测试带红）。
+      const classifier = buildIntentClassificationPrompt(task, { ledger: { items: {}, events: [] } })
       assert.ok(classifier.length <= CLASSIFIER_RULE_BUDGET, `分类器规则 ${classifier.length} 字符，超过预算 ${CLASSIFIER_RULE_BUDGET}：先合并旧规则再加`)
       const profile = normalizeRepoProfile('falive', { root: dir, baseRef: 'main' })
       void profile
