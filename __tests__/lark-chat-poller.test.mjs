@@ -197,3 +197,46 @@ describe('图片附件按文件头定扩展名（Read 按扩展名判类型，.i
     assert.equal(imageExtFromBytes(Buffer.from([0xff])), null)
   })
 })
+
+describe('老消息上新开的话题（2026-10-15 aven 在 Encone 15 分钟前的消息上建话题 @Aven.Bot）', () => {
+  it('增量窗口看不到 host；每 threadScanEveryMs 回看一次长窗口，捞到展开的话题回复', async () => {
+    registerRepoProfiles({ repos: { falive: { root: '/tmp/falive-react', baseRef: 'main', chatIds: ['oc_falive'], notifyChatId: 'ou_aven' } } })
+    const dir = mkdtempSync(join(tmpdir(), 'lark-poller-thread-'))
+    const ingested = []
+    let nowMs = Date.parse('2026-10-15T16:34:00+04:00')
+    const hostMs = nowMs - 15 * 60_000
+    let replyVisible = false
+    const host = () => ({ message_id: 'om_encone', msg_type: 'text', create_time: String(hostMs), sender: { id: 'ou_encone', sender_type: 'user' }, content: 'google 登陆好了，再试试', thread_id: 'omt_g',
+      thread_replies: replyVisible ? [{ message_id: 'om_aven_reply', msg_type: 'text', create_time: String(nowMs), sender: { id: 'ou_aven', sender_type: 'user' }, content: '测试一下，报告回群 @Aven.Bot' }] : [] })
+    try {
+      const poller = startChatPoller({
+        config: {}, store: {}, statePath: join(dir, 'state.json'),
+        ingest: async ({ raw }) => ingested.push(raw.message_id),
+        deps: {
+          now: () => new Date(nowMs),
+          setTimeout: () => ({ unref() {} }),
+          // 模拟 Lark：只返回 start 之后的消息；话题回复挂在 host 下面
+          listChatMessages: async ({ start }) => ({ ok: true, messages: Date.parse(start) <= hostMs ? [host()] : [], hasMore: false, pageToken: null }),
+          sendChatMessage: async () => ({ ok: true }),
+          listThreadMessages: async () => ({ ok: true, messages: [] }),
+          isChatMember: async () => false,
+        },
+      })
+      const target = { chatId: 'oc_falive', profile: registerRepoProfiles({ repos: { falive: { root: '/tmp/falive-react', baseRef: 'main', chatIds: ['oc_falive'], notifyChatId: 'ou_aven' } } }).get('falive') }
+      await poller.pollOnce(target) // 首轮：回看一次，话题还没回复
+      assert.deepEqual(ingested, [])
+      replyVisible = true
+      nowMs += 60_000
+      await poller.pollOnce(target) // 增量窗口里没有 host；回看未到期
+      assert.deepEqual(ingested, [])
+      nowMs += 70_000
+      await poller.pollOnce(target) // 回看到期：捞到话题回复
+      assert.deepEqual(ingested, ['om_aven_reply'])
+      await poller.pollOnce(target)
+      assert.deepEqual(ingested, ['om_aven_reply'], 'seen 去重')
+      poller.stop()
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
