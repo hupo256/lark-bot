@@ -62,6 +62,27 @@ describe('仓库任务的人话出口', () => {
     assert.equal(buildRepoGroupText({ task: { commandType: 'status', groupReply: '前端只用了 info.start_the_transaction' } }), '前端只用了 info.start_the_transaction')
   })
 
+  it('同一个人不连着 @ 两次：行首发消息人 + 待跟进负责人是同一人时只留一个（10-15「@Ache @Ache」）', async () => {
+    const mentions = [{ owner: 'Ache', openId: 'ou_ache', items: ['R6 去重'] }]
+    const card = buildGroupCard({ body: '<at id=ou_ache></at> @Ache Ache 回复复测：通了 3 项', mentions })
+    assert.equal(card.elements[0].content, '<at id=ou_ache></at> Ache 回复复测：通了 3 项')
+    assert.equal(buildGroupCard({ body: '@Ache 和 @Encone', mentions: [...mentions, { owner: 'Encone', openId: 'ou_encone', items: [] }] }).elements[0].content, '<at id=ou_ache></at> 和 <at id=ou_encone></at>', '不同人不动')
+    register()
+    const hooks = []
+    const deps = {
+      sendMarkdown: async () => ({ ok: true, messageId: 'om_note' }),
+      sendWebhookMessage: async (args) => { hooks.push(args); return { ok: true } },
+      materializeDoc: () => null,
+      createLarkDoc: async () => ({ ok: true, url: 'https://doc/3' }),
+      webhookFor: () => ({ url: 'https://hook', secret: 's' }),
+    }
+    const task = { id: 't-dup', chatId: 'oc_falive', repo: 'falive', operator: 'ou_ache', ackedInGroup: true, addressedToBot: true, summary: 's', groupReply: 'Ache 回复复测：通了 3 项', followUps: [{ owner: 'Ache', items: ['R6 去重'] }] }
+    await deliverRepoOutcome({ task, status: 'done', result: 'x', deps })
+    assert.equal(hooks.length, 1)
+    assert.match(hooks[0].card.elements[0].content, /^<at id=ou_ache><\/at> Ache 回复复测：通了 3 项\n/)
+    assert.equal((hooks[0].card.elements[0].content.match(/<at id=ou_ache>/g) || []).length, 1)
+  })
+
   it('deliverRepoOutcome：有 webhook 发群 + 私聊；没 webhook 只私聊并附要发的话；非仓库任务跳过', async () => {
     register()
     const sent = []

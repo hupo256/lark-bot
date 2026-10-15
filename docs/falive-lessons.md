@@ -41,6 +41,7 @@
 | 27 | 10-15 | Encone 发资料页截图说「google 登陆好了」，分类器写「截图内容也读不出来」 | 图片落盘统一叫 `<n>-<key>.img`，Claude 的 Read 按扩展名判类型，`.img` 当文本读成乱码 | 闸：下载后按文件头（JPEG / PNG / GIF / WebP）改真实扩展名（`imageExtFromBytes` + 重命名） | 单测 `lark-chat-poller`；同一张图改 `.jpg` 后 Read 能看见内容 |
 | 28 | 10-15 | aven 在 Encone 15 分钟前的消息上建话题 @Aven.Bot「测试一下，报告回群」，bot 没反应 | 轮询只拉最近 2 分钟窗口；话题回复挂在 host 下一起返回，host 在窗口外就永远看不到；「活跃话题补抓」只认见过的话题 | 闸：每 `poll.threadScanEveryMs`（2 分钟）回看 `poll.threadScanWindowMs`（6 小时）内的消息，只喂展开的话题回复 | 单测 `lark-chat-poller`（老 host 新话题三轮轮询）；真实消息重启后自动捞到 |
 | 29 | 10-15 | bot 把 PM-3217 的答复原文存到 `docs/delivery/pending/reply/`，仓库约定是 `docs/delivery/reply/`（与人工存的回复同级） | 实施提示里写死 `${docIntakeDir}/reply/` | 闸：profile 新增 `docReplyDir`（缺省 = 收件目录的兄弟目录 reply），提示改读它并明说不要建 pending/reply | `lark-repo-profile` 单测；下一次答复存档看路径 |
+| 30 | 10-15 | 回 Ache 的复测卡开头「@Ache @Ache Ache 回复复测」 | 行首 `addressTo` 按发消息人加一个 @，`buildRepoGroupText` 又按待跟进负责人加一个 @，两者是同一人 | 闸：done 分支负责人 = 发消息人时不再行首 @；`buildGroupCard` 对连续重复的 `<at id=X>` 只留一个 | 单测 `lark-repo-delivery`（同一人两处 @ 只出现一次） |
 
 ## 还没有闸、只有规则的（再出一次就补闸）
 - （10-15 起群里重复消息有机械闸：`shouldSend`，见 falive-repo-profile.md「出口闸」；再出现刷屏先查发件簿 `runtime/lark-outbox/`。）
