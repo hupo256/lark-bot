@@ -7,7 +7,7 @@ import { afterEach, describe, it } from 'node:test'
 import { chatListMessageToEvent, flattenThreadReplies, isPollableMessage, nextDelayMs, startChatPoller, toEpochMs } from '../lib/lark-chat-poller.mjs'
 import { extractInlineFileAttachments, hasDocAttachment, normalizeMessage, parseTextAndAttachments, resolveMessageTrigger } from '../lib/lark-message.mjs'
 import { DEFAULT_POLL, registerRepoProfiles, resetRepoProfiles } from '../lib/lark-repo-profile.mjs'
-import { pickRecentContext } from '../lib/lark-cli.mjs'
+import { imageExtFromBytes, pickRecentContext } from '../lib/lark-cli.mjs'
 
 const at = (hour, minute = 0) => new Date(2026, 9, 13, hour, minute, 0)
 
@@ -183,5 +183,17 @@ describe('群里之前的消息：真人 + 本群 Aven.Bot 自己的卡（2026-1
   it('没配 botOpenIds 时机器人消息一律不要（旧行为）', () => {
     const out = pickRecentContext(messages, { beforeMs: Date.parse('2026-10-15 13:49') + 46_000, excludeIds: ['om_4'] })
     assert.deepEqual(out.map((item) => item.messageId), ['om_1'])
+  })
+})
+
+describe('图片附件按文件头定扩展名（Read 按扩展名判类型，.img 读成乱码）', () => {
+  it('JPEG / PNG / GIF / WebP 识别，其它为 null', () => {
+    const pad = (arr) => Buffer.from([...arr, ...new Array(12 - arr.length).fill(0)])
+    assert.equal(imageExtFromBytes(pad([0xff, 0xd8, 0xff, 0xe0])), 'jpg')
+    assert.equal(imageExtFromBytes(pad([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a])), 'png')
+    assert.equal(imageExtFromBytes(pad([0x47, 0x49, 0x46, 0x38])), 'gif')
+    assert.equal(imageExtFromBytes(Buffer.from([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50])), 'webp')
+    assert.equal(imageExtFromBytes(pad([0x00, 0x01])), null)
+    assert.equal(imageExtFromBytes(Buffer.from([0xff])), null)
   })
 })
