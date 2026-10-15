@@ -12,6 +12,10 @@ describe('extractFigmaUrls（任务正文里的 figma 链接，去重）', () =>
       'https://figma.com/file/abc',
     ])
   })
+  it('markdown 链接 [URL](URL) 不被吞成一个地址', () => {
+    const url = 'https://www.figma.com/design/KEY/x?node-id=1-2'
+    assert.deepEqual(extractFigmaUrls(`设计稿：[${url}](${url})`), [url])
+  })
   it('无链接 / 空 / null → 空数组', () => {
     assert.deepEqual(extractFigmaUrls('修一下登录按钮'), [])
     assert.deepEqual(extractFigmaUrls(''), [])

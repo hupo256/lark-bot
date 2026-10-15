@@ -19,6 +19,13 @@ describe('extractLarkDocUrls（任务正文里的 Lark 文档链接，去重）'
     const text = '【被引用消息】\n审计一下埋点 https://qfglxo2m3dc.sg.larksuite.com/wiki/Mne80hmlSpXgguc\n\n【本条 @】请处理'
     assert.deepEqual(extractLarkDocUrls(text), ['https://qfglxo2m3dc.sg.larksuite.com/wiki/Mne80hmlSpXgguc'])
   })
+  it('markdown 链接 [URL](URL) / 转义 \\] 不被吞成一个地址（10-14 卡片原文回归）', () => {
+    const url = 'https://qfglxo2m3dc.sg.larksuite.com/docx/WxXMdAqv7oLrWkxqB3SlZzJugrh'
+    assert.deepEqual(extractLarkDocUrls(`待确认的几点在这里：[${url}](${url})`), [url])
+    assert.deepEqual(extractLarkDocUrls(`[${url}\\](${url})`), [url])
+    assert.deepEqual(extractLarkDocUrls(`<${url}?from=im>`), [`${url}?from=im`])
+    assert.deepEqual(extractLarkDocUrls(`${url}%5D(${url})`), [url])
+  })
   it('不抓 /sheets/ 与非 Lark 域', () => {
     assert.deepEqual(extractLarkDocUrls('https://x.larksuite.com/sheets/Abc123'), [])
     assert.deepEqual(extractLarkDocUrls('https://example.com/wiki/Abc123'), [])

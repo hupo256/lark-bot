@@ -32,6 +32,7 @@
 | 18 | 10-14 | bot 的 claude 拿不到主仓项目记忆 | memory 按 cwd 分目录 | 闸：worktree memory 软链主仓 | 单测 + 真实目录 |
 | 19 | 10-14 | aven 名下很好清的待办（部署、复测、LN10 / LN5、同步文档）从 10-13 挂到 10-14 | 日报只写不做，没有环节执行第三节；bot 回填的文档只在集成分支，日报从 pre 读看不到 | 架构：`lib/lark-daily-sweep.mjs` 日报发布后确定性抽 aven 待办建清扫任务，单趟实施、A/B/C/D 收尾契约（D 必须有当天实测证据），结果只私信；私信「推 pre」确定性合 pre 并推、回部署邮件；推完盯 VITE_BUILD_TIME 自动复测 | 单测 `lark-daily-sweep.test.mjs`；10-14 真实日报抽取 10 条 + 计数行 |
 | 20 | 10-14 | aven 在 bot 私聊里回的「是」「继续」「这个要礼貌拒绝」各建成一条 fameex 主仓 hotfix 任务，4h 后收到 fameex 催办卡 | 仓库通知全发到私聊，但私聊消息永远走默认仓路径（p2p 不解析 repo profile）；回复没锚到它答的那条通知 | 机制：`lib/lark-principal-channel.mjs` 私聊先锚定 bot 最近一条私聊通知所属的仓库任务（回复命中 / 窗口内最近一条且比 fameex 回执新）→ 挂着的续跑、其它建「私聊指示」任务走 @Aven.Bot 同一路径、回群对着原发送人；锚不到才放行 fameex 私聊 hotfix。「判不处理」私信也登记回执 | 单测 `lark-principal-channel.test.mjs`；三条误建任务已结单 |
+| 21 | 10-15 | 后端问「是不是没文档权限」：其实是 bot 把卡片里的 `[URL](URL)` 抓成一个 `URL](URL` 去读，lark-cli 失败，报错再贴回群里变成嵌套链接 | 文档 / Figma 链接正则收尾只排除 `)`，没排除 `[` `]` `(` `\\` | 闸：`LARK_DOC_URL_RE` / `FIGMA_URL_RE` 遇方括号 / 圆括号 / 反斜杠即止 | 单测 `lark-doc.test.mjs`、`lark-figma.test.mjs` 用 10-14 卡片原文回归 |
 
 ## 还没有闸、只有规则的（再出一次就补闸）
 - #13 待命指令触发后「材料不完美也开工」：目前靠提示词；若再出现「找理由不开工」，加闸：待命触发的工单不允许 blocked，只能 done + 待确认清单。
