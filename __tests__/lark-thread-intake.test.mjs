@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
-import { applySupplementAddressing, resolveRepoAddressing } from '../lib/lark-ingest.mjs'
+import { ackedRecently, applySupplementAddressing, isCompleteMessage, resolveIntakeLane, resolveIntakeNotBefore, resolveRepoAddressing } from '../lib/lark-ingest.mjs'
 import { createTaskStore } from '../lib/lark-task-store.mjs'
 
 const withStore = (fn) => {
@@ -178,4 +178,33 @@ describe('话题补充 @ 机器人升级被动任务', () => {
     assert.equal(target.passiveLedgerOnly, undefined)
     assert.equal(target.addressedToBot, undefined)
   })
+})
+
+describe('分类去抖分道（阶段 2）', () => {
+  const intake = { fastLaneMs: 0, quietGapMs: 60_000, maxWaitMs: 180_000 }
+  const now = Date.parse('2026-10-15T10:00:00Z')
+  it('@ 机器人 / 回复 bot 的卡 / 负责人本人 → 快道；被动上下文 → 慢道', () => {
+    assert.equal(resolveIntakeLane({ addressing: { toBot: true } }), 'fast')
+    assert.equal(resolveIntakeLane({ addressing: { fromPrincipal: true } }), 'fast')
+    assert.equal(resolveIntakeLane({ addressing: {}, quotedIsOurs: true }), 'fast')
+    assert.equal(resolveIntakeLane({ addressing: { toBot: false, passiveLedgerOnly: true } }), 'slow')
+  })
+  it('快道不等；慢道首条等安静期；补充只顺延到首条 + 封顶；超过封顶立刻', () => {
+    assert.equal(resolveIntakeNotBefore({ lane: 'fast', firstReceivedAt: new Date(now).toISOString(), now, intake }), new Date(now).toISOString())
+    assert.equal(resolveIntakeNotBefore({ lane: 'slow', firstReceivedAt: new Date(now).toISOString(), now, intake }), new Date(now + 60_000).toISOString())
+    assert.equal(resolveIntakeNotBefore({ lane: 'slow', firstReceivedAt: new Date(now - 150_000).toISOString(), now, intake }), new Date(now + 30_000).toISOString())
+    assert.equal(resolveIntakeNotBefore({ lane: 'slow', firstReceivedAt: new Date(now - 200_000).toISOString(), now, intake }), new Date(now).toISOString())
+  })
+  it('完整件（对接文档 / ≥200 字）慢道也不等', () => {
+    assert.equal(isCompleteMessage({ msg: { text: '再看看', attachments: [] } }), false)
+    assert.equal(isCompleteMessage({ msg: { text: '预'.repeat(200), attachments: [] } }), true)
+    assert.equal(isCompleteMessage({ msg: { text: '', attachments: [{ type: 'file', fileName: 'PM-3217.md' }] } }), true)
+    assert.equal(resolveIntakeNotBefore({ lane: 'slow', complete: true, firstReceivedAt: new Date(now).toISOString(), now, intake }), new Date(now).toISOString())
+  })
+  it('「收到」防重：同人同群 2 分钟内算回过；换人 / 超时不算', () => withStore((store) => {
+    received(store, { id: 'omt_ack1', threadRootId: null, operator: 'ou_arthur', chatId: 'oc_x', ackedInGroup: true, ackedAt: new Date(now - 30_000).toISOString() })
+    assert.equal(ackedRecently({ store, chatId: 'oc_x', operator: 'ou_arthur', now }), true)
+    assert.equal(ackedRecently({ store, chatId: 'oc_x', operator: 'ou_ache', now }), false)
+    assert.equal(ackedRecently({ store, chatId: 'oc_x', operator: 'ou_arthur', now: now + 150_000 }), false)
+  }))
 })

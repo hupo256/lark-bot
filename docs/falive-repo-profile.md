@@ -60,7 +60,7 @@ webhook 发出的卡片没有 `message_id`，不能作为「回复卡片」的�
 | `ownership` | `{ me, meOpenIds, table }` 归属规则 | me=aven，表=功能总表 |
 | `ownerMap` | 人名 → open_id（结果卡 @ 负责人用） | 待补 |
 | `docIntakeDir` | 群里别人发来的对接文档落到仓库的目录；配了即启用文档消息自动进分类 | `docs/delivery/待对接` |
-| `contextTrigger` / `intakeDebounceMs` | 外部群按上下文判任务：别人发的实质消息都进 Opus 4.8 只读分类（缺省开）；收到后等安静期（缺省 90s）再一次性分类，同话题连发合并 | 开 / 90s |
+| `contextTrigger` / `intake` | 外部群按上下文判任务：别人发的实质消息都进只读分类（缺省开）；去抖分道（10-15）：快道（@ 机器人 / 回复 bot 的卡 / 负责人本人 / 对接文档 / ≥200 字）等 `fastLaneMs`，慢道最后一条之后安静 `quietGapMs` 再分类、从首条起最多 `maxWaitMs`；旧字段 `intakeDebounceMs` 仍读 = quietGapMs | 开 / 0s · 60s · 180s |
 | `concurrency` | 该仓同时最多跑几条任务；同主题串行、不同主题并行（缺省 3） | 3 |
 | `quietQueuedCards` | 外部群排队卡改发 notifyChatId，群里只出结果卡（缺省开） | 开 |
 | `commitPrefix` | bot 提交标题前缀，满足仓库 commit-msg 钩子 | `feat(bot)` |
@@ -102,7 +102,7 @@ gateway 内置：对每个配了 `chatIds` 的非默认仓，用用户身份 `la
 ### 6.1 入口规则（aven 2026-10-13 定：准确分类、同话题一个任务、少开 worktree、确实是 aven 的才建任务）
 
 - **按主题归并、按主题并行**（aven 2026-10-13「并行处理，尽快落实」）：分类器输出 `topic`（短的稳定标识）和 `relatedTaskId`（提示里给了最近 7 天同群任务列表，让它判断本条是哪条的延续）。判为延续 → `store.mergeIntoTask` 并入那条（未开跑追加、在跑完成后再跑一轮、挂起当补料续跑、已了结重开同分支），本条落 superseded；新主题 → 新任务。话题 id 只是提示（同话题默认同主题，但话题里夹的无关内容不硬归）。worker 调度：同主题串行、不同主题并行，`concurrency` 缺省 3。
-- **分类去抖**：收到后等 `intakeDebounceMs`（90s）没有新消息再分类，连发的几条合成一次分类，带完整话题上下文（被引用消息 + 话题其它回复 + 附件）给 Opus 4.8。
+- **分类去抖（分道）**：@ 机器人 / 回复 bot 的卡 / 负责人本人 / 完整件不等，下一个 worker 周期就分类；其余等 `intake.quietGapMs`（60s）安静、从首条起最多 `intake.maxWaitMs`（180s），补充不再无限顺延。分类带完整上下文（被引用消息 + 话题其它回复 + 群里之前的消息含 Aven.Bot 自己的卡 + 附件）。「收到」同人同群 2 分钟内只回一次。
 - **门槛**：分类输出 `decision` / `confidence` / `forMe`。只有 **high 且 forMe≠false** 才自动开跑；判为任务但 medium 或 forMe 不确定 → **疑似**：挂待确认、不催办，只私发 aven 一张卡（`继续任务 <id> 做` 开跑 / `取消任务 <id>` 关掉）；ignore 静默。被代理人自己发的消息不分类。
 - **并行**：`concurrency=3`，同主题串行、不同主题并行。
 - 试运行期所有卡片只发 aven 私聊（`cardsToNotifyOnly`）。
