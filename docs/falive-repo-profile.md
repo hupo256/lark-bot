@@ -143,3 +143,5 @@ git -C ~/github/falive-react branch --list 'lark/falive-*'   # bot 产出的分�
 ```
 
 审计在 `runtime/lark-audits/FALIVE/`，附件在 `runtime/lark-attachments/FALIVE/`。
+
+- **发件簿**（10-15）：bot 往群里发的每条（收到 / 记下了 / 完成 / 兜底 / 要材料 / 待确认清单 / 日报）记进 `runtime/lark-outbox/<chatId>.jsonl`（对着谁、主题、阶段、正文、哈希），保留 7 天；统一出口 `sendGroupCard`（lib/lark-repo-delivery.mjs）。
