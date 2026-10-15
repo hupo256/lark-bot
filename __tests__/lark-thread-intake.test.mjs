@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
+import { applySupplementAddressing, resolveRepoAddressing } from '../lib/lark-ingest.mjs'
 import { createTaskStore } from '../lib/lark-task-store.mjs'
 
 const withStore = (fn) => {
@@ -150,4 +151,31 @@ describe('负责人本人 @ 机器人', () => {
     const out = store.resolveIntake({ id: 'omt_me', epoch: 0, classification: { decision: 'requirement', confidence: 'medium', forMe: true, summary: 's', reason: 'r' } })
     assert.equal(out.actionable, true)
   }))
+})
+
+describe('话题补充 @ 机器人升级被动任务', () => {
+  const repo = { key: 'falive', passiveMode: 'ledger', botMentionOpenIds: { oc_x: 'ou_bot' }, ownership: { meOpenIds: ['ou_aven'] } }
+  const msg = (extra) => ({ chatId: 'oc_x', senderOpenId: 'ou_aven', mentions: [], attachments: [], ...extra })
+
+  it('主消息只 @ 负责人 → 只记台账；补充 @ 机器人 → 去掉 passiveLedgerOnly、标显式通道并要补发收到', () => {
+    const main = resolveRepoAddressing({ repo, msg: msg({ senderOpenId: 'ou_ache', mentions: [{ id: 'ou_aven' }] }) })
+    assert.deepEqual(main, { toBot: false, fromPrincipal: false, passiveLedgerOnly: true })
+    const target = { id: 'omt_reserve', passiveLedgerOnly: true }
+    const needsAck = applySupplementAddressing({ target, addressing: resolveRepoAddressing({ repo, msg: msg({ mentions: [{ id: 'ou_bot' }] }) }) })
+    assert.equal(needsAck, true)
+    assert.equal(target.passiveLedgerOnly, undefined)
+    assert.equal(target.addressedToBot, true)
+    assert.equal(target.fromPrincipal, true)
+    assert.equal(applySupplementAddressing({ target, addressing: resolveRepoAddressing({ repo, msg: msg({ mentions: [{ id: 'ou_bot' }] }) }) }), false)
+  })
+
+  it('补充没 @ 机器人也不是文档 → 维持只记台账；带对接文档 → 解除只记台账但不算 @', () => {
+    const target = { id: 'omt_p', passiveLedgerOnly: true }
+    assert.equal(applySupplementAddressing({ target, addressing: resolveRepoAddressing({ repo, msg: msg({ text: '再看看' }) }) }), false)
+    assert.equal(target.passiveLedgerOnly, true)
+    const doc = msg({ attachments: [{ type: 'file', fileName: 'a.md', fileKey: 'k' }] })
+    assert.equal(applySupplementAddressing({ target, addressing: resolveRepoAddressing({ repo, msg: doc }) }), false)
+    assert.equal(target.passiveLedgerOnly, undefined)
+    assert.equal(target.addressedToBot, undefined)
+  })
 })
