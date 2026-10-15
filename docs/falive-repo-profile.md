@@ -146,3 +146,4 @@ git -C ~/github/falive-react branch --list 'lark/falive-*'   # bot 产出的分�
 
 - **发件簿**（10-15）：bot 往群里发的每条（收到 / 记下了 / 完成 / 兜底 / 要材料 / 待确认清单 / 日报）记进 `runtime/lark-outbox/<chatId>.jsonl`（对着谁、主题、阶段、正文、哈希），保留 7 天；统一出口 `sendGroupCard`（lib/lark-repo-delivery.mjs）。
 - **对话包 + 锚定**（10-15）：每条群消息建任务前拼上「这个人正在进行的事」（他 2 小时内的任务、bot 最近对他说的话、他参与的台账条目）；同一个人、bot 对他最后一张卡 15 分钟内、本条 ≤ 20 字短指代句且无引用 → 默认接那条（`task.anchor`，「收到」里点明「接着 HH:MM 那条」），分类器用 `continues` 确认后同话题键、工单主题沿用。`lib/lark-conversation.mjs`。
+- **出口闸**（10-15）：群发前查发件簿——同群同主题同阶段 120 秒内只发 1 条、同内容 24 小时不重发、「收到」同人 2 分钟 1 次；拦下的不发群、记一条 `gated`（`sendGroupCard` 返回 `{ ok: true, gated }`，调用方当已发处理）。日志 `出口闸拦下 …`。
