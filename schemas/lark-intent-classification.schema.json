@@ -55,6 +55,13 @@
       ],
       "description": "若这条消息是提示里「最近任务」中某一条的延续 / 补充 / 答复，填那条任务的 id；是新主题或无关填 null"
     },
+    "continues": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "这条消息是不是在接着之前某条任务说（提示里「【默认接着 bot 上一句】」或「正在进行的事」列出的 id）：是 → 填那条任务 id，topic 沿用它；明显另起一事或无关 → null"
+    },
     "items": {
       "type": [
         "array",
