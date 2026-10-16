@@ -6,6 +6,10 @@ import { describe, it } from 'node:test'
 
 import {
   annotateLedgerHeadings,
+  applyCalloutCounts,
+  applyFeatureClosures,
+  applyLedgerClosures,
+  loadOwnerClosures,
   applyProgress,
   applyStatusColumn,
   checkStreamUrl,
@@ -184,5 +188,58 @@ describe('短版原因', () => {
     assert.equal(shortReason({ reason: '测试房间断流' }), '测试房间断流')
     assert.equal(shortReason({ reason: '' }), '原因待补')
     assert.equal(shortReason({ reason: '', pre: '未部署' }), '待部署')
+  })
+})
+
+describe('负责人拍板关闭', () => {
+  const doc = [
+    '## 一、功能',
+    '<p><b>aven：</b>负责 28 项，26 项 ✅；其中 1 项看不到</p>',
+    '## 三、需要再跟进的工作',
+    '| 事项 | 说明 | 负责人 |',
+    '| --- | --- | --- |',
+    '| 发 pre 部署邮件 | 还没发 | aven |',
+    '| **#2 收尾** | 等 Arthur | aven；Arthur |',
+    '| 测试房间推流 | 等后端 | live 后端 |',
+  ].join('\n')
+  const closures = { features: [{ no: 2, status: '✅', pre: '能用', by: 'aven', at: '2026-10-16', note: '' }], rows: [{ section: '三', key: '发 pre 部署邮件', by: 'aven', at: '2026-10-16' }, { section: '三', key: '#2 收尾', by: 'aven', at: '2026-10-16' }] }
+
+  it('按首列删掉台账行，只给昨天还在的行登记依据', () => {
+    const previous = doc.split('\n').filter((line) => !line.includes('#2 收尾')).join('\n')
+    const out = applyLedgerClosures({ markdown: doc, previous, closures })
+    assert.ok(!out.doc.includes('发 pre 部署邮件'))
+    assert.ok(!out.doc.includes('#2 收尾'))
+    assert.ok(out.doc.includes('测试房间推流'))
+    assert.deepEqual(out.resolved.map((item) => item.key), ['发 pre 部署邮件'])
+    assert.match(out.resolved[0].evidence, /aven 2026-10-16 拍板关闭/)
+  })
+
+  it('功能拍板覆盖模型状态', () => {
+    const statuses = new Map([[2, { no: 2, status: '🟠', pre: '看不到', reason: '手机号注册报错', evidence: 'x' }]])
+    applyFeatureClosures(statuses, closures)
+    assert.equal(statuses.get(2).status, '✅')
+    assert.equal(statuses.get(2).pre, '能用')
+    assert.equal(statuses.get(2).reason, '')
+  })
+
+  it('高亮框数字按脚本回写，句子其它部分不动', () => {
+    const out = applyCalloutCounts(doc, { byOwner: { aven: { total: 28, done: 27 } } })
+    assert.ok(out.includes('<b>aven：</b>负责 28 项，27 项 ✅；其中 1 项看不到'))
+  })
+
+  it('没有拍板文件 / 文件坏了都按空处理', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'closures-'))
+    try {
+      assert.deepEqual(loadOwnerClosures(dir), { features: [], rows: [] })
+      writeFileSync(join(dir, 'owner-closures.json'), '{bad')
+      assert.deepEqual(loadOwnerClosures(dir), { features: [], rows: [] })
+      writeFileSync(join(dir, 'owner-closures.json'), JSON.stringify({ features: [{ no: '2' }], rows: [{ key: ' 下载页回归 ' }, { key: '' }] }))
+      const loaded = loadOwnerClosures(dir)
+      assert.equal(loaded.features[0].no, 2)
+      assert.equal(loaded.features[0].status, '✅')
+      assert.deepEqual(loaded.rows.map((item) => item.key), ['下载页回归'])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })

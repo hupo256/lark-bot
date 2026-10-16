@@ -232,12 +232,14 @@ describe('完整版：状态以 pre 代码为准 + 台账', () => {
       assert.match(short, /总体进度 \*\*66\.7%\*\*，已接通 \*\*2 \/ 3\*\*。其中 1 项在 pre 上还看不到效果：#2 没数据。/)
       assert.match(short, /完整版（云文档）：https:\/\/doc\/x/)
       assert.match(prompts[1], /\| 1 \| 用户资料 \| henry \| ✅ \|/)
-      // 私信核对单：无依据消失的行、今天删的行、总表要改的状态、高亮框数字不一致
+      // 高亮框数字按脚本算的回写（aven 10-16），不再只私信说对不上
+      assert.match(doc, /<b>henry：<\/b>负责 1 项，1 项 ✅/)
+      // 私信核对单：无依据消失的行、今天删的行、总表要改的状态
       const note = sent.find((item) => /日报核对/.test(item.markdown)).markdown
       assert.match(note, /三节：分支流程/)
       assert.match(note, /三节：help 改名「聊天」——pre a58b92b/)
       assert.match(note, /#1 用户资料（henry）：总表 🟠 → pre 代码 ✅/)
-      assert.match(note, /henry：高亮框写「负责 1 项，0 项 ✅」，按状态算是 1 项、1 项 ✅/)
+      assert.doesNotMatch(note, /高亮框写/)
       // 第二天：今日 +n 以代码状态快照为基线
       assert.equal(JSON.parse(readFileSync(join(reportDir, 'code-status.json'), 'utf8')).done, 2)
     } finally {
