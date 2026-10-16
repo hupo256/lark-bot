@@ -8,7 +8,7 @@
 | 决策 | 结论 |
 |---|---|
 | 实例形态 | **单实例多仓**：同一套 gateway / worker，按 `repos.<key>` profile 路由；不起第二套 launchd 实例 |
-| falive 基线 | `feature/phase-3-api`（aven 的本地集成分支，不 fetch）；bot 分支 `lark/falive-<id>` 只本地 commit，aven 合回 |
+| falive 基线 | `feature/phase-3-api`（aven 的本地集成分支，不 fetch）；bot 分支 `lark/falive-<id>` 只本地 commit，做完 no-ff 合进 `lark/falive-integration` 后**自动删除**（2026-10-16；冲突 / 失败的保留），aven 把集成分支合回 feature |
 | 别人负责的功能 | bot **跳过并 @ 负责人**（功能总表「前端」列），aven 本人点名要做的当次放行 |
 | @aven 自动入队 | **打开**（`taskMentionOpenIds`，经只读意图分类） |
 | 群消息读取权限 | 用户身份 `im` scope 已提交企业管理员审批，待批 |
@@ -139,7 +139,7 @@ lark-bot restart && lark-bot status           # worker 日志应出现 repo fali
 curl -s -X POST http://127.0.0.1:3005/lark/tasks \
   -H "x-lark-gateway-secret: $(cat ~/.config/fameex-lark/gateway-secret)" -H 'Content-Type: application/json' \
   -d '{"id":"manual-falive-001","source":"lark","repo":"falive","operator":"ou_91861d6da6cf6822e08045ba1868241e","text":"修复：…"}'
-git -C ~/github/falive-react branch --list 'lark/falive-*'   # bot 产出的分支
+git -C ~/github/falive-react branch --list 'lark/falive-*'   # 集成分支 + 合回失败 / 未完成而保留的任务分支
 ```
 
 审计在 `runtime/lark-audits/FALIVE/`，附件在 `runtime/lark-attachments/FALIVE/`。

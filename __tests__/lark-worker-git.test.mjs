@@ -346,3 +346,53 @@ describe('集成分支（整改 #10）', () => {
     }
   })
 })
+
+describe('合回集成分支后删任务分支（aven 2026-10-16）', () => {
+  it('已被集成分支包含才删；未合入 / 非 lark/ / 集成分支本身 / 仍被检出 都不删', async () => {
+    const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    const { spawnSync } = await import('node:child_process')
+    const { ensureIntegrationBranch, mergeIntoIntegration, deleteMergedTaskBranch } = await import('../lib/lark-worker-git.mjs')
+    const root = mkdtempSync(join(tmpdir(), 'lark-integ-del-'))
+    const g = (args, cwd = root) => { const r = spawnSync('git', ['-C', cwd, ...args], { encoding: 'utf8' }); if (r.status !== 0) throw new Error(r.stderr); return r.stdout.trim() }
+    const exists = (b) => spawnSync('git', ['-C', root, 'rev-parse', '--verify', '--quiet', `refs/heads/${b}`]).status === 0
+    try {
+      g(['init', '-b', 'feature/base']); g(['config', 'user.email', 't@x']); g(['config', 'user.name', 't'])
+      writeFileSync(join(root, 'a.txt'), '1\n'); g(['add', '-A']); g(['commit', '-m', 'base'])
+      const wt = join(root, '.wt', 'integration')
+      assert.equal(ensureIntegrationBranch({ root, integrationBranch: 'lark/integ', baseRef: 'feature/base', worktreePath: wt }).ok, true)
+      const commitOn = (branch, file, from = 'lark/integ') => {
+        g(['branch', branch, from])
+        const dir = join(root, '.wt', branch.replace('/', '-')); g(['worktree', 'add', dir, branch])
+        writeFileSync(join(dir, file), `${branch}\n`); g(['add', '-A'], dir); g(['commit', '-m', branch], dir)
+        return dir
+      }
+      // 1. 合回成功 → 删（模拟 finalizeTempWorktree 先删了临时 worktree）
+      const t1 = commitOn('lark/t1', 'c.txt')
+      g(['worktree', 'remove', '--force', t1])
+      assert.equal(mergeIntoIntegration({ root, worktreePath: wt, branch: 'lark/t1', integrationBranch: 'lark/integ', message: 'merge t1' }).ok, true)
+      assert.deepEqual(deleteMergedTaskBranch({ root, branch: 'lark/t1', integrationBranch: 'lark/integ' }), { deleted: true })
+      assert.equal(exists('lark/t1'), false)
+      assert.equal(g(['show', 'lark/integ:c.txt']), 'lark/t1', '改动仍在集成分支里')
+      // 2. 有集成分支不包含的提交 → 不删
+      const t2 = commitOn('lark/t2', 'd.txt'); g(['worktree', 'remove', '--force', t2])
+      assert.equal(deleteMergedTaskBranch({ root, branch: 'lark/t2', integrationBranch: 'lark/integ' }).deleted, false)
+      assert.equal(exists('lark/t2'), true)
+      // 3. 已合入但仍被 worktree 检出（失败现场）→ branch -D 拒绝，不删
+      const t3 = commitOn('lark/t3', 'e.txt')
+      mergeIntoIntegration({ root, worktreePath: wt, branch: 'lark/t3', integrationBranch: 'lark/integ', message: 'merge t3' })
+      assert.equal(deleteMergedTaskBranch({ root, branch: 'lark/t3', integrationBranch: 'lark/integ' }).deleted, false)
+      assert.equal(exists('lark/t3'), true)
+      g(['worktree', 'remove', '--force', t3])
+      // 4. 非 lark/ 分支、集成分支本身、不存在的分支 → 不删
+      assert.equal(deleteMergedTaskBranch({ root, branch: 'feature/base', integrationBranch: 'lark/integ' }).deleted, false)
+      assert.equal(exists('feature/base'), true)
+      assert.equal(deleteMergedTaskBranch({ root, branch: 'lark/integ', integrationBranch: 'lark/integ' }).deleted, false)
+      assert.equal(exists('lark/integ'), true)
+      assert.equal(deleteMergedTaskBranch({ root, branch: 'lark/nope', integrationBranch: 'lark/integ' }).reason, '分支已不存在')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+})

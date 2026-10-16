@@ -111,3 +111,4 @@
 - 2026-10-14 · 私聊 Markdown 偶发 HTTP 429（token 接口限流）→ sendBotMarkdown 退避重试 3 次
 - 2026-10-14 · 显式通道（aven 定）· 群里 @Aven.Bot = 对 bot 说话：按群识别自定义机器人 open_id（`botMentionOpenIds`，启动时按 `botName` 自动发现）；收到即回「@发消息的人 收到，我查一下」并引一句原话；分类不许静默，判不用处理也回「收到，记下了」；负责人本人 @ 机器人（就地转发）不再被当自己的消息跳过，要处理的内容取被引用消息 / 话题。被动捕捉降为 `passiveMode: ledger`：没 @ 机器人的消息只记台账（对接文档仍自动入库），不派工单、不代答、不发疑似。webhook 发不了「回复某条消息」，@ 发消息的人 + 引原话是最接近的形式
 - 2026-10-14 · 私聊回流 · aven 在 bot 私聊里回的三句（「是」「继续」「这个要求应该礼貌拒绝」）被当成 fameex 主仓 hotfix 建单并在 4h 后催办 → 架构缝隙：仓库通知落在私聊，私聊却永远走默认仓。补机制 `lib/lark-principal-channel.mjs`（私聊先锚定最近一条仓库通知：挂着的续跑、其它建私聊指示任务走 @Aven.Bot 路径、回群对原发送人），「判不处理」私信登记回执；三条误建任务结单。单测 9 条 + 相关套件通过，bot 已重启。
+- 2026-10-16 · 任务分支自动清理（aven 定）· 任务分支合回 `lark/falive-integration` 成功后即删（`deleteMergedTaskBranch`：只删 `lark/` 前缀、非集成分支本身、且已是集成分支祖先的；仍被 worktree 检出的 `branch -D` 自拒）；冲突 / 失败 / 半成品照旧保留。结果记审计 `integration.branchCleanup`。单测（真实 git 临时仓 5 种情形）+ daily-sweep / pure / worker-git 套件通过；需 `lark-bot restart` 生效
