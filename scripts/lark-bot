@@ -258,7 +258,7 @@ status() {
 
         console.log(`started time: ${health?.version?.startedAt || "--"}`);
         console.log(`lark-gateway: ${gatewayState}  port=3005`);
-        console.log(`lark-worker:  ${workerState}${workerPid ? `  pid=${workerPid}` : ""}`);
+        console.log(`lark-worker:  ${workerState}${workerPid ? `  pid=${workerPid}` : ""}${worker?.draining ? "  排空中（磁盘代码已更新，在飞任务跑完即自动 restart）" : ""}`);
         console.log(`poller:       ${pollerState}${pollerPid ? `  pid=${pollerPid}` : ""}`);
         console.log("");
         console.log(`executor:     ${readiness?.executor || "--"}${readiness?.model ? `  model=${readiness.model}  reasoning=${readiness.reasoningEffort}  probe=${readiness.modelProbe}` : ""}${readiness?.executor === "claude" ? `  auth=${process.env.LARK_STATUS_CLAUDE_AUTH}` : ""}`);

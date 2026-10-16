@@ -38,10 +38,10 @@
 | 1.2 | 外部命令卡死（10 分钟无事件） | idle 超时杀掉并转瞬时重试 | 已有 | `claudeIdleTimeoutMs` |
 | 1.3 | 结果文件缺失 / 不合法 | 取 stream 的 session_id，`--resume` 续会话只补写 result.json；一次、5 分钟；仍失败才上抛 | **已落地 10-16** | `recoverResultFile`、`buildClaudeResultRecoveryInstruction` |
 | 1.4 | 模型调用会断会话的工具 | `--disallowedTools` 摘掉 ScheduleWakeup / Cron* / Workflow / RemoteTrigger / Enter·ExitWorktree | **已落地 10-16** | `CLAUDE_HEADLESS_DISALLOWED_TOOLS` |
-| 1.5 | 命令超过工具单次上限跑不完 | 规则：不放后台硬等，写 blocked + `需要 worker 直接执行 <命令>`；**待做**：worker 识别这类 blocker，命令在 profile 白名单（`lark-bot daily-report` / `intake-stats` / 复测探针）就自己跑、把输出回填结果，不再二次喂模型 | 规则已落地，闸待做 | `lark-task-runner` 收尾处新增 `runWorkerDirectives` |
-| 1.6 | 假失败（活干成了却报失败） | 失败卡发出前查旁证：发件簿里同 taskId 已发出的 done / daily_report 记录、worktree diff、本地提交。有旁证 → 降级为 `done_with_warnings`，warnings 写「结果文件缺失，按旁证判完成」；无旁证 → 失败卡附「旁证：无」 | 待做 | `lark-task-runner` catch 分支 + `lark-outbox.findByTask` |
+| 1.5 | 命令超过工具单次上限跑不完 | 规则：不放后台硬等，写 blocked + `需要 worker 直接执行 <命令>`，让人 / worker 看得见。worker 代跑白名单命令 **不做**（aven 10-16：日报已直接走日报链路，眼下没有第二条跑不完的命令；再遇到再加） | 规则已落地 | `buildClaudeResultFileInstruction` |
+| 1.6 | 假失败（活干成了却报失败） | 失败卡发出前查旁证：发件簿里本任务已发出的完成消息（日报任务看 daily_report）、别的任务的消息、工作区改动。有完成旁证 → 失败卡第 2 行写「旁证：… → 活可能已经干成，只是没拿到结果文件」，私信开头改「⚠ 可能做成了、但没拿到结果文件」；无旁证 → 「旁证：无」。**不改状态**（不伪造 done、不二次发群），只让人一眼分清真假失败 | **已落地 10-16** | `lib/lark-failure-evidence.mjs`、`buildFailureResult`、`buildRepoNote` |
 
-验收：1.5 / 1.6 各补单测；线上用一次真实「日报发一下」和一次故意不写结果的工单（`LARK_FAKE_NO_RESULT=1`）验。
+验收：`lark-failure-evidence.test.mjs` 用 10-15 的发件簿形状回归；线上看下一次失败私信的「旁证」行。
 
 ## 3. 环 2：失败后自诊
 
@@ -68,8 +68,8 @@
 流程（仓库 = `~/github/lark-bot`，走现有多仓 profile 机制，新增 `lark-bot` 自己的 profile）：
 1. **分诊**（只读分析模式，Opus 5.5 high）：输入 = 失败工单的审计 `e*.json` + `e*.log` 尾部 + worker.log 该任务前后 200 行 + lessons 表 + 本文。输出结构化：`rootCauseLayer: harness | prompt | env | model | external`、现象 / 根因一句话、建议落点（机制 / 闸 / 规则）、改哪些文件、怎么验、`confidence`。
 2. **实施**（仅 `rootCauseLayer ∈ {harness, prompt}` 且 confidence=high）：临时 worktree、分支 `lark/self-fix-<指纹>`；改代码 + 补单测 + lessons 追加一行；跑 `node --test '__tests__/*.test.mjs'` 必须全绿；本地提交，不 push。
-3. **交付**：只私信 aven 一条人话：现象 / 根因 / 改了什么 / 测试结果 / 「回『上线』我就 restart」。`env` / `external` 层只报不改；`model` 层（模型瞎编、判断错）落成规则候选写进 lessons「只有规则」节，不自动改提示词。
-4. **上线**：aven 回「上线」→ 合到 `feature/falive-repo-profile`（或当前工作分支）→ `lark-bot restart`。bot 不自己 restart。
+3. **交付**：只私信 aven 一条人话：现象 / 根因 / 改了什么 / 测试结果 / 「回『上线』我就合进工作分支」。`env` / `external` 层只报不改；`model` 层（模型瞎编、判断错）落成规则候选写进 lessons「只有规则」节，不自动改提示词。**不分昼夜**（aven 10-16 拍板：人不在 Lark 上也允许跑，因为只落本地分支 + 一条私信，不上线）。
+4. **上线**：aven 回「上线」→ 合到 `feature/falive-repo-profile`（或当前工作分支）→ 磁盘代码变了，由 §4 的排空重启自动生效。自修分支本身在独立 worktree，不会触发排空重启。
 
 护栏：自修工单只能改 `lib/ scripts/ __tests__/ docs/ rules/`，不碰 `runtime/`（配置、凭据、状态）、不碰 falive-react 业务代码；测试不绿不交付；一个自修工单改坏了别的测试就整单作废。
 
@@ -83,7 +83,7 @@
 
 | 检查 | 现在 | 自动动作 |
 |---|---|---|
-| 运行中代码 / 配置落后磁盘 | 每次工单后警告一行，没人看（10-15 连打 8 条） | 开关 `selfHeal.autoRestartWhenIdle`（默认关）：0 在飞、磁盘版本测试全绿、worktree 干净、08:00–23:00 → 自动 restart 并私信一句；开关关着就只在日报私信版加一行 |
+| 运行中代码 / 配置落后磁盘 | 每次工单后警告一行，没人看（10-15 连打 8 条）；**没有任何自动重启**，改完代码一直用旧代码跑到有人手动 restart | **排空重启，已落地 10-16**（`lib/lark-drain-restart.mjs`；aven 拍板默认开，关：配置 `selfHeal.drainRestart=false` 或环境 `LARK_DRAIN_RESTART=0`；只在 launchd 托管时生效）：磁盘代码 / 配置变了且 `node --test` 全绿 → worker 进入排空：不再领新任务，在飞的跑完即 `lark-bot restart`（0 在飞 = 马上重启）；新任务只多排队几分钟，不丢、不作废半成品。测试不绿就不重启，只私信。「等到完全空闲」被否了：会用旧代码跑一晚上 |
 | 执行器探针失败 | 启动时探一次 | 每小时探；失败 → 回落备用执行器 + 私信 |
 | 日报：到点没发 / 状态与发件簿不一致 | 10-15 已改为到点后补发、失败隔 10 分钟最多 3 次 | 体检再核一次「state.json 当天 = 发件簿当天有 daily_report」，不一致私信 |
 | 挂起任务：waiting_confirmation 超 24h、`已催 99/3 轮` 这种显示异常 | status 里能看到，没人汇总 | 日报私信版一行「挂起 N 条，最久 X 小时」；显示异常先当 lessons 候选 |
@@ -96,13 +96,13 @@
 | 批 | 内容 | 预计 | 验收 |
 |---|---|---|---|
 | 0 ✅ 10-16 | 环 1.3 / 1.4 + 规则 + lessons #31 | 已提交（待 restart 生效） | 640 单测全绿；下次 `[self-heal]` 行 |
-| 1 | 环 1.5 worker 直接执行白名单命令；环 1.6 失败卡旁证 / 假失败降级 | 半天 | 单测 + 故意不写结果的工单 |
+| 1 ✅ 10-16 | 环 1.6 失败卡旁证；环 3 排空重启（提前，aven 最关心） | 已提交（**最后一次手动 restart** 后生效，之后改代码自动排空重启） | 654 单测全绿；`lark-bot status` 显示「排空中」；worker.log 看「排空重启：…已发起 lark-bot restart」 |
 | 2 | 环 2 失败指纹 + 已知类剧本 + 失败台账 | 半天 | 回放 10-14 / 10-15 的 worker.log 全部失败能分到类 |
 | 3 | 环 2.2 自修工单（lark-bot 自己的 profile、分诊 → 实施 → 私信等「上线」） | 1 天 | 用 lessons #21（链接正则）做一次人工注入回归：bot 能自己定位并给出改法 |
-| 4 | 环 3 doctor + 每小时体检 + 日报自检行 + 空闲自动重启开关 | 半天 | `lark-bot doctor falive` 输出；故意改一行代码不重启看是否自动处理 |
+| 4 | 环 3 doctor + 每小时体检 + 日报自检行 | 半天 | `lark-bot doctor falive` 输出 |
 
-## 6. 需要 aven 拍板的
+## 6. 已拍板（aven 2026-10-16）
 
-1. `selfHeal.autoRestartWhenIdle` 默认开还是关（本文默认关；建议开，条件已经很保守）。
-2. 自修工单的实施是否允许在 aven 不在线时直接跑（本文：允许跑，但只私信、不上线）。
-3. 环 1.5 白名单命令清单（本文初稿：`lark-bot daily-report <repo>`、`lark-bot intake-stats`、profile 里的 `verify.probeCommand`）。
+1. 自动重启：排空再重启，默认开（见 §4 第一行）。「空闲时重启」被否：等不到空闲就一直跑旧代码。
+2. 自修工单：aven 人不在 Lark 上也允许跑，只落本地分支 + 私信，不上线。
+3. worker 代跑白名单命令：不做，等真遇到第二条跑不完的命令再说。

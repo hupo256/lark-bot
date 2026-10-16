@@ -19,6 +19,8 @@ import { resolveWorkContext, safeProject } from './lib/lark-work-context.mjs'
 import { createTaskRunner } from './lib/lark-task-runner.mjs'
 import { startLogRotation } from './lib/lark-log-rotate.mjs'
 import { createRuntimeVersion, versionWarnings, writeWorkerHeartbeat } from './lib/lark-runtime-version.mjs'
+import { createDrainRestart } from './lib/lark-drain-restart.mjs'
+import { sendBotMarkdown } from './lib/lark-cli.mjs'
 import { larkRuntimeDir } from './lib/lark-repo.mjs'
 import { defaultTaskLeaseMs } from './lib/lark-constants.mjs'
 import { listRepoProfiles, registerRepoProfiles, repoProfileForTask } from './lib/lark-repo-profile.mjs'
@@ -126,6 +128,22 @@ export async function runLarkWorker({
   // 放在 --once 之后：一次性执行不需要定时器。只有 plist 注入了 LARK_LOG_FILE 才真的截断。
   const logTimer = startLogRotation()
 
+  // 排空重启（自愈环 3）：磁盘代码 / 配置变了 → 不再领新任务 → 在飞跑完、单测绿 → lark-bot restart。
+  // 只在 launchd 托管（plist 注入 LARK_LOG_FILE）时开：手工起的 worker 自己重启会和 launchd 双跑。
+  // 关闭：配置 selfHeal.drainRestart=false 或环境 LARK_DRAIN_RESTART=0。
+  const selfHeal = localConfig.selfHeal || {}
+  const drainEnabled = selfHeal.drainRestart !== false && process.env.LARK_DRAIN_RESTART !== '0' && Boolean(process.env.LARK_LOG_FILE)
+  const drainNotifyChatId = listRepoProfiles().find((profile) => !profile.isDefault && profile.notifyChatId)?.notifyChatId || null
+  const drain = createDrainRestart({
+    version: runtimeVersion,
+    enabled: drainEnabled,
+    settleMs: Number(selfHeal.settleMs) > 0 ? Number(selfHeal.settleMs) : undefined,
+    notify: drainNotifyChatId
+      ? (text) => sendBotMarkdown({ chatId: drainNotifyChatId, markdown: text, logPrefix: 'drain-restart' })
+      : async () => {},
+  })
+  console.log(`[lark-worker] 排空重启：${drainEnabled ? '开（磁盘改动 → 排空 → 单测绿 → 自动 restart）' : `关（${process.env.LARK_LOG_FILE ? '配置 / 环境关闭' : '非 launchd 托管'}）`}`)
+
   // 优雅退出：SIGTERM/SIGINT（launchd bootout 与 lark-bot stop 都发 SIGTERM）时，先把在飞任务
   // 交还队列（releaseTask → queued + epoch++），再中断在跑的 AI 子进程，让重启后的 worker 立刻重领，
   // 而非空等 40min 租约过期。必须「先释放再 abort」：被中断执行随后那条 failed 迟到回写会因 epoch
@@ -138,7 +156,7 @@ export async function runLarkWorker({
   // 版本心跳 + 自检告警：每分钟落一次盘（供 gateway health 汇总），同时把落后状态打进 worker.log。
   // 只告警不自杀——正在跑的长任务比"跑最新代码"更值得保住，重启时机由人或 launchd 决定。
   const heartbeatTimer = setInterval(() => {
-    heartbeat({ inFlight: inFlight.size })
+    heartbeat({ inFlight: inFlight.size, draining: drain.isDraining() })
     for (const warning of versionWarnings(runtimeVersion.observe())) console.warn(`[lark-worker] ⚠ ${warning}`)
   }, 60_000)
   heartbeatTimer.unref?.()
@@ -170,7 +188,9 @@ export async function runLarkWorker({
     // 本轮跳过集：claim 竞态失败的 id 记下来，避免「可列出却不可领」的任务被反复重挑，
     // 把内层 while 变成不带退避的紧循环、满速打 gateway。每轮重新开始，不会永久屏蔽任务。
     const skipThisRound = new Set()
-    while (!shuttingDown && inFlight.size < defaultConcurrency) {
+    // 排空重启每轮先判：排空中不领新任务（在飞的照常跑完）。
+    await drain.tick({ inFlight: inFlight.size }).catch((error) => console.error('[lark-worker] 排空重启 tick 异常（忽略）：', error))
+    while (!shuttingDown && !drain.isDraining() && inFlight.size < defaultConcurrency) {
       const candidates = await client.listClaimable()
       // 挑第一个「目标 cwd 未在飞」的任务；其余留到下一轮（保证同 worktree 串行）
       let picked = null
