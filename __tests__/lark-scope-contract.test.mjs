@@ -544,3 +544,59 @@ describe('resolveScopeGate 豁免目录', () => {
     assert.equal(gate.blockedText, null, `应放行：${gate.blockedText}`)
   })
 })
+
+// lessons #33（10-16）：Ache 引用复测卡让再测 R6，分析阶段判「前端不改代码」填 scope=null，实施阶段按约定同步了
+// 6 个 markdown（对接文档 / 功能总表 / 答复存档），收尾被判「未给出 scope」挂起——复测结论没能发回群。
+describe('markdown 文档不受范围契约约束（lessons #33）', () => {
+  const docs = [
+    'docs/delivery/pending/对接-live后端-3.md',
+    'docs/delivery/reply/aven-后端待办-复测反馈-2026-10-15-答复-2026-10-16.md',
+    'docs/lark-migration-source/requirements/phase1-feature-table.md',
+  ]
+
+  it('scope 缺失 + 只改了文档 → 放行（docsOnly），文档列入自动放行；不列「未给出 scope」为不通过项', () => {
+    const gate = resolveScopeGate({ task: { id: 't1', text: '再测一次 R6' }, scope: null, actualChangedFiles: docs, numstat: numstatOf(docs.map((path) => [20, 5, path])), workKind: WORK_KINDS.bugfix, budgets: { bugfix: 30 } })
+    assert.equal(gate.blockedText, null, `应放行：${gate.blockedText}`)
+    assert.equal(gate.check.ok, true)
+    assert.equal(gate.check.missingScope, true)
+    assert.equal(gate.check.docsOnly, true)
+    assert.deepEqual(gate.check.autoAllowed.map((item) => item.path), docs)
+    assert.equal(gate.check.lineCount, 0, '文档不计行数')
+    assert.match(gate.section, /自动放行（3）/)
+  })
+
+  it('scope 缺失 + 文档之外还改了代码 → 仍按「未给出 scope」拦下，待批准清单含全部文件', () => {
+    const changed = [...docs, 'src/modules/upcoming/data/queries.ts']
+    const gate = resolveScopeGate({ task: { id: 't2', text: '再测一次 R6' }, scope: null, actualChangedFiles: changed, workKind: WORK_KINDS.bugfix })
+    assert.equal(gate.check.ok, false)
+    assert.equal(gate.check.docsOnly, false)
+    assert.match(gate.blockedText, /分析阶段没有给出可用的修改范围/)
+    assert.deepEqual(gate.scopeRequest.paths, changed)
+  })
+
+  it('scope 已给出 + 顺手同步了未声明的文档 → 文档自动放行，不算越界', () => {
+    const scope = scopeOf([target('src/modules/upcoming/data/queries.ts')], [], ['upcoming'])
+    const check = checkScopeContract({ scope, actualChangedFiles: ['src/modules/upcoming/data/queries.ts', ...docs], workKind: WORK_KINDS.bugfix })
+    assert.equal(check.ok, true)
+    assert.deepEqual(check.outOfScope, [])
+    assert.deepEqual(check.autoAllowed.map((item) => item.path), docs)
+  })
+
+  it('规则文件（CLAUDE.md / AGENTS.md / SKILL.md / .cursor）不是普通文档：未声明照样越界', () => {
+    const scope = scopeOf([target('src/a.ts')])
+    const rules = ['CLAUDE.md', 'AGENTS.md', 'skills/add-module/SKILL.md', '.cursor/rules/state.mdc', 'docs/x/AGENT.md']
+    const check = checkScopeContract({ scope, actualChangedFiles: ['src/a.ts', ...rules], workKind: WORK_KINDS.bugfix })
+    assert.equal(check.ok, false)
+    assert.deepEqual(check.outOfScope, rules)
+    // scope 缺失时规则文件也不算「只改文档」。
+    const missing = checkScopeContract({ scope: null, actualChangedFiles: ['CLAUDE.md'], workKind: WORK_KINDS.bugfix })
+    assert.equal(missing.ok, false)
+    assert.equal(missing.docsOnly, false)
+  })
+
+  it('scope 缺失、只改文档但碰了禁区 → 仍拦', () => {
+    const check = checkScopeContract({ scope: null, actualChangedFiles: [docs[0], 'package.json'], workKind: WORK_KINDS.bugfix })
+    assert.equal(check.ok, false)
+    assert.equal(check.forbiddenTouched.length, 1)
+  })
+})
