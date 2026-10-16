@@ -1,24 +1,34 @@
 #!/usr/bin/env node
 
 import assert from 'node:assert/strict'
-import { existsSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { EventEmitter } from 'node:events'
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { PassThrough } from 'node:stream'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
 import { parseAiExecutorDirective, resolveGatewayAiExecutor } from '../lib/lark-ingest.mjs'
 import {
+  CLAUDE_HEADLESS_DISALLOWED_TOOLS,
   buildAiExecutorCommand,
   buildClaudeReadinessCommand,
   buildCodexReadinessCommand,
   buildPiReadinessCommand,
+  execAiExecutor,
   executorReadableDirs,
   formatStructuredAiResult,
   isTransientAiError,
   resolveAiExecutor,
   validateAiExecutor,
 } from '../lib/lark-ai-executor.mjs'
-import { parseStructuredAiResult, parseStructuredAnalysisValue, parseStructuredIntentResult } from '../lib/lark-ai-result.mjs'
+import {
+  buildClaudeResultFileInstruction,
+  buildClaudeResultRecoveryInstruction,
+  parseStructuredAiResult,
+  parseStructuredAnalysisValue,
+  parseStructuredIntentResult,
+} from '../lib/lark-ai-result.mjs'
 import { buildQueuedCard, buildResultCard, buildWaitingCard, resolveOwnerMention } from '../lib/lark-cards.mjs'
 import { scanDiffForViolations } from '../lib/lark-lint-diff.mjs'
 import { buildFocusedRuleContext } from '../lib/lark-rule-context.mjs'
@@ -117,9 +127,43 @@ describe('Codex non-interactive command', () => {
 
   it('Claude 启用 stream-json 事件流（供审计与空闲超时），最终结果仍走结构化 resultPath', () => {
     const command = buildAiExecutorCommand({ executor: 'claude', promptText: 'fix it', cwd: '/tmp/repo' })
-    assert.deepEqual(command.args, ['-p', '--dangerously-skip-permissions', '--output-format', 'stream-json', '--verbose', '--include-partial-messages', 'fix it'])
+    assert.deepEqual(command.args, [
+      '-p', '--dangerously-skip-permissions',
+      '--disallowedTools', ...CLAUDE_HEADLESS_DISALLOWED_TOOLS,
+      '--output-format', 'stream-json', '--verbose', '--include-partial-messages', 'fix it',
+    ])
     assert.equal(command.eventStream, true)
     assert.equal(command.resultMode, 'structured')
+  })
+
+  it('Claude 无头任务模式摘掉会结束本轮 / 排程 / 甩活的内建工具（lessons #31），变长参数后紧跟下一个 -- 选项', () => {
+    const command = buildAiExecutorCommand({ executor: 'claude', promptText: 'fix it', cwd: '/tmp/repo', readableDirs: ['/tmp/ref'] })
+    for (const tool of ['ScheduleWakeup', 'CronCreate', 'Workflow', 'RemoteTrigger', 'EnterWorktree']) {
+      assert.ok(CLAUDE_HEADLESS_DISALLOWED_TOOLS.includes(tool), tool)
+    }
+    const at = command.args.indexOf('--disallowedTools')
+    assert.ok(at > 0)
+    assert.equal(command.args[at + 1 + CLAUDE_HEADLESS_DISALLOWED_TOOLS.length], '--output-format')
+    // 只读分类 / 分诊走 --tools 白名单，本来就没有这些工具，不重复加
+    assert.equal(buildAiExecutorCommand({ executor: 'claude', promptText: 'x', cwd: '/tmp/repo', resultKind: 'intent' }).args.includes('--disallowedTools'), false)
+  })
+
+  it('Claude 任务模式可 --resume 续会话（结果文件补写用），紧跟在 --output-format 前', () => {
+    const command = buildAiExecutorCommand({ executor: 'claude', promptText: 'write result', cwd: '/tmp/repo', resumeSessionId: 'sess-1' })
+    const at = command.args.indexOf('--resume')
+    assert.deepEqual(command.args.slice(at, at + 3), ['--resume', 'sess-1', '--output-format'])
+    assert.equal(buildAiExecutorCommand({ executor: 'claude', promptText: 'x', cwd: '/tmp/repo' }).args.includes('--resume'), false)
+  })
+
+  it('结果文件指令要求全程同步、禁止后台 / 排程等待；补写指令只写文件不重跑', () => {
+    const instruction = buildClaudeResultFileInstruction('/tmp/r/result.json')
+    assert.match(instruction, /同步执行/)
+    assert.match(instruction, /run_in_background/)
+    assert.match(instruction, /绝不能不写结果就结束/)
+    const recovery = buildClaudeResultRecoveryInstruction('/tmp/r/result.json', 'ENOENT: no such file')
+    assert.match(recovery, /ENOENT: no such file/)
+    assert.match(recovery, /不要重跑任务/)
+    assert.match(recovery, /\/tmp\/r\/result\.json/)
   })
 
   it('Pi 固定 provider/model 并启用 JSON 事件流，供审计和空闲超时检测', () => {
@@ -867,5 +911,65 @@ describe('分诊 Prompt 的 PRD 来源', () => {
     const prompt = buildTriagePrompt({ projectId: 'PR-00009', projectName: 'test', cwd: '/tmp/repo' }, { id: 't1', text: '埋点未上报' }, '（无）')
     assert.match(prompt, /本地没有该项目的 PRD 落盘/)
     assert.doesNotMatch(prompt, /apps\/web\/docs_tdd/)
+  })
+})
+
+describe('结果文件自纠偏（lessons #31）', () => {
+  // 假 claude 子进程：首轮吐 init 事件带 session_id、正常退出但不写结果；--resume 那轮才写 result.json。
+  const fakeSpawn = (calls, { recoveryWrites = true, recoveryStatus = 'done' } = {}) => (cmd, args) => {
+    const child = new EventEmitter()
+    child.stdout = new PassThrough()
+    child.stderr = new PassThrough()
+    child.stdin = new PassThrough()
+    child.kill = () => {}
+    calls.push({ cmd, args })
+    const resumeAt = args.indexOf('--resume')
+    const resultPath = args.join(' ').match(/(\/\S+result\.json)/)?.[1]
+    setImmediate(() => {
+      child.stdout.write(`{"type":"system","subtype":"init","session_id":"sess-${calls.length}","tools":[]}\n`)
+      if (resumeAt >= 0 && recoveryWrites && resultPath) {
+        writeFileSync(resultPath, JSON.stringify({ status: recoveryStatus, summary: '补写', checks: [], changedFiles: [], warnings: [] }))
+      }
+      child.stdout.end()
+      child.stderr.end()
+      setImmediate(() => child.emit('exit', 0))
+    })
+    return child
+  }
+
+  it('claude 任务正常退出却没写 result.json：续同一会话只补写一次，补写成功即按正常结果返回', async () => {
+    const calls = []
+    const auditLogPath = join(mkdtempSync(join(tmpdir(), 'lark-heal-')), 'audit.log')
+    const out = await execAiExecutor({
+      executor: 'claude', promptText: '发日报', cwd: tmpdir(), auditLogPath, localConfig: {}, spawnImpl: fakeSpawn(calls),
+    })
+    assert.equal(calls.length, 2)
+    assert.equal(calls[0].args.includes('--resume'), false)
+    assert.deepEqual(calls[1].args.slice(calls[1].args.indexOf('--resume'), calls[1].args.indexOf('--resume') + 2), ['--resume', 'sess-1'])
+    assert.match(calls[1].args.at(-1), /不要重跑任务/)
+    assert.equal(out.result.status, 'done')
+    assert.match(readFileSync(auditLogPath, 'utf8'), /\[self-heal\].*--resume sess-1[\s\S]*\[self-heal\] 补写成功：status=done/)
+  })
+
+  it('补写仍没写出来：只试一次，按原错误上抛并注明补写也失败', async () => {
+    const calls = []
+    await assert.rejects(
+      execAiExecutor({ executor: 'claude', promptText: '发日报', cwd: tmpdir(), localConfig: {}, spawnImpl: fakeSpawn(calls, { recoveryWrites: false }) }),
+      /Claude 未返回合法结构化结果：ENOENT[\s\S]*续会话补写也失败/,
+    )
+    assert.equal(calls.length, 2)
+  })
+
+  it('只读分类（stdout 结构化）不走补写：没有 resultPath 可补', async () => {
+    const calls = []
+    const spawnImpl = (cmd, args) => {
+      const child = fakeSpawn(calls)(cmd, args)
+      return child
+    }
+    await assert.rejects(
+      execAiExecutor({ executor: 'claude', promptText: 'x', cwd: tmpdir(), resultKind: 'intent', localConfig: {}, spawnImpl }),
+      /意图分类结果缺少合法 decision/,
+    )
+    assert.equal(calls.length, 1)
   })
 })
