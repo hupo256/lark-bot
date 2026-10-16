@@ -145,6 +145,10 @@ describe('「完成」口径的机械检查', () => {
     assert.ok(findCompletionContradiction('直播详情页我这边的接口都已对完（排行榜、预告）。还差后端在 pre 补：非主播 getRoomInfo 报 500。'))
     assert.equal(findCompletionContradiction('直播详情页还有 5 项没通：\n- getRoomInfo 非主播报 500'), null)
     assert.equal(findCompletionContradiction('预告、礼物、推荐都通了，pre 已实测。'), null)
+    // 2026-10-16 真机：uid 508 / 房间 428 被裸 `[45]\d\d` 当成 5xx，R6「都通了」的结论被拦。状态码只认带动词 / 协议词的写法。
+    assert.equal(findCompletionContradiction('直播预告重复（R6）：都通了\n- ✅ 通了 front/upcoming：28 条不重复；要登录态的接口用 pre 测试号（uid 508），主播 428 也看了'), null)
+    assert.ok(findCompletionContradiction('直播预告都通了，getRoomInfo 非主播回 500'))
+    assert.ok(findCompletionContradiction('都通了，录播接口 HTTP 404'))
     register()
     const hooks = []
     const out = await deliverRepoOutcome({

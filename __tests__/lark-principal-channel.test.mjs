@@ -19,6 +19,7 @@ const fameex = { key: 'fameex', isDefault: true }
 const at = (iso) => ({ messageId: `om_r_${iso}`, kind: 'suspected', createdAt: iso })
 const makeStore = (tasks) => ({
   list: () => tasks,
+  get: (id) => tasks.find((task) => task.id === id) || null,
   findTaskByAnyReceipt: (id) => tasks.find((task) => (task.receipts || []).some((receipt) => receipt.messageId === id)) || null,
   findByReceiptMessageId: () => null,
 })
@@ -55,6 +56,14 @@ describe('resolvePrincipalAnchor', () => {
   })
   it('回复的是 fameex 任务的回执 → null（由老控制通道处理）', () => {
     assert.equal(resolvePrincipalAnchor({ msg: msg({ replyToDirect: 'om_fxr' }), store: makeStore([repoTask, fameexP2p]), profile, now: NOW }), null)
+  })
+  it('显式「继续任务 <id>」→ 锚到点名的那条（不是最近一条），带 directive；点名的不是本仓 / 不存在 → null 走老路径', () => {
+    // 2026-10-16 真机：「继续任务 om_old 确认扩大范围」被 recent 锚到 William 刚 @bot 的 om_group，结论对着 William 说。
+    const anchor = resolvePrincipalAnchor({ msg: msg({ text: '继续任务 om_old 确认扩大范围' }), store: makeStore([olderRepo, repoTask]), profile, now: NOW })
+    assert.deepEqual({ id: anchor.task.id, via: anchor.via, directive: anchor.directive }, { id: 'om_old', via: 'explicit', directive: { taskId: 'om_old', supplementText: '确认扩大范围' } })
+    assert.equal(decidePrincipalAction(anchor.task), 'resume')
+    assert.equal(resolvePrincipalAnchor({ msg: msg({ text: '继续任务 om_fx 做' }), store: makeStore([repoTask, fameexP2p]), profile, now: NOW }), null)
+    assert.equal(resolvePrincipalAnchor({ msg: msg({ text: '继续任务 om_nope 做' }), store: makeStore([repoTask]), profile, now: NOW }), null)
   })
   it('没有任何回执的任务不参与锚定', () => {
     assert.equal(latestReceiptAt({ receipts: [] }), 0)
