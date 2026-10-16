@@ -45,9 +45,10 @@
 
 ## 3. 环 2：失败后自诊
 
-### 3.1 失败指纹（确定性，不用模型）
+### 3.1 失败指纹（确定性，不用模型）— **已落地 10-16**
 
-新文件 `lib/lark-failure-fingerprint.mjs`：把 error 文本去掉路径 / id / 时间后归一成指纹，并分到固定类：
+`lib/lark-failure-fingerprint.mjs`：把 error 文本去掉路径 / id / 时间后归一成指纹，并分到固定类（按 worker.log 10-13 ~ 10-15 真实错误形状写：规则缺失 16 次、exit 1 5 次、timeout 4 次、ENOENT result.json、409 stale epoch…）。
+落地口径与下表略有出入，以代码为准：可重排队的类 = `result_missing / result_invalid / transient_api / git / readonly_violation / exec_exit`，每任务最多 1 次（`client.releaseTask` 交还队列、不发失败卡、重领后提示末尾带「上次失败类别 + 针对性一句」）；`stale_epoch / aborted` 视为不是失败（ignore）；其余直接失败，卡上第 3 行写「失败归类：… 同一种错 7 天内第 N 次，指纹 …」。台账 `lib/lark-failure-ledger.mjs` → `runtime/lark-failures/<repo>.jsonl`。
 
 | 类 | 识别 | 剧本（确定性） |
 |---|---|---|
@@ -61,9 +62,11 @@
 
 落盘 `runtime/lark-failures/<repo>.jsonl`：taskId、指纹、类、时间、是否自愈成功。同一指纹 7 天内第 2 次出现，不管哪一类都进 3.2（对应 lessons 的「只有规则没有闸的再出一次就补闸」，但变成机械触发）。
 
-### 3.2 自修工单（会改 lark-bot 自己的代码）
+### 3.2 自修工单（会改 lark-bot 自己的代码）— **已落地 10-16**（`lib/lark-self-fix.mjs`）
 
-触发：`unknown`，或同指纹 7 天内重复，或环 1 自纠失败。预算：每天最多 3 个；同指纹 7 天 1 个。
+触发（`shouldOpenSelfFix`）：失败卡已发后，`unknown`、或同指纹 7 天内复发、或自动重排队 1 次仍失败；`timeout / exec_exit / transient_api` 只有复发才开；`permission / tool_missing / quality_gate / stale_epoch / aborted` 永不开；自修工单自己失败不套娃。预算：每天最多 3 个；同指纹 7 天 1 个。关：配置 `selfHeal.selfFix=false` 或环境 `LARK_SELF_FIX=0`。
+实现方式 = 给 lark-bot 自己开一条普通仓库任务（`POST /lark/tasks`，`repo=lark-bot`，`source=self-heal`，首行「修复：」走 bugfix 快车道不用人工放行），正文带：错误原文、指纹 / 类别 / 复发次数、原任务审计 JSON 与事件流绝对路径、worker.log 尾 150 行、根因层要求与硬边界。走现成「只读分析 → 实施 → 终检（`node --test`）→ 本地提交 → 合进 `lark/lark-bot-integration` → 私信 aven」链路。
+`runtime/lark-bot.local.json` 新增 profile `repos.lark-bot`（root 本仓、baseRef `feature/falive-repo-profile`、ruleProfile `lark-bot` = 本仓 AGENTS.md + 自愈原则作常驻硬规则、finalChecks 全量单测、readableDirs 放行审计 / 失败台账 / worker.log、poll 关、concurrency 1）。
 
 流程（仓库 = `~/github/lark-bot`，走现有多仓 profile 机制，新增 `lark-bot` 自己的 profile）：
 1. **分诊**（只读分析模式，Opus 5.5 high）：输入 = 失败工单的审计 `e*.json` + `e*.log` 尾部 + worker.log 该任务前后 200 行 + lessons 表 + 本文。输出结构化：`rootCauseLayer: harness | prompt | env | model | external`、现象 / 根因一句话、建议落点（机制 / 闸 / 规则）、改哪些文件、怎么验、`confidence`。
@@ -97,8 +100,8 @@
 |---|---|---|---|
 | 0 ✅ 10-16 | 环 1.3 / 1.4 + 规则 + lessons #31 | 已提交（待 restart 生效） | 640 单测全绿；下次 `[self-heal]` 行 |
 | 1 ✅ 10-16 | 环 1.6 失败卡旁证；环 3 排空重启（提前，aven 最关心） | 已提交（**最后一次手动 restart** 后生效，之后改代码自动排空重启） | 654 单测全绿；`lark-bot status` 显示「排空中」；worker.log 看「排空重启：…已发起 lark-bot restart」 |
-| 2 | 环 2 失败指纹 + 已知类剧本 + 失败台账 | 半天 | 回放 10-14 / 10-15 的 worker.log 全部失败能分到类 |
-| 3 | 环 2.2 自修工单（lark-bot 自己的 profile、分诊 → 实施 → 私信等「上线」） | 1 天 | 用 lessons #21（链接正则）做一次人工注入回归：bot 能自己定位并给出改法 |
+| 2 ✅ 10-16 | 环 2 失败指纹 + 已知类剧本 + 失败台账 | 已提交 | `lark-failure-fingerprint.test.mjs` 用 10-13 ~ 10-15 的 10 种真实错误回归分类；线上看失败私信第 3 行「失败归类」与 worker.log「自愈：…已交还队列重领」 |
+| 3 ✅ 10-16 | 环 2.2 自修工单（lark-bot 自己的 profile、分诊 → 实施 → 私信等「上线」） | 已提交（profile 已加进本机配置） | `lark-self-fix.test.mjs`；真机：等第一条复发失败，看私信里出现「开始做：修复：lark-bot 自身缺陷…」，分支 `lark/lark-bot-<id>`，合进 `lark/lark-bot-integration` |
 | 4 | 环 3 doctor + 每小时体检 + 日报自检行 | 半天 | `lark-bot doctor falive` 输出 |
 
 ## 6. 已拍板（aven 2026-10-16）
