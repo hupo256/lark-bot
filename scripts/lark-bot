@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Friendly control for the PR-01947 Lark bot (gateway + worker + bug poller).
-# Usage: lark-bot {start|stop|restart|status|logs|poll-on|poll-off|claude-auth [local|proxy]}
+# Usage: lark-bot {start|stop|restart|status|doctor|logs|poll-on|poll-off|claude-auth [local|proxy]}
 set -euo pipefail
 
 REPO="/Users/aven/github/fameex-web"
@@ -366,5 +366,6 @@ case "${1:-}" in
       -d "$(node -e 'process.stdout.write(JSON.stringify({ repo: process.argv[1] || "falive", date: process.argv[2] || "" }))' "${2:-falive}" "${3:-}")"; echo ;;
   daily-report) ( cd "$LARK_BOT_ROOT" && node scripts/lark-daily-report-now.mjs "${2:-falive}" "${@:3}" ) ;;
   intake-stats) ( cd "$LARK_BOT_ROOT" && node scripts/lark-intake-stats.mjs "${2:-falive}" "${3:-1}" "${@:4}" ) ;;
+  doctor)   ( cd "$LARK_BOT_ROOT" && LARK_GATEWAY_SECRET="${LARK_GATEWAY_SECRET:-$(cat "$SECRET_FILE" 2>/dev/null || true)}" node scripts/lark-doctor.mjs "${@:2}" ) ;;
   *) echo "usage: lark-bot {start|stop|restart|status|logs|poll-on|poll-off|failed|retry <id>|resume <id> \"<补充>\"|receipt-retry <id>|clean [hours]|clean --failed [hours]|claude-auth [local|proxy]|daily-report [repo] [--private] [--to <id>]|sweep [repo] [YYYY-MM-DD]|intake-stats [repo] [days] [--json]}"; exit 1 ;;
 esac

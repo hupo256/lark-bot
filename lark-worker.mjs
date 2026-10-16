@@ -20,6 +20,8 @@ import { createTaskRunner } from './lib/lark-task-runner.mjs'
 import { startLogRotation } from './lib/lark-log-rotate.mjs'
 import { createRuntimeVersion, versionWarnings, writeWorkerHeartbeat } from './lib/lark-runtime-version.mjs'
 import { createDrainRestart } from './lib/lark-drain-restart.mjs'
+import { createDoctorMonitor } from './lib/lark-doctor.mjs'
+import { computeCodeHash, readWorkerHeartbeat } from './lib/lark-runtime-version.mjs'
 import { sendBotMarkdown } from './lib/lark-cli.mjs'
 import { larkRuntimeDir } from './lib/lark-repo.mjs'
 import { defaultTaskLeaseMs } from './lib/lark-constants.mjs'
@@ -143,6 +145,21 @@ export async function runLarkWorker({
       : async () => {},
   })
   console.log(`[lark-worker] 排空重启：${drainEnabled ? '开（磁盘改动 → 排空 → 单测绿 → 自动 restart）' : `关（${process.env.LARK_LOG_FILE ? '配置 / 环境关闭' : '非 launchd 托管'}）`}`)
+
+  // 运行态体检（自愈环 3）：每小时一次，warn / bad 私信负责人，同一条 24 小时只报一次；启动 3 分钟后先跑一次。
+  const doctorEnabled = selfHeal.doctor !== false && Boolean(drainNotifyChatId)
+  const doctor = createDoctorMonitor({
+    fetchHealth: () => client.request('/lark/health'),
+    listTasks: () => client.listTasks(),
+    heartbeat: () => readWorkerHeartbeat({ runtimeDir: larkRuntimeDir, expectedCodeHash: computeCodeHash().hash }),
+    notify: (text) => sendBotMarkdown({ chatId: drainNotifyChatId, markdown: text, logPrefix: 'doctor' }),
+  })
+  const doctorTick = () => doctor.tick().catch((error) => console.error('[lark-worker] 体检 tick 异常（忽略）：', String(error).slice(0, 160)))
+  const doctorTimers = doctorEnabled
+    ? [setTimeout(doctorTick, Number(process.env.LARK_DOCTOR_FIRST_MS || 3 * 60_000)), setInterval(doctorTick, Number(process.env.LARK_DOCTOR_EVERY_MS || 60 * 60_000))]
+    : []
+  for (const timer of doctorTimers) timer.unref?.()
+  console.log(`[lark-worker] 体检：${doctorEnabled ? '开（每小时，异常私信、24h 去重）' : '关'}`)
 
   // 优雅退出：SIGTERM/SIGINT（launchd bootout 与 lark-bot stop 都发 SIGTERM）时，先把在飞任务
   // 交还队列（releaseTask → queued + epoch++），再中断在跑的 AI 子进程，让重启后的 worker 立刻重领，

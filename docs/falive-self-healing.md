@@ -80,9 +80,9 @@
 
 10-15 21:09 失败 → 指纹 `result_missing` → 环 1.3 补写（session 还在，模型知道后台任务已起）→ 模型按补写指令如实写 `blocked：需要 worker 直接执行 lark-bot daily-report falive` → 环 1.5 worker 看到白名单命令自己跑（或发现 21:24 已发、发件簿有记录）→ 回 aven「日报已发」。全程不需要人看错误。
 
-## 4. 环 3：运行态体检
+## 4. 环 3：运行态体检 — **已落地 10-16**（`lib/lark-doctor.mjs`）
 
-新命令 `lark-bot doctor [repo]` + worker 每小时一次同样的检查（结果只私信，走出口闸去重，同一异常 24 小时只报一次）：
+`lark-bot doctor [repo] [--json]`（有 warn / bad 非零退出）+ worker 启动 3 分钟后、之后每小时一次同样的检查（warn / bad 私信负责人，同一条 24 小时只报一次，状态在 `runtime/lark-doctor-state.json`；关：`selfHeal.doctor=false`）+ 日报私信版末尾一行「bot 自检：worker 状态；7 天失败 / 自动重跑 / 复发指纹」。检查项：gateway 在线、worker 心跳 / 就绪 / 排空、版本落后磁盘（排空中只算 info）、gateway 自己的 warnings（事件静默 / failed 积压 / 回执 / 轮询失败）、日报到点 1 小时未发、挂起超 24 小时、failed 积压、失败台账 7 天汇总与复发指纹。下表是原计划，以上为准：
 
 | 检查 | 现在 | 自动动作 |
 |---|---|---|
@@ -102,7 +102,7 @@
 | 1 ✅ 10-16 | 环 1.6 失败卡旁证；环 3 排空重启（提前，aven 最关心） | 已提交（**最后一次手动 restart** 后生效，之后改代码自动排空重启） | 654 单测全绿；`lark-bot status` 显示「排空中」；worker.log 看「排空重启：…已发起 lark-bot restart」 |
 | 2 ✅ 10-16 | 环 2 失败指纹 + 已知类剧本 + 失败台账 | 已提交 | `lark-failure-fingerprint.test.mjs` 用 10-13 ~ 10-15 的 10 种真实错误回归分类；线上看失败私信第 3 行「失败归类」与 worker.log「自愈：…已交还队列重领」 |
 | 3 ✅ 10-16 | 环 2.2 自修工单（lark-bot 自己的 profile、分诊 → 实施 → 私信等「上线」） | 已提交（profile 已加进本机配置） | `lark-self-fix.test.mjs`；真机：等第一条复发失败，看私信里出现「开始做：修复：lark-bot 自身缺陷…」，分支 `lark/lark-bot-<id>`，合进 `lark/lark-bot-integration` |
-| 4 | 环 3 doctor + 每小时体检 + 日报自检行 | 半天 | `lark-bot doctor falive` 输出 |
+| 4 ✅ 10-16 | 环 3 doctor + 每小时体检 + 日报自检行 | 已提交 | `lark-doctor.test.mjs`；真机 `lark-bot doctor` 10-16 已跑：正确报出「代码和配置落后磁盘，排空重启没动」（旧 worker 还没 restart） |
 
 ## 6. 已拍板（aven 2026-10-16）
 
