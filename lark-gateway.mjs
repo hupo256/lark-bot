@@ -38,6 +38,7 @@ import { createRuntimeVersion } from './lib/lark-runtime-version.mjs'
 import { GATEWAY_HOST, defaultGatewayPort, defaultTaskLeaseMs } from './lib/lark-constants.mjs'
 import { addRepoChatIds, listRepoProfiles, registerRepoProfiles, repoProfileForTask } from './lib/lark-repo-profile.mjs'
 import { startChatPoller } from './lib/lark-chat-poller.mjs'
+import { startKeepAwake } from './lib/lark-keep-awake.mjs'
 import { startDailyReportScheduler } from './lib/lark-daily-report.mjs'
 import { startDeployWatch } from './lib/lark-daily-sweep.mjs'
 
@@ -131,6 +132,8 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
       }
     }
   }
+  // 开盖不空闲睡眠、合盖照常睡（lib/lark-keep-awake.mjs）。
+  const keepAwake = startKeepAwake()
   // 外部群（仓库 profile 配了 chatIds）：用户身份轮询拉消息喂同一条 ingest 链路。
   const chatPoller = startChatPoller({ config, store, ingest: ingestLarkEvent })
   // 日报：每天固定时刻把当天进度 / 卡点 / 需要支持整理成卡片（试运行期私发负责人）。
@@ -238,6 +241,7 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
     chatPoller.stop()
     dailyReport.stop()
     deployWatch.stop()
+    keepAwake.stop()
     server.close()
     process.exit(0)
   }
