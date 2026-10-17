@@ -16,7 +16,8 @@ describe('变更流监听（第 2 批）', () => {
     const watcher = createChangeWatcher({ client, waitMs: 1 })
     watcher.watch('a', 0, (entry) => fired.push(['a', entry.status, entry.epoch]))
     watcher.watch('b', 0, (entry) => fired.push(['b', entry.status]))
-    await new Promise((resolve) => setTimeout(resolve, 50))
+    // 等到两个回调都到（最多 5s），不用固定毫秒数——全量并发时事件循环可能被挤
+    for (let i = 0; i < 500 && fired.length < 2; i += 1) await new Promise((resolve) => setTimeout(resolve, 10))
     assert.deepEqual(fired, [['b', 'superseded'], ['a', 'queued', 1]])
     assert.deepEqual(requested.slice(0, 3), [-1, 10, 12], '先对齐游标再从 seq 之后拉')
     assert.equal(watcher.size(), 0)

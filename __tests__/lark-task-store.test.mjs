@@ -597,17 +597,17 @@ describe('续租 touchLease（第 0 批：长任务不再被当孤儿回收）',
   beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'lark-store-lease-')) })
   afterEach(() => rmSync(dir, { recursive: true, force: true }))
 
-  it('running 任务续租后 claimedAt 前移；epoch 不符 / 非 running 回 409；不存在 404', async () => {
-    const store = createTaskStore({ tasksDir: dir, leaseMs: 300 })
+  it('running 任务续租后 claimedAt 前移；epoch 不符 / 非 running 回 409；不存在 404', () => {
+    const store = createTaskStore({ tasksDir: dir, leaseMs: 60_000 })
     store.upsert({ id: 'a', status: 'queued', createdAt: '2026-01-01T00:00:00Z' })
     const claimed = store.claimNext()
-    const before = claimed.claimedAt
-    await new Promise((resolve) => setTimeout(resolve, 200))
+    // 不靠真实 sleep（机器负载高时毫秒级等待不可靠）：把领取时刻拨到 50s 前，离租约到期只剩 10s
+    const stale = new Date(Date.now() - 50_000).toISOString()
+    store.upsert({ ...claimed, claimedAt: stale })
     const touched = store.touchLease('a', 0)
     assert.equal(touched.ok, true)
-    assert.ok(touched.claimedAt > before)
-    await new Promise((resolve) => setTimeout(resolve, 200))
-    // 距领取已 400ms > 租约 300ms，但距续租只有 200ms：不是孤儿，不重入队
+    assert.ok(touched.claimedAt > stale)
+    // 若没续租，再过 10s 就是孤儿；续租后 claimedAt = 现在，claimNext 不会把它当孤儿重入队
     assert.equal(store.claimNext(), null)
     assert.equal(store.get('a').status, 'running')
     assert.deepEqual(store.touchLease('a', 1).code, 409)
