@@ -47,19 +47,17 @@ describe('系统任务：日报由 worker 生成，gateway 记账（第 1 批）
 
   it('gateway：done 时写发送状态并排清扫，不发卡不回群；failed 且群里要的 → 私信负责人', async () => {
     const store = createTaskStore({ tasksDir: join(dir, 'tasks'), leaseMs: 60_000 })
-    const prev = process.env.LARK_RUNTIME_DIR
     const docPath = join(dir, 'Falive日报-2026-10-15-完整版.md')
     writeFileSync(docPath, '# 日报\n')
     const task = store.upsert(buildDailyReportTask({ profile, date: '2026-10-15', reportNow: new Date('2026-10-15T19:00:00') }))
     store.claimById(task.id)
     const delivered = []
-    const base = { config: { project: 'PR-1' }, store, resolveGroupChat: async () => null, sendMessage: async () => ({ ok: true }), postGroup: async () => { delivered.push('group'); return { ok: true } }, deliverRepo: async () => { delivered.push('repo'); return { ok: true } } }
+    // runtimeDir 指到临时目录：绝不能写真实 runtime 的日报状态（10-17 真机：这条测试曾把线上 state 改回 10-15）。
+    const base = { config: { project: 'PR-1' }, store, runtimeDir: dir, resolveGroupChat: async () => null, sendMessage: async () => ({ ok: true }), postGroup: async () => { delivered.push('group'); return { ok: true } }, deliverRepo: async () => { delivered.push('repo'); return { ok: true } } }
     const done = await handleStatusUpdate({ ...base, id: task.id, status: 'done', result: '日报已发到 oc_falive', epoch: 0, payload: { date: '2026-10-15', doc: { path: docPath, url: 'https://doc' }, to: 'oc_falive' } })
     assert.deepEqual(done, { ok: true, system: true })
     assert.deepEqual(delivered, [], '系统任务不发卡不回群')
     assert.equal(store.get(task.id).status, 'done')
-    // 发送状态落在默认 runtime 目录（与 worker 共用）；这里只验证函数链路不抛、状态写入成功
-    assert.equal(readDailyReportState().falive, '2026-10-15')
-    void prev
+    assert.equal(readDailyReportState(dir).falive, '2026-10-15')
   })
 })
