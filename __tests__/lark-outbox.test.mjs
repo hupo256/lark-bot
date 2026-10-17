@@ -31,7 +31,8 @@ describe('发件簿（阶段 3）', () => {
     const now = Date.parse('2026-10-15T12:00:00Z')
     recordOutbox({ dir, now: now - 8 * 24 * 60 * 60_000, chatId: 'oc_x', phase: 'ack', text: '老' })
     recordOutbox({ dir, now: now - 60_000, chatId: 'oc_x', phase: 'ack', text: '新' })
-    assert.equal(pruneOutbox({ dir, now }), 1)
+    // 第 2 批起记账时每 6 小时自动清一次：第二条记账时已把 8 天前那条清掉，这里再清是 0
+    assert.equal(pruneOutbox({ dir, now }), 0)
     assert.deepEqual(listOutbox({ dir, chatId: 'oc_x' }).map((item) => item.text), ['新'])
     assert.ok(readFileSync(join(dir, 'oc_x.jsonl'), 'utf8').endsWith('\n'))
   }))

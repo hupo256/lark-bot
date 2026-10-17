@@ -616,3 +616,30 @@ describe('续租 touchLease（第 0 批：长任务不再被当孤儿回收）',
     assert.deepEqual(store.touchLease('b', 0).code, 409)
   })
 })
+
+describe('变更流与按状态查（第 2 批）', () => {
+  let dir
+  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'lark-store-changes-')) })
+  afterEach(() => rmSync(dir, { recursive: true, force: true }))
+
+  it('每次落盘发一条变更；changesSince 按 seq 过滤；list 按状态 / repo 过滤；updateIfEpoch 做 CAS', async () => {
+    const store = createTaskStore({ tasksDir: dir, leaseMs: 60_000 })
+    assert.deepEqual(store.changesSince(-1), { seq: 0, changes: [] })
+    store.upsert({ id: 'a', status: 'queued', repo: 'falive', createdAt: '2026-01-01T00:00:00Z' })
+    store.upsert({ id: 'b', status: 'done', repo: 'x', createdAt: '2026-01-01T00:00:00Z' })
+    const page = store.changesSince(0)
+    assert.equal(page.seq, 2)
+    assert.deepEqual(page.changes.map((item) => [item.id, item.status]), [['a', 'queued'], ['b', 'done']])
+    assert.deepEqual(store.list({ statuses: ['queued'] }).map((task) => task.id), ['a'])
+    assert.deepEqual(store.list({ repo: 'x' }).map((task) => task.id), ['b'])
+    assert.equal(store.list().length, 2)
+    const waiting = store.waitForChange(1000)
+    store.claimById('a')
+    assert.equal(await waiting, true)
+    assert.equal(await store.waitForChange(10), false)
+    assert.equal(store.updateIfEpoch('a', 5, (task) => { task.note = 'x' }), null, 'epoch 不符不写')
+    assert.equal(store.updateIfEpoch('a', 0, (task) => { task.note = 'x' }, { expectStatus: 'queued' }), null, 'status 不符不写')
+    assert.equal(store.updateIfEpoch('a', 0, (task) => { task.note = 'ok' }).note, 'ok')
+    assert.equal(store.get('a').note, 'ok')
+  })
+})

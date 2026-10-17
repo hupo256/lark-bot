@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | 第 0 批 止血（正确性） | ✅ 2026-10-17 完成，全量单测绿 | `lark/refactor-0` |
 | 第 1 批 效率（延迟与子进程） | ✅ 2026-10-17 完成，全量单测绿（723） | `lark/refactor-1` |
-| 第 2 批 结构（SQLite + 状态机） | 待做 | |
+| 第 2 批 结构（变更流 + 核验闸注册表；SQLite / 全量状态机延后） | ✅ 2026-10-17 完成，全量单测绿（729） | `lark/refactor-2` |
 | 第 3 批 协议 / 去重 / 被动消息 | 待做 | |
 | 第 4 批 治理 | 待做 | |
 
@@ -76,7 +76,18 @@
 
 ---
 
-## 第 2 批：结构——存储与状态机（约一周，两条线可并行）
+## 第 2 批：结构（已完成 2026-10-17，范围有调整）
+
+**取舍**：SQLite 迁移与 runTask 全量状态机**延后**——当前 63 条任务 / 444KB，文件存储已是原子写，索引与事务对这个量级没有收益，换存储引擎只增加风险与代码；状态机全量重写 920 行 runTask 风险过高。按「不变重」原则，本批落地的是去掉真正的浪费、并把最容易膨胀的那一段收成注册表：
+- 任务变更流：`store.persist` 发 `{ seq, id, status, epoch }`（留 500 条），`GET /lark/tasks/changes?since&wait` 长轮询（≤ 25s）；worker 一条长轮询（`lib/lark-change-watch.mjs`）盯全部在飞任务的取消 / 换代，原来每任务每秒 `getTask` 一次改为 30s 兜底。
+- `GET /lark/tasks?status=&repo=&limit=`：worker 领取只拉 queued / received。
+- `store.updateIfEpoch`（CAS）备好；状态回写第 0 批已做写前核对。
+- 完成态核验闸注册表 `lib/lark-task-gates.mjs`：lint / evidence / identity.stable / env.verify / code-rules / done.trust / scope 七道按表顺序跑，证据（改动文件 / diff 规模 / numstat）只采一次；runTask 里原 120 行内联核验换成 15 行；`__tests__/lark-task-gates.test.mjs` 锁死注册表 ≤ 16 道且元数据齐全。
+- 无界增长：发件簿每 6 小时清一次（原每进程一次）；台账 `new#` 条目 14 天没动自动清（`pruneLedger`）。
+
+仍待做（放到第 3 / 4 批或之后）：SQLite（任务量上千再做）、INTAKE / PREPARE / COMMIT 阶段的状态机化、`task.text` 只增不减。
+
+### 原计划
 
 **2a gateway：`node:sqlite` 单库 + 变更流**
 1. `lib/lark-db.mjs`：WAL + busy_timeout，`kv.schema_version` 迁移。表：`tasks`（索引列 status / chat_id / thread_root_id / topic / repo / epoch / claimed_at / updated_at / has_pending_receipt，业务字段仍在 `json`）、`task_receipts`、`task_changes(seq)`、`outbox`、`ledger_items` / `ledger_events`、`poller_seen`、`kv`（游标 / 日报 / 清扫状态）。

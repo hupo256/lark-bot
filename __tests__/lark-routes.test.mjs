@@ -54,3 +54,41 @@ describe('gateway 路由（第 0 批：按 id 取任务、续租、坏 body 400�
     assert.equal(store.get('t2').status, 'received')
   })
 })
+
+describe('变更流与按状态查（第 2 批）', () => {
+  let dir
+  let server
+  let base
+  let store
+  const headers = { 'x-lark-gateway-secret': 'test-secret' }
+  before(async () => {
+    dir = mkdtempSync(join(tmpdir(), 'lark-routes-changes-'))
+    store = createTaskStore({ tasksDir: dir, leaseMs: 60_000 })
+    store.upsert({ id: 'q1', status: 'queued', createdAt: '2026-01-01T00:00:00Z', text: 'x' })
+    store.upsert({ id: 'd1', status: 'done', createdAt: '2026-01-01T00:00:00Z', text: 'x' })
+    server = createServer(createRequestHandler({ config: { project: 'PR-1' }, store, consumer: { observe: () => ({ alive: true }) }, port: 0, runtimeVersion: { observe: () => ({}) } }))
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+    base = `http://127.0.0.1:${server.address().port}`
+  })
+  after(() => { server.close(); rmSync(dir, { recursive: true, force: true }) })
+
+  it('GET /lark/tasks?status=queued 只返回可领取的', async () => {
+    const res = await (await fetch(`${base}/lark/tasks?status=queued,received`, { headers })).json()
+    assert.deepEqual(res.tasks.map((task) => task.id), ['q1'])
+  })
+
+  it('GET /lark/tasks/changes：无 since 只回 seq；有 since 挂到有变更或超时', async () => {
+    const head = await (await fetch(`${base}/lark/tasks/changes`, { headers })).json()
+    assert.equal(head.seq, 2)
+    assert.deepEqual(head.changes, [])
+    const pending = fetch(`${base}/lark/tasks/changes?since=2&wait=2000`, { headers })
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    store.claimById('q1')
+    const page = await (await pending).json()
+    assert.equal(page.changes.length, 1)
+    assert.deepEqual([page.changes[0].id, page.changes[0].status], ['q1', 'running'])
+    const empty = await (await fetch(`${base}/lark/tasks/changes?since=${page.seq}&wait=20`, { headers })).json()
+    assert.deepEqual(empty.changes, [])
+    assert.equal((await fetch(`${base}/lark/tasks/changes?since=0`)).status, 401)
+  })
+})

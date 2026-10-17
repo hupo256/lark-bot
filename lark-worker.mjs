@@ -14,6 +14,7 @@ import {
 } from './lib/lark-worker-env.mjs'
 import { aiTimeoutMs, preflightAiExecutor, resolveAiExecutor, resolveAiModelConfig } from './lib/lark-ai-executor.mjs'
 import { createGatewayClient, sleep } from './lib/lark-gateway-client.mjs'
+import { createChangeWatcher } from './lib/lark-change-watch.mjs'
 import { loadWorkerLocalConfig } from './lib/lark-worker-run.mjs'
 import { resolveWorkContext, safeProject } from './lib/lark-work-context.mjs'
 import { createTaskRunner } from './lib/lark-task-runner.mjs'
@@ -119,7 +120,9 @@ export async function runLarkWorker({
   heartbeat({ inFlight: 0 })
 
   const client = createGatewayClient(gatewayUrl)
-  const runTask = createTaskRunner({ client, workerConfig })
+  // 变更流监听：一条长轮询盯全部在飞任务的取消 / 换代（第 2 批）。
+  const changeWatcher = createChangeWatcher({ client })
+  const runTask = createTaskRunner({ client, workerConfig, changeWatcher })
 
   if (argv.includes('--once')) {
     const task = await client.getNextPendingTask()
@@ -192,6 +195,7 @@ export async function runLarkWorker({
         ),
       ),
     )
+    changeWatcher.stop()
     shutdownController.abort()
     // 给在飞任务一点收尾时间（worktree 清理等），但不超过 launchd SIGKILL 宽限（~5s）。
     await Promise.race([Promise.allSettled(entries.map(({ promise }) => promise)), sleep(3000)])
