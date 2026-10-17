@@ -9,7 +9,7 @@
 | 批次 | 状态 | 分支 / 提交 |
 | --- | --- | --- |
 | 第 0 批 止血（正确性） | ✅ 2026-10-17 完成，全量单测绿 | `lark/refactor-0` |
-| 第 1 批 效率（延迟与子进程） | 待做 | |
+| 第 1 批 效率（延迟与子进程） | ✅ 2026-10-17 完成，全量单测绿（723） | `lark/refactor-1` |
 | 第 2 批 结构（SQLite + 状态机） | 待做 | |
 | 第 3 批 协议 / 去重 / 被动消息 | 待做 | |
 | 第 4 批 治理 | 待做 | |
@@ -38,7 +38,23 @@
 
 真机待看：只读复测任务的 claude 进程参数里无 `--dangerously-skip-permissions`、主仓 `git status` 不变；杀 worker 后无存活 tsc / claude 孙进程；gateway 重启 1s 内 worker 不退出；长任务审计里 `leaseTouchedAt` 在推进。
 
-## 第 1 批：效率——延迟与子进程（3–4 天）
+## 第 1 批：效率——延迟与子进程（已完成 2026-10-17）
+
+实际落地与计划的差异：
+- 实施续分析会话：`execAiExecutor` 新增 `resumeSessionId / fallbackPromptText`，分析分支不再 `--no-session-persistence`，json 模式从 envelope 取 `session_id`；续不上回退完整提示一次并记审计 `resumeFallback`。实施提示有 `followUp` 增量版（不重复任务正文 / 规则块，预算 11000 字符）。
+- 规则去重：`stripAutoLoadedRules` 只剔掉 Claude Code 自动加载的 `CLAUDE.md` / `~/.ai-rules/AGENT.md` 章节（约占注入文本 1/3），coding-quality 等向导章节仍注入；审计记 `omittedAutoLoaded`。
+- `docs/task-boundaries-and-reply.md` 改按需读小节（不再列入必读文档）；删 `requirementSelfAssessment`；预算测试加分析 / 续会话两档并断言提示里无 `PR-0xxxx`。
+- Lark IO 没有另起 `lark-io.mjs`：限流（user / bot 各 2 并发、send 优先）直接做在 `runLarkCli`；群名缓存 10 分钟 + 外部群负缓存；成员事件订阅没做（靠 TTL）。
+- 话题补抓：上限 30→5，只补 2h 内活跃或仍有未了结任务的，其余 30 分钟轮转；6 小时回看仍 2 分钟一次但只翻 3 页（老 host 新话题的 @ 要尽快看到）。
+- 日报：调度 / 状态 / 群触发搬到 `lib/lark-daily-schedule.mjs`（gateway），生成留在 `lib/lark-daily-report.mjs`（worker-only）；系统任务 `lib/lark-system-tasks.mjs`（source `daily-report`，`commandType status` 走只读路径不建 worktree），worker 由 `lib/lark-system-runner.mjs` 跑 `runDailyReport`，done 带 `payload`，gateway 在 `handleStatusUpdate` 里记发送状态 + 排清扫；失败重试 / 上限私信由调度器按任务状态做。`startDeployWatch` 仍在 gateway（已是异步 fetch）。
+- gateway 残余：`materializeDoc` 改异步 `lib/lark-git-read.mjs`（两处共用）；`composeContextualAck` 删除，「收到」用固定句；`resolveAiExecutor` 抽到 `lib/lark-ai-executor-select.mjs`。
+- `lib/lark-power.mjs` 单采样点（30s 缓存），keep-awake / 轮询 / 补拉 / 日报调度共用。
+- `lark-runtime-version` 先比 mtime 再算哈希。
+- 纯度闸 `__tests__/lark-gateway-purity.test.mjs`：闭包无同步子进程 / 模型调用，`child_process` 只许 6 个模块，worker 专属模块不进闭包。
+
+真机待看：一条实施任务审计 `implementation.resumedSession` 非空且第二趟时长明显下降；gateway.log 一轮轮询的 lark-cli 行数；19:00 `daily-falive-<date>` 任务出现在 worker.log 并 done；`/lark/health` 在日报期间响应 < 100ms。
+
+### 原计划
 
 **worker：会话复用 + prompt 瘦身**
 1. 分析 → 实施续同一会话：analysis 分支去掉 `--no-session-persistence`，`execAiExecutor` 返回 `sessionId`；实施调用传 `resumeSessionId`（`ai-executor.mjs:324` 已支持），prompt 改增量版 `buildImplementationFollowUp`（只含契约 / 假设 / 结果文件指令）；resume 失败回退完整 prompt 新会话一次并记审计 `resumeFallback`。工具面由新命令决定，不继承分析的只读面。

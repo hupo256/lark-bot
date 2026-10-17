@@ -12,7 +12,8 @@ import {
   readDailyReportState,
   startDailyReportScheduler,
   triggerDailyReportFromChat,
-} from '../lib/lark-daily-report.mjs'
+} from '../lib/lark-daily-schedule.mjs'
+import { isDailyReportTask } from '../lib/lark-system-tasks.mjs'
 import { registerRepoProfiles, resetRepoProfiles } from '../lib/lark-repo-profile.mjs'
 
 const profiles = () => registerRepoProfiles({
@@ -35,118 +36,97 @@ describe('parseDailyReportDirective', () => {
   })
 })
 
-describe('startDailyReportScheduler', () => {
+describe('startDailyReportScheduler（第 1 批：只建系统任务，生成交给 worker）', () => {
   let dir
   beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'daily-sched-')); profiles() })
   afterEach(() => { rmSync(dir, { recursive: true, force: true }); resetRepoProfiles() })
 
-  const scheduler = ({ clock, runs, ok = () => true }) => startDailyReportScheduler({
-    config: {},
-    store: {},
+  const fakeStore = () => {
+    const map = new Map()
+    return { list: () => [...map.values()], get: (id) => map.get(id), upsert: (task) => { map.set(task.id, { ...task }); return map.get(task.id) }, map }
+  }
+  const scheduler = ({ clock, store, dms = [] }) => startDailyReportScheduler({
+    store,
     deps: {
       runtimeDir: dir,
       now: () => clock.now,
       isLidClosed: async () => Boolean(clock.lidClosed),
       setInterval: () => ({ unref() {} }),
-      enqueueDailySweep: () => ({ skipped: 'test' }),
-      runDailyReport: async ({ now }) => { runs.push(now.toTimeString().slice(0, 5)); return ok() ? { ok: true, to: 'oc_falive' } : { ok: false, reason: 'boom' } },
+      sendUserMarkdown: async (args) => { dms.push(args); return { ok: true } },
     },
   })
+  const dailyTasks = (store) => store.list().filter(isDailyReportTask)
 
-  it('整点前不跑；错过 19:00 也补发，发成功写状态后不再跑', async () => {
-    const runs = []
+  it('整点前不建；错过 19:00 也建；同一天在队列 / 在跑时不重复建；记成功后不再建', async () => {
+    const store = fakeStore()
     const clock = { now: at('18:59') }
-    const s = scheduler({ clock, runs })
+    const s = scheduler({ clock, store })
     await s.tick()
-    assert.deepEqual(runs, [])
-    clock.now = at('19:22') // 19:00 那一分钟没 tick 到（进程重启 / 卡住）
-    await s.tick()
-    assert.deepEqual(runs, ['19:22'])
-    assert.equal(readDailyReportState(dir).falive, '2026-10-15')
+    assert.equal(dailyTasks(store).length, 0)
+    clock.now = at('19:22')
+    const created = await s.tick()
+    assert.equal(created.length, 1)
+    const task = dailyTasks(store)[0]
+    assert.equal(task.id, 'daily-falive-2026-10-15')
+    assert.equal(task.status, 'queued')
+    assert.equal(task.daily.date, '2026-10-15')
+    assert.equal(task.commandType, 'status', '走只读路径，不建 worktree')
+    assert.ok(task.leaseMs >= 30 * 60_000)
     clock.now = at('19:23')
     await s.tick()
-    assert.deepEqual(runs, ['19:22'])
-  })
-
-  it('失败结束后隔 10 分钟再试，当天最多 3 次', async () => {
-    const runs = []
-    const clock = { now: at('19:00') }
-    const s = scheduler({ clock, runs, ok: () => false })
-    for (const hhmm of ['19:00', '19:01', '19:09', '19:10', '19:19', '19:20', '19:30', '21:00']) {
-      clock.now = at(hhmm)
-      await s.tick()
-    }
-    assert.deepEqual(runs, ['19:00', '19:10', '19:20'])
-    assert.equal(runs.length, DAILY_MAX_ATTEMPTS)
-    assert.equal(readDailyReportState(dir).falive, undefined)
-  })
-
-  it('间隔从失败结束算，不从开跑算（生成本身要跑 20 分钟）', async () => {
-    const runs = []
-    const clock = { now: at('19:00') }
-    const s = startDailyReportScheduler({
-      config: {},
-      store: {},
-      deps: {
-        runtimeDir: dir,
-        now: () => clock.now,
-        isLidClosed: async () => false,
-        setInterval: () => ({ unref() {} }),
-        enqueueDailySweep: () => ({ skipped: 'test' }),
-        runDailyReport: async ({ now }) => {
-          runs.push(now.toTimeString().slice(0, 5))
-          clock.now = new Date(now.getTime() + 20 * 60_000) // 跑了 20 分钟才失败
-          return { ok: false, reason: 'timeout' }
-        },
-      },
-    })
-    await s.tick() // 19:00 开跑，19:20 失败
-    for (const hhmm of ['19:21', '19:29']) {
-      clock.now = at(hhmm)
-      await s.tick()
-    }
-    assert.deepEqual(runs, ['19:00'])
-    clock.now = at('19:30')
+    assert.equal(dailyTasks(store).length, 1, '在队列里不重复建')
+    store.map.get(task.id).status = 'running'
     await s.tick()
-    assert.deepEqual(runs, ['19:00', '19:30'])
-  })
-
-  it('手动补发写的状态在下次 tick 生效（不重发）', async () => {
-    const runs = []
-    const clock = { now: at('20:00') }
-    const s = scheduler({ clock, runs })
+    assert.equal(dailyTasks(store).length, 1)
     markDailyReportSent({ key: 'falive', date: '2026-10-15', runtimeDir: dir })
+    store.map.get(task.id).status = 'done'
+    clock.now = at('20:00')
     await s.tick()
-    assert.deepEqual(runs, [])
+    assert.equal(dailyTasks(store).length, 1)
   })
 
-  it('合盖到点不跑、记推迟；第二天开盖补发前一天的（报告时刻仍是前一天 19:00），之后不重复', async () => {
-    const runs = []
+  it('失败后隔 10 分钟再建，一天最多 3 条，到上限私信负责人一次', async () => {
+    const store = fakeStore()
+    const dms = []
+    const clock = { now: at('19:00') }
+    const s = scheduler({ clock, store, dms })
+    const fail = (hhmm) => { for (const task of dailyTasks(store)) if (task.status === 'queued') { task.status = 'failed'; task.result = 'boom'; task.updatedAt = at(hhmm).toISOString() } }
+    await s.tick(); fail('19:01')
+    clock.now = at('19:05'); await s.tick()
+    assert.equal(dailyTasks(store).length, 1, '10 分钟内不重建')
+    clock.now = at('19:12'); await s.tick(); fail('19:13')
+    clock.now = at('19:24'); await s.tick(); fail('19:25')
+    clock.now = at('19:40'); await s.tick()
+    assert.deepEqual(dailyTasks(store).map((task) => task.id), ['daily-falive-2026-10-15', 'daily-falive-2026-10-15-r2', 'daily-falive-2026-10-15-r3'])
+    assert.equal(dms.length, 1)
+    assert.match(dms[0].markdown, /跑了 3 次都没发出去/)
+    clock.now = at('21:00'); await s.tick()
+    assert.equal(dms.length, 1, '只私信一次')
+  })
+
+  it('合盖到点不建、记推迟；第二天开盖补建前一天的（reportNow 仍是前一天 19:00）', async () => {
+    const store = fakeStore()
     const clock = { now: at('19:00'), lidClosed: true }
-    const s = scheduler({ clock, runs })
+    const s = scheduler({ clock, store })
     await s.tick()
-    clock.now = at('23:40')
-    await s.tick()
-    assert.deepEqual(runs, [])
+    clock.now = at('23:40'); await s.tick()
+    assert.equal(dailyTasks(store).length, 0)
     assert.equal(readDailyReportState(dir)['falive:deferred'], '2026-10-15')
-    clock.now = new Date('2026-10-16T06:30:00')
-    await s.tick() // 还合着
-    assert.deepEqual(runs, [])
+    clock.now = new Date('2026-10-16T06:30:00'); await s.tick()
+    assert.equal(dailyTasks(store).length, 0, '还合着')
     clock.lidClosed = false
     clock.now = new Date('2026-10-16T06:44:00')
     await s.tick()
-    assert.deepEqual(runs, ['19:00'])
-    assert.equal(readDailyReportState(dir).falive, '2026-10-15')
-    clock.now = new Date('2026-10-16T06:45:00')
-    await s.tick()
-    assert.deepEqual(runs, ['19:00'])
+    const task = dailyTasks(store)[0]
+    assert.equal(task.daily.date, '2026-10-15')
+    assert.equal(new Date(task.daily.reportNow).toTimeString().slice(0, 5), '19:00')
   })
 
   it('不是合盖推迟的（当天失败 3 次）第二天不翻出来补', async () => {
-    const runs = []
+    const store = fakeStore()
     const clock = { now: new Date('2026-10-16T06:44:00') }
-    await scheduler({ clock, runs }).tick()
-    assert.deepEqual(runs, [])
+    await scheduler({ clock, store }).tick()
+    assert.equal(dailyTasks(store).length, 0)
   })
 
   it('dueDailyReport：推迟的超过 24 小时不补；周五推迟周六补', () => {
@@ -157,59 +137,53 @@ describe('startDailyReportScheduler', () => {
   })
 
   it('周末不发', async () => {
-    const runs = []
+    const store = fakeStore()
     const clock = { now: new Date('2026-10-17T19:00:00') }
-    await scheduler({ clock, runs }).tick()
-    assert.deepEqual(runs, [])
+    await scheduler({ clock, store }).tick()
+    assert.equal(dailyTasks(store).length, 0)
   })
 })
 
-describe('triggerDailyReportFromChat', () => {
+describe('triggerDailyReportFromChat（第 1 批：建系统任务）', () => {
   let dir
   let profile
   beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'daily-chat-')); profile = profiles().get('falive') })
   afterEach(() => { rmSync(dir, { recursive: true, force: true }); resetRepoProfiles() })
 
-  const deps = (said, extra = {}) => ({
+  const fakeStore = () => {
+    const map = new Map()
+    return { list: () => [...map.values()], get: (id) => map.get(id), upsert: (task) => { map.set(task.id, { ...task }); return map.get(task.id) }, map }
+  }
+  const deps = (said) => ({
     runtimeDir: dir,
     now: () => at('21:07'),
     webhookFor: () => ({ url: 'x' }),
     sendGroupCard: async ({ body }) => { said.push(body); return { ok: true } },
-    enqueueDailySweep: () => ({ skipped: 'test' }),
-    ...extra,
   })
 
-  it('没发过：先回收到，后台跑完写状态', async () => {
+  it('没发过：先回收到，再建任务（带群与要求人）', async () => {
     const said = []
-    const res = await triggerDailyReportFromChat({ config: {}, store: {}, profile, chatId: 'oc_falive', deps: deps(said, { runDailyReport: async () => ({ ok: true, to: 'oc_falive' }) }) })
+    const store = fakeStore()
+    const res = await triggerDailyReportFromChat({ store, profile, chatId: 'oc_falive', operator: 'ou_x', deps: deps(said) })
     assert.equal(res.started, true)
     assert.match(said[0], /收到，现在生成今天的日报/)
-    assert.equal((await res.run).ok, true)
-    assert.equal(readDailyReportState(dir).falive, '2026-10-15')
+    const task = store.get(res.taskId)
+    assert.equal(task.daily.force, true)
+    assert.equal(task.daily.requestChatId, 'oc_falive')
+    assert.equal(task.daily.requestedBy, 'ou_x')
   })
 
-  it('已发过：不跑，提示可重发；force 照跑', async () => {
+  it('已发过：不建，提示可重发；force 照建；在跑时提示正在生成', async () => {
     markDailyReportSent({ key: 'falive', date: '2026-10-15', runtimeDir: dir })
     const said = []
-    let ran = 0
-    const extra = { runDailyReport: async () => { ran += 1; return { ok: true, to: 'oc_falive' } } }
-    const res = await triggerDailyReportFromChat({ config: {}, store: {}, profile, chatId: 'oc_falive', deps: deps(said, extra) })
-    assert.deepEqual([res.started, res.reason, ran], [false, 'sent', 0])
+    const store = fakeStore()
+    const res = await triggerDailyReportFromChat({ store, profile, chatId: 'oc_falive', deps: deps(said) })
+    assert.deepEqual([res.started, res.reason], [false, 'sent'])
     assert.match(said[0], /已经发过了/)
-    const forced = await triggerDailyReportFromChat({ config: {}, store: {}, profile, chatId: 'oc_falive', force: true, deps: deps(said, extra) })
-    await forced.run
-    assert.equal(ran, 1)
-  })
-
-  it('失败私信负责人', async () => {
-    const said = []
-    const dms = []
-    const res = await triggerDailyReportFromChat({
-      config: {}, store: {}, profile, chatId: 'oc_falive',
-      deps: deps(said, { runDailyReport: async () => ({ ok: false, reason: 'group send failed' }), sendUserMarkdown: async (args) => { dms.push(args); return { ok: true } } }),
-    })
-    await res.run
-    assert.equal(dms[0].chatId, 'ou_aven')
-    assert.match(dms[0].markdown, /没发出去：group send failed/)
+    const forced = await triggerDailyReportFromChat({ store, profile, chatId: 'oc_falive', force: true, deps: deps(said) })
+    assert.equal(forced.started, true)
+    const again = await triggerDailyReportFromChat({ store, profile, chatId: 'oc_falive', force: true, deps: deps(said) })
+    assert.deepEqual([again.started, again.reason], [false, 'running'])
+    assert.match(said.at(-1), /正在生成/)
   })
 })

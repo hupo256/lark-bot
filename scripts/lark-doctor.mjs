@@ -6,7 +6,7 @@
  */
 import { readFileSync } from 'node:fs'
 
-import { readDailyReportState } from '../lib/lark-daily-report.mjs'
+import { readDailyReportState } from '../lib/lark-daily-schedule.mjs'
 import { buildDoctorReport, formatDoctorReport } from '../lib/lark-doctor.mjs'
 import { summarizeFailures } from '../lib/lark-failure-ledger.mjs'
 import { createGatewayClient } from '../lib/lark-gateway-client.mjs'

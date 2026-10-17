@@ -5,12 +5,15 @@ import { join } from 'node:path'
 import { afterEach, describe, it } from 'node:test'
 
 import { normalizeRepoProfile, registerRepoProfiles, resetRepoProfiles } from '../lib/lark-repo-profile.mjs'
-import { buildIntentClassificationPrompt, buildTaskPrompt } from '../lib/lark-worker-prompts.mjs'
+import { buildAnalysisPrompt, buildIntentClassificationPrompt, buildTaskPrompt } from '../lib/lark-worker-prompts.mjs'
 
 // 规则预算（aven 2026-10-14：规则越补越多，干活越来越慢的坑不能再踩）。
 // 这里量的是「去掉数据块后的规则文字」：超了就得合并旧规则，不能只往上叠。
 const CLASSIFIER_RULE_BUDGET = 4800
 const TASK_PROMPT_BUDGET = 12000
+// 第 1 批：分析提示骨架、实施续会话的增量提示各有预算；事故编号（PR-0xxxx）不得写进任何提示正文。
+const ANALYSIS_PROMPT_BUDGET = 4000
+const IMPLEMENTATION_FOLLOWUP_BUDGET = 11000
 
 describe('提示词规则预算', () => {
   afterEach(() => resetRepoProfiles())
@@ -27,6 +30,16 @@ describe('提示词规则预算', () => {
       const ctx = { repo: 'falive', projectId: 'FALIVE', projectName: 'Falive Web', cwd: dir, hotfixBranch: 'lark/x', baseRef: 'main', projectDocs: [], readOnly: false }
       const taskPrompt = buildTaskPrompt(ctx, task, 'claude', { ruleContext: { text: '', sources: [] }, analysis: null, triage: null, scopeContract: null })
       assert.ok(taskPrompt.length <= TASK_PROMPT_BUDGET, `实施提示 ${taskPrompt.length} 字符，超过预算 ${TASK_PROMPT_BUDGET}：先合并旧规则再加`)
+      const analysisPrompt = buildAnalysisPrompt(ctx, task, { text: '', sources: [] }, { lineLimit: 300 })
+      assert.ok(analysisPrompt.length <= ANALYSIS_PROMPT_BUDGET, `分析提示 ${analysisPrompt.length} 字符，超过预算 ${ANALYSIS_PROMPT_BUDGET}`)
+      const analysis = { summary: 's', applicableRules: [], requirements: ['r1'] }
+      const followUp = buildTaskPrompt(ctx, task, 'claude', { ruleContext: { text: 'RULES', sources: [] }, analysis, triage: null, scopeContract: { scope: null, lineLimit: 300 }, followUp: true })
+      assert.ok(followUp.length <= IMPLEMENTATION_FOLLOWUP_BUDGET, `续会话实施提示 ${followUp.length} 字符，超过预算 ${IMPLEMENTATION_FOLLOWUP_BUDGET}`)
+      assert.doesNotMatch(followUp, /<<<UNTRUSTED_TASK_INPUT|<<<TRUSTED_RULE_CONTEXT|\bRULES\b/, '增量提示不重复任务正文与规则原文块')
+      assert.match(followUp, /实施阶段/)
+      for (const [name, text] of [['分类', classifier], ['实施', taskPrompt], ['分析', analysisPrompt], ['续会话', followUp]]) {
+        assert.doesNotMatch(text, /PR-0\d{4}/, `${name}提示里不得出现事故编号`)
+      }
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

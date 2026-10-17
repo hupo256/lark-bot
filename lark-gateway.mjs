@@ -40,7 +40,7 @@ import { addRepoChatIds, listRepoProfiles, registerRepoProfiles, repoProfileForT
 import { startChatPoller } from './lib/lark-chat-poller.mjs'
 import { startKeepAwake } from './lib/lark-keep-awake.mjs'
 import { startWakeCatchup } from './lib/lark-wake-catchup.mjs'
-import { startDailyReportScheduler } from './lib/lark-daily-report.mjs'
+import { startDailyReportScheduler } from './lib/lark-daily-schedule.mjs'
 import { startDeployWatch } from './lib/lark-daily-sweep.mjs'
 
 // 任务领取租约：worker 领走后置 running；超过此时长仍 running 视为孤儿，下次 claim 时自动重入队。
@@ -132,7 +132,7 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   // 内部群走长连接，睡着时收不到：开盖后从睡前时刻补拉一遍（lib/lark-wake-catchup.mjs）。
   const wakeCatchup = startWakeCatchup({ config, store, ingest: ingestLarkEvent })
   // 日报：每天固定时刻把当天进度 / 卡点 / 需要支持整理成卡片（试运行期私发负责人）。
-  const dailyReport = startDailyReportScheduler({ config, store })
+  const dailyReport = startDailyReportScheduler({ store })
   // 推 pre 之后盯部署：pre 构建时间晚于推送 = 已部署，自动建复测任务（lib/lark-daily-sweep.mjs）。
   const deployWatch = startDeployWatch({ store })
 
