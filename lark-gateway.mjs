@@ -97,18 +97,10 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
     },
   })
 
-  const consumer = startConsumer({
-    eventKey: 'im.message.receive_v1',
-    onLine: (raw) => ingestLarkEvent({ raw, config, store }),
-    onDownAlert: (attempt) =>
-      sendAlertCard({
-        config,
-        chatId: resolveNotifyChatId(config),
-        lines: [`**详情**：Lark 事件长连接已连续 ${attempt} 次重连仍未恢复，可能暂时收不到群内 @；请检查网络或 lark-cli 登录态。`],
-        logPrefix: 'consumer-down alert',
-        idempotencyKey: `consumer-down-${attempt}`,
-      }),
-  })
+  // 长连接消费者在 HTTP 起来、群名 / 自定义机器人解析完之后再启动（见下方）：以前它最先启动，
+  // 群名还没解析、HTTP 还没 listen 的窗口里外部群消息按非仓库群处理、worker 请求 ECONNREFUSED。
+  let consumer = null
+  const consumerHandle = { observe: () => consumer?.observe() ?? { alive: false, starting: true }, stop: () => consumer?.stop() }
 
   // 群名 → chat_id：profile 只填了群名（外部群事先拿不到 id）时，启动用用户身份解析后并入 chatIds；
   // scope 未批时解析失败只告警，轮询器对该仓不启动，批下来 restart 即可。
@@ -144,7 +136,7 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   // 推 pre 之后盯部署：pre 构建时间晚于推送 = 已部署，自动建复测任务（lib/lark-daily-sweep.mjs）。
   const deployWatch = startDeployWatch({ store })
 
-  const server = createServer(createRequestHandler({ config, store, consumer, port, runtimeVersion, chatPoller }))
+  const server = createServer(createRequestHandler({ config, store, consumer: consumerHandle, port, runtimeVersion, chatPoller }))
   server.listen(port, GATEWAY_HOST, () => {
     console.log(`[lark-gateway] listening on http://${GATEWAY_HOST}:${port} for ${config.project}`)
     console.log(`[lark-gateway] whitelist chats=${config.allowedChatIds === 'auto' ? 'auto(bot 所在群)' : ((config.allowedChatIds || []).join(',') || '(none)')} consume=im.message.receive_v1`)
@@ -152,6 +144,19 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
       console.log(`[lark-gateway] repo ${profile.key}: project=${profile.projectKey} root=${profile.root} base=${profile.baseRef} chats=${profile.chatIds.join(',') || '(none)'} deliver=${profile.webhook ? 'webhook' : profile.notifyChatId ? `redirect:${profile.notifyChatId}` : 'bot'}`)
     }
     console.log(`[lark-gateway] code=${runtimeVersion.codeHash} startedAt=${runtimeVersion.startedAt}（health.version 会在磁盘代码变更后报 codeStale）`)
+  })
+
+  consumer = startConsumer({
+    eventKey: 'im.message.receive_v1',
+    onLine: (raw) => ingestLarkEvent({ raw, config, store }),
+    onDownAlert: (attempt) =>
+      sendAlertCard({
+        config,
+        chatId: resolveNotifyChatId(config),
+        lines: [`**详情**：Lark 事件长连接已连续 ${attempt} 次重连仍未恢复，可能暂时收不到群内 @；请检查网络或 lark-cli 登录态。`],
+        logPrefix: 'consumer-down alert',
+        idempotencyKey: `consumer-down-${attempt}`,
+      }),
   })
 
   // 定期清理陈旧终态任务，防止 /lark/health 计数单调增长（failed 保留待人工 retry/clear）。
@@ -240,7 +245,7 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
     clearInterval(receiptTimer)
     clearInterval(parkedTimer)
     if (logTimer) clearInterval(logTimer)
-    consumer.stop()
+    consumerHandle.stop()
     chatPoller.stop()
     dailyReport.stop()
     deployWatch.stop()

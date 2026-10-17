@@ -591,3 +591,28 @@ describe('createTaskStore', () => {
     })
   })
 })
+
+describe('续租 touchLease（第 0 批：长任务不再被当孤儿回收）', () => {
+  let dir
+  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'lark-store-lease-')) })
+  afterEach(() => rmSync(dir, { recursive: true, force: true }))
+
+  it('running 任务续租后 claimedAt 前移；epoch 不符 / 非 running 回 409；不存在 404', async () => {
+    const store = createTaskStore({ tasksDir: dir, leaseMs: 300 })
+    store.upsert({ id: 'a', status: 'queued', createdAt: '2026-01-01T00:00:00Z' })
+    const claimed = store.claimNext()
+    const before = claimed.claimedAt
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    const touched = store.touchLease('a', 0)
+    assert.equal(touched.ok, true)
+    assert.ok(touched.claimedAt > before)
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    // 距领取已 400ms > 租约 300ms，但距续租只有 200ms：不是孤儿，不重入队
+    assert.equal(store.claimNext(), null)
+    assert.equal(store.get('a').status, 'running')
+    assert.deepEqual(store.touchLease('a', 1).code, 409)
+    assert.deepEqual(store.touchLease('zzz', 0).code, 404)
+    store.upsert({ id: 'b', status: 'queued', createdAt: '2026-01-01T00:00:00Z' })
+    assert.deepEqual(store.touchLease('b', 0).code, 409)
+  })
+})

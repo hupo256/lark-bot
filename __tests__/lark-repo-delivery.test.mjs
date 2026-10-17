@@ -257,3 +257,31 @@ describe('显式 @ 机器人通道', () => {
     assert.equal(hooks[0].card.elements[0].content, '收到，记下了：golang 第一次部署 pre，等部署完。')
   })
 })
+
+describe('出口闸拦下 = 没发（第 0 批）', () => {
+  it('同内容第二次发返回 ok:false + gated，调用方不得当已发', async () => {
+    const { mkdtempSync, rmSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    const { sendGroupCard } = await import('../lib/lark-repo-delivery.mjs')
+    const dir = mkdtempSync(join(tmpdir(), 'lark-outbox-gate-'))
+    const prev = process.env.LARK_OUTBOX_DIR
+    process.env.LARK_OUTBOX_DIR = dir
+    try {
+      const sent = []
+      const sendHook = async () => { sent.push(1); return { ok: true, messageId: 'om_1' } }
+      const args = { webhook: { url: 'https://x' }, chatId: 'oc_1', phase: 'done', body: '复测通过', logPrefix: 't', sendHook }
+      const first = await sendGroupCard(args)
+      assert.equal(first.ok, true)
+      const second = await sendGroupCard(args)
+      assert.equal(second.ok, false)
+      assert.match(second.gated, /同内容/)
+      assert.match(second.reason, /出口闸拦下/)
+      assert.equal(sent.length, 1)
+    } finally {
+      if (prev == null) delete process.env.LARK_OUTBOX_DIR
+      else process.env.LARK_OUTBOX_DIR = prev
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})

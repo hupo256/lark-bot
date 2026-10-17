@@ -973,3 +973,45 @@ describe('结果文件自纠偏（lessons #31）', () => {
     assert.equal(calls.length, 1)
   })
 })
+
+describe('只读任务拿不到可写面；子进程按进程组终止（第 0 批）', () => {
+  it('claude 任务模式 readOnly：无 --dangerously-skip-permissions，工具面与分析同档', () => {
+    const ro = buildAiExecutorCommand({ executor: 'claude', promptText: '复测', cwd: '/tmp/repo', readOnly: true })
+    assert.equal(ro.args.includes('--dangerously-skip-permissions'), false)
+    assert.equal(ro.args[ro.args.indexOf('--tools') + 1], 'Read,Grep,Glob,Bash')
+    assert.ok(ro.args.includes('--allowedTools'))
+    assert.ok(ro.args.includes('--output-format'))
+    const rw = buildAiExecutorCommand({ executor: 'claude', promptText: '改', cwd: '/tmp/repo', readOnly: false })
+    assert.equal(rw.args.includes('--dangerously-skip-permissions'), true)
+    assert.equal(rw.args.includes('--allowedTools'), false)
+  })
+
+  it('spawn 带 detached；abort 时 kill 的是 -pid（整组），孙进程不会存活', async () => {
+    const spawnOptions = []
+    const killed = []
+    const originalKill = process.kill
+    process.kill = (pid, sig) => { killed.push([pid, sig]); if (pid === -4242) setImmediate(() => child.emit('exit', null)) }
+    let child
+    const spawnImpl = (cmd, args, options) => {
+      spawnOptions.push(options)
+      child = new EventEmitter()
+      child.pid = 4242
+      child.stdout = new PassThrough()
+      child.stderr = new PassThrough()
+      child.stdin = new PassThrough()
+      child.kill = () => { killed.push(['child.kill']) }
+      return child
+    }
+    const controller = new AbortController()
+    try {
+      const run = execAiExecutor({ executor: 'claude', promptText: 'x', cwd: tmpdir(), localConfig: {}, spawnImpl, signal: controller.signal })
+      await new Promise((resolve) => setImmediate(resolve))
+      controller.abort()
+      await assert.rejects(run, /aborted/)
+      assert.equal(spawnOptions[0].detached, true)
+      assert.deepEqual(killed[0], [-4242, 'SIGTERM'])
+    } finally {
+      process.kill = originalKill
+    }
+  })
+})

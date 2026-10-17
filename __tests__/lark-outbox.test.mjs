@@ -83,7 +83,7 @@ describe('出口闸（阶段 5）', () => {
     assert.equal(shouldSend({ dir, nowMs: t0 + 60_000, chatId: 'oc_x', topic: 'new#a', phase: 'ack', to: 'ou_ache', text: '收到二' }).send, true)
     assert.equal(shouldSend({ dir, nowMs: t0 + 150_000, chatId: 'oc_x', topic: 'new#a', phase: 'ack', to: 'ou_arthur', text: '收到二' }).send, true)
   }))
-  it('sendGroupCard 被闸拦下：不调发送、记 gated、返回 ok+gated', async () => {
+  it('sendGroupCard 被闸拦下：不调发送、记 gated、返回 ok:false + gated（拦下就是没发，调用方不得当已发）', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'lark-outbox-gate-'))
     process.env.LARK_OUTBOX_DIR = dir
     try {
@@ -93,8 +93,9 @@ describe('出口闸（阶段 5）', () => {
       await sendGroupCard({ webhook: { url: 'u' }, task, phase: 'done', body: '结果', logPrefix: 't', sendHook: hook })
       const second = await sendGroupCard({ webhook: { url: 'u' }, task: { ...task, id: 'om_t2' }, phase: 'done', body: '另一个结果', logPrefix: 't', sendHook: hook })
       assert.equal(calls, 1)
-      assert.equal(second.ok, true)
+      assert.equal(second.ok, false)
       assert.match(second.gated, /同主题 new#1 的 done/)
+      assert.match(second.reason, /出口闸拦下/)
       const entries = listOutbox({ chatId: 'oc_x' })
       assert.deepEqual(entries.map((item) => Boolean(item.gated)), [false, true])
     } finally {

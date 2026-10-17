@@ -345,3 +345,51 @@ describe('合盖暂停、开盖补拉（aven 10-17：合盖 bot 下班，开盖�
     }
   })
 })
+
+describe('ingest 失败的消息不记 seen、游标不越过它（第 0 批：以前打一行日志就永久丢）', () => {
+  it('第一轮 ingest 抛错 → 下一轮重喂成功', async () => {
+    const profile = registerRepoProfiles({ repos: { falive: { root: '/tmp/falive-react', baseRef: 'main', chatIds: ['oc_falive'], notifyChatId: 'ou_aven' } } }).get('falive')
+    const dir = mkdtempSync(join(tmpdir(), 'lark-poller-retry-'))
+    const statePath = join(dir, 'state.json')
+    const nowMs = Date.parse('2026-10-17T10:00:00+04:00')
+    let failOnce = true
+    const ingested = []
+    const messages = [
+      { message_id: 'om_ok', msg_type: 'text', create_time: String(nowMs + 1000), sender: { id: 'ou_x', sender_type: 'user' }, content: 'a' },
+      { message_id: 'om_bad', msg_type: 'text', create_time: String(nowMs + 2000), sender: { id: 'ou_x', sender_type: 'user' }, content: 'b' },
+      { message_id: 'om_after', msg_type: 'text', create_time: String(nowMs + 3000), sender: { id: 'ou_x', sender_type: 'user' }, content: 'c' },
+    ]
+    try {
+      const poller = startChatPoller({
+        config: {},
+        store: {},
+        statePath,
+        ingest: async ({ raw }) => {
+          if (raw.message_id === 'om_bad' && failOnce) { failOnce = false; throw new Error('boom') }
+          ingested.push(raw.message_id)
+        },
+        deps: {
+          now: () => new Date(nowMs),
+          setTimeout: () => ({ unref() {} }),
+          isLidClosed: async () => false,
+          isChatMember: async () => false,
+          sendChatMessage: async () => ({ ok: true }),
+          listThreadMessages: async () => ({ ok: true, messages: [] }),
+          listChatMessages: async () => ({ ok: true, messages, hasMore: false, pageToken: null }),
+        },
+      })
+      await poller.pollOnce({ chatId: 'oc_falive', profile })
+      let saved = JSON.parse(readFileSync(statePath, 'utf8')).chats.oc_falive
+      assert.deepEqual(ingested, ['om_ok', 'om_after'])
+      assert.equal(saved.seen.includes('om_bad'), false)
+      assert.equal(saved.cursorMs, nowMs + 2000, '游标停在失败那条，不越过')
+      await poller.pollOnce({ chatId: 'oc_falive', profile })
+      saved = JSON.parse(readFileSync(statePath, 'utf8')).chats.oc_falive
+      assert.deepEqual(ingested, ['om_ok', 'om_after', 'om_bad'])
+      assert.equal(saved.seen.includes('om_bad'), true)
+      assert.equal(saved.cursorMs, nowMs + 3000)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
