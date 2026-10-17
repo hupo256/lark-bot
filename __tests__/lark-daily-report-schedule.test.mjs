@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, it } from 'node:test'
 
 import {
   DAILY_MAX_ATTEMPTS,
+  dueDailyReport,
   markDailyReportSent,
   parseDailyReportDirective,
   readDailyReportState,
@@ -45,6 +46,7 @@ describe('startDailyReportScheduler', () => {
     deps: {
       runtimeDir: dir,
       now: () => clock.now,
+      isLidClosed: async () => Boolean(clock.lidClosed),
       setInterval: () => ({ unref() {} }),
       enqueueDailySweep: () => ({ skipped: 'test' }),
       runDailyReport: async ({ now }) => { runs.push(now.toTimeString().slice(0, 5)); return ok() ? { ok: true, to: 'oc_falive' } : { ok: false, reason: 'boom' } },
@@ -88,6 +90,7 @@ describe('startDailyReportScheduler', () => {
       deps: {
         runtimeDir: dir,
         now: () => clock.now,
+        isLidClosed: async () => false,
         setInterval: () => ({ unref() {} }),
         enqueueDailySweep: () => ({ skipped: 'test' }),
         runDailyReport: async ({ now }) => {
@@ -115,6 +118,42 @@ describe('startDailyReportScheduler', () => {
     markDailyReportSent({ key: 'falive', date: '2026-10-15', runtimeDir: dir })
     await s.tick()
     assert.deepEqual(runs, [])
+  })
+
+  it('合盖到点不跑、记推迟；第二天开盖补发前一天的（报告时刻仍是前一天 19:00），之后不重复', async () => {
+    const runs = []
+    const clock = { now: at('19:00'), lidClosed: true }
+    const s = scheduler({ clock, runs })
+    await s.tick()
+    clock.now = at('23:40')
+    await s.tick()
+    assert.deepEqual(runs, [])
+    assert.equal(readDailyReportState(dir)['falive:deferred'], '2026-10-15')
+    clock.now = new Date('2026-10-16T06:30:00')
+    await s.tick() // 还合着
+    assert.deepEqual(runs, [])
+    clock.lidClosed = false
+    clock.now = new Date('2026-10-16T06:44:00')
+    await s.tick()
+    assert.deepEqual(runs, ['19:00'])
+    assert.equal(readDailyReportState(dir).falive, '2026-10-15')
+    clock.now = new Date('2026-10-16T06:45:00')
+    await s.tick()
+    assert.deepEqual(runs, ['19:00'])
+  })
+
+  it('不是合盖推迟的（当天失败 3 次）第二天不翻出来补', async () => {
+    const runs = []
+    const clock = { now: new Date('2026-10-16T06:44:00') }
+    await scheduler({ clock, runs }).tick()
+    assert.deepEqual(runs, [])
+  })
+
+  it('dueDailyReport：推迟的超过 24 小时不补；周五推迟周六补', () => {
+    assert.equal(dueDailyReport({ now: new Date('2026-10-16T19:30:00'), at: '19:00', deferredDate: '2026-10-15' }).date, '2026-10-16')
+    assert.equal(dueDailyReport({ now: new Date('2026-10-16T18:59:00'), at: '19:00', deferredDate: '2026-10-15' }).date, '2026-10-15')
+    assert.equal(dueDailyReport({ now: new Date('2026-10-19T08:00:00'), at: '19:00', deferredDate: '2026-10-16' }), null)
+    assert.equal(dueDailyReport({ now: new Date('2026-10-17T09:00:00'), at: '19:00', deferredDate: '2026-10-16' }).date, '2026-10-16')
   })
 
   it('周末不发', async () => {

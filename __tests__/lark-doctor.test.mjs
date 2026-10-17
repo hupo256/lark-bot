@@ -78,6 +78,7 @@ describe('createDoctorMonitor（每小时私信，24 小时去重）', () => {
         statePath: join(dir, 'state.json'),
         now: () => clock,
         log: () => {},
+        lidClosed: async () => false,
       })
       const first = await monitor.tick()
       assert.equal(first.notified.length, 1)
@@ -106,5 +107,27 @@ describe('buildDailySelfCheckLine', () => {
     const line = buildDailySelfCheckLine({ now, failures: { total: 3, healed: 1, recurring: [{ fingerprint: 'x', count: 2 }], byClass: {} }, heartbeat: { heartbeatStale: false, codeStale: false } })
     assert.equal(line, 'bot 自检：worker 正常；7 天失败 3、自动重跑 1、复发指纹 1')
     assert.equal(buildDailySelfCheckLine({ now, failures: { total: 0, healed: 0, recurring: [], byClass: {} }, heartbeat: { heartbeatStale: false, codeStale: true, draining: true } }), 'bot 自检：worker 排空中；7 天无失败')
+  })
+})
+
+describe('合盖 = bot 下班（aven 10-17）', () => {
+  it('合盖时体检不跑、不私信', async () => {
+    const notes = []
+    const monitor = createDoctorMonitor({
+      fetchHealth: async () => null,
+      listTasks: async () => [],
+      notify: async (text) => { notes.push(text) },
+      statePath: join(tmpdir(), 'lark-doctor-lid-unused.json'),
+      lidClosed: async () => true,
+    })
+    const result = await monitor.tick()
+    assert.equal(result.skipped, 'lid-closed')
+    assert.deepEqual(notes, [])
+  })
+  it('日报因合盖推迟：info「开盖后补发」，不报 warn', () => {
+    const report = buildDoctorReport({ health: healthy, tasks: [], profiles: [falive], failures: { total: 0, byClass: {}, recurring: [], healed: 0 }, dailyState: { falive: '2026-10-15', 'falive:deferred': '2026-10-16' }, now })
+    const check = report.checks.find((c) => c.id === 'daily-report:falive')
+    assert.equal(check.level, 'info')
+    assert.match(check.text, /合盖推迟/)
   })
 })
