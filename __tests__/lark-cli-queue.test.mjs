@@ -7,7 +7,7 @@ import { describe, it } from 'node:test'
 // 假 lark-cli：睡 150ms 后吐 ok。LARK_CLI_BIN 在模块加载时读，所以先设环境再动态 import。
 const dir = mkdtempSync(join(tmpdir(), 'lark-cli-q-'))
 const bin = join(dir, 'fake-lark-cli')
-writeFileSync(bin, '#!/bin/sh\nsleep 0.15\necho "{\\"ok\\":true,\\"data\\":{}}"\n')
+writeFileSync(bin, '#!/bin/sh\nsleep 0.3\necho "{\\"ok\\":true,\\"data\\":{}}"\n')
 chmodSync(bin, 0o755)
 process.env.LARK_CLI_BIN = bin
 process.env.LARK_CLI_CONCURRENCY = '2'
@@ -20,9 +20,10 @@ describe('lark-cli 子进程限流（第 1 批）', () => {
       const run = (tag, priority) => runLarkCli(['im', tag], { identity: 'user', priority }).then(() => order.push(tag))
       // 机器负载高时子进程起得慢：等到状态满足再断言，不用固定毫秒数。
       const until = async (predicate, label) => {
-        for (let i = 0; i < 200; i += 1) {
+        // 全量跑时几十个测试进程并发，起一个 sh 子进程可能要几百毫秒：最多等 15s。
+        for (let i = 0; i < 1500; i += 1) {
           if (predicate()) return
-          await new Promise((resolve) => setTimeout(resolve, 5))
+          await new Promise((resolve) => setTimeout(resolve, 10))
         }
         assert.fail(`等不到：${label}（${JSON.stringify(larkCliQueueStats().user)}）`)
       }
