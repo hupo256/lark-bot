@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, it } from 'node:test'
 
-import { chatListMessageToEvent, createSleepClock, flattenThreadReplies, isPollableMessage, nextDelayMs, startChatPoller, toEpochMs } from '../lib/lark-chat-poller.mjs'
+import { chatListMessageToEvent, flattenThreadReplies, isPollableMessage, nextDelayMs, parseKernSleepTime, startChatPoller, toEpochMs } from '../lib/lark-chat-poller.mjs'
 import { extractInlineFileAttachments, hasDocAttachment, normalizeMessage, parseTextAndAttachments, resolveMessageTrigger } from '../lib/lark-message.mjs'
 import { DEFAULT_POLL, registerRepoProfiles, resetRepoProfiles } from '../lib/lark-repo-profile.mjs'
 import { imageExtFromBytes, pickRecentContext } from '../lib/lark-cli.mjs'
@@ -242,27 +242,17 @@ describe('老消息上新开的话题（2026-10-15 aven 在 Encone 15 分钟前�
 })
 
 describe('跨系统睡眠的失败不计数（2026-10-16 夜合盖，Power Nap 半醒时轮询超时，体检连报「轮询连续失败」）', () => {
-  const noTimer = { setInterval: () => ({ unref() {} }), clearInterval: () => {} }
-
-  it('心跳：间隔远超 tickMs 才累计睡眠；正常心跳 / 小抖动不算', () => {
-    let wall = 0
-    const clock = createSleepClock({ wall: () => wall, tickMs: 5_000, ...noTimer })
-    const mark = clock.mark()
-    for (let i = 0; i < 10; i += 1) {
-      wall += 5_500
-      clock.tick()
-    }
-    assert.equal(clock.sleptMs(mark), 0)
-    wall += 17 * 60_000 // 半醒前睡了 17 分钟：醒来先读数（心跳回调还没轮到）也要算进去
-    assert.equal(clock.sleptMs(mark), 17 * 60_000 - 5_000)
+  it('解析 sysctl -n kern.sleeptime；没睡过（sec = 0）/ 乱码为 null', () => {
+    assert.equal(parseKernSleepTime('{ sec = 1792204239, usec = 128033 } Sat Oct 17 06:30:39 2026'), 1792204239000)
+    assert.equal(parseKernSleepTime('{ sec = 0, usec = 0 }'), null)
+    assert.equal(parseKernSleepTime(''), null)
   })
 
-  it('跨睡眠的那轮失败只记 sleepInterrupted；醒着的失败照常计数', async () => {
+  it('排程后系统入睡过的那轮失败只记 sleepInterrupted；没睡过的失败照常计数', async () => {
     const profile = registerRepoProfiles({ repos: { falive: { root: '/tmp/falive-react', baseRef: 'main', chatIds: ['oc_falive'], notifyChatId: 'ou_aven' } } }).get('falive')
     const dir = mkdtempSync(join(tmpdir(), 'lark-poller-sleep-'))
-    let wall = 1_000_000
-    let sleepDuringCall = true
-    const sleepClock = createSleepClock({ wall: () => wall, ...noTimer })
+    const since = Date.parse('2026-10-17T05:23:27+04:00')
+    let sleptAt = since + 2_000 // 半醒窗口里发出请求，2 秒后又睡了
     try {
       const poller = startChatPoller({
         config: {},
@@ -270,31 +260,29 @@ describe('跨系统睡眠的失败不计数（2026-10-16 夜合盖，Power Nap �
         statePath: join(dir, 'state.json'),
         ingest: async () => {},
         deps: {
-          now: () => new Date(Date.parse('2026-10-17T05:28:00+04:00')),
+          now: () => new Date(since),
           setTimeout: () => ({ unref() {} }),
-          sleepClock,
+          lastSystemSleepAt: async () => sleptAt,
           isChatMember: async () => false,
           sendChatMessage: async () => ({ ok: true }),
           listThreadMessages: async () => ({ ok: true, messages: [] }),
-          listChatMessages: async () => {
-            // 半醒窗口里发出、没返回又睡了 17 分钟；醒来超时回调立即触发
-            if (sleepDuringCall) wall += 17 * 60_000
-            return { ok: false, reason: '[lark-cli timeout after 60000ms]', transient: true }
-          },
+          listChatMessages: async () => ({ ok: false, reason: '[lark-cli timeout after 60000ms]', transient: true }),
         },
       })
-      await poller.pollOnce({ chatId: 'oc_falive', profile, since: sleepClock.mark() })
+      await poller.pollOnce({ chatId: 'oc_falive', profile, since })
       let obs = poller.observe().oc_falive
       assert.equal(obs.consecutiveFailures, 0)
       assert.equal(obs.sleepInterrupted, 1)
       assert.match(obs.lastSleepError, /timeout/)
       assert.equal(obs.lastError, null)
-      sleepDuringCall = false
-      await poller.pollOnce({ chatId: 'oc_falive', profile, since: sleepClock.mark() })
+      sleptAt = since - 60_000 // 上次入睡在排程之前：这轮醒着失败
+      await poller.pollOnce({ chatId: 'oc_falive', profile, since })
       obs = poller.observe().oc_falive
       assert.equal(obs.consecutiveFailures, 1)
       assert.equal(obs.sleepInterrupted, 1)
-      poller.stop()
+      sleptAt = null // 取不到入睡时间（非 macOS）：照常计数
+      await poller.pollOnce({ chatId: 'oc_falive', profile, since })
+      assert.equal(poller.observe().oc_falive.consecutiveFailures, 2)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
