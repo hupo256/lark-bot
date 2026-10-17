@@ -39,6 +39,7 @@ import { GATEWAY_HOST, defaultGatewayPort, defaultTaskLeaseMs } from './lib/lark
 import { addRepoChatIds, listRepoProfiles, registerRepoProfiles, repoProfileForTask } from './lib/lark-repo-profile.mjs'
 import { startChatPoller } from './lib/lark-chat-poller.mjs'
 import { startKeepAwake } from './lib/lark-keep-awake.mjs'
+import { startWakeCatchup } from './lib/lark-wake-catchup.mjs'
 import { startDailyReportScheduler } from './lib/lark-daily-report.mjs'
 import { startDeployWatch } from './lib/lark-daily-sweep.mjs'
 
@@ -136,6 +137,8 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   const keepAwake = startKeepAwake()
   // 外部群（仓库 profile 配了 chatIds）：用户身份轮询拉消息喂同一条 ingest 链路。
   const chatPoller = startChatPoller({ config, store, ingest: ingestLarkEvent })
+  // 内部群走长连接，睡着时收不到：开盖后从睡前时刻补拉一遍（lib/lark-wake-catchup.mjs）。
+  const wakeCatchup = startWakeCatchup({ config, store, ingest: ingestLarkEvent })
   // 日报：每天固定时刻把当天进度 / 卡点 / 需要支持整理成卡片（试运行期私发负责人）。
   const dailyReport = startDailyReportScheduler({ config, store })
   // 推 pre 之后盯部署：pre 构建时间晚于推送 = 已部署，自动建复测任务（lib/lark-daily-sweep.mjs）。
@@ -242,6 +245,7 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
     dailyReport.stop()
     deployWatch.stop()
     keepAwake.stop()
+    wakeCatchup.stop()
     server.close()
     process.exit(0)
   }
