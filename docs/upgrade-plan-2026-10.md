@@ -12,7 +12,7 @@
 | 第 1 批 效率（延迟与子进程） | ✅ 2026-10-17 完成，全量单测绿（723） | `lark/refactor-1` |
 | 第 2 批 结构（变更流 + 核验闸注册表；SQLite / 全量状态机延后） | ✅ 2026-10-17 完成，全量单测绿（729） | `lark/refactor-2` |
 | 第 3 批 协议 / 去重 / 被动消息 | 待做 | |
-| 第 4 批 治理 | 待做 | |
+| 第 4 批 治理 | ✅ 2026-10-17 完成（体量预算测试、AGENTS 先分类再动手、lessons 类别列、心跳降噪） | `lark/refactor-3` |
 
 ## 第 0 批：止血（已完成）
 
@@ -107,7 +107,22 @@
 
 ---
 
-## 第 3 批：协议、去重、被动消息（3–4 天）
+## 第 3 批（已完成 2026-10-17，范围有调整）
+
+- **回放集**：`scripts/lark-replay-export.mjs` 把运行中 runtime 里带分类结果的任务导成固定回放集（现 48 条，9 条 forMe；线上判定搬到 `intake.classification_at_capture` 作基线）；`scripts/lark-replay-classify.mjs --report [--gate]` 出 forMe 召回 / decision 一致率 / medium 占比，`--gate` 不达标非零退出。全量回放一次约 48 次 Opus 调用（~15 分钟），改提示词 / schema 前跑。
+- **模型边界枚举**（都是可选字段，老结果照常解析）：分析 schema 加 `blockerClasses[{text,class}]`，`classifyBlockers` 优先用模型自报、没有再退回正则；结果 schema 加 `completionClaim`（all_done / partial / blocked_external / none）与 `preChecks[].kind`（ok / issues / unreachable），`findGroupReplyContradiction` 先查结构化口径再查文字，runner 的 schema 实测判定先看 kind；对接文档归属优先用分析阶段的 `ownership`；`INTERNAL_BLOCKER` 人名改从 `profile.memberRoles` 取（角色含「前端」+ 负责人本人），不再写死。
+- **threadKey**：仓库任务的 topic 只由 routes 按台账条目 / 消息 id 定，分类器的自由文本只给默认仓用。
+- **删执行器**：codex / pi / cursor 的命令构造、就绪探测、模型配置、二进制映射全部删除，`AI_EXECUTORS` 只剩 claude（ai-executor 从 849 行降到 ~700）。
+- 延后：ingest 9 处 notice 收口、6 套归并统一、被动消息不建任务（依赖 messages 表 / SQLite）。
+
+## 第 4 批（已完成 2026-10-17）
+
+- `__tests__/lark-size-budget.test.mjs`：lib 新文件 ≤ 600 行，7 个超线老文件按快照只许变小。
+- `AGENTS.md` 出错处理原则改为「先分类再动手」（逻辑 / 环境 / 噪音），加一道闸必须合并或删一道，改提示词前跑回放门槛。
+- `docs/falive-lessons.md` 加「类别」列（老条目标待分类）与「分类与有效期」节（90 天零命中复查）。
+- worker 心跳的「代码已落后磁盘」只在内容变化时打一行（原每分钟一行）。
+
+### 原计划第 3 批
 
 **准确性前置：回放集扩容**（本批任何提示词 / schema 改动的门槛）
 1. 把 164 条历史分类（审计 e0 日志 + 任务文件）导出为固定回放集 `__tests__/fixtures/falive-intake/`（现 6 条），aven 的纠正（lessons #24 / #26 / #34 等）作标注；`scripts/lark-replay-classify.mjs` 加 `--report`：forMe 召回、decision 一致率、medium 占比。门槛：forMe 召回 100%、一致率 ≥ 95% 才能合入。
@@ -126,7 +141,7 @@
 
 ---
 
-## 第 4 批：治理——让它不再变重（1 天，随第 3 批合入）
+### 原计划第 4 批
 
 1. 增长预算进测试（已有 `lark-prompt-budget` 模式）：闸门注册表 ≤ 16；prompt 三档预算；gateway 纯度；`lib/` 单文件 ≤ 600 行；`scripts/lark-metrics.mjs` 输出的「每任务 Claude 调用次数 ≤ 3（不含 resume 回退）」「每群每轮子进程 ≤ 6」。
 2. `docs/falive-lessons.md` 表加「有效期 / 命中次数」列（失败台账已按指纹计数），90 天零命中进复查清单；只出过一次的归档到附录。

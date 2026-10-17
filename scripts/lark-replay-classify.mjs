@@ -23,6 +23,10 @@ const limit = flagValue('--limit') ? Number(flagValue('--limit')) : Infinity
 const ids = flagValue('--ids') ? flagValue('--ids').split(',').map((item) => item.trim()).filter(Boolean) : null
 const dir = flagValue('--dir') || larkTasksDir
 const refetch = args.includes('--refetch-context')
+// --report：与 fixture 里的基线（intake.classification_at_capture）比：forMe 召回、decision 一致率、medium 占比；
+// --gate 时召回 < 100% 或一致率 < 95% 以非零退出（改提示词 / schema 前的门槛，第 3 批）。
+const report = args.includes('--report') || args.includes('--gate')
+const gate = args.includes('--gate')
 const localConfig = loadWorkerLocalConfig(join(larkRuntimeDir, 'lark-bot.local.json'))
 registerRepoProfiles(localConfig)
 const workerConfig = { projectId: localConfig.project, projectName: localConfig.title, aiExecutor: 'claude', localConfig }
@@ -35,6 +39,7 @@ const tasks = readdirSync(dir).filter((name) => name.endsWith('.json'))
   .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
   .slice(0, limit)
 const seen = []
+const rows = []
 for (const stored of tasks) {
   let task = stored
   if (refetch && !task.text.includes(RECENT_HEADER)) {
@@ -53,4 +58,26 @@ for (const stored of tasks) {
   const head = (task.text || '').split('\n')[0].slice(0, 40)
   console.log(JSON.stringify({ id: task.id.slice(-8), at: String(task.createdAt).slice(11, 16), head, decision: out.decision, confidence: out.confidence, forMe: out.forMe, topic: out.topic, related: out.relatedTaskId ? out.relatedTaskId.slice(-8) : null, reply: out.reply, summary: out.summary }))
   seen.push({ id: task.id, topic: out.topic || task.topic, status: 'done', summary: out.summary || task.summary, text: task.text })
+  rows.push({ id: task.id, out, base: stored.intake?.classification_at_capture || null })
+}
+if (report) {
+  const labeled = rows.filter((row) => row.base)
+  const forMeBase = labeled.filter((row) => row.base.forMe)
+  const recall = forMeBase.filter((row) => row.out.forMe).length
+  const agree = labeled.filter((row) => row.out.decision === row.base.decision).length
+  const medium = rows.filter((row) => row.out.confidence === 'medium').length
+  const summary = {
+    total: rows.length,
+    labeled: labeled.length,
+    forMeRecall: forMeBase.length ? recall / forMeBase.length : null,
+    forMeMissed: forMeBase.filter((row) => !row.out.forMe).map((row) => row.id.slice(-8)),
+    decisionAgreement: labeled.length ? agree / labeled.length : null,
+    mediumRatio: rows.length ? medium / rows.length : null,
+    errors: rows.filter((row) => row.out.decision === 'ERROR').length,
+  }
+  console.log(`REPORT ${JSON.stringify(summary)}`)
+  if (gate && ((summary.forMeRecall != null && summary.forMeRecall < 1) || (summary.decisionAgreement != null && summary.decisionAgreement < 0.95))) {
+    console.error('GATE FAILED：forMe 召回要 100%、decision 一致率要 ≥ 95%')
+    process.exit(2)
+  }
 }

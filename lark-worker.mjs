@@ -89,7 +89,7 @@ export async function runLarkWorker({
   const readiness = preflightAiExecutor(startupExecutor, {
     localConfig,
     // 所选执行器为 Codex/Pi/Claude 时，Worker 在写首个 heartbeat 前真实探测模型；restart 只有看到该 heartbeat 才成功。
-    probeModel: ['codex', 'pi', 'claude'].includes(startupExecutor),
+    probeModel: true,
   })
   console.log(`[lark-worker] AI executor=${startupExecutor}${executorProfile} readiness=${readiness.modelProbe}（task > config > wrapper > default）`)
   // 非默认仓若指定了自己的 claude 模型，启动时同样真实探一次（Fable 等新模型账号没权限只有真调才暴露）。
@@ -176,9 +176,13 @@ export async function runLarkWorker({
 
   // 版本心跳 + 自检告警：每分钟落一次盘（供 gateway health 汇总），同时把落后状态打进 worker.log。
   // 只告警不自杀——正在跑的长任务比"跑最新代码"更值得保住，重启时机由人或 launchd 决定。
+  let lastVersionWarning = ''
   const heartbeatTimer = setInterval(() => {
     heartbeat({ inFlight: inFlight.size, draining: drain.isDraining() })
-    for (const warning of versionWarnings(runtimeVersion.observe())) console.warn(`[lark-worker] ⚠ ${warning}`)
+    // 版本落后只在内容变化时打一行（原每分钟一行，worker.log 里一天几千行同样的话）。
+    const warningText = versionWarnings(runtimeVersion.observe()).join('\n')
+    if (warningText && warningText !== lastVersionWarning) console.warn(`[lark-worker] ⚠ ${warningText}`)
+    lastVersionWarning = warningText
   }, 60_000)
   heartbeatTimer.unref?.()
   const gracefulShutdown = async (signal) => {

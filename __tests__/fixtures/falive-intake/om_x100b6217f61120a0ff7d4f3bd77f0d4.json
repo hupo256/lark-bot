@@ -1,0 +1,151 @@
+{
+  "id": "om_x100b6217f61120a0ff7d4f3bd77f0d4",
+  "source": "lark",
+  "chatId": "ou_91861d6da6cf6822e08045ba1868241e",
+  "messageId": "om_x100b6217f61120a0ff7d4f3bd77f0d4",
+  "threadRootId": null,
+  "operator": "ou_91861d6da6cf6822e08045ba1868241e",
+  "project": "FALIVE",
+  "repo": "falive",
+  "commandType": "api",
+  "commandTypeSource": "explicit",
+  "projectTitle": "Falive Web",
+  "text": "【aven 私聊指示】![Image](img_v3_0216h_c0dfa378-a709-4bd6-8792-8f144fd922hu)\n这个让你得测并记录，应该要开个任务才行吧\n\n【指示针对的群消息（任务 sweep-falive-20261016，当前 done）】\n清扫 2026-10-16 日报里 aven 名下的待办，尽可能全部收尾。aven 只看结果，不看过程。\n\n待办（共 10 条，日报原文）：\n1. 本地已做、未合 pre（负责人：aven）：fb0c51d：对接文档里把 aven 本地开发分支改记为 `feature/phase-4-page`。纯文档，不影响 pre 页面\n2. 发 pre 部署邮件（负责人：aven）：pre 线上是 10-16 14:31 的构建，之后合入了 9 次合并：aven 下午的提交（含 #56 修改密码 review、php 语言头改 zh-cn / en-us、顶栏语言下拉、dev-03 预览机部署脚本）、eric 的 #51 跑马灯、broker 的 MR !54（#28 #49 #52 #47、注册平台编码改 hichat）。不发邮件，这些 pre 上都看不到\n3. 同步待对接文档（负责人：aven）：10-15 待发的三份已发出。还剩：MR !54 review 待修清单（给 broker）、《对接-前端同事-国际化-2026-10-16》都标着「10-16 待发」，发了要改状态；《aven-后端待办-复测反馈》已全部结清，可以归档；功能总表里 henry（#1 #23–#25 #33–#35 #46）和 broker（#28 #49 #52）的行还停在 mock 的旧状态\n4. 广场 / 留言板 / 录播 / 预约的 pre 回归（负责人：aven）：留言板、预约 10-15 已手测通过；录播 10-16 列表恢复，抽查 4 个源能拉。剩广场：日报前已有 10 条帖子，可以用测试号做点赞 / 收藏 / 关注的登录态回归，还没做\n5. 下载页回归（负责人：aven）：pre 仍没配 APK 地址，按钮不亮；配好后回归\n6. 录播播放页回归（负责人：aven）：10-16：列表恢复 12 条，4 个坏源已下架，播放页入口恢复；还没在浏览器里点进播放页回归；之后请设计按 Figma `221:170177` 走查\n7. #2 收尾（负责人：aven；Encone / Arthur）：10-16：123456 复测通过，Google 登录 10-15 已真号手测。还剩：①手机号注册报错、未注册号验证码登录直接成功，等 Encone / Arthur 答（123456 复测 R1 / R2）；②注册平台编码改 hichat 部署后，用新号重跑 token 链路（Arthur 要求 adrian / eric / broker / aven 都重新注册一次）；③确认 go 接口要不要带嗨聊必传头，等 Arthur 说是哪些头、哪些接口；④真实通道配好后用真邮箱 / 真手机收一次码；⑤路径定稿和新版文档（E2 / E3）、uat / online 域名（E6）；⑥本地 `localhost:3001` 的 Google 来源复测\n8. 五服务模型收敛（golang / dz 占位、`chat` 别名）（负责人：aven；adrian）：10-16：按 Encone 10-13「前端不需要 discuz」定下 dz 不用，dz 占位已删。剩 `kernel/http` 里遗留的 `chat` 别名，只有任务中心还在用，等 adrian 切真实接口时一起删\n9. 设计走查：搜索页、录播播放页、H5 底部导航（负责人：设计 / aven 改）：三处 pre 都能打开；还没收到走查意见\n10. aven 名下未完成功能（日报第一节计数）：aven 2 项：#2 #27\n\n每条必须落到下面四种结果之一，并当场拿到证据：\nA 已经完成：事实已变、只是日报没更新（例：pre 首页入口 JS 的 VITE_BUILD_TIME 晚于 `git log --first-parent origin/pre` 的合入时间 = 已部署）。只记证据，不重复做。\nB 做掉：前端自己能完成的，直接做完——改代码、回填待对接文档（docs/delivery/pending/ 下对应编号的行、docs/apis/对接状态总览.md、功能总表备注列；功能总表状态列不改）、在 pre 上实测或浏览器验证。口径：**API 以后台实际响应为准**，后端没书面回复但 pre 实测结构已经明确的，按实测改，不再等确认；UI / UX 以产品为准。\nC 需要 aven 本人动作：只有他能做的（发部署邮件给 OPS、对外拍板）。把能准备的都准备好，写清他只需要做哪一步。\nD 依赖外部：三条全部满足才算——① 写清缺什么、找谁；② 有今天的实测证据证明现在确实拿不到（命令 / 请求 + 响应 code / msg）；③ 前端能先做的部分已经做完，且该依赖已登记在待对接文档里。拿不出证据的不许归 D，回去按 B 做。\n共同负责的行只做 aven 那一半；别人的部分只记录，不改别人负责的代码（归属查 docs/lark-migration-source/requirements/phase1-feature-table.md「前端」列）。\n\n本仓现成工具（直接用）：\n- pre 接口：`node scripts/pre-probe.mjs '[[\"/api/xxx\",{参数}]]'`（B2B 签名，带 PROBE_MAIL=任意新邮箱@probe.test 自动注册登录，验证码固定 123456）；token：`PROBE_MAIL=… node scripts/pre-token-probe.mjs`；用项目 zod schema 校验真实响应：`SCHEMA_CHECK='[{\"module\":\"@/modules/…/schema\",\"export\":\"xxxSchema\",\"path\":\"/api/…\",\"pick\":\"0\"}]' pnpm vitest run --config vitest.probe.config.ts`。\n- portal（账号）：`https://falivepre.fdsser.com/go-api/api/auth/*`，直接 curl。\n- 浏览器验证：本机 ~/Library/Caches/ms-playwright 有 chromium；在 /tmp 下新建空目录 `npm i playwright`，脚本放那里，用 executablePath 指向本机 chromium；只验已部署的 pre 站点 https://falivepre.fdsser.com/，或本仓 `pnpm dev:pre` 起的本地服务（验完关掉）。\n- 已部署哪一版：取 pre 首页入口 JS 里的 VITE_BUILD_TIME（毫秒时间戳）。\n禁止：给不认识的真实手机号发短信（测短信只用后端已知不支持的号段，或不测）；改 pre 共享数据（造帖、灌数据）；自己提交或推送（Worker 统一提交，推 pre 由 aven 回复触发）。\n\n时间预算：整条任务约 60 分钟。先做最快能清掉的，浏览器复测放后面；做不完的如实写「没做完」和原因，不许写成已完成。\n\nsummary 写给 aven 本人（只看结果，按这个格式，不写过程）：\n第一行：「",
+  "summary": "后端 Arthur 在群里答复：Adrian 提的「任务中心数据不完善」已经解决（已补数据），@Aven.Bot 请复测并记录。aven 私聊指示：这件事要实测",
+  "attachments": [
+    {
+      "type": "image",
+      "imageKey": "img_v3_0216h_c0dfa378-a709-4bd6-8792-8f144fd922hu"
+    }
+  ],
+  "aiExecutor": "claude",
+  "status": "done",
+  "intake": {
+    "required": false,
+    "trigger": "principal_private",
+    "mentionedOpenIds": [],
+    "notBefore": null,
+    "receivedAt": "2026-10-16T14:58:23.793Z",
+    "error": null,
+    "resolvedAt": "2026-10-16T14:58:41.924Z",
+    "classification_at_capture": {
+      "decision": "api_reply",
+      "confidence": "high",
+      "forMe": true,
+      "summary": "后端 Arthur 在群里答复：Adrian 提的「任务中心数据不完善」已经解决（已补数据），@Aven.Bot 请复测并记录。aven 私聊指示：这件事要实测并留记录，单独开一个任务来做。",
+      "reason": "任务中心的功能（#12–#21）在总表上归 adrian，但 aven 本人明确要求开任务做复测和记录，按他的指示照办，所以 forMe=true。消息内容是后端回复我方提的数据问题「已解决」，归为 api_reply，接下来去 pre 上复测任务中心接口的数据并把结果写进对接文档。截图是另一条群消息（Arthur 回 Adrian），跟 sweep 任务不是一回事，所以不填 continues。",
+      "topic": "对接-前端同事-2#A3",
+      "continues": null,
+      "relatedTaskId": null,
+      "items": [
+        {
+          "id": "new",
+          "transition": "new",
+          "note": "Arthur 答复：任务中心数据（Adrian 提出的数据不完善）已补齐，要求我方在 pre 复测任务中心接口数据并记录"
+        },
+        {
+          "id": "对接-前端同事-2#A3",
+          "transition": "notify",
+          "note": "任务中心真实链路的数据已由后端补齐，可以复测 /tasks 的真实数据"
+        }
+      ],
+      "reply": "收到，开任务在 pre 复测任务中心数据，结果记进对接文档",
+      "satisfiesWait": null,
+      "waitsFor": null
+    }
+  },
+  "addressedToBot": true,
+  "fromPrincipal": true,
+  "privateOrigin": {
+    "chatId": "oc_a0ce203fdecb90ae817fcc83b88d34eb",
+    "senderOpenId": "ou_91861d6da6cf6822e08045ba1868241e",
+    "anchorId": "sweep-falive-20261016",
+    "anchorHead": "清扫 2026-10-16 日报里 aven 的待办（10 条）"
+  },
+  "createdAt": "2026-10-16T14:58:23.793Z",
+  "updatedAt": "2026-10-16T15:03:37.378Z",
+  "claimedAt": "2026-10-16T14:58:46.123Z",
+  "epoch": 1,
+  "topic": "new#77f0d4+对接-前端同事-2#A3",
+  "ledgerItems": [
+    {
+      "id": "new#77f0d4"
+    },
+    {
+      "id": "对接-前端同事-2#A3"
+    }
+  ],
+  "requeuedAt": "2026-10-16T14:58:41.924Z",
+  "result": "已完成，待发布。\n1. 任务中心数据用测试号 508 在 pre 复测过了（只读），只有一部分解决：积分余额和流水有数据了（10 分，1 条，是今天关注作者时发的），但任务列表还是空的，签到还报「未查询到签到积分配置」，商城还报「商城暂未上线权益」。还不能回复 Arthur「复测通过」，要请他在 pre 配好任务、签到积分和商城权益；另外 adrian 的积分 schema 把流水积分写成了字符串，接口实际返回数字，积分页会解析失败，要 adrian 改。结果已记进 hichat 对接文档、对接总览和功能总表，分支 lark/falive-bd77f0d4。\n2. 分诊：根因层 后端数据（非前端，需对应端修复），诊断状态 待对应端修复\n⚠ 范围契约声明纳入的 1 处兄弟位置实测未改（疑似漏改，请复核）：docs/delivery/pending/对接-hichat后端-2.md",
+  "branch": "lark/falive-bd77f0d4",
+  "parkedAt": null,
+  "parkedRemindedRound": 0,
+  "owner": "Arthur（hichat 后端数据配置）/ adrian（任务中心前端）",
+  "noChangeReason": null,
+  "scopeRequest": null,
+  "groupReply": "任务中心数据复测（10-16 23:01，测试号 508）：通了 1 项，没通 3 项\n- ⚠️ 接了但还不能用 任务列表：接口正常返回，但新手 / 每日任务都是 0 条，pre 还没配任务，要 Arthur 配\n- ⚠️ 接了但还不能用 每日签到：仍报「未查询到签到积分配置，请先配置签到积分！」，要 Arthur 配签到积分\n- ⚠️ 接了但还不能用 积分商城：仍报「商城暂未上线权益！」，要 Arthur 上架权益，或答复一期不上\n- ✅ 通了 积分余额 / 流水：余额 10 分、流水 1 条（关注作者 +10），说明积分发放链路通了\n\nadrian 负责的：\n- ⚠️ 接了但还不能用 积分流水解析：接口返回的流水积分是数字，前端 schema 写的是字符串，积分页会解析失败，要 adrian 改\n- ⚠️ 接了但还不能用 任务中心页面：真实接口版还没合入 pre，页面回归等 adrian 合入后再做",
+  "followUpDoc": "docs/delivery/pending/对接-hichat后端-2.md",
+  "followUps": [
+    {
+      "owner": "Arthur",
+      "items": [
+        "pre 的 points/task/list 仍返回空数组，请配置新手 / 每日任务",
+        "pre 的 checkinPointsTask/query 仍报「未查询到签到积分配置」，请配置签到积分（周期天数、每日 / 第 7 天积分）",
+        "pre 的 mallRights/getList 仍报「商城暂未上线权益」，请上架权益，或答复一期不上线兑换"
+      ]
+    },
+    {
+      "owner": "adrian",
+      "items": [
+        "myPointsSchema 的流水 points 写成了 string，pre 实测是 number，解析会失败，请按实测改",
+        "真实接口版合入 pre 后，回归 /tasks 页面"
+      ]
+    }
+  ],
+  "integration": {
+    "branch": "lark/falive-integration",
+    "synced": true,
+    "syncReason": null,
+    "mergedBack": true,
+    "mergeReason": null
+  },
+  "preChecks": [
+    {
+      "endpoint": "portal POST /api/auth/login（aven-pretest@probe.test，platform_code=hichat）",
+      "outcome": "HTTP 200 code 0，user_id 508、hichat_id 129180，返回 hichat_token（已打码）"
+    },
+    {
+      "endpoint": "hichat GET /api/points/task/list",
+      "outcome": "10-16 23:01:15 (+8) HTTP 200 code 200 msg Success，data=[]（新手 0 / 每日 0），跟基线一样"
+    },
+    {
+      "endpoint": "hichat GET /api/points/task/myPoints?pageNum=1&pageSize=20",
+      "outcome": "23:01:18 (+8) HTTP 200 code 200，totalPoints=10，流水 total=1（source novice_follow「关注一位社区作者」points=10 是 number，time 10-16 22:38 +8）；基线是 0 分、没有流水"
+    },
+    {
+      "endpoint": "hichat GET /api/checkinPointsTask/query",
+      "outcome": "23:01:20 (+8) HTTP 200 code 500「未查询到签到积分配置，请先配置签到积分！」，跟基线一样"
+    },
+    {
+      "endpoint": "hichat GET /api/mallRights/getList",
+      "outcome": "23:01:20 (+8) HTTP 200 code 500「商城暂未上线权益！」，跟基线一样"
+    },
+    {
+      "endpoint": "/api/points/task/list",
+      "outcome": "### SCHEMA taskListSchema -> ok []"
+    },
+    {
+      "endpoint": "/api/points/task/myPoints",
+      "outcome": "### SCHEMA myPointsSchema -> issues: pointsRecordPage.list.0.points: Invalid input: expected string, received number"
+    },
+    {
+      "endpoint": "/api/checkinPointsTask/query",
+      "outcome": "### SCHEMA checkInTaskSchema -> issues: : Invalid input: expected object, received undefined（code 500 没有 data，不是 schema 问题）"
+    }
+  ],
+  "changedFiles": [
+    "docs/apis/对接状态总览.md",
+    "docs/delivery/pending/对接-hichat后端-2.md",
+    "docs/lark-migration-source/requirements/phase1-feature-table.md"
+  ]
+}

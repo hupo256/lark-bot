@@ -9,6 +9,11 @@
 - **代码规则扫描器是同步副本**：`scripts/code-rules.mjs` 的权威版本在 `~/.ai-rules/skills/prd-to-commit/scripts/code-rules.mjs`，本仓不直接改。同步方法：先改权威版本并在 `~/.ai-rules` 提交 → 整文件复制到 `scripts/`（保留第 2–3 行同步说明）→ 把第 2 行的 `~/.ai-rules@<sha>` 改成新 sha → `node scripts/code-rules.mjs --self-test` 并跑 `__tests__/lark-pure.test.mjs`（含副本与权威版本一致性检查）。
 - **本机数据不进仓库**：`runtime/*.local.json`、任务 / 附件 / 审计 / state 文件都在 `.gitignore` 里，不要 `git add -f`。
 
-## 出错处理原则（aven 2026-10-14）
+## 出错处理原则（aven 2026-10-14 定，2026-10-17 改为「先分类再动手」）
 
-bot 在 falive 群里出错时，**不只修那一次**：每个错误都要落成规则（提示词 / 文档口径）或闸（代码里的机械检查，发出去之前查一遍），记进 `docs/falive-lessons.md`，写明怎么验。只有规则没有闸的，再出一次就补闸。改默认仓（fameex）之外的逻辑一律走仓库 profile 分支，不碰 fameex 路径。
+bot 在 falive 群里出错时，**先分类再动手**，每条都记进 `docs/falive-lessons.md`（现象 · 根因 · 类别 · 落在哪 · 怎么验）：
+- **bot 逻辑错**（判断 / 流程 / 代码缺陷）→ 改代码 + 闸或测试。**加一道闸必须合并或删一道旧闸**：完成态核验闸注册表 `lib/lark-task-gates.mjs` ≤ 16 道、提示词三档预算（`__tests__/lark-prompt-budget.test.mjs`）、gateway 纯度（`lark-gateway-purity`）、文件体量（`lark-size-budget`）都由测试锁死，超了先做减法。
+- **环境问题**（睡眠 / 合盖 / 网络 / Lark 权限 / 外部群策略）→ 改环境或运维文档，不改 bot 代码。
+- **噪音**（单次抖动、阈值太敏感）→ 只调阈值 / 配置。
+改提示词或模型输出 schema 之前，先跑回放集：`node scripts/lark-replay-classify.mjs falive --dir __tests__/fixtures/falive-intake --report --gate`（forMe 召回 100%、decision 一致率 ≥ 95%）。
+改默认仓（fameex）之外的逻辑一律走仓库 profile 分支，不碰 fameex 路径。

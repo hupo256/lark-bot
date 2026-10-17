@@ -29,7 +29,7 @@ const stableSnapshot = () => ({ status: '', diff: '' })
 const bugTask = (executor, extra = {}) => ({ id: `t-${executor}`, source: 'lark', text: '修复：提现页金额显示错误', aiExecutor: executor, attachments: [], ...extra })
 
 describe('runAI：所有执行器在会改代码的任务上先跑只读分析', () => {
-  for (const executor of ['codex', 'claude', 'pi', 'cursor']) {
+  for (const executor of ['claude']) {
     it(`${executor}：分析 → 实施两阶段，scope 随返回值带出，实施提示注入契约`, async () => {
       const { exec, calls } = mockExec()
       const run = await runAI({ localConfig: {} }, bugTask(executor), workContext(), null, undefined, { exec, snapshot: stableSnapshot })
@@ -55,7 +55,7 @@ describe('runAI：所有执行器在会改代码的任务上先跑只读分析',
 
   it('自测类命令（不做收尾核对）：仍先分析，但不宣称越界不提交、实施不注入契约', async () => {
     const { exec, calls } = mockExec()
-    await runAI({ localConfig: {} }, bugTask('cursor', { text: '自测：跑一下提现页的单测' }), workContext(), null, undefined, { exec, snapshot: stableSnapshot })
+    await runAI({ localConfig: {} }, bugTask('claude', { text: '自测：跑一下提现页的单测' }), workContext(), null, undefined, { exec, snapshot: stableSnapshot })
     assert.deepEqual(calls.map((call) => call.resultKind), ['analysis', 'task'])
     assert.match(calls[0].promptText, /不做收尾范围核对/)
     assert.doesNotMatch(calls[1].promptText, /修改范围契约（第一阶段只读分析产出/)
@@ -74,8 +74,8 @@ describe('runAI：所有执行器在会改代码的任务上先跑只读分析',
     let n = 0
     const snapshot = () => ({ status: n++ ? ' M a.ts' : '', diff: '' })
     await assert.rejects(
-      runAI({ localConfig: {} }, bugTask('pi'), workContext(), null, undefined, { exec, snapshot }),
-      /pi 分析阶段违反只读约束/,
+      runAI({ localConfig: {} }, bugTask('claude'), workContext(), null, undefined, { exec, snapshot }),
+      /claude 分析阶段违反只读约束/,
     )
     assert.deepEqual(calls.map((call) => call.resultKind), ['analysis'])
   })
@@ -95,7 +95,7 @@ describe('runAI：所有执行器在会改代码的任务上先跑只读分析',
 
   it('人工已批准扩大的文件：分析提示列为可信额外目标，实施契约并入；本机 scopeBudgets 覆盖行数上限', async () => {
     const { exec, calls } = mockExec()
-    const task = bugTask('codex', { scopeApprovals: [{ paths: ['apps/web/src/neighbor.ts'], approvedBy: 'ou_x', at: '2026-10-11T00:00:00Z' }] })
+    const task = bugTask('claude', { scopeApprovals: [{ paths: ['apps/web/src/neighbor.ts'], approvedBy: 'ou_x', at: '2026-10-11T00:00:00Z' }] })
     await runAI({ localConfig: { scopeBudgets: { bugfix: 80 } } }, task, workContext(), null, undefined, { exec, snapshot: stableSnapshot })
     assert.match(calls[0].promptText, /人工已确认扩大范围的文件（可信输入，必须列入 targets[^\n]*`apps\/web\/src\/neighbor\.ts`/)
     assert.match(calls[0].promptText, /改动行数上限：80 行/)

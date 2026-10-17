@@ -182,6 +182,35 @@
           }
         }
       }
+    },
+    "blockerClasses": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "description": "blocked 时对 blockers 逐条归类（与 blockers 同序同长）：hard=动不了（范围不清 / 进不去）；soft=外部依赖未就绪（接口 / 字段未定，可按契约假设先做）；decision=要人拍板但可先做一版；process=流程材料（PRD / 门禁 / 评审）。ready 填 null。",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "text",
+          "class"
+        ],
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "class": {
+            "type": "string",
+            "enum": [
+              "hard",
+              "soft",
+              "decision",
+              "process"
+            ]
+          }
+        }
+      }
     }
   }
 }

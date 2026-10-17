@@ -223,9 +223,32 @@
           "outcome": {
             "type": "string",
             "description": "实测结果一句话：code、条数、关键字段，或「连不上」"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "issues",
+              "unreachable"
+            ],
+            "description": "实测结果归类：ok=通；issues=schema 与响应对不上 / 报错；unreachable=连不上"
           }
         }
       }
+    },
+    "completionClaim": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "all_done",
+        "partial",
+        "blocked_external",
+        "none",
+        null
+      ],
+      "description": "完成口径的机械字段：all_done=涉及的每一项都在环境上实测能用；partial=有项目接了但还不能用 / 没接；blocked_external=卡在后端 / 运维 / 产品；none=本任务不涉及「完成度」（纯查询 / 只读）。群回复里说「都好了」而这里不是 all_done 会被拦下。"
     }
   }
 }

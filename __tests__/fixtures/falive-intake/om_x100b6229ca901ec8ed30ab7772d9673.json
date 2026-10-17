@@ -1,0 +1,97 @@
+{
+  "id": "om_x100b6229ca901ec8ed30ab7772d9673",
+  "source": "lark",
+  "chatId": "oc_c2a63ac7c217235e14407ed1bba69d06",
+  "messageId": "om_x100b6229ca901ec8ed30ab7772d9673",
+  "threadRootId": "om_x100b623aad8c18a0ed416f6034c871e",
+  "operator": "ou_9c6ebed1f44bd1fa7b59f32236c1932f",
+  "project": "FALIVE",
+  "repo": "falive",
+  "commandType": "api",
+  "commandTypeSource": "explicit",
+  "projectTitle": "Falive Web",
+  "text": "【被引用消息】\n<card>\n@.Ache.l(ou_9c6ebed1f44bd1fa7b59f32236c1932f) @.Ache.l(ou_9c6ebed1f44bd1fa7b59f32236c1932f) Ache 回复复测：通了 3 项，没通 1 项\n- ⚠️ 接了但还不能用 R6 直播预告重复：没修，还从每条 2 次变成了 4 次。front/upcoming 和 preload/upcoming 每页 100 条回 total=112，里面只有 25 个不同节目（1194、1195…每个连着出现 4 次）；每页 10 条时有 12 页，第 1 页只有 3 个节目。前端去重的话每页条数和翻页都会乱，麻烦接口那边去重 @.Ache.l(ou_9c6ebed1f44bd1fa7b59f32236c1932f)\n- ✅ 通了 R3 热门主播：type=1&side=10 回 8 条，第一页 6 位主播，/lives 区块有数据了\n- ✅ 通了 R4 主播头像：已是完整地址，打开正常\n- ✅ 通了 R5 标签：字典换成区块链 / BTC / ETH / 合约，各房间只挂 1 个、名称和字典一致，切 tab 能看出过滤\n谢谢 Ache\n待确认的几点在这里：[https://qfglxo2m3dc.sg.larksuite.com/docx/W4xcdnl7mo01g3xk9HSllf8Ogrb](https://qfglxo2m3dc.sg.larksuite.com/docx/W4xcdnl7mo01g3xk9HSllf8Ogrb)\n- Ache：R6：front/upcoming 和 preload/upcoming 每条重复 4 次（total=112，只有 28 个节目），请接口侧去重，让 total 和分页都按去重后的数量算\n📝 由 aven 的助手整理\n</card>\n\n【本条 @】@Aven.Bot 这也麻烦在测试下\n\n【群里这条之前的消息】\nBroker：[Invalid text JSON]\nBroker：<p>@.Ache.l @Arthur.a 大佬，目前getRoomInfo中的groupid还是默认值0</p>\n.Ache.l：我这边还没接 我下午3点半会推\n.Ache.l：@Broker 这加好了 只有真人主播的时后才有数据的\nBroker：@.Ache.l 那我怎么才可以返回正常的groupid，是需要有人开播么？\n.Ache.l：我等运维更新完 我去开一个直播间\nBroker：@.Ache.l 好的大佬，谢谢\n\n【Ache（live php 后端） 正在进行的事（2 小时内，新的在前）】\n- 他 07:46 的消息 id=om_x100b62292f252ca0eedc5baa5ff8645 主题=- 状态=ignored：我等运维更新完 我去开一个直播间\n- 他 07:38 的消息 id=om_x100b62290f835ca4ed6373f3356e9d7 主题=- 状态=ignored：@Broker 这加好了 只有真人主播的时后才有数据的\n- 他 06:40 的消息 id=om_x100b6228255000a0ed5b90b9e07c983 主题=- 状态=ignored：我这边还没接 我下午3点半会推",
+  "summary": "Ache（live php 后端）引用了 bot 的复测卡片，请我们再测一次 R6 直播预告重复问题。卡片里的问题是：front/upcoming 和 prel",
+  "attachments": [],
+  "aiExecutor": "claude",
+  "status": "superseded",
+  "intake": {
+    "required": false,
+    "trigger": "task_mention",
+    "mentionedOpenIds": [],
+    "lane": "fast",
+    "notBefore": "2026-10-16T07:55:21.510Z",
+    "receivedAt": "2026-10-16T07:55:21.510Z",
+    "error": null,
+    "resolvedAt": "2026-10-16T07:55:34.607Z",
+    "classification_at_capture": {
+      "decision": "api_reply",
+      "confidence": "high",
+      "forMe": true,
+      "summary": "Ache（live php 后端）引用了 bot 的复测卡片，请我们再测一次 R6 直播预告重复问题。卡片里的问题是：front/upcoming 和 preload/upcoming 每个节目重复返回 4 次，total 和分页也跟着算错。言下之意是接口侧已经去重。",
+      "reason": "直播预告对应功能总表 #37「右侧-直播预告」，前端负责人是 aven。被引用的是 bot 替 aven 发的复测反馈，Ache 现在回来让复测，属于后端对我方对接问题的答复，需要前端去复核。",
+      "items": [
+        {
+          "id": "new",
+          "transition": "answer",
+          "note": "R6 直播预告 front/upcoming、preload/upcoming 重复 4 次：Ache 请前端复测，应该是接口已去重"
+        }
+      ],
+      "topic": "upcoming",
+      "relatedTaskId": null,
+      "continues": null,
+      "reply": "收到，这就复测 R6 两个 upcoming 接口的去重，再核对 total 和分页",
+      "satisfiesWait": null,
+      "waitsFor": null
+    }
+  },
+  "createdAt": "2026-10-16T07:55:21.510Z",
+  "updatedAt": "2026-10-16T14:17:23.382Z",
+  "addressedToBot": true,
+  "claimedAt": null,
+  "epoch": 2,
+  "ackedInGroup": true,
+  "ackedAt": "2026-10-16T07:55:31.969Z",
+  "topic": "new#2d9673",
+  "ledgerItems": [
+    {
+      "id": "new#2d9673"
+    }
+  ],
+  "requeuedAt": "2026-10-16T07:55:34.607Z",
+  "result": "人工确认无需处理该任务，原任务直接结单，不再排队/执行/催办。（aven 2026-10-16 让清掉，本地改文件结单）",
+  "branch": "lark/falive-772d9673",
+  "parkedAt": null,
+  "parkedRemindedRound": 0,
+  "noChangeReason": null,
+  "scopeRequest": {
+    "paths": [
+      "docs/delivery/pending/README.md",
+      "docs/delivery/pending/aven-后端待办-复测反馈-2026-10-15.md",
+      "docs/delivery/pending/aven-日报待办-待确认-2026-10-15.md",
+      "docs/delivery/pending/对接-live后端-3.md",
+      "docs/delivery/reply/aven-后端待办-复测反馈-2026-10-15-答复-2026-10-16.md",
+      "docs/lark-migration-source/requirements/phase1-feature-table.md"
+    ],
+    "overBudget": false,
+    "siblingsRequired": false,
+    "missingScope": true,
+    "requestedAt": "2026-10-16T07:58:32.134Z",
+    "source": "scope_check"
+  },
+  "groupReply": null,
+  "followUpDoc": null,
+  "followUps": null,
+  "integration": null,
+  "preChecks": null,
+  "changedFiles": null,
+  "waitRound": 1,
+  "closureReason": "no_longer_needed",
+  "externalResolution": {
+    "previousStatus": "waiting_confirmation",
+    "closureReason": "no_longer_needed",
+    "operator": "ou_91861d6da6cf6822e08045ba1868241e",
+    "messageId": null,
+    "resolvedAt": "2026-10-16T14:17:23.382Z"
+  }
+}

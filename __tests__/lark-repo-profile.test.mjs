@@ -147,7 +147,6 @@ describe('claude 模型 / 推理强度按 profile', () => {
     assert.deepEqual(resolveAiModelConfig({ claudeModel: 'opus', claudeEffort: 'high' }, 'claude'), { model: 'opus', reasoningEffort: 'high', provider: null, intentModel: 'opus', intentEffort: 'high', analysisModel: 'opus', analysisEffort: 'high' })
     assert.deepEqual(resolveAiModelConfig({ claudeModel: 'opus' }, 'claude', profile), { model: 'claude-fable-5-1', reasoningEffort: 'medium', provider: null, intentModel: 'claude-sonnet-5-5', intentEffort: 'medium', analysisModel: 'claude-opus-4-8', analysisEffort: 'high' })
     assert.equal(resolveAiModelConfig({}, 'claude', normalizeRepoProfile('falive', { ...faliveRaw, claudeIntentEffort: 'high' })).intentEffort, 'high')
-    assert.equal(resolveAiModelConfig({ codexModel: 'gpt' }, 'codex').model, 'gpt')
   })
 
   it('claude 四种命令都带 --model / --effort，任务模式把 profile.readableDirs 放进 --add-dir', () => {

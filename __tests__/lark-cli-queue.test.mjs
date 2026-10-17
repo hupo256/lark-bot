@@ -18,12 +18,19 @@ describe('lark-cli 子进程限流（第 1 批）', () => {
     try {
       const order = []
       const run = (tag, priority) => runLarkCli(['im', tag], { identity: 'user', priority }).then(() => order.push(tag))
+      // 机器负载高时子进程起得慢：等到状态满足再断言，不用固定毫秒数。
+      const until = async (predicate, label) => {
+        for (let i = 0; i < 200; i += 1) {
+          if (predicate()) return
+          await new Promise((resolve) => setTimeout(resolve, 5))
+        }
+        assert.fail(`等不到：${label}（${JSON.stringify(larkCliQueueStats().user)}）`)
+      }
       const first = [run('r1', 'read'), run('r2', 'read')]
-      await new Promise((resolve) => setTimeout(resolve, 20))
+      await until(() => larkCliQueueStats().user.running === 2, '两个在跑')
       assert.deepEqual(larkCliQueueStats().user, { running: 2, queued: 0 })
       const rest = [run('r3', 'read'), run('r4', 'read'), run('s1', 'send')]
-      await new Promise((resolve) => setTimeout(resolve, 20))
-      assert.equal(larkCliQueueStats().user.queued, 3)
+      await until(() => larkCliQueueStats().user.queued === 3, '三个排队')
       await Promise.all([...first, ...rest])
       assert.equal(order.indexOf('s1') < order.indexOf('r3'), true, '排队的 send 先于排队的 read')
       assert.deepEqual(larkCliQueueStats().user, { running: 0, queued: 0 })

@@ -1,0 +1,61 @@
+{
+  "id": "om_x100b6214fe0ff4a0eed86d64511916e",
+  "source": "lark",
+  "chatId": "oc_c2a63ac7c217235e14407ed1bba69d06",
+  "messageId": "om_x100b6214fe0ff4a0eed86d64511916e",
+  "threadRootId": null,
+  "operator": "ou_9c6ebed1f44bd1fa7b59f32236c1932f",
+  "project": "FALIVE",
+  "repo": "falive",
+  "commandType": "api",
+  "commandTypeSource": "explicit",
+  "projectTitle": "Falive Web",
+  "text": "那你要传 小写的\n\n【群里这条之前的消息】\nAven.tong：![Image](img_v3_0216h_9efa8763-3b3d-46ab-a699-a037887a19hu)\napi 现在是怎样处理，国际化的？ header 里给 语言 标记 ？ @.Ache.l @HQUCEncone\n.Ache.l：昵称部份 难国际化 就是主播怎填写 怎显示了\nAven.tong：![Image](img_v3_0216h_d9150692-76e2-48aa-94fa-288f0fe6a5hu)\n\n看到了。是在 header 里加这个是吧\n.Ache.l：噢噢 你说接口的语言是八\n.Ache.l：是这个没错\n.Ache.l：我需要给你code吗?\nAven.tong：啥 code ?\n.Ache.l：语言的\n.Ache.l：目前支持哪些语言这样\nAven.tong：我看到之前 klive 用的是 zh-CN / en-us，现在我用沿用这个，如何 ？\n\n【Ache（live php 后端） 正在进行的事（2 小时内，新的在前）】\n- 09:52 bot 对他说（done，主题 new#2d9673）：✅ R6 直播预告重复已复测通过：`front/upcoming` 和 `preload/upcoming` 都回 28 条、每个节目只出现一次，`total=28`、`limit=10` 时 `last_page=3`，分页正确。谢谢 A\n- 他 11:31 的消息 id=om_x100b6214e3d004a4ed4cd1f4e5a806b 主题=new#58e081 状态=ignored：目前支持哪些语言这样\n- 他 11:29 的消息 id=om_x100b6214e64bc8a8eedd24e5f1e1afb 主题=new#58e081 状态=ignored：Ache（live php 后端）回复 Aven.tong 的国际化问题：确认接口的语言标记就是放在请求 header 里的那个字段（「是这个没错」），还问要不\n- 他 11:27 的消息 id=om_x100b6214d04fc4a4ed32951106fdbc5 主题=- 状态=ignored：我这边已经是 falive hc 同个平台了\n- 他 11:22 的消息 id=om_x100b6214c04884a4ed4bfa06d58e081 主题=new#58e081 状态=ignored：Ache（live php 后端）答复 Aven.tong 问的「API 现在怎么做国际化、是不是在 header 里带语言标记」：昵称这类字段很难做国际化，主\n- 他 09:52 的消息 id=om_x100b622b726298a8ed35438a34eaf2b 主题=- 状态=ignored：@Broker UID 260 这主播有 groupId了\n- 台账 new#58e081（answered）aven 问 live php API 怎么国际化（header 带语言标记？）；Ache 答：昵称\n\n【话题补充 11:32】zh-cn / en-us",
+  "summary": "Ache（live php 后端）答复 aven 的国际化问题：可以沿用 klive 的语言码，但请求 header 里的语言标记必须传小写，即 zh-cn /",
+  "attachments": [],
+  "aiExecutor": "claude",
+  "status": "ignored",
+  "intake": {
+    "required": false,
+    "trigger": "task_mention",
+    "mentionedOpenIds": [],
+    "lane": "slow",
+    "notBefore": "2026-10-16T11:33:02.613Z",
+    "receivedAt": "2026-10-16T11:32:02.610Z",
+    "error": null,
+    "resolvedAt": "2026-10-16T11:33:13.667Z",
+    "classification_at_capture": {
+      "decision": "api_reply",
+      "confidence": "high",
+      "summary": "Ache（live php 后端）答复 aven 的国际化问题：可以沿用 klive 的语言码，但请求 header 里的语言标记必须传小写，即 zh-cn / en-us（不是 zh-CN）。",
+      "reason": "这是在答 aven 自己发起的对接问题（台账 new#58e081：live php API 怎么做国际化）。它定下了 header 里语言码的格式，前端请求层（基座 kernel/lib 的 api client）要按这个对齐、复核语言码大小写。基座归 aven，所以 forMe=true。",
+      "forMe": true,
+      "continues": null,
+      "relatedTaskId": null,
+      "topic": "new#58e081",
+      "items": [
+        {
+          "id": "new#58e081",
+          "transition": "answer",
+          "note": "Ache 确认 header 语言码要传小写：zh-cn / en-us"
+        }
+      ],
+      "satisfiesWait": null,
+      "waitsFor": null,
+      "reply": null
+    }
+  },
+  "createdAt": "2026-10-16T11:32:02.610Z",
+  "updatedAt": "2026-10-16T11:33:13.682Z",
+  "passiveLedgerOnly": true,
+  "claimedAt": null,
+  "epoch": 1,
+  "topic": "new#58e081",
+  "ledgerItems": [
+    {
+      "id": "new#58e081"
+    }
+  ],
+  "requeuedAt": "2026-10-16T11:33:13.667Z",
+  "result": "（被动模式：只记台账，没 @ 机器人不派工单）"
+}

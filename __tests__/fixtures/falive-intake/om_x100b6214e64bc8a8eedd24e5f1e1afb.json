@@ -1,0 +1,61 @@
+{
+  "id": "om_x100b6214e64bc8a8eedd24e5f1e1afb",
+  "source": "lark",
+  "chatId": "oc_c2a63ac7c217235e14407ed1bba69d06",
+  "messageId": "om_x100b6214e64bc8a8eedd24e5f1e1afb",
+  "threadRootId": null,
+  "operator": "ou_9c6ebed1f44bd1fa7b59f32236c1932f",
+  "project": "FALIVE",
+  "repo": "falive",
+  "commandType": "api",
+  "commandTypeSource": "explicit",
+  "projectTitle": "Falive Web",
+  "text": "噢噢 你说接口的语言是八\n\n【群里这条之前的消息】\nBroker：[Image: img_v3_0216h_21e439a8-3944-4d5d-bf1c-426a33d2bbhu]\nEric.ea：你接上了？我也在加这个\nBroker：这个我已经接完了 @Eric.ea 和直播间的一样的流程\nBroker：我提上去调整一下UI就行\nEric.ea：那你提交吧，我把我这边的功能去掉\nAven.Bot（bot，我们自己）：@HQUCWilliam.m(ou_d24c070cfea7570478d3d61ced55de0c) 收到接口测试请求，我先看一下这个接口的调用情况\nAven.Bot（bot，我们自己）：@HQUCWilliam.m(ou_d24c070cfea7570478d3d61ced55de0c) 这个接口归 fameex 入口 / 行情（Eric、Broker 在接），联调测试请找他们。\nAven.tong：![Image](img_v3_0216h_9efa8763-3b3d-46ab-a699-a037887a19hu)\napi 现在是怎样处理，国际化的？ header 里给 语言 标记 ？ @.Ache.l @HQUCEncone\n.Ache.l：昵称部份 难国际化 就是主播怎填写 怎显示了\nAven.tong：![Image](img_v3_0216h_d9150692-76e2-48aa-94fa-288f0fe6a5hu)\n\n看到了。是在 header 里加这个是吧\n\n【Ache（live php 后端） 正在进行的事（2 小时内，新的在前）】\n- 09:52 bot 对他说（done，主题 new#2d9673）：✅ R6 直播预告重复已复测通过：`front/upcoming` 和 `preload/upcoming` 都回 28 条、每个节目只出现一次，`total=28`、`limit=10` 时 `last_page=3`，分页正确。谢谢 A\n- 他 11:27 的消息 id=om_x100b6214d04fc4a4ed32951106fdbc5 主题=- 状态=ignored：我这边已经是 falive hc 同个平台了\n- 他 11:22 的消息 id=om_x100b6214c04884a4ed4bfa06d58e081 主题=new#58e081 状态=ignored：Ache（live php 后端）答复 Aven.tong 问的「API 现在怎么做国际化、是不是在 header 里带语言标记」：昵称这类字段很难做国际化，主\n- 他 09:52 的消息 id=om_x100b622b726298a8ed35438a34eaf2b 主题=- 状态=ignored：@Broker UID 260 这主播有 groupId了\n- 他 09:40 的消息 id=om_x100b622b428580a4ed64819508daed2 主题=- 状态=ignored：@Arthur.a\n- 台账 new#58e081（open）aven 问 live php API 怎么国际化（header 带语言标记？）；Ache 答：昵称\n\n【话题补充 11:30】是这个没错\n\n【话题补充 11:30】我需要给你code吗?",
+  "summary": "Ache（live php 后端）回复 Aven.tong 的国际化问题：确认接口的语言标记就是放在请求 header 里的那个字段（「是这个没错」），还问要不",
+  "attachments": [],
+  "aiExecutor": "claude",
+  "status": "ignored",
+  "intake": {
+    "required": false,
+    "trigger": "task_mention",
+    "mentionedOpenIds": [],
+    "lane": "slow",
+    "notBefore": "2026-10-16T11:31:05.671Z",
+    "receivedAt": "2026-10-16T11:29:14.853Z",
+    "error": null,
+    "resolvedAt": "2026-10-16T11:31:18.860Z",
+    "classification_at_capture": {
+      "decision": "api_reply",
+      "confidence": "high",
+      "forMe": true,
+      "summary": "Ache（live php 后端）回复 Aven.tong 的国际化问题：确认接口的语言标记就是放在请求 header 里的那个字段（「是这个没错」），还问要不要把语言 code 发给他。",
+      "reason": "这条接着 aven 自己在群里问的「API 怎么国际化、header 里带语言标记？」（台账 new#58e081），是后端对我方对接问题的答复。国际化请求头属于前端基座的 kernel / lib 层，所以算 aven 的事。Ache 最后还问了一句要不要给 code，需要 aven 决定要不要向后端要语言码列表。",
+      "topic": "new#58e081",
+      "continues": null,
+      "relatedTaskId": null,
+      "items": [
+        {
+          "id": "new#58e081",
+          "transition": "answer",
+          "note": "Ache 确认语言标记放在请求 header 里（就是 aven 截图里的那个），并问要不要提供语言 code 列表"
+        }
+      ],
+      "satisfiesWait": null,
+      "waitsFor": null,
+      "reply": null
+    }
+  },
+  "createdAt": "2026-10-16T11:29:14.853Z",
+  "updatedAt": "2026-10-16T11:31:18.882Z",
+  "passiveLedgerOnly": true,
+  "claimedAt": null,
+  "epoch": 1,
+  "topic": "new#58e081",
+  "ledgerItems": [
+    {
+      "id": "new#58e081"
+    }
+  ],
+  "requeuedAt": "2026-10-16T11:31:18.862Z",
+  "result": "（被动模式：只记台账，没 @ 机器人不派工单）"
+}

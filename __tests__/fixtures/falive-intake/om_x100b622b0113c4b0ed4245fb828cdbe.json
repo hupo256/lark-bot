@@ -1,0 +1,53 @@
+{
+  "id": "om_x100b622b0113c4b0ed4245fb828cdbe",
+  "source": "lark",
+  "chatId": "oc_c2a63ac7c217235e14407ed1bba69d06",
+  "messageId": "om_x100b622b0113c4b0ed4245fb828cdbe",
+  "threadRootId": "om_x100b6229116f94a0ed620e45962b587",
+  "operator": "ou_f6e95ef1cfed53a7871bc23b74006bf2",
+  "project": "FALIVE",
+  "repo": "falive",
+  "commandType": null,
+  "commandTypeSource": null,
+  "projectTitle": "Falive Web",
+  "text": "【被引用消息】\n@.Ache.l 那我怎么才可以返回正常的groupid，是需要有人开播么？\n\n【本条 @】@Arthur.a \n/api/group/searchById?id=904. 接口报出平台错误\n\n【话题其它回复】\n.Ache.l：UID 260 这我开播了 但是 我去查咳聊数据 groupID 是空的\nBroker：@Arthur.a 大佬，你看下，为什么开播了groupid会是空的\n.Ache.l：PM-3046 account-sync response {\"method\":\"GET\",\"url\":\"https://pre-hailiao.hai-liao-pre.com/api/partner/account-sync/v1/accounts/19875\",\"http\":0,\"curl_err\":\"\",\"body_head\":\"{\\\"code\\\":500,\\\"message\\\":\\\"Failed\\\"}\"}\n\nH2 接口\n我请求下来却是 500\nArthur.a：我看下是不是报错了\nArthur.a：看下请求头的东西呢@.Ache.l\nArthur.a：看日志是请求头缺失\n.Ache.l：我没记录 等下哈\nArthur.a：[Image: img_v3_0216h_3e68d2a6-37b2-4375-bcaa-1b5204a6c0hu]\nArthur.a：你看一下哦，这四个都是要的\n.Ache.l：好的 我检查下\nArthur.a：好的，感谢\n.Ache.l：@Arthur.a \n\nPM-3046 account-sync request {\"method\":\"GET\",\"url\":\"https://pre-hailiao.hai-liao-pre.com/api/partner/account-sync/v1/accounts/19875\",\"partner\":\"falive\",\"hmac_headers\":[\"X-Partner-Code\",\"X-Partner-Timestamp\",\"X-Partner-Nonce\",\"X-Partner-Signature\"],\"ts\":\"1792143513343\",\"nonce\":\"82d542aa-8849-492a-8ab4-f61caa4a97c3\",\"sig_len\":64,\"body\":\"\"}\n0011| [2026-10-16T17:38:33+08:00][info] PM-3046 account-sync response {\"method\":\"GET\",\"url\":\"https://pre-hailiao.hai-liao-pre.com/api/partner/account-sync/v1/accounts/19875\",\"http\":200,\"curl_err\":\"\",\"body_head\":\"{\\\"code\\\":500,\\\"message\\\":\\\"Failed\\\"}\"}\nArthur.a：马上，我看看\n.Ache.l：@Broker UID 260 这主播有 groupId了\nArthur.a：我这边正常了吧@.Ache.l\n.Ache.l：有 第2次请求成功了\nArthur.a：OK\n\n【群里这条之前的消息】\nArthur.a：@Adrian\nAdrian：就是没数据，返回的空数组\nArthur.a：OKOK\nArthur.a：我排查了以后群里同步\nArthur.a：私发个测试会员吧\nRou：@Adrian 原來pre上面是有數據的是吧\nAdrian：@Rou 对，HiChat的pre是有的\nArthur.a：[Invalid text JSON]\nArthur.a：<p>@Adrian @Eric.ea @Broker @Aven.tong 几位大佬，go侧目前和hichat逻辑保持一致，所以有些请求头hichat这边要求必传的，麻烦也传一下，目前有几个问题都是这块的问题</p>\nAven.Bot（bot，我们自己）：@.Ache.l(ou_9c6ebed1f44bd1fa7b59f32236c1932f) ✅ R6 直播预告重复已复测通过：`front/upcoming` 和 `preload/upcoming` 都回 28 条、每个节目只出现一次，`total=28`、`limit=10` 时 `last_page=3`，分页正确。谢谢 Ache。\n> 这也麻烦在测试下\n\n【Broker（前端同事） 正在进行的事（2 小时内，新的在前）】\n- 他 08:55 的消息 id=om_x100b622a28a898a4ed34802d5256323 主题=- 状态=ignored：@Arthur.a 大佬，你看下，为什么开播了groupid会是空的\n- 他 08:00 的消息 id=om_x100b6229d6a43934ed3009a6ff726d1 主题=- 状态=ignored：/api/front/anchorRecordList?uid=510&page=1&channel_code=hc\n\n【话题补充 09:58】现在我这边\nhc 和 falive 是属于一个平台的哈",
+  "summary": "@Arthur.a",
+  "attachments": [
+    {
+      "type": "image",
+      "imageKey": "img_v3_0216h_3e68d2a6-37b2-4375-bcaa-1b5204a6c0hu"
+    }
+  ],
+  "aiExecutor": "claude",
+  "status": "ignored",
+  "intake": {
+    "required": false,
+    "trigger": "task_mention",
+    "mentionedOpenIds": [],
+    "lane": "slow",
+    "notBefore": "2026-10-16T09:59:49.153Z",
+    "receivedAt": "2026-10-16T09:57:57.271Z",
+    "error": null,
+    "resolvedAt": "2026-10-16T10:00:00.804Z",
+    "classification_at_capture": {
+      "decision": "ignore",
+      "confidence": "high",
+      "summary": "Broker 找后端 Arthur.a 报 /api/group/searchById?id=904 返回平台错误。话题里是 Ache 和 Arthur 在排查开播后 groupId 为空、account-sync 请求头缺失的问题，补充消息说 hc 和 falive 属于同一个平台",
+      "reason": "这是前端同事 Broker 直接找后端排查群组接口报错，aven 既没被点名，也没被要求处理；groupId 和群组接口属于后端排查或 Broker / henry 那边的功能，不在 aven 的功能总表里，前端这边也没有要改的",
+      "forMe": false,
+      "items": [],
+      "topic": null,
+      "continues": null,
+      "relatedTaskId": null,
+      "reply": null,
+      "satisfiesWait": null,
+      "waitsFor": null
+    }
+  },
+  "createdAt": "2026-10-16T09:57:57.271Z",
+  "updatedAt": "2026-10-16T10:00:00.804Z",
+  "passiveLedgerOnly": true,
+  "claimedAt": null,
+  "epoch": 0,
+  "ledgerItems": []
+}

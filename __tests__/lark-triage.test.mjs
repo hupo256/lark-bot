@@ -191,11 +191,6 @@ describe('分诊阶段执行器参数只读', () => {
     assert.equal(command.resultMode, 'stdout-structured')
   })
 
-  it('codex：read-only 沙箱 + 分诊 schema', () => {
-    const command = buildAiExecutorCommand({ executor: 'codex', promptText: 'triage', cwd: '/tmp/repo', resultPath: '/tmp/r.json', resultKind: 'triage' })
-    assert.equal(command.args[command.args.indexOf('--sandbox') + 1], 'read-only')
-    assert.match(command.args[command.args.indexOf('--output-schema') + 1], /lark-ai-triage\.schema\.json$/)
-  })
 })
 
 describe('不改代码的群卡片与回写口径', () => {

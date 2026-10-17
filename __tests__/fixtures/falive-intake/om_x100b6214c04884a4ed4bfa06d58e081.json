@@ -1,0 +1,64 @@
+{
+  "id": "om_x100b6214c04884a4ed4bfa06d58e081",
+  "source": "lark",
+  "chatId": "oc_c2a63ac7c217235e14407ed1bba69d06",
+  "messageId": "om_x100b6214c04884a4ed4bfa06d58e081",
+  "threadRootId": null,
+  "operator": "ou_9c6ebed1f44bd1fa7b59f32236c1932f",
+  "project": "FALIVE",
+  "repo": "falive",
+  "commandType": null,
+  "commandTypeSource": null,
+  "projectTitle": "Falive Web",
+  "text": "昵称部份 难国际化 就是主播怎填写 怎显示了\n\n【群里这条之前的消息】\nEric.ea：不是，这是跳转 fameex 功能\nBroker：[Image: img_v3_0216h_a60e5c90-b727-4fb7-8e70-0fd0a06413hu]\nBroker：[Image: img_v3_0216h_21e439a8-3944-4d5d-bf1c-426a33d2bbhu]\nEric.ea：你接上了？我也在加这个\nBroker：这个我已经接完了 @Eric.ea 和直播间的一样的流程\nBroker：我提上去调整一下UI就行\nEric.ea：那你提交吧，我把我这边的功能去掉\nAven.Bot（bot，我们自己）：@HQUCWilliam.m(ou_d24c070cfea7570478d3d61ced55de0c) 收到接口测试请求，我先看一下这个接口的调用情况\nAven.Bot（bot，我们自己）：@HQUCWilliam.m(ou_d24c070cfea7570478d3d61ced55de0c) 这个接口归 fameex 入口 / 行情（Eric、Broker 在接），联调测试请找他们。\nAven.tong：![Image](img_v3_0216h_9efa8763-3b3d-46ab-a699-a037887a19hu)\napi 现在是怎样处理，国际化的？ header 里给 语言 标记 ？ @.Ache.l @HQUCEncone\n\n【Ache（live php 后端） 正在进行的事（2 小时内，新的在前）】\n- 09:52 bot 对他说（done，主题 new#2d9673）：✅ R6 直播预告重复已复测通过：`front/upcoming` 和 `preload/upcoming` 都回 28 条、每个节目只出现一次，`total=28`、`limit=10` 时 `last_page=3`，分页正确。谢谢 A\n- 他 09:52 的消息 id=om_x100b622b726298a8ed35438a34eaf2b 主题=- 状态=ignored：@Broker UID 260 这主播有 groupId了\n- 他 09:40 的消息 id=om_x100b622b428580a4ed64819508daed2 主题=- 状态=ignored：@Arthur.a",
+  "summary": "Ache（live php 后端）答复 Aven.tong 问的「API 现在怎么做国际化、是不是在 header 里带语言标记」：昵称这类字段很难做国际化，主",
+  "attachments": [],
+  "aiExecutor": "claude",
+  "status": "ignored",
+  "intake": {
+    "required": false,
+    "trigger": "task_mention",
+    "mentionedOpenIds": [],
+    "lane": "slow",
+    "notBefore": "2026-10-16T11:23:54.686Z",
+    "receivedAt": "2026-10-16T11:22:54.686Z",
+    "error": null,
+    "resolvedAt": "2026-10-16T11:24:11.693Z",
+    "classification_at_capture": {
+      "decision": "api_reply",
+      "confidence": "medium",
+      "forMe": true,
+      "summary": "Ache（live php 后端）答复 Aven.tong 问的「API 现在怎么做国际化、是不是在 header 里带语言标记」：昵称这类字段很难做国际化，主播填什么就显示什么。header 里的语言标记怎么传，这次没说。",
+      "reason": "这条接着 aven 本人刚才在群里 @Ache / @Encone 的提问，属于后端答复我方对接问题，而国际化在 kernel / 前端基座这边，归 aven，所以 forMe=true。只答了一半，header 语言标记的约定没给，所以置信度 medium。消息没有 @ 机器人，不填 reply。",
+      "topic": "对接-前端同事-国际化-2026-10-16",
+      "continues": null,
+      "relatedTaskId": null,
+      "items": [
+        {
+          "id": "new",
+          "transition": "new",
+          "note": "aven 问 live php API 怎么国际化（header 带语言标记？）；Ache 答：昵称等用户填写的内容没法翻译，原样显示；header 语言标记约定还没答"
+        }
+      ],
+      "satisfiesWait": null,
+      "waitsFor": null,
+      "reply": null
+    }
+  },
+  "createdAt": "2026-10-16T11:22:54.686Z",
+  "updatedAt": "2026-10-16T11:24:11.718Z",
+  "passiveLedgerOnly": true,
+  "claimedAt": null,
+  "epoch": 0,
+  "topic": "new#58e081",
+  "ledgerItems": [
+    {
+      "id": "new#58e081"
+    }
+  ],
+  "suspected": true,
+  "parkedAt": "2026-10-16T11:24:11.693Z",
+  "parkedRemindedRound": 99,
+  "waitRound": 1,
+  "result": "疑似需要处理但没把握（api_reply / medium）：Ache（live php 后端）答复 Aven.tong 问的「API 现在怎么做国际化、是不是在 header 里带语言标记」：昵称这类字段很难做国际化，主播填什么就显示什么。header 里的语言标记怎么传，这次没说。\n理由：这条接着 aven 本人刚才在群里 @Ache / @Encone 的提问，属于后端答复我方对接问题，而国际化在 kernel / 前端基座这边，归 aven，所以 forMe=true。只答了一半，header 语言标记的约定没给，所以置信度 medium。消息没有 @ 机器人，不填 reply。\n（被动模式：只记台账，没 @ 机器人不派工单）"
+}
