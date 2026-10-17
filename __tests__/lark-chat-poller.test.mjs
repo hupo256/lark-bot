@@ -116,6 +116,7 @@ describe('轮询一轮（IO 全注入）', () => {
           sendChatMessage: async (args) => { sent.push(args); return { ok: true } },
           listThreadMessages: async ({ threadId }) => { threadCalls += 1; assert.equal(threadId, 'omt_1'); return { ok: true, messages: threadCalls >= 2 ? lateReplies : [] } },
           isChatMember: async () => botMember,
+          isLidClosed: async () => false,
         },
       })
       assert.deepEqual(poller.targets, [{ chatId: 'oc_falive', repo: 'falive' }])
@@ -220,6 +221,7 @@ describe('老消息上新开的话题（2026-10-15 aven 在 Encone 15 分钟前�
           sendChatMessage: async () => ({ ok: true }),
           listThreadMessages: async () => ({ ok: true, messages: [] }),
           isChatMember: async () => false,
+          isLidClosed: async () => false,
         },
       })
       const target = { chatId: 'oc_falive', profile: registerRepoProfiles({ repos: { falive: { root: '/tmp/falive-react', baseRef: 'main', chatIds: ['oc_falive'], notifyChatId: 'ou_aven' } } }).get('falive') }
@@ -264,6 +266,7 @@ describe('跨系统睡眠的失败不计数（2026-10-16 夜合盖，Power Nap �
           setTimeout: () => ({ unref() {} }),
           lastSystemSleepAt: async () => sleptAt,
           isChatMember: async () => false,
+          isLidClosed: async () => false,
           sendChatMessage: async () => ({ ok: true }),
           listThreadMessages: async () => ({ ok: true, messages: [] }),
           listChatMessages: async () => ({ ok: false, reason: '[lark-cli timeout after 60000ms]', transient: true }),
@@ -283,6 +286,60 @@ describe('跨系统睡眠的失败不计数（2026-10-16 夜合盖，Power Nap �
       sleptAt = null // 取不到入睡时间（非 macOS）：照常计数
       await poller.pollOnce({ chatId: 'oc_falive', profile, since })
       assert.equal(poller.observe().oc_falive.consecutiveFailures, 2)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('合盖暂停、开盖补拉（aven 10-17：合盖 bot 下班，开盖后批量处理合盖期间的 @）', () => {
+  it('合盖不调列消息、游标不动；开盖一轮把游标之后的消息全部喂入', async () => {
+    const profile = registerRepoProfiles({ repos: { falive: { root: '/tmp/falive-react', baseRef: 'main', chatIds: ['oc_falive'], notifyChatId: 'ou_aven' } } }).get('falive')
+    const dir = mkdtempSync(join(tmpdir(), 'lark-poller-lid-'))
+    const statePath = join(dir, 'state.json')
+    let nowMs = Date.parse('2026-10-16T20:21:00+04:00')
+    let lidClosed = false
+    let backlog = []
+    const starts = []
+    const ingested = []
+    try {
+      const poller = startChatPoller({
+        config: {},
+        store: {},
+        statePath,
+        ingest: async ({ raw }) => ingested.push(raw.message_id),
+        deps: {
+          now: () => new Date(nowMs),
+          setTimeout: () => ({ unref() {} }),
+          isLidClosed: async () => lidClosed,
+          isChatMember: async () => false,
+          sendChatMessage: async () => ({ ok: true }),
+          listThreadMessages: async () => ({ ok: true, messages: [] }),
+          listChatMessages: async ({ start }) => {
+            starts.push(start)
+            return { ok: true, messages: backlog, hasMore: false, pageToken: null }
+          },
+        },
+      })
+      await poller.pollOnce({ chatId: 'oc_falive', profile })
+      const cursorBefore = JSON.parse(readFileSync(statePath, 'utf8')).chats.oc_falive.cursorMs
+      lidClosed = true
+      nowMs = Date.parse('2026-10-17T05:28:00+04:00')
+      backlog = [
+        { message_id: 'om_n1', msg_type: 'text', create_time: String(Date.parse('2026-10-16T23:10:00+04:00')), sender: { id: 'ou_e', sender_type: 'user' }, content: '@Aven.Bot 登录页报错' },
+        { message_id: 'om_n2', msg_type: 'text', create_time: String(Date.parse('2026-10-17T02:40:00+04:00')), sender: { id: 'ou_a', sender_type: 'user' }, content: '@Aven.Bot 接口改好了' },
+      ]
+      const callsBefore = starts.length
+      await poller.pollOnce({ chatId: 'oc_falive', profile })
+      assert.equal(starts.length, callsBefore, '合盖不拉')
+      assert.equal(poller.observe().oc_falive.pausedByLid, true)
+      assert.equal(JSON.parse(readFileSync(statePath, 'utf8')).chats.oc_falive.cursorMs, cursorBefore, '游标不动')
+      lidClosed = false
+      nowMs = Date.parse('2026-10-17T06:44:00+04:00')
+      await poller.pollOnce({ chatId: 'oc_falive', profile })
+      assert.equal(Date.parse(starts[callsBefore]), cursorBefore - 120_000, '从合盖前的游标起拉')
+      assert.deepEqual(ingested, ['om_n1', 'om_n2'])
+      assert.equal(poller.observe().oc_falive.pausedByLid, false)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

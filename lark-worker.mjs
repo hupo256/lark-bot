@@ -26,6 +26,7 @@ import { sendBotMarkdown } from './lib/lark-cli.mjs'
 import { larkRuntimeDir } from './lib/lark-repo.mjs'
 import { defaultTaskLeaseMs } from './lib/lark-constants.mjs'
 import { listRepoProfiles, registerRepoProfiles, repoProfileForTask } from './lib/lark-repo-profile.mjs'
+import { isLidClosed } from './lib/lark-keep-awake.mjs'
 
 function printHelp() {
   console.log(`usage: lark-worker.mjs [--once] [--preflight] [--help]
@@ -201,13 +202,19 @@ export async function runLarkWorker({
 
   // 并行调度器：inFlight 以 workContext.cwd 为 key（同一 worktree 只允许一个在飞、天然串行；
   // 不同 worktree 并行）。git worktree add/remove 等走 spawnSync 同步执行，本就互不交错，无需额外锁。
+  let pausedByLid = false
   for (;;) {
     // 本轮跳过集：claim 竞态失败的 id 记下来，避免「可列出却不可领」的任务被反复重挑，
     // 把内层 while 变成不带退避的紧循环、满速打 gateway。每轮重新开始，不会永久屏蔽任务。
     const skipThisRound = new Set()
     // 排空重启每轮先判：排空中不领新任务（在飞的照常跑完）。
     await drain.tick({ inFlight: inFlight.size }).catch((error) => console.error('[lark-worker] 排空重启 tick 异常（忽略）：', error))
-    while (!shuttingDown && !drain.isDraining() && inFlight.size < defaultConcurrency) {
+    // 合盖 = bot 下班（aven 10-17）：不领新任务（在飞的不打断），开盖后积压的统一处理。
+    // Power Nap 半醒只有几十秒，这时开跑的任务会跑到一半又睡过去。
+    const lidClosed = await isLidClosed()
+    if (lidClosed !== pausedByLid) console.log(`[lark-worker] ${lidClosed ? '合盖，暂停领取新任务' : '开盖，恢复领取任务'}`)
+    pausedByLid = lidClosed
+    while (!lidClosed && !shuttingDown && !drain.isDraining() && inFlight.size < defaultConcurrency) {
       const candidates = await client.listClaimable()
       // 挑第一个「目标 cwd 未在飞」的任务；其余留到下一轮（保证同 worktree 串行）
       let picked = null
