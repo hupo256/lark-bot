@@ -10,15 +10,14 @@ const bin = join(dir, 'fake-lark-cli')
 writeFileSync(bin, '#!/bin/sh\nsleep 0.3\necho "{\\"ok\\":true,\\"data\\":{}}"\n')
 chmodSync(bin, 0o755)
 process.env.LARK_CLI_BIN = bin
-process.env.LARK_CLI_CONCURRENCY = '2'
+process.env.LARK_CLI_CONCURRENCY = '1'
 const { larkCliQueueStats, runLarkCli } = await import('../lib/lark-cli.mjs')
 
 describe('lark-cli 子进程限流（第 1 批）', () => {
-  it('同身份最多 2 个并发，其余排队；send 优先于 read', async () => {
+  it('同身份并发受限，其余排队；排队时 send 先于 read（并发 1 使完成顺序可判定，不受调度抖动影响）', async () => {
     try {
       const order = []
       const run = (tag, priority) => runLarkCli(['im', tag], { identity: 'user', priority }).then(() => order.push(tag))
-      // 机器负载高时子进程起得慢：等到状态满足再断言，不用固定毫秒数。
       const until = async (predicate, label) => {
         // 全量跑时几十个测试进程并发，起一个 sh 子进程可能要几百毫秒：最多等 15s。
         for (let i = 0; i < 1500; i += 1) {
@@ -27,13 +26,12 @@ describe('lark-cli 子进程限流（第 1 批）', () => {
         }
         assert.fail(`等不到：${label}（${JSON.stringify(larkCliQueueStats().user)}）`)
       }
-      const first = [run('r1', 'read'), run('r2', 'read')]
-      await until(() => larkCliQueueStats().user.running === 2, '两个在跑')
-      assert.deepEqual(larkCliQueueStats().user, { running: 2, queued: 0 })
-      const rest = [run('r3', 'read'), run('r4', 'read'), run('s1', 'send')]
+      const first = run('r1', 'read')
+      await until(() => larkCliQueueStats().user.running === 1, '一个在跑')
+      const rest = [run('r2', 'read'), run('r3', 'read'), run('s1', 'send')]
       await until(() => larkCliQueueStats().user.queued === 3, '三个排队')
-      await Promise.all([...first, ...rest])
-      assert.equal(order.indexOf('s1') < order.indexOf('r3'), true, '排队的 send 先于排队的 read')
+      await Promise.all([first, ...rest])
+      assert.deepEqual(order, ['r1', 's1', 'r2', 'r3'], '排队的 send 先于排队的 read')
       assert.deepEqual(larkCliQueueStats().user, { running: 0, queued: 0 })
     } finally {
       rmSync(dir, { recursive: true, force: true })
