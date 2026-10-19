@@ -22,6 +22,7 @@ import { startLogRotation } from './lib/lark-log-rotate.mjs'
 import { createRuntimeVersion, versionWarnings, writeWorkerHeartbeat } from './lib/lark-runtime-version.mjs'
 import { createDrainRestart } from './lib/lark-drain-restart.mjs'
 import { createDoctorMonitor } from './lib/lark-doctor.mjs'
+import { createWorktreeReaper } from './lib/lark-worktree-reaper.mjs'
 import { computeCodeHash, readWorkerHeartbeat } from './lib/lark-runtime-version.mjs'
 import { sendBotMarkdown } from './lib/lark-cli.mjs'
 import { larkRuntimeDir } from './lib/lark-repo.mjs'
@@ -185,6 +186,16 @@ export async function runLarkWorker({
     lastVersionWarning = warningText
   }, 60_000)
   heartbeatTimer.unref?.()
+
+  // 分支回收：已合入的任务分支 + 临时 worktree 每小时清一次，启动 5 分钟后先跑一次（lib/lark-worktree-reaper.mjs）。
+  // 关闭：配置 selfHeal.reaper=false 或环境 LARK_REAPER=0。
+  const reaperEnabled = selfHeal.reaper !== false && process.env.LARK_REAPER !== '0'
+  const reapTick = createWorktreeReaper({ profiles: listRepoProfiles(), listTasks: () => client.listTasks(), busyPaths: () => [...inFlight.keys()] })
+  const reaperTimers = reaperEnabled
+    ? [setTimeout(reapTick, Number(process.env.LARK_REAPER_FIRST_MS || 5 * 60_000)), setInterval(reapTick, Number(process.env.LARK_REAPER_EVERY_MS || 60 * 60_000))]
+    : []
+  for (const timer of reaperTimers) timer.unref?.()
+  console.log(`[lark-worker] 分支回收：${reaperEnabled ? '开（每小时，已合入的任务分支 + 临时 worktree）' : '关'}`)
   const gracefulShutdown = async (signal) => {
     if (shuttingDown) return
     shuttingDown = true

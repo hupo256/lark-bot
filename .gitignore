@@ -12,6 +12,7 @@ runtime/lark-bugtable-state.json
 runtime/lark-worker-state.json
 runtime/lark-daily-report/
 runtime/lark-daily-sweep/
+runtime/reaped/
 runtime/lark-chat-poller-state.json
 runtime/lark-doctor-state.json
 runtime/lark-followup-docs/
