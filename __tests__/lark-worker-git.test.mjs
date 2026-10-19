@@ -65,6 +65,23 @@ beforeEach(() => {
   prepareTempWorktree({ path: wtPath(), branch: BRANCH })
 })
 
+describe('挂起现场跟进新基线（教训 #40）', () => {
+  it('现场有 intent-to-add 新文件与已改文件时，基线前移后能跟上，改动原样保留', () => {
+    writeFileSync(join(wtPath(), 'base.txt'), 'base\nedited\n')
+    writeFileSync(join(wtPath(), 'new-file.md'), 'draft\n')
+    run(wtPath(), ['add', '-N', 'new-file.md'])
+    writeFileSync(join(repo, 'other.txt'), 'moved\n')
+    run(repo, ['add', 'other.txt'])
+    run(repo, ['commit', '-m', 'base moves'])
+    run(repo, ['push', 'origin', 'online'])
+    prepareTempWorktree({ path: wtPath(), branch: BRANCH })
+    assert.equal(readFileSync(join(wtPath(), 'other.txt'), 'utf8'), 'moved\n', '已跟上新基线')
+    assert.equal(readFileSync(join(wtPath(), 'new-file.md'), 'utf8'), 'draft\n', '新文件还在')
+    assert.equal(readFileSync(join(wtPath(), 'base.txt'), 'utf8'), 'base\nedited\n', '已改文件还在')
+    assert.equal(run(wtPath(), ['stash', 'list']), '', '不留 stash')
+  })
+})
+
 describe('inspectWorktreeIdentity（提交链身份锁）', () => {
   it('root / branch / HEAD 全部一致时通过', () => {
     const headSha = run(wtPath(), ['rev-parse', 'HEAD'])
