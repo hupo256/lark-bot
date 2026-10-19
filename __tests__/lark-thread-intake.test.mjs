@@ -208,3 +208,20 @@ describe('分类去抖分道（阶段 2）', () => {
     assert.equal(ackedRecently({ store, chatId: 'oc_x', operator: 'ou_arthur', now: now + 150_000 }), false)
   }))
 })
+
+describe('提问带对接文档附件（教训 #38）', () => {
+  it('分类为 question 时走只读作答（status），不因话题里带文档被当成 api 改代码工单', () => withStore((store) => {
+    received(store, { id: 'omt_q_doc', threadRootId: 'omt_q_doc', attachments: [{ type: 'file', fileName: 'aven-后端待办-自测新增-2026-10-19.md' }] })
+    store.claimById('omt_q_doc')
+    const out = store.resolveIntake({ id: 'omt_q_doc', epoch: 0, classification: { decision: 'question', confidence: 'high', forMe: true, summary: 's', reason: 'r' } })
+    assert.equal(out.actionable, true)
+    assert.equal(out.task.commandType, 'status')
+  }))
+
+  it('对接答复带文档附件仍按 api 跑', () => withStore((store) => {
+    received(store, { id: 'omt_api_doc', threadRootId: 'omt_api_doc', attachments: [{ type: 'file', fileName: '回复.md' }] })
+    store.claimById('omt_api_doc')
+    const out = store.resolveIntake({ id: 'omt_api_doc', epoch: 0, classification: { decision: 'api_reply', confidence: 'high', forMe: true, summary: 's', reason: 'r' } })
+    assert.equal(out.task.commandType, 'api')
+  }))
+})
