@@ -36,13 +36,33 @@ describe('系统任务：日报由 worker 生成，gateway 记账（第 1 批）
     const calls = []
     const reportStatus = async (...args) => { calls.push(args) }
     const client = { listTasks: async () => [{ id: 's1', status: 'waiting_confirmation', suspected: true }] }
-    await runSystemTask({ task, client, workerConfig: { localConfig: {} }, reportStatus, deps: { runDailyReport: async ({ store, now }) => { assert.equal(store.listSuspected().length, 1); assert.equal(now.toISOString(), '2026-10-15T15:00:00.000Z'); return { ok: true, to: 'oc_falive', date: '2026-10-15', doc: { path: '/tmp/doc.md', url: 'https://doc' } } } } })
+    await runSystemTask({ task, client, workerConfig: { localConfig: {} }, reportStatus, deps: { runtimeDir: dir, runDailyReport: async ({ store, now }) => { assert.equal(store.listSuspected().length, 1); assert.equal(now.toISOString(), '2026-10-15T15:00:00.000Z'); return { ok: true, to: 'oc_falive', date: '2026-10-15', doc: { path: '/tmp/doc.md', url: 'https://doc' } } } } })
     assert.equal(calls[0][0], 'done')
     assert.deepEqual(calls[0][5].payload.doc, { path: '/tmp/doc.md', url: 'https://doc' })
+    assert.equal(readDailyReportState(dir).falive, '2026-10-15', '发出去就先记已发，不等 gateway 回写')
     calls.length = 0
-    await runSystemTask({ task, client, workerConfig: { localConfig: {} }, reportStatus, deps: { runDailyReport: async () => { throw new Error('probe down') } } })
+    const retry = buildDailyReportTask({ profile, date: '2026-10-16', reportNow: new Date('2026-10-16T19:00:00') })
+    await runSystemTask({ task: retry, client, workerConfig: { localConfig: {} }, reportStatus, deps: { runtimeDir: dir, runDailyReport: async () => { throw new Error('probe down') } } })
     assert.equal(calls[0][0], 'failed')
     assert.match(calls[0][1], /probe down/)
+  })
+
+  it('worker：该日报日已发过 → 不再生成（回写失败被重试时不重发，10-19 发了两份）；群里「重发日报」照发', async () => {
+    const sent = buildDailyReportTask({ profile, date: '2026-10-15', reportNow: new Date('2026-10-15T19:00:00') })
+    const calls = []
+    let generated = 0
+    const deps = { runtimeDir: dir, runDailyReport: async () => { generated += 1; return { ok: true, to: 'oc_falive', date: '2026-10-15' } } }
+    const client = { listTasks: async () => [] }
+    await runSystemTask({ task: sent, client, workerConfig: { localConfig: {} }, reportStatus: async (...args) => { calls.push(args) }, deps })
+    assert.equal(generated, 1)
+    const again = buildDailyReportTask({ profile, date: '2026-10-15', reportNow: new Date('2026-10-15T19:00:00'), attempt: 2 })
+    const outcome = await runSystemTask({ task: again, client, workerConfig: { localConfig: {} }, reportStatus: async (...args) => { calls.push(args) }, deps })
+    assert.equal(generated, 1, '已发过不再生成')
+    assert.equal(outcome.skipped, 'already sent')
+    assert.equal(calls.at(-1)[0], 'done')
+    const forced = buildDailyReportTask({ profile, date: '2026-10-15', reportNow: new Date('2026-10-15T19:00:00'), attempt: 3, force: true })
+    await runSystemTask({ task: forced, client, workerConfig: { localConfig: {} }, reportStatus: async (...args) => { calls.push(args) }, deps })
+    assert.equal(generated, 2, 'force 照发')
   })
 
   it('gateway：done 时写发送状态并排清扫，不发卡不回群；failed 且群里要的 → 私信负责人', async () => {
