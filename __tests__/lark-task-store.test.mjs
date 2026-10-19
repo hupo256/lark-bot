@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, it } from 'node:test'
 
+import { isTransientIntakeError } from '../lib/lark-intake-retry.mjs'
 import { createTaskStore, isReopenableClosedTask } from '../lib/lark-task-store.mjs'
 
 describe('createTaskStore', () => {
@@ -118,9 +119,33 @@ describe('createTaskStore', () => {
     assert.equal(lowOutcome.task.status, 'ignored')
 
     const failed = seedAndClaim('failed')
-    const failedOutcome = store.resolveIntake({ id: failed.id, epoch: failed.epoch, error: 'classifier timeout' })
+    const failedOutcome = store.resolveIntake({ id: failed.id, epoch: failed.epoch, error: 'Claude 未返回合法结构化结果' })
     assert.equal(failedOutcome.task.status, 'intake_failed')
-    assert.equal(failedOutcome.task.intake.error, 'classifier timeout')
+    assert.equal(failedOutcome.task.intake.error, 'Claude 未返回合法结构化结果')
+  })
+
+  it('分类瞬时失败（超时）自动延后重分类 2 次，用完才落 intake_failed（10-19 三条 120s 超时）', () => {
+    const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+    store.upsert({ id: 'slow', status: 'received', intake: { required: true }, createdAt: new Date().toISOString() })
+    const timeout = 'claude exec timed out after 120000ms'
+    for (const attempt of [1, 2]) {
+      const claimed = store.claimById('slow')
+      assert.ok(claimed, `第 ${attempt} 次可领取`)
+      const outcome = store.resolveIntake({ id: 'slow', epoch: claimed.epoch, error: timeout })
+      assert.equal(outcome.retried, true)
+      assert.equal(outcome.task.status, 'received')
+      assert.equal(outcome.task.intake.required, true)
+      assert.equal(outcome.task.intake.retries, attempt)
+      assert.equal(store.claimById('slow'), null, 'notBefore 未到不能领')
+      assert.equal(store.claimNext(), null, 'claimNext 也守 notBefore')
+      store.upsert({ ...store.get('slow'), intake: { ...store.get('slow').intake, notBefore: new Date(Date.now() - 1).toISOString() } })
+    }
+    const last = store.claimById('slow')
+    const final = store.resolveIntake({ id: 'slow', epoch: last.epoch, error: timeout })
+    assert.equal(final.retried, undefined)
+    assert.equal(final.task.status, 'intake_failed')
+    assert.equal(isTransientIntakeError('Claude 未返回合法结构化结果'), false)
+    assert.equal(isTransientIntakeError('HTTP 529 overloaded'), true)
   })
 
   it('前置分类拒绝 stale epoch 与非等待分类任务', () => {
