@@ -19,6 +19,7 @@ import {
   finalizeTempWorktree,
   inspectWorktreeIdentity,
   prepareTempWorktree,
+  removeTempWorktreeIfClean,
   setRepoRoot,
 } from '../lib/lark-worker-git.mjs'
 
@@ -79,6 +80,18 @@ describe('挂起现场跟进新基线（教训 #40）', () => {
     assert.equal(readFileSync(join(wtPath(), 'new-file.md'), 'utf8'), 'draft\n', '新文件还在')
     assert.equal(readFileSync(join(wtPath(), 'base.txt'), 'utf8'), 'base\nedited\n', '已改文件还在')
     assert.equal(run(wtPath(), ['stash', 'list']), '', '不留 stash')
+  })
+})
+
+describe('定向提交后回收干净的临时 worktree（教训 #45）', () => {
+  it('工作区干净 → 删掉 worktree，分支随后可删；有未提交改动 → 保留', () => {
+    writeFileSync(join(wtPath(), 'wip.txt'), 'wip\n')
+    assert.equal(removeTempWorktreeIfClean({ path: wtPath(), repoRoot: repo }), false)
+    assert.equal(existsSync(join(wtPath(), 'wip.txt')), true, '有未提交改动不删')
+    rmSync(join(wtPath(), 'wip.txt'))
+    assert.equal(removeTempWorktreeIfClean({ path: wtPath(), repoRoot: repo }), true)
+    assert.equal(existsSync(wtPath()), false)
+    run(repo, ['branch', '-D', BRANCH])
   })
 })
 
