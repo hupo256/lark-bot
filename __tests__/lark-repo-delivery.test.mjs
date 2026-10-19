@@ -17,6 +17,8 @@ import {
   mentionsMe,
   humanizeResult,
   isHumanDeliveryTask,
+  addressTo as addressToForAddressee,
+  groupAddressee,
 } from '../lib/lark-repo-delivery.mjs'
 import { findCompletionContradiction, findCountMismatch, findGroupReplyContradiction } from '../lib/lark-completion-rule.mjs'
 import { parkedReminderRound, remindParkedTasks } from '../lib/lark-parked-reminder.mjs'
@@ -305,5 +307,22 @@ describe('出口闸拦下 = 没发（第 0 批）', () => {
       else process.env.LARK_OUTBOX_DIR = prev
       rmSync(dir, { recursive: true, force: true })
     }
+  })
+})
+
+describe('回群对着谁说（教训 #41）', () => {
+  const profile = { ownership: { meOpenIds: ['ou_aven'] } }
+  const relay = { operator: 'ou_aven', fromPrincipal: true, intake: { classification: { decision: 'api_reply' } }, threadSpeakers: ['ou_aven', 'ou_ache', 'ou_aven'] }
+
+  it('负责人转交对接答复：@ 话题里最后发言的非负责人（答复人），不是负责人自己', () => {
+    assert.equal(groupAddressee({ task: relay, profile }), 'ou_ache')
+    assert.match(addressToForAddressee({ task: relay, body: 'x', openId: groupAddressee({ task: relay, profile }) }), /^<at id=ou_ache><\/at> x/)
+  })
+
+  it('不是负责人转交、不是对接答复、话题里没有别人时，照旧 @ 发消息的人', () => {
+    assert.equal(groupAddressee({ task: { ...relay, fromPrincipal: false, operator: 'ou_ache' }, profile }), 'ou_ache')
+    assert.equal(groupAddressee({ task: { ...relay, intake: { classification: { decision: 'question' } } }, profile }), 'ou_aven')
+    assert.equal(groupAddressee({ task: { ...relay, threadSpeakers: ['ou_aven'] }, profile }), 'ou_aven')
+    assert.equal(groupAddressee({ task: { ...relay, threadSpeakers: undefined }, profile }), 'ou_aven')
   })
 })
