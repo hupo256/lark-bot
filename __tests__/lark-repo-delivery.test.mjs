@@ -109,6 +109,28 @@ describe('仓库任务的人话出口', () => {
     assert.equal(isHumanDeliveryTask({ id: 'x', chatId: 'oc_pr', project: 'PR-00001' }), false)
   })
 
+  it('groupSilent：对接文档归我、只等后端答复 → 群里不发「已存进仓库」，只私聊（10-19 教训 #36）', async () => {
+    register()
+    const sent = []
+    const hooks = []
+    const deps = {
+      sendMarkdown: async (args) => { sent.push(args); return { ok: true, messageId: 'om_note' } },
+      sendWebhookMessage: async (args) => { hooks.push(args); return { ok: true } },
+      materializeDoc: () => null,
+      createLarkDoc: async () => ({ ok: true, url: 'https://doc/4' }),
+      webhookFor: () => ({ url: 'https://hook', secret: 's' }),
+    }
+    // groupReply 为空时出口会回落到 summary，所以只置空挡不住，必须靠 payload.groupSilent。
+    const task = { id: 't-silent', chatId: 'oc_falive', repo: 'falive', summary: 'Encone 请 Arthur 看 go 服务的几项', groupReply: null, payload: { groupSilent: true } }
+    const out = await deliverRepoOutcome({ task, status: 'done', result: '已完成，待发布。\n1. 文档已存进仓库。', deps })
+    assert.equal(hooks.length, 0, '群里一条都不发')
+    assert.equal(out.groupOutcome, null)
+    assert.equal(sent.length, 1)
+    assert.doesNotMatch(sent[0].markdown, /群里已回|群里没发/)
+    await deliverRepoOutcome({ task: { ...task, payload: null }, status: 'done', result: 'x', deps })
+    assert.equal(hooks.length, 1, '对照：没 groupSilent 时空 groupReply 会回落成 summary 发群')
+  })
+
   it('仓库任务不催办；默认仓照旧', async () => {
     register()
     const now = Date.now()
