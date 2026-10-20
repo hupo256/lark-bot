@@ -182,6 +182,10 @@ describe('「完成」口径的机械检查', () => {
     assert.equal(findCompletionContradiction('都通了，getRoomInfo 没报 500，也不卡在登录'), null)
     assert.ok(findCompletionContradiction('都通了，第 2 页不再报错，但第 3 页没有数据'))
     assert.ok(findCompletionContradiction('都通了，第 2 页还是报错'))
+    // #58 重跑：分页到底的「为空」是正常现象；没说明理由的「为空」照样算问题。
+    assert.equal(findCompletionContradiction('/lives 滚到底续拉：都通了\n- ✅ 通了 front/lives 分页接口：第 1、2 页 code 0 有数据，第 3 页为空说明到底了'), null)
+    assert.equal(findCompletionContradiction('都通了，第 3 页为空，是正常的'), null)
+    assert.ok(findCompletionContradiction('都通了，举报分类为空'))
     register()
     const hooks = []
     const out = await deliverRepoOutcome({
