@@ -232,7 +232,9 @@ describe('完整版：状态以 pre 代码为准 + 台账', () => {
       assert.match(doc, /^## 三、需要再跟进的工作（剩 1 行，今日删 1 行）$/m)
       // 短版：数字行来自脚本，和完整版一致；短版提示里带完整版正文
       const short = sent.find((item) => /^# Falive Web 日报/.test(item.markdown)).markdown
-      assert.match(short, /总体进度 \*\*66\.7%\*\*，已接通 \*\*2 \/ 3\*\*。其中 1 项在 pre 上还看不到效果：#2 没数据。/)
+      // aven 10-20：群简报只留进度和今日增量，不列「pre 上还看不到效果」
+      assert.match(short, /总体进度 \*\*66\.7%\*\*，已接通 \*\*2 \/ 3\*\*。\n/)
+      assert.doesNotMatch(short, /看不到效果/)
       assert.match(short, /完整版（云文档）：https:\/\/doc\/x/)
       assert.match(prompts[1], /\| 1 \| 用户资料 \| henry \| ✅ \|/)
       // 高亮框数字按脚本算的回写（aven 10-16），不再只私信说对不上

@@ -23,6 +23,7 @@ import {
   renderCounts,
   shortReason,
   splitStatusBlock,
+  stripWalkthrough,
   tableMismatches,
   validateStatusData,
 } from '../lib/lark-daily-ledger.mjs'
@@ -241,5 +242,29 @@ describe('负责人拍板关闭', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
+  })
+})
+
+describe('走查不进日报（aven 2026-10-20）', () => {
+  it('走查事项整行删；其余行只删提到走查的分句，高亮框标签保持完整', () => {
+    const doc = [
+      '<p><b>henry：</b>负责 10 项，10 项 ✅。其中 2 项 pre 上还看不到效果：#32 测试房间 260 没在推流。#23 #25 pre 还没走查。</p>',
+      '<p><b>aven：</b>负责 5 项；设计走查：搜索页还没做。</p>',
+      '| 设计走查：搜索页、录播播放页、H5 底部导航 |  | 设计 / **aven** 改 |',
+      '| 30 | 录播 tab | aven | ✅ | 已改接；播放页待设计走查 | live |',
+      '- **henry**：补齐了 X；还没走查',
+      '- **产品**：安排设计走查',
+      '**不缺接口的未完成功能**：#23（只差回归 / 走查）',
+      '普通行',
+    ].join('\n')
+    assert.equal(stripWalkthrough(doc), [
+      '<p><b>henry：</b>负责 10 项，10 项 ✅。其中 2 项 pre 上还看不到效果：#32 测试房间 260 没在推流。</p>',
+      '<p><b>aven：</b>负责 5 项。</p>',
+      '| 30 | 录播 tab | aven | ✅ | 已改接 | live |',
+      '- **henry**：补齐了 X。',
+      '**不缺接口的未完成功能**：#23（只差回归）',
+      '普通行',
+    ].join('\n'))
+    assert.equal(stripWalkthrough('没有相关内容\n| a | b |'), '没有相关内容\n| a | b |')
   })
 })
