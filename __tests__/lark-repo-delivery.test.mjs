@@ -63,6 +63,8 @@ describe('仓库任务的人话出口', () => {
     assert.equal(card.elements[0].content, '<at id=ou_ache></at> A2 已接完。\n待确认的几点在这里：https://doc/1\n- Ache：A9；A10')
     assert.deepEqual(card.elements[1], { tag: 'note', elements: [{ tag: 'plain_text', content: '由 aven 的助手整理' }] }, '署名是灰色 note')
     assert.equal(buildRepoGroupText({ task: { commandType: 'status', groupReply: '前端只用了 info.start_the_transaction' } }), '前端只用了 info.start_the_transaction')
+    assert.equal(buildRepoGroupText({ task: { summary: 'Ache：直播预告重复了' } }), '', 'groupReply 空不回落 summary（对方原话）')
+    assert.equal(buildRepoGroupText({ task: { summary: 'Ache：直播预告重复了' }, mentions }), '')
   })
 
   it('同一个人不连着 @ 两次：行首发消息人 + 待跟进负责人是同一人时只留一个（10-15「@Ache @Ache」）', async () => {
@@ -123,15 +125,15 @@ describe('仓库任务的人话出口', () => {
       createLarkDoc: async () => ({ ok: true, url: 'https://doc/4' }),
       webhookFor: () => ({ url: 'https://hook', secret: 's' }),
     }
-    // groupReply 为空时出口会回落到 summary，所以只置空挡不住，必须靠 payload.groupSilent。
     const task = { id: 't-silent', chatId: 'oc_falive', repo: 'falive', summary: 'Encone 请 Arthur 看 go 服务的几项', groupReply: null, payload: { groupSilent: true } }
     const out = await deliverRepoOutcome({ task, status: 'done', result: '已完成，待发布。\n1. 文档已存进仓库。', deps })
     assert.equal(hooks.length, 0, '群里一条都不发')
     assert.equal(out.groupOutcome, null)
     assert.equal(sent.length, 1)
     assert.doesNotMatch(sent[0].markdown, /群里已回|群里没发/)
-    await deliverRepoOutcome({ task: { ...task, payload: null }, status: 'done', result: 'x', deps })
-    assert.equal(hooks.length, 1, '对照：没 groupSilent 时空 groupReply 会回落成 summary 发群')
+    const noReply = await deliverRepoOutcome({ task: { ...task, payload: null }, status: 'done', result: 'x', deps })
+    assert.equal(hooks.length, 0, '没 groupSilent 时空 groupReply 也不发群，不回落 summary（aven 2026-10-20 review C2）')
+    assert.match(noReply.note, /这条没写群回复，群里没发。/)
   })
 
   it('仓库任务不催办；默认仓照旧', async () => {
@@ -363,5 +365,125 @@ describe('回群对着谁说（教训 #41）', () => {
     assert.equal(groupAddressee({ task: { ...relay, intake: { classification: { decision: 'question' } } }, profile }), 'ou_aven')
     assert.equal(groupAddressee({ task: { ...relay, threadSpeakers: ['ou_aven'] }, profile }), 'ou_aven')
     assert.equal(groupAddressee({ task: { ...relay, threadSpeakers: undefined }, profile }), 'ou_aven')
+  })
+})
+
+describe('群文本不回落原话 / 兜底统一出口 / 没 notifyChatId 不发（aven 2026-10-20 review）', () => {
+  afterEach(() => resetRepoProfiles())
+  const mkDeps = (hooks, sent, extra = {}) => ({
+    sendMarkdown: async (a) => { sent.push(a); return { ok: true, messageId: 'om_note' } },
+    sendWebhookMessage: async (a) => { hooks.push(a); return { ok: true } },
+    webhookFor: () => ({ url: 'u' }),
+    materializeDoc: () => null,
+    ...extra,
+  })
+  const withOutbox = async (fn) => {
+    const { mkdtempSync, rmSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    const dir = mkdtempSync(join(tmpdir(), 'lark-outbox-fallback-'))
+    const prev = process.env.LARK_OUTBOX_DIR
+    process.env.LARK_OUTBOX_DIR = dir
+    try { return await fn() } finally {
+      if (prev == null) delete process.env.LARK_OUTBOX_DIR
+      else process.env.LARK_OUTBOX_DIR = prev
+      rmSync(dir, { recursive: true, force: true })
+    }
+  }
+
+  it('C1：私聊指示任务阻塞要材料，群里引的是被锚的群消息，不是 aven 私聊原话', async () => {
+    register()
+    const hooks = []
+    const sent = []
+    const task = { id: 'om_p2p', chatId: 'oc_falive', repo: 'falive', operator: 'ou_ache', owner: 'Ache', fromPrincipal: true, summary: 'aven 私聊指示：这个先别理 Ache，内部还没定', text: '【aven 私聊指示】这个先别理 Ache，内部还没定', privateOrigin: { anchorHead: '@Aven.Bot 录播详情接一下' } }
+    await deliverRepoOutcome({ task, status: 'blocked', result: '已阻塞，需外部材料 / 权限后才能继续。\n1. 没有详情接口。\n2. 待补充：R2 单条详情接口', deps: mkDeps(hooks, sent) })
+    assert.equal(hooks.length, 1)
+    const content = hooks[0].card.elements[0].content
+    assert.match(content, /「@Aven\.Bot 录播详情接一下」这边卡住了/)
+    assert.doesNotMatch(content, /私聊|先别理|内部还没定/)
+    assert.equal(buildRepoBlockedGroupText({ task, blockers: ['x'] }).includes('私聊'), false)
+    // done 没写群回复：群里什么都不发（原来回落 summary = 私聊原话进群）
+    hooks.length = 0
+    const done = await deliverRepoOutcome({ task: { ...task, groupReply: null }, status: 'done', result: 'x', deps: mkDeps(hooks, sent) })
+    assert.equal(hooks.length, 0)
+    assert.match(done.note, /这条没写群回复，群里没发。/)
+  })
+
+  it('C2：done 没写群回复 + 群里回过收到 → 只补兜底句，不发「✅ + 对方原话」', async () => {
+    register()
+    const hooks = []
+    const sent = []
+    const out = await deliverRepoOutcome({ task: { id: 'c2', chatId: 'oc_falive', repo: 'falive', operator: 'ou_ache', ackedInGroup: true, summary: 'Ache：直播预告重复了', groupReply: '' }, status: 'done', result: '已完成，待发布。\n1. 去重修好了。', deps: mkDeps(hooks, sent) })
+    assert.equal(hooks.length, 1)
+    assert.equal(hooks[0].card.elements[0].content, `<at id=ou_ache></at> ${FALLBACK_TEXT}`)
+    assert.doesNotMatch(hooks[0].card.elements[0].content, /直播预告重复了|✅/)
+    assert.match(out.note, /这条没写群回复，群里没发。\n群里回过「收到」，已补一句/)
+  })
+
+  it('C6：done 被出口闸拦下 / 发送失败 / 失败终态，回过收到就统一补兜底；同一任务已发过 done 或兜底不再补', async () => withOutbox(async () => {
+    register()
+    const hooks = []
+    const sent = []
+    const deps = mkDeps(hooks, sent)
+    const base = { chatId: 'oc_falive', repo: 'falive', operator: 'ou_ache', ackedInGroup: true, addressedToBot: true, topic: 't-1', groupReply: '修好了，pre 可以复测' }
+    await deliverRepoOutcome({ task: { ...base, id: 'g1' }, status: 'done', result: 'x', deps })
+    assert.equal(hooks.length, 1, '第一条正常发 done')
+    const gated = await deliverRepoOutcome({ task: { ...base, id: 'g2' }, status: 'done', result: 'x', deps })
+    assert.equal(gated.groupOutcome.gated, true, '同内容被闸拦下')
+    assert.equal(hooks.length, 2)
+    assert.match(hooks[1].logPrefix, /^repo fallback g2/)
+    assert.match(gated.note, /已补一句/)
+    await deliverRepoOutcome({ task: { ...base, id: 'g1' }, status: 'done', result: 'x', deps })
+    assert.equal(hooks.length, 2, 'g1 群里已发过 done：重投递被拦也不补兜底')
+    await deliverRepoOutcome({ task: { ...base, id: 'g3', operator: 'ou_william', topic: 't-3' }, status: 'failed', result: '处理失败。', deps })
+    assert.match(hooks[2].logPrefix, /^repo fallback g3/, '失败终态：群里回过收到也补')
+    await deliverRepoOutcome({ task: { ...base, id: 'g3', operator: 'ou_william', topic: 't-3' }, status: 'failed', result: '处理失败。', deps })
+    assert.equal(hooks.length, 3, '同一任务兜底只补一次')
+    const failing = mkDeps([], sent, { sendWebhookMessage: async (a) => (a.logPrefix.startsWith('repo fallback') ? (hooks.push(a), { ok: true }) : { ok: false, reason: 'HTTP 500' }) })
+    await deliverRepoOutcome({ task: { ...base, id: 'g4', operator: 'ou_eric', topic: 't-4', groupReply: '另一句' }, status: 'done', result: 'x', deps: failing })
+    assert.match(hooks[3].logPrefix, /^repo fallback g4/, 'done 发送失败也补')
+    const silent = hooks.length
+    await deliverRepoOutcome({ task: { ...base, id: 'g5', topic: 't-5', groupReply: null, payload: { groupSilent: true } }, status: 'done', result: 'x', deps })
+    await deliverRepoOutcome({ task: { ...base, id: 'g6', topic: 't-6', ackedInGroup: false, groupReply: null }, status: 'done', result: 'x', deps })
+    assert.equal(hooks.length, silent, 'groupSilent / 没回过收到：不补')
+  }))
+
+  it('没配 notifyChatId：结果私聊不发，不回落外部群', async () => {
+    registerRepoProfiles({ repos: { falive: { root: '/tmp/f', baseRef: 'main', chatIds: ['oc_falive'], ownerMap: {} } } })
+    const hooks = []
+    const sent = []
+    const out = await deliverRepoOutcome({ task: { id: 'n1', chatId: 'oc_falive', repo: 'falive', groupReply: '好了' }, status: 'done', result: 'x', deps: mkDeps(hooks, sent) })
+    assert.equal(sent.length, 0)
+    assert.equal(out.ok, false)
+    assert.equal(out.to, null)
+    assert.equal(hooks.length, 1, '群里那句照发')
+  })
+
+  it('「收到」点明接的哪条：时刻按本地时区', async () => {
+    const prev = process.env.TZ
+    process.env.TZ = 'Asia/Shanghai'
+    try {
+      register()
+      const hooks = []
+      await deliverRepoAck({ task: { id: 'a1', chatId: 'oc_falive', repo: 'falive', anchor: { at: '2026-10-15T09:48:30Z' } }, deps: mkDeps(hooks, []) })
+      assert.equal(hooks[0].card.elements[0].content, '收到，我查一下，稍后回复（接着 17:48 那条）。')
+    } finally {
+      if (prev == null) delete process.env.TZ
+      else process.env.TZ = prev
+    }
+  })
+
+  it('待确认清单登记表：node --test 下没注入目录不落盘（不写真实 runtime）；注入 / 环境变量优先', async () => {
+    const { resolveDocRegistryDir } = await import('../lib/lark-repo-delivery.mjs')
+    assert.equal(resolveDocRegistryDir({}), null)
+    assert.equal(resolveDocRegistryDir({ docRegistryDir: '/tmp/a' }), '/tmp/a')
+    const prev = process.env.LARK_FOLLOWUP_DOCS_DIR
+    process.env.LARK_FOLLOWUP_DOCS_DIR = '/tmp/b'
+    try {
+      assert.equal(resolveDocRegistryDir({}), '/tmp/b')
+    } finally {
+      if (prev == null) delete process.env.LARK_FOLLOWUP_DOCS_DIR
+      else process.env.LARK_FOLLOWUP_DOCS_DIR = prev
+    }
   })
 })
