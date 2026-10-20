@@ -860,6 +860,37 @@ describe('结果文件自纠偏（lessons #31）', () => {
     assert.equal(calls.length, 2)
   })
 
+  it('续会话失败回退新会话后，补写结果文件续的是新会话而不是失败的旧会话（aven 2026-10-20 review #12）', async () => {
+    const calls = []
+    const spawnImpl = (cmd, args) => {
+      const child = new EventEmitter()
+      child.stdout = new PassThrough()
+      child.stderr = new PassThrough()
+      child.stdin = new PassThrough()
+      child.kill = () => {}
+      calls.push({ cmd, args })
+      const resumeAt = args.indexOf('--resume')
+      const resumed = resumeAt >= 0 ? args[resumeAt + 1] : null
+      const resultPath = args.join(' ').match(/(\/\S+result\.json)/)?.[1]
+      setImmediate(() => {
+        const session = calls.length === 1 ? 'sess-dead' : calls.length === 2 ? 'sess-new' : resumed
+        child.stdout.write(`{"type":"system","subtype":"init","session_id":"${session}","tools":[]}\n`)
+        if (calls.length === 3 && resultPath) writeFileSync(resultPath, JSON.stringify({ status: 'done', summary: '补写', checks: [], changedFiles: [], warnings: [] }))
+        child.stdout.end()
+        child.stderr.end()
+        setImmediate(() => child.emit('exit', calls.length === 1 ? 1 : 0))
+      })
+      return child
+    }
+    const out = await execAiExecutor({ executor: 'claude', promptText: '增量', fallbackPromptText: '完整', resumeSessionId: 'sess-old', cwd: tmpdir(), localConfig: {}, spawnImpl })
+    assert.equal(calls.length, 3)
+    assert.equal(calls[0].args[calls[0].args.indexOf('--resume') + 1], 'sess-old')
+    assert.equal(calls[1].args.includes('--resume'), false)
+    assert.equal(calls[2].args[calls[2].args.indexOf('--resume') + 1], 'sess-new')
+    assert.equal(out.resumeFallback, true)
+    assert.equal(out.sessionId, 'sess-new')
+  })
+
   it('只读分类（stdout 结构化）不走补写：没有 resultPath 可补', async () => {
     const calls = []
     const spawnImpl = (cmd, args) => {
