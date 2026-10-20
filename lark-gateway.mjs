@@ -27,6 +27,7 @@ import { sendChatMessage } from './lib/lark-cli.mjs'
 import { createTaskStore } from './lib/lark-task-store.mjs'
 import { startConsumer } from './lib/lark-consumer.mjs'
 import { ingestLarkEvent } from './lib/lark-ingest.mjs'
+import { isBugtableTombstone } from './lib/lark-bugtable-parse.mjs'
 import { retryPendingWriteback } from './lib/lark-bugtable-writeback.mjs'
 import { retryPendingReceipts } from './lib/lark-status.mjs'
 import { remindParkedTasks } from './lib/lark-parked-reminder.mjs'
@@ -116,6 +117,7 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
     const removed = store.pruneTerminal({
       olderThanMs: pruneDoneAfterMs,
       statuses: ['done', 'done_with_warnings', 'no_change_needed', 'ignored', 'intake_failed', 'superseded'],
+      keep: isBugtableTombstone, // 表格仍是待处理的终局 bug 任务留着，否则 poller 当新 bug 重跑
     })
     if (removed.length) console.log(`[lark-gateway] 清理陈旧终态任务 ${removed.length} 条`)
   }, 60 * 60 * 1000)
