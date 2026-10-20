@@ -454,6 +454,16 @@ describe('群文本不回落原话 / 兜底统一出口 / 没 notifyChatId 不�
     assert.equal(hooks.length, silent, 'groupSilent / 没回过收到：不补')
   }))
 
+  it('#58：要对着说的是负责人本人 → 失败也不在群里补「等 aven 看过再回」，只私聊', async () => withOutbox(async () => {
+    registerRepoProfiles({ repos: { falive: { root: '/tmp/f', baseRef: 'main', chatIds: ['oc_falive'], notifyChatId: 'oc_console', ownership: { me: 'aven', meOpenIds: ['ou_aven'] }, ownerMap: {} } } })
+    const hooks = []
+    const out = await deliverRepoOutcome({ task: { id: 'p58', chatId: 'oc_falive', repo: 'falive', operator: 'ou_aven', fromPrincipal: true, ackedInGroup: true, addressedToBot: true }, status: 'failed', result: '处理失败。', deps: mkDeps(hooks, []) })
+    assert.equal(hooks.length, 0)
+    assert.doesNotMatch(out.note, /已补一句/)
+    await deliverRepoOutcome({ task: { id: 'p58b', chatId: 'oc_falive', repo: 'falive', operator: 'ou_ache', ackedInGroup: true, addressedToBot: true }, status: 'failed', result: '处理失败。', deps: mkDeps(hooks, []) })
+    assert.match(hooks[0].logPrefix, /^repo fallback p58b/, '别人发起的照补')
+  }))
+
   it('#56：自检误扣 → 兜底一次；私聊指示任务判不用改但写了群回复 → 照发，不再补第二句「拿不准」；扣下的可按原文放行', async () => withOutbox(async () => {
     register()
     const hooks = []

@@ -33,6 +33,8 @@ const TASK_KINDS = {
   readonly: { commandType: 'status', text: '项目进度怎么样' },
   bug_triaged: { commandType: null, intake: { classification: { decision: 'bug' } }, triage: { summary: '前端 mapper 取错字段', evidence: ['src/x.ts:1'] } },
   modify_as_requirement: { commandType: null, text: '把预约按钮颜色改成红色', intake: { classification: { decision: 'requirement' } } },
+  // 教训 #58：本条要 bot 自己上 pre 看（引用卡里那句「请测试同学在 pre 看一眼」不算）。
+  pre_check: { commandType: null, text: '【被引用消息】\n请测试同学在 pre 看一眼\n\n【本条 @】@Aven.Bot 你自己在 pre 环境看，看完报告结果', intake: { classification: { decision: 'requirement' } } },
 }
 
 const countOf = (text, needle) => text.split(needle).length - 1
@@ -73,6 +75,10 @@ describe('提示词规则预算', () => {
         const { triage = null, ...extra } = TASK_KINDS[kind]
         return buildTaskPrompt(ctx, { ...baseTask, ...extra }, 'claude', { ruleContext: { text: '', sources: [] }, analysis: null, triage, scopeContract: null })
       }
+      // 教训 #58：本条要上 pre 看 → 给 Playwright 验 pre 的口径，不带「跳过 Browser」，也不带清扫专属口径；只在引用卡里出现不算。
+      assert.match(prompt('pre_check'), /用 Playwright 验已部署的 pre 站点/)
+      assert.doesNotMatch(prompt('pre_check'), /跳过 Browser|不要运行 Browser|日报发布后自动建立/)
+      assert.doesNotMatch(prompt('api_reply_quoted'), /用 Playwright 验已部署的 pre 站点/)
       assert.doesNotMatch(prompt('question'), /群回复格式（/, '代答不套对接进度的群回复格式')
       // 缺陷分诊按任务性质（resolveWorkKind）给：分类成 requirement 的「改成 X」也算缺陷（review B1）。
       for (const kind of ['bug', 'bug_triaged', 'modify_as_requirement']) {
