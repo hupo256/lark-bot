@@ -137,8 +137,11 @@ describe('事实采集与日报生成（IO 注入）', () => {
       assert.match(short, /已接通 \*\*1 \/ 3\*\*/)
       assert.match(short, /## 今天\n- \*\*aven\*\*：搜索/)
       assert.ok(outcome.reportPath.endsWith('/lark-daily-report/falive/FaliveWeb日报-2026-10-13.md'))
-      // 第二次采集：快照已落盘，diff 应能比出状态变化
-      const facts2 = collectDailyFacts({ profile, store, now, git, readFile: (path) => (path.endsWith('table.md') ? TABLE.replace('| 🟠 |', '| ✅ |') : files[path] ?? ''), snapshotDir: join(dir, 'lark-daily-report', 'falive'), checkout })
+      // 快照已按日期落盘：同一天再采集（重试 / 重发）不拿当天的快照当基线（aven 2026-10-20 review C15）；第二天才比得出状态变化
+      const upgraded = (path) => (path.endsWith('table.md') ? TABLE.replace('| 🟠 |', '| ✅ |') : files[path] ?? '')
+      const sameDay = collectDailyFacts({ profile, store, now, git, readFile: upgraded, snapshotDir: join(dir, 'lark-daily-report', 'falive'), checkout })
+      assert.deepEqual(sameDay.table.changes, [])
+      const facts2 = collectDailyFacts({ profile, store, now: new Date(2026, 9, 14, 19, 0, 0), git, readFile: upgraded, snapshotDir: join(dir, 'lark-daily-report', 'falive'), checkout })
       assert.deepEqual(facts2.table.changes, [{ no: 1, feature: '用户资料', owner: 'henry', from: '🟠', to: '✅' }])
     } finally {
       rmSync(dir, { recursive: true, force: true })
@@ -241,7 +244,7 @@ describe('完整版：状态以 pre 代码为准 + 台账', () => {
       assert.match(note, /#1 用户资料（henry）：总表 🟠 → pre 代码 ✅/)
       assert.doesNotMatch(note, /高亮框写/)
       // 第二天：今日 +n 以代码状态快照为基线
-      assert.equal(JSON.parse(readFileSync(join(reportDir, 'code-status.json'), 'utf8')).done, 2)
+      assert.equal(JSON.parse(readFileSync(join(reportDir, 'code-status.json'), 'utf8')).history['2026-10-14'].done, 2)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
