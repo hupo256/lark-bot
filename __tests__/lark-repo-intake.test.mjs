@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, it } from 'node:test'
 import { startChatPoller } from '../lib/lark-chat-poller.mjs'
 import { ingestLarkEvent } from '../lib/lark-ingest.mjs'
 import { classifyPauseIntent, isNonSupplementalReply, isSubstantiveMessage, normalizeMessage, parseCommandType, parseControlDirective, parseResumeDirective, resolveMessageTrigger, stripMentionNames, textForParse } from '../lib/lark-message.mjs'
-import { holdsSuspectedForPrincipal, isPushPrePrincipal, pickSupplementTarget } from '../lib/lark-repo-intake.mjs'
+import { ackInGroup, flushPendingAck, holdsSuspectedForPrincipal, isPushPrePrincipal, pickSupplementTarget } from '../lib/lark-repo-intake.mjs'
 import { CONSOLE_NO_TEXT_HINT } from '../lib/lark-repo-only.mjs'
 import { registerRepoProfiles, repoProfile, resetRepoProfiles } from '../lib/lark-repo-profile.mjs'
 import { resolvePrincipalProfiles, resolvePrincipalTarget } from '../lib/lark-principal-channel.mjs'
@@ -214,5 +214,36 @@ describe('#9：分类中的任务回队落回 received', () => {
     store.upsert({ id: 'om_rv_q', status: 'queued', text: 'x', createdAt: now() })
     store.claimById('om_rv_q')
     assert.equal(store.releaseRunning('om_rv_q').status, 'queued')
+  })
+})
+
+describe('#57：「收到」等分类结果，用分类器按上下文写的那句回（真实 ingest）', () => {
+  const groupCards = () => posted.filter((p) => p.url === 'https://hook/group').map((p) => JSON.stringify(p.body))
+  it('@bot 进来先不回固定句；分类回来用 reply 回一句；判不处理只撤不发', async () => {
+    await ingestLarkEvent({ raw: groupEvent({ id: 'om_rv_ack', text: '@Aven.Bot 你自己在 pre 环境看，看完报告结果', sender: AVEN, mentions: [{ id: BOT, key: '@_user_1', name: 'Aven.Bot' }] }), config, store })
+    const task = store.get('om_rv_ack')
+    assert.ok(task.ackPending, '挂着等分类')
+    assert.equal(groupCards().some((c) => c.includes('稍后回复')), false, '不先发固定句')
+    const out = await flushPendingAck({ store, task, reply: '收到，我去 pre 的 /lives 滚到底，看第 2 页有没有接上，看完报结果' })
+    assert.deepEqual(out, { sent: true, usedReply: true })
+    assert.ok(groupCards().some((c) => c.includes('我去 pre 的 /lives 滚到底') && !c.includes('稍后回复')))
+    assert.equal(store.get('om_rv_ack').ackedInGroup, true)
+    assert.equal(store.get('om_rv_ack').ackPending, null)
+    assert.deepEqual(await flushPendingAck({ store, task: store.get('om_rv_ack'), reply: 'x' }), { sent: false, usedReply: false }, '只回一次')
+    const ignored = store.upsert({ ...task, id: 'om_rv_ack2', ackPending: { at: now() }, ackedInGroup: false })
+    const before = posted.length
+    assert.deepEqual(await flushPendingAck({ store, task: ignored, reply: '收到，记下了', send: false }), { sent: false, usedReply: false })
+    assert.equal(posted.length, before)
+    assert.equal(store.get('om_rv_ack2').ackPending, null)
+  })
+  it('分类迟迟不回：到点照发固定句，不能没下文', async () => {
+    let fire = null
+    const task = store.upsert({ id: 'om_rv_ack3', chatId: GROUP, repo: 'falive', operator: ENCONE, text: 'x' })
+    await ackInGroup({ store, task, setTimer: (fn) => { fire = fn; return { unref() {} } } })
+    assert.ok(store.get('om_rv_ack3').ackPending)
+    fire()
+    await new Promise((resolve) => setImmediate(resolve))
+    assert.ok(groupCards().some((c) => c.includes('收到，我查一下，稍后回复')))
+    assert.equal(store.get('om_rv_ack3').ackedInGroup, true)
   })
 })
