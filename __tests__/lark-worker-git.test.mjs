@@ -421,6 +421,14 @@ describe('合回集成分支后删任务分支（aven 2026-10-16）', () => {
       assert.equal(deleteMergedTaskBranch({ root, branch: 'lark/integ', integrationBranch: 'lark/integ' }).deleted, false)
       assert.equal(exists('lark/integ'), true)
       assert.equal(deleteMergedTaskBranch({ root, branch: 'lark/nope', integrationBranch: 'lark/integ' }).reason, '分支已不存在')
+      // 5. 按 profile.branchPrefix 判任务分支（aven 2026-10-20 review #19）：别的前缀不删，本仓前缀照删；已包含时 merge 也回 head
+      const t4 = commitOn('lark/falive-t4', 'f.txt'); g(['worktree', 'remove', '--force', t4])
+      const already = mergeIntoIntegration({ root, worktreePath: wt, branch: 'lark/falive-t4', integrationBranch: 'lark/integ', message: 'merge t4' })
+      assert.equal(already.ok, true)
+      assert.match(mergeIntoIntegration({ root, worktreePath: wt, branch: 'lark/falive-t4', integrationBranch: 'lark/integ', message: 'again' }).head, /^[0-9a-f]{40}$/)
+      assert.equal(deleteMergedTaskBranch({ root, branch: 'lark/falive-t4', integrationBranch: 'lark/integ', branchPrefix: 'lark/other' }).deleted, false)
+      assert.equal(exists('lark/falive-t4'), true)
+      assert.deepEqual(deleteMergedTaskBranch({ root, branch: 'lark/falive-t4', integrationBranch: 'lark/integ', branchPrefix: 'lark/falive' }), { deleted: true })
     } finally {
       rmSync(root, { recursive: true, force: true })
     }

@@ -162,12 +162,25 @@
       ],
       "description": "status=failed/blocked/waiting_confirmation 时给人的下一步建议（一句话，人能照做）；done/done_with_warnings 填 null"
     },
+    "noChangeReason": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "env_version",
+        "not_frontend",
+        "other_owner",
+        null
+      ],
+      "description": "status=no_change_needed 时不改代码的原因：env_version 测试环境版本旧（代码已修）/ not_frontend 不归前端 / other_owner 归别的负责人；其它状态填 null"
+    },
     "groupReply": {
       "type": [
         "string",
         "null"
       ],
-      "description": "给项目群看的一句话（≤ 60 字，人话，不带路径 / sha / 内部状态）：做成了什么、对方现在可以做什么；没有可说的填 null"
+      "description": "给项目群看的人话回复（不带路径 / sha / 内部状态）：对接进度按群回复格式 ≤ 500 字、代答 ≤ 200 字；Worker 超过 800 字截断；没有可说的填 null"
     },
     "followUpDoc": {
       "type": [
