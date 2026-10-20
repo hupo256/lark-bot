@@ -50,6 +50,7 @@ webhook 发出的卡片没有 `message_id`，不能作为「回复卡片」的�
 | `worktreesDir` | 临时 worktree 目录（缺省 `<root>/../.lark-<key>`） | `~/github/.lark-falive` |
 | `chatIds` / `chatNames` | 属于该仓的群（优先于群名解析项目号；视同白名单）；只填群名时 gateway 启动用用户身份 chat-search 解析成 id | falive后端go天团、Falive PHP后端群 |
 | `taskMentionOpenIds` | 该仓群里 @ 谁会触发只读意图分类（与全局叠加） | aven |
+| `privateOnlyChats` | 只私聊的群（chat_id 或群名）：照常收消息、派活，但不往群里发任何消息，原本要回群的话改私聊负责人（教训 #50） | 【专项】Falive融合技术讨论群 |
 | `webhook` / `webhooksByChat` | `{ file }` 指向 0600 JSON（`webhookUrl` / `secret`）或 inline；`webhooksByChat` 按群名各配一个（每个外部群的自定义机器人 webhook 不同）；bot 发不进群时的兜底 | 两个群各一个文件 |
 | `notifyChatId` | bot 与 webhook 都不可用时改投（私聊 open_id 或群） | aven 私聊 |
 | `docs` | 注入 prompt 的项目文档（仓库相对） | CLAUDE.md、交付路线图、功能总表、对接状态总览 |

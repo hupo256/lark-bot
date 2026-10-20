@@ -12,6 +12,7 @@ import {
   buildRepoStartNote,
   buildRepoSuspectedNote,
   deliverRepoAck,
+  deliverRepoNoted,
   deliverRepoIgnoredAfterAck,
   deliverRepoOutcome,
   mentionsMe,
@@ -279,6 +280,44 @@ describe('显式 @ 机器人通道', () => {
     const hooks = []
     await deliverRepoNoted({ task: { id: 'n', chatId: 'oc_php', repo: 'falive', intake: { classification: { summary: 'golang 第一次部署 pre，等部署完' } } }, deps: { webhookFor: () => ({ url: 'u' }), sendWebhookMessage: async (a) => { hooks.push(a); return { ok: true } } } })
     assert.equal(hooks[0].card.elements[0].content, '收到，记下了：golang 第一次部署 pre，等部署完。')
+  })
+})
+
+describe('只私聊的群 privateOnlyChats（aven 10-20：融合群全是话题，发一条开一个）', () => {
+  afterEach(() => resetRepoProfiles())
+  const register = () => registerRepoProfiles({ repos: { falive: { root: '/tmp/f', baseRef: 'main', chatIds: ['oc_php', 'oc_fusion'], chatLabels: { oc_fusion: '融合群' }, privateOnlyChats: ['融合群'], notifyChatId: 'ou_aven', ownerMap: {} } } })
+  const deps = (hooks, sent) => ({
+    webhookFor: () => ({ url: 'u' }),
+    sendWebhookMessage: async (a) => { hooks.push(a); return { ok: true } },
+    sendMarkdown: async (a) => { sent.push(a); return { ok: true, messageId: 'om_p' } },
+    materializeDoc: () => null,
+  })
+
+  it('done：群里不发，私聊结果带上原本要回群的话', async () => {
+    register()
+    const hooks = []
+    const sent = []
+    const out = await deliverRepoOutcome({ task: { id: 'f1', chatId: 'oc_fusion', repo: 'falive', summary: 's', groupReply: '可以提测了' }, status: 'done', result: 'x', deps: deps(hooks, sent) })
+    assert.equal(hooks.length, 0)
+    assert.equal(out.groupOutcome.ok, false)
+    assert.match(sent[0].markdown, /群里没发（融合群 只私聊不发群），要回可以转发这段：\n.*可以提测了/)
+  })
+
+  it('noted：原话私发负责人；ack 只拦不私发；其它群照常发', async () => {
+    register()
+    const hooks = []
+    const sent = []
+    const noted = await deliverRepoNoted({ task: { id: 'f2', chatId: 'oc_fusion', repo: 'falive', intake: { classification: { summary: '等部署' } } }, deps: deps(hooks, sent) })
+    assert.equal(noted.ok, false)
+    assert.ok(noted.gated)
+    assert.equal(sent[0].chatId, 'ou_aven')
+    assert.match(sent[0].markdown, /融合群 只私聊不发群，原本要回群：\n收到，记下了：等部署。/)
+    const acked = await deliverRepoAck({ task: { id: 'f3', chatId: 'oc_fusion', repo: 'falive', operator: 'ou_x' }, deps: deps(hooks, sent) })
+    assert.ok(acked.gated)
+    assert.equal(sent.length, 1)
+    assert.equal(hooks.length, 0)
+    await deliverRepoNoted({ task: { id: 'f4', chatId: 'oc_php', repo: 'falive', intake: { classification: { summary: '另一个群 f4' } } }, deps: deps(hooks, sent) })
+    assert.equal(hooks.length, 1)
   })
 })
 
