@@ -95,6 +95,8 @@ describe('decidePrincipalAction / buildPrincipalInstructionTask', () => {
     assert.equal(task.fromPrincipal, true)
     assert.deepEqual(task.privateOrigin, { chatId: P2P, senderOpenId: AVEN, anchorId: 'om_group', anchorHead: '@Aven.Bot API 有问题，能不能自己修了' })
     assert.match(task.text, /^【aven 私聊指示】这个要求应该礼貌拒绝/)
+    assert.equal(task.summary, '@Aven.Bot API 有问题，能不能自己修了', '标题用被锚群消息，不带私聊原话（aven 2026-10-20 review C1）')
+    assert.doesNotMatch(task.summary, /礼貌拒绝|私聊/)
     assert.match(task.text, /【指示针对的群消息（任务 om_group，当前 ignore，之前判定 ignore：要我们改后端）】\n@Aven\.Bot API 有问题/)
     assert.equal(task.attachments.length, 1)
     assert.equal(anchorHead({ summary: '【话题补充 12:00】第一行\n第二行' }), '第一行')
