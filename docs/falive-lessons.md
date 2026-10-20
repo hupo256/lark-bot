@@ -61,6 +61,7 @@
 | 46 | 10-19 | 19:44 和 19:56 群里各发一份 10-19 日报，数字不同（87.6% / 88.4%），第 3 份已在生成 | f0da201（10-17，测试隔离）把 `handleStatusUpdate` 的 `runtimeDir` 默认写成 `null`；默认参数只对 undefined 生效，`markDailyReportSent` 一路 `join(null)` 抛错 → 日报已经群发、回写 done 却 500 → 任务被租约回收判失败 → 调度隔 10 分钟重建 r2 / r3 重新生成再发；两次生成时探针 / 模型结果不同所以数字不同 | `lib/lark-status.mjs` 去掉 `= null`；`lib/lark-system-runner.mjs` 发出去就先记已发（不等回写），且该日报日已发过（非「重发日报」force）直接跳过、不再生成 | 单测 `lark-system-tasks`「已发过不再生成；force 照发」；真机：重启后 r3 打出「日报已发过，跳过」，gateway 记「日报已发」 | 逻辑 |
 | 47 | 10-20 | aven 把 Aven.Bot（自定义机器人）拉进《【专项】Falive融合技术讨论群》，配好 chatIds / webhook 重启后，启动日志没有该群「Aven.Bot = …」，群里 @Aven.Bot 会认不出 | `listChatCustomBots` 调 `+chat-members-list` 只拉第一页（20 个），融合群 29 人，bots 桶在后面的页；PHP 群人少没暴露 | `lib/lark-cli.mjs` 改为 `--member-types bot --page-all` | 真机：重启后 gateway.log 出现「群 【专项】Falive融合技术讨论群 的 Aven.Bot = ou_a4c3…」 | 逻辑 |
 | 48 | 10-20 | aven 问话题里 @bot 拉多少上下文，查代码发现：话题和「群里这条之前的消息」都按时间正序只拉一页 | `fetchThreadContext` / `fetchRecentChatContext` 用 `--order asc` 拉 50 条：话题超过 50 条只拿到最早那段、最新讨论丢了；3 小时窗口超过 50 条拿到的是窗口开头那段的末 10 条。话题里还只留真人消息，自家 bot 的回复一律丢（#23 只修了群消息那块） | `lib/lark-cli.mjs` 两处改 `--order desc` 拉一页再翻回正序；挑选逻辑拆到 `lib/lark-chat-context.mjs`（`pickThreadContext` 留最近 40 条，本群 Aven.Bot 的回复剥卡片署名、标「bot，我们自己」、不算发言人） | 单测 `lark-chat-poller`「话题上下文」；真机：PHP 群 15 条话题拉全、末条是最新的「@Aven.Bot 读一下」 | 逻辑 |
+| 49 | 10-20 | aven @bot 问 web 直播间聊天室能不能提测，bot 回群「群组 tab 还在，按决定要拿掉」「公告 tab 要改名直播预告」，私聊写「产品说要拿掉」。出处只是话题里 APP 开发 Williamwang 的一句「直播間裡面不會有群組，公告應該是直播預告」（说的是 APP 融合版）；web 一直按定稿 PRD / Figma 做，aven 手动在群里更正 | 分类器把话题里任意一人的说法总结成「话题里已经定了」，作答照抄进待办；提示词没有「需求以谁为准」的口径，也不核对发言人角色 | 规则：`COMPLETION_RULE` 加「需求以 PRD / Figma 定稿为准，开发阶段改需求只认产品拍板并已写进 PRD 的，别人说的只是意见，不列待办、不写成产品说」；分类器「类别」行并入同一口径（没有新增行） | 单测 `lark-prompt-budget`：分类 / 实施提示都含「产品拍板」；回放：本条任务重新分类，summary 不再出现「已经定了 / 按决定」 | 逻辑 |
 
 ## 分类与有效期（2026-10-17 起）
 
@@ -72,4 +73,5 @@
 - #13 待命指令触发后「材料不完美也开工」：目前靠提示词；若再出现「找理由不开工」，加闸：待命触发的工单不允许 blocked，只能 done + 待确认清单。
 - #14 场景化「收到」：靠小模型；若出现承诺结果 / 答非所问，加闸：输出含「我来修 / 一定 / 保证」不发，回落固定句。
 - #19 清扫只靠契约判「依赖外部」：若再出现没证据就归 D，加闸：summary 里 D 类行不含时间 + 响应码就退回重跑。
+- #49 需求只认产品拍板并写进 PRD 的：靠提示词；若再把群里非产品的说法写成「产品说 / 按决定」，加闸：groupReply 含「产品说 / 按决定 / 已定」而任务没有 PRD 文档出处 → 不发群，私信负责人。
 - #15 只做 web：靠提示词；若再答应改后端，加闸：reply 含「我来修 / 我改接口」且消息提到后端 → 替换为固定拒绝句。

@@ -37,6 +37,8 @@ describe('提示词规则预算', () => {
       assert.ok(followUp.length <= IMPLEMENTATION_FOLLOWUP_BUDGET, `续会话实施提示 ${followUp.length} 字符，超过预算 ${IMPLEMENTATION_FOLLOWUP_BUDGET}`)
       assert.doesNotMatch(followUp, /<<<UNTRUSTED_TASK_INPUT|<<<TRUSTED_RULE_CONTEXT|\bRULES\b/, '增量提示不重复任务正文与规则原文块')
       assert.match(followUp, /实施阶段/)
+      // 需求口径（教训 #49）：分类与作答都只认产品拍板并写进 PRD 的需求变更。
+      for (const [name, text] of [['分类', classifier], ['实施', taskPrompt]]) assert.match(text, /产品拍板/, `${name}提示缺需求口径`)
       for (const [name, text] of [['分类', classifier], ['实施', taskPrompt], ['分析', analysisPrompt], ['续会话', followUp]]) {
         assert.doesNotMatch(text, /PR-0\d{4}/, `${name}提示里不得出现事故编号`)
       }
