@@ -8,6 +8,8 @@ import { buildAnchorBlock, buildConversationContext, buildSenderActivityBlock, r
 import { recordOutbox } from '../lib/lark-outbox.mjs'
 import { createTaskStore } from '../lib/lark-task-store.mjs'
 
+// 时刻按本机本地时区显示（aven 2026-10-20 review）：钉死 +8，断言里的 17:48 = 09:48Z，确认不是 UTC。
+process.env.TZ = 'Asia/Shanghai'
 const T = Date.parse('2026-10-15T09:49:46Z')
 const card = { taskId: 'om_db15b8a9', topic: 'new#63a595', phase: 'done', at: '2026-10-15T09:48:30Z', text: '<at id=ou_arthur></at> 那次请求信息如下\n需要的话我重跑一次' }
 
@@ -17,7 +19,7 @@ describe('默认锚点（阶段 4）：短指代句接 bot 上一句', () => {
     assert.equal(anchor.taskId, 'om_db15b8a9')
     assert.equal(anchor.topic, 'new#63a595')
     assert.equal(anchor.text, '那次请求信息如下 需要的话我重跑一次')
-    assert.match(buildAnchorBlock(anchor), /【默认接着 bot 上一句】bot 09:48 对他说（任务 om_db15b8a9，主题 new#63a595）/)
+    assert.match(buildAnchorBlock(anchor), /【默认接着 bot 上一句】bot 17:48 对他说（任务 om_db15b8a9，主题 new#63a595）/)
   })
   it('有引用 / 太长 / 没指代 / bot 那句超过 15 分钟 / 没说过 → 不锚', () => {
     assert.equal(resolveDefaultAnchor({ text: '@Aven.Bot 重跑一次', replyTo: 'om_x', lastOutbox: card, nowMs: T }), null)
@@ -38,8 +40,8 @@ describe('这个人正在进行的事', () => {
       ledgerItems: [{ id: 'new#63a595', status: 'applied', title: '后端问 hichat_token 401 那次复测的调用时间' }],
     })
     assert.match(block, /^【Arthur（hichat \/ 账号后端） 正在进行的事/)
-    assert.match(block, /09:48 bot 对他说（done，主题 new#63a595）：那次请求信息如下 需要的话我重跑一次/)
-    assert.match(block, /他 09:44 的消息 id=om_db15b8a9 主题=q:om_db15b8a9 状态=done：要请求明细/)
+    assert.match(block, /17:48 bot 对他说（done，主题 new#63a595）：那次请求信息如下 需要的话我重跑一次/)
+    assert.match(block, /他 17:44 的消息 id=om_db15b8a9 主题=q:om_db15b8a9 状态=done：要请求明细/)
     assert.match(block, /台账 new#63a595（applied）后端问 hichat_token 401/)
     assert.equal(buildSenderActivityBlock({}), '')
   })

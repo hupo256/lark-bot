@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
-import { hashText, lastOutboxTo, listOutbox, pruneOutbox, recordOutbox, shouldSend } from '../lib/lark-outbox.mjs'
+import { hashText, lastOutboxTo, listOutbox, localHHMM, pruneOutbox, recordOutbox, shouldSend } from '../lib/lark-outbox.mjs'
 import { sendGroupCard } from '../lib/lark-repo-delivery.mjs'
 
 const withDir = (fn) => {
@@ -46,8 +46,8 @@ describe('发件簿（阶段 3）', () => {
       const ok = await sendGroupCard({ webhook: { url: 'u' }, task, phase: 'ack', body: '收到', logPrefix: 't', sendHook: async ({ card }) => { sentCards.push(card); return { ok: true } } })
       assert.equal(ok.ok, true)
       assert.equal(sentCards[0].elements[0].content, '收到')
-      // 换内容、换阶段才不会被出口闸先拦下（同内容 24h / 同人「收到」2 分钟）。
-      const fail = await sendGroupCard({ webhook: { url: 'u' }, task, phase: 'noted', body: '记下了', logPrefix: 't', sendHook: async () => ({ ok: false, reason: 'x' }) })
+      // 同文本换阶段：固定话术不按内容去重，不会被闸先拦下，走到发送失败。
+      const fail = await sendGroupCard({ webhook: { url: 'u' }, task, phase: 'noted', body: '收到', logPrefix: 't', sendHook: async () => ({ ok: false, reason: 'x' }) })
       assert.equal(fail.ok, false)
       const entries = listOutbox({ chatId: 'oc_x' })
       assert.equal(entries.length, 1)
@@ -65,25 +65,54 @@ describe('发件簿（阶段 3）', () => {
 })
 
 describe('出口闸（阶段 5）', () => {
-  it('同主题同阶段 2 分钟 1 条；不同阶段 / 不同主题不拦；同内容 24 小时不重发；gated 记录不算已发', () => withDir((dir) => {
+  it('结论阶段：同主题同阶段同对象 2 分钟 1 条；换对象 / 换阶段 / 换主题不拦；同内容 24 小时不重发；gated 记录不算已发', () => withDir((dir) => {
     const t0 = Date.parse('2026-10-15T13:00:00Z')
     recordOutbox({ dir, now: t0, chatId: 'oc_x', taskId: 'om_1', topic: 'new#a', phase: 'done', to: 'ou_a', text: '结果一' })
     recordOutbox({ dir, now: t0 + 1000, chatId: 'oc_x', taskId: 'om_9', topic: 'new#a', phase: 'done', to: 'ou_a', text: '被拦的', gated: '同主题' })
-    assert.equal(shouldSend({ dir, nowMs: t0 + 30_000, chatId: 'oc_x', topic: 'new#a', phase: 'done', text: '结果二' }).send, false)
-    assert.equal(shouldSend({ dir, nowMs: t0 + 30_000, chatId: 'oc_x', topic: 'new#a', phase: 'blocked_ask', text: '要材料' }).send, true)
-    assert.equal(shouldSend({ dir, nowMs: t0 + 30_000, chatId: 'oc_x', topic: 'new#b', phase: 'done', text: '结果二' }).send, true)
-    assert.equal(shouldSend({ dir, nowMs: t0 + 130_000, chatId: 'oc_x', topic: 'new#a', phase: 'done', text: '结果二' }).send, true)
+    assert.equal(shouldSend({ dir, nowMs: t0 + 30_000, chatId: 'oc_x', topic: 'new#a', phase: 'done', to: 'ou_a', text: '结果二' }).send, false)
+    assert.equal(shouldSend({ dir, nowMs: t0 + 30_000, chatId: 'oc_x', topic: 'new#a', phase: 'done', to: 'ou_b', text: '结果二' }).send, true, '主题闸按 to 区分（aven 2026-10-20 review）')
+    assert.equal(shouldSend({ dir, nowMs: t0 + 30_000, chatId: 'oc_x', topic: 'new#a', phase: 'blocked_ask', to: 'ou_a', text: '要材料' }).send, true)
+    assert.equal(shouldSend({ dir, nowMs: t0 + 30_000, chatId: 'oc_x', topic: 'new#b', phase: 'done', to: 'ou_a', text: '结果二' }).send, true)
+    assert.equal(shouldSend({ dir, nowMs: t0 + 130_000, chatId: 'oc_x', topic: 'new#a', phase: 'done', to: 'ou_a', text: '结果二' }).send, true)
     assert.equal(shouldSend({ dir, nowMs: t0 + 3 * 60 * 60_000, chatId: 'oc_x', topic: 'new#c', phase: 'done', text: '结果一' }).send, false, '同内容 24h 不重发')
-    assert.equal(shouldSend({ dir, nowMs: t0 + 30_000, chatId: 'oc_x', topic: 'new#a', phase: 'done', text: '被拦的' }).send, false, '哈希命中的是「结果一」以外还要看 gated：被拦的那条不算已发，但同主题同阶段仍拦')
-    assert.equal(shouldSend({ dir, nowMs: t0 + 130_000, chatId: 'oc_x', topic: 'new#a', phase: 'done', text: '被拦的' }).send, true, 'gated 记录不参与去重')
+    assert.equal(shouldSend({ dir, nowMs: t0 + 3 * 60 * 60_000, chatId: 'oc_x', topic: 'new#c', phase: 'daily_report', text: '结果一' }).send, false, '日报也按内容去重')
+    assert.equal(shouldSend({ dir, nowMs: t0 + 30_000, chatId: 'oc_x', topic: 'new#a', phase: 'done', to: 'ou_a', text: '被拦的' }).send, false, '被拦的那条不算已发，但同主题同阶段同对象仍拦')
+    assert.equal(shouldSend({ dir, nowMs: t0 + 130_000, chatId: 'oc_x', topic: 'new#a', phase: 'done', to: 'ou_a', text: '被拦的' }).send, true, 'gated 记录不参与去重')
   }))
-  it('「收到」按人：同人 2 分钟 1 次，换人不拦，和主题无关', () => withDir((dir) => {
+  it('「收到」同文本：同人同主题 2 分钟 1 次；过了 2 分钟（24 小时内）照样再回；换人 / 换主题不拦（aven 2026-10-20 review）', () => withDir((dir) => {
     const t0 = Date.parse('2026-10-15T13:00:00Z')
-    recordOutbox({ dir, now: t0, chatId: 'oc_x', taskId: 'om_1', topic: 'new#a', phase: 'ack', to: 'ou_arthur', text: '收到一' })
-    assert.equal(shouldSend({ dir, nowMs: t0 + 60_000, chatId: 'oc_x', topic: 'new#zzz', phase: 'ack', to: 'ou_arthur', text: '收到二' }).send, false)
-    assert.equal(shouldSend({ dir, nowMs: t0 + 60_000, chatId: 'oc_x', topic: 'new#a', phase: 'ack', to: 'ou_ache', text: '收到二' }).send, true)
-    assert.equal(shouldSend({ dir, nowMs: t0 + 150_000, chatId: 'oc_x', topic: 'new#a', phase: 'ack', to: 'ou_arthur', text: '收到二' }).send, true)
+    recordOutbox({ dir, now: t0, chatId: 'oc_x', taskId: 'om_1', phase: 'ack', to: 'ou_arthur', text: '收到' })
+    assert.equal(shouldSend({ dir, nowMs: t0 + 60_000, chatId: 'oc_x', phase: 'ack', to: 'ou_arthur', text: '收到' }).send, false)
+    assert.equal(shouldSend({ dir, nowMs: t0 + 60_000, chatId: 'oc_x', phase: 'ack', to: 'ou_ache', text: '收到' }).send, true)
+    assert.equal(shouldSend({ dir, nowMs: t0 + 60_000, chatId: 'oc_x', topic: 'new#zzz', phase: 'ack', to: 'ou_arthur', text: '收到' }).send, true)
+    assert.equal(shouldSend({ dir, nowMs: t0 + 150_000, chatId: 'oc_x', phase: 'ack', to: 'ou_arthur', text: '收到' }).send, true)
+    assert.equal(shouldSend({ dir, nowMs: t0 + 5 * 60 * 60_000, chatId: 'oc_x', phase: 'ack', to: 'ou_arthur', text: '收到' }).send, true, '同一人当天第二次 @ 也能收到「收到」')
   }))
+  it('兜底句 / 收到记下了 / 日报请求回话同文本：不按内容 24h 去重，只按人 + 主题 + 2 分钟', () => withDir((dir) => {
+    const t0 = Date.parse('2026-10-15T13:00:00Z')
+    const fallback = '这条我拿不准，等 aven 看过再回。'
+    recordOutbox({ dir, now: t0, chatId: 'oc_x', taskId: 'om_1', topic: 'new#a', phase: 'fallback', to: 'ou_a', text: fallback })
+    recordOutbox({ dir, now: t0, chatId: 'oc_x', phase: 'daily_report_request', to: 'ou_a', text: '今天的日报正在生成，好了直接发到群里。' })
+    assert.equal(shouldSend({ dir, nowMs: t0 + 30_000, chatId: 'oc_x', topic: 'new#a', phase: 'fallback', to: 'ou_a', text: fallback }).send, false)
+    assert.equal(shouldSend({ dir, nowMs: t0 + 30_000, chatId: 'oc_x', topic: 'new#b', phase: 'fallback', to: 'ou_a', text: fallback }).send, true)
+    assert.equal(shouldSend({ dir, nowMs: t0 + 30_000, chatId: 'oc_x', topic: 'new#a', phase: 'fallback', to: 'ou_b', text: fallback }).send, true)
+    assert.equal(shouldSend({ dir, nowMs: t0 + 3 * 60_000, chatId: 'oc_x', topic: 'new#a', phase: 'fallback', to: 'ou_a', text: fallback }).send, true)
+    assert.equal(shouldSend({ dir, nowMs: t0 + 3 * 60_000, chatId: 'oc_x', phase: 'daily_report_request', to: 'ou_a', text: '今天的日报正在生成，好了直接发到群里。' }).send, true)
+    assert.equal(shouldSend({ dir, nowMs: t0 + 30_000, chatId: 'oc_x', phase: 'daily_report_request', to: 'ou_a', text: '今天的日报正在生成，好了直接发到群里。' }).send, false)
+  }))
+  it('localHHMM：按本机本地时区出 HH:MM（不是 UTC 切片）；接受 ISO / 毫秒；解析不了给 --:--', () => {
+    const prev = process.env.TZ
+    process.env.TZ = 'Asia/Shanghai'
+    try {
+      assert.equal(localHHMM('2026-10-15T09:48:30Z'), '17:48')
+      assert.equal(localHHMM(Date.parse('2026-10-15T16:05:00Z')), '00:05')
+      assert.equal(localHHMM(''), '--:--')
+      assert.equal(localHHMM(null), '--:--')
+    } finally {
+      if (prev == null) delete process.env.TZ
+      else process.env.TZ = prev
+    }
+  })
   it('sendGroupCard 被闸拦下：不调发送、记 gated、返回 ok:false + gated（拦下就是没发，调用方不得当已发）', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'lark-outbox-gate-'))
     process.env.LARK_OUTBOX_DIR = dir
