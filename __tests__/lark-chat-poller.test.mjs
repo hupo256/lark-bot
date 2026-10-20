@@ -7,7 +7,8 @@ import { afterEach, describe, it } from 'node:test'
 import { chatListMessageToEvent, flattenThreadReplies, isPollableMessage, nextDelayMs, parseKernSleepTime, startChatPoller, toEpochMs } from '../lib/lark-chat-poller.mjs'
 import { extractInlineFileAttachments, hasDocAttachment, normalizeMessage, parseTextAndAttachments, resolveMessageTrigger } from '../lib/lark-message.mjs'
 import { DEFAULT_POLL, registerRepoProfiles, resetRepoProfiles } from '../lib/lark-repo-profile.mjs'
-import { imageExtFromBytes, pickRecentContext } from '../lib/lark-cli.mjs'
+import { pickRecentContext, pickThreadContext } from '../lib/lark-chat-context.mjs'
+import { imageExtFromBytes } from '../lib/lark-cli.mjs'
 
 const at = (hour, minute = 0) => new Date(2026, 9, 13, hour, minute, 0)
 
@@ -184,6 +185,33 @@ describe('群里之前的消息：真人 + 本群 Aven.Bot 自己的卡（2026-1
   it('没配 botOpenIds 时机器人消息一律不要（旧行为）', () => {
     const out = pickRecentContext(messages, { beforeMs: Date.parse('2026-10-15 13:49') + 46_000, excludeIds: ['om_4'] })
     assert.deepEqual(out.map((item) => item.messageId), ['om_1'])
+  })
+})
+
+describe('话题上下文：只留最近 limit 条，带上本群 Aven.Bot 自己的回复（教训 #48）', () => {
+  const BOT = 'ou_bot_thread'
+  const human = (i) => ({ message_id: `om_${i}`, msg_type: 'text', sender: { id: `ou_${i}`, sender_type: 'user', name: `人${i}` }, content: `第 ${i} 条` })
+  it('超过 limit 时保留最新的，顺序仍是从早到晚', () => {
+    const messages = Array.from({ length: 50 }, (_, i) => human(i + 1))
+    const out = pickThreadContext(messages, { limit: 40 })
+    assert.equal(out.length, 40)
+    assert.equal(out[0].messageId, 'om_11')
+    assert.equal(out.at(-1).messageId, 'om_50')
+  })
+  it('自家 bot 的卡剥署名、标「bot，我们自己」，不算发言人；别家机器人丢掉；排除本条', () => {
+    const messages = [
+      human(1),
+      { message_id: 'om_b', msg_type: 'interactive', sender: { id: 'cli_x', sender_type: 'app', name: 'Aven.Bot', open_bot_id: BOT }, content: '<card>\n需要的话我重跑一次\n📝 由 aven 的助手整理\n</card>' },
+      { message_id: 'om_o', msg_type: 'interactive', sender: { id: 'cli_o', sender_type: 'app', name: '别的机器人', open_bot_id: 'ou_other' }, content: '<card>广告</card>' },
+      human(2),
+      human(3),
+    ]
+    const out = pickThreadContext(messages, { excludeIds: ['om_3'], botOpenIds: [BOT] })
+    assert.deepEqual(out.map((item) => item.messageId), ['om_1', 'om_b', 'om_2'])
+    assert.equal(out[1].sender, 'Aven.Bot（bot，我们自己）')
+    assert.equal(out[1].text, '需要的话我重跑一次')
+    assert.equal(out[1].senderOpenId, '')
+    assert.deepEqual(pickThreadContext(messages, {}).map((item) => item.messageId), ['om_1', 'om_2', 'om_3'], '没配 botOpenIds 时机器人一律不要')
   })
 })
 
