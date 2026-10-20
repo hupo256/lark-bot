@@ -68,6 +68,12 @@ describe('提示词规则预算', () => {
         assert.doesNotMatch(prompt(kind), /缺陷根因分诊（/, `${kind} 不带缺陷分诊`)
         assert.match(prompt(kind), /taskState \/ rootCauseLayer \/ evidence：本任务不是缺陷，都填 null/)
       }
+      // 默认仓（fameex 内部群）不按任务类型裁剪：显式 api: 任务照旧带缺陷分诊与根因字段说明。
+      resetRepoProfiles()
+      const internalApi = buildTaskPrompt({ ...ctx, repo: undefined }, { id: 'y', chatId: 'oc_internal', text: 'api: x', commandType: 'api', attachments: [] }, 'claude', { ruleContext: { text: '', sources: [] }, analysis: null, triage: null, scopeContract: null })
+      assert.match(internalApi, /缺陷根因分诊（/, '内部群 api 任务不得裁掉缺陷分诊')
+      assert.doesNotMatch(internalApi, /本任务不是缺陷，都填 null/)
+      registerRepoProfiles({ repos: { falive: { root: dir, baseRef: 'main', chatIds: ['oc'], ownership: { me: 'aven', meAliases: ['Aven'] }, docIntakeDir: 'docs/pending', verify: { probeCommand: 'node scripts/pre-probe.mjs', schemaCheck: 'x' }, groupPostAsUser: true } } })
       const analysisPrompt = buildAnalysisPrompt(ctx, { ...baseTask, ...TASK_KINDS.api_reply }, { text: '', sources: [] }, { lineLimit: 300 })
       assert.ok(analysisPrompt.length <= ANALYSIS_PROMPT_BUDGET, `分析提示 ${analysisPrompt.length} 字符，超过预算 ${ANALYSIS_PROMPT_BUDGET}`)
       assert.doesNotMatch(analysisPrompt, /PR-0\d{4}/, '分析提示里不得出现事故编号')
