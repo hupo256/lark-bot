@@ -124,6 +124,25 @@ describe('lark-bot control script', () => {
     assert.doesNotMatch(result.stdout, /不该出现/)
   })
 
+  // 疑似单不进催办，task-store 用 parkedRemindedRound=99 作哨兵；status 不能把哨兵当轮次显示成「已催 99/3 轮」。
+  it('status 对疑似单显示「不催办」而不是哨兵轮次', () => {
+    const result = runBash(`
+      export LARK_BOT_SOURCE_ONLY=1
+      source ${JSON.stringify(script)}
+      _pid() { echo 101 ; }
+      curl() {
+        if printf '%s' "$*" | grep -q '/lark/tasks'; then
+          printf '%s' '{"tasks":[{"id":"omSUS","status":"waiting_confirmation","project":"FALIVE","summary":"疑似对接答复","suspected":true,"parkedAt":"2020-01-01T00:00:00.000Z","parkedRemindedRound":99}]}'
+        else
+          printf '%s' '{"ok":true,"worker":{"pid":101,"readiness":{"ok":true,"executor":"claude"}},"counts":{"waiting_confirmation":1},"pendingReceipts":{"total":0}}'
+        fi
+      }
+      status
+    `)
+    assert.match(result.stdout, /omSUS\s+\[FALIVE\]\s+已挂起 \d+h\s+疑似单，不催办/)
+    assert.doesNotMatch(result.stdout, /已催 99/)
+  })
+
   it('挂起明细取不到时降级为提示，不吞掉其余状态', () => {
     const result = runBash(`
       export LARK_BOT_SOURCE_ONLY=1

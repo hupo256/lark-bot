@@ -273,7 +273,9 @@ status() {
           const rounds = Number(process.env.LARK_PARKED_REMIND_ROUNDS || 3);
           console.log(`\nwaiting-confirmation（等人补料/确认，催办满 ${rounds} 轮即停，之后只能在此盘点）：`);
           for (const task of parked.sort((a, b) => parkedAgeMs(b) - parkedAgeMs(a))) {
-            console.log(`  ${task.id}  [${task.project || "-"}]  已挂起 ${formatAge(parkedAgeMs(task))}  已催 ${task.parkedRemindedRound || 0}/${rounds} 轮`);
+            // 疑似单只发一次通知、不进催办（task-store 把 parkedRemindedRound 置 99 作哨兵），不显示轮次。
+            const remind = task.suspected ? "疑似单，不催办" : `已催 ${task.parkedRemindedRound || 0}/${rounds} 轮`;
+            console.log(`  ${task.id}  [${task.project || "-"}]  已挂起 ${formatAge(parkedAgeMs(task))}  ${remind}`);
             console.log(`    ${(task.summary || "").slice(0, 70)}`);
             if (task.result) console.log(`    → ${task.result.replace(/\n/g, " ").slice(0, 90)}`);
             console.log(`    群里续跑：继续任务 ${task.id} <补充内容>   |   结单：结单 ${task.id}`);
