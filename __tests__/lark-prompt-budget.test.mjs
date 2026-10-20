@@ -24,6 +24,15 @@ const TASK_KINDS = {
   bug: { commandType: null, intake: { classification: { decision: 'bug' } } },
   requirement: { commandType: null, intake: { classification: { decision: 'requirement' } } },
   question: { commandType: 'status', intake: { classification: { decision: 'question' } } },
+  // aven 2026-10-20 review B4：以下几类此前没量到——对接答复块要正文里有【被引用消息】才渲染；文档入库要带文件附件；
+  // 等材料的交办、日报清扫、非代答的只读查询、带分诊结论的 bug、被分成 requirement 但其实是「改成 X」的缺陷。
+  api_reply_quoted: { commandType: 'api', text: '你再看看\n【被引用消息】Encone：getRoomInfo 的 anchor 字段已补，pre 已更新', intake: { classification: { decision: 'api_reply' } } },
+  doc_intake: { commandType: 'api', attachments: [{ type: 'file', localPath: '/tmp/x/1-对接-直播.md', fileName: '1-对接-直播.md' }], archivedDocs: ['docs/pending/对接-直播.md', 'docs/reply/对接-答复.md#kept'] },
+  standing: { commandType: null, intake: { classification: { decision: 'requirement' } }, waitsFor: '新域名', standingFrom: ['t0'] },
+  sweep: { source: 'daily-sweep', commandType: null },
+  readonly: { commandType: 'status', text: '项目进度怎么样' },
+  bug_triaged: { commandType: null, intake: { classification: { decision: 'bug' } }, triage: { summary: '前端 mapper 取错字段', evidence: ['src/x.ts:1'] } },
+  modify_as_requirement: { commandType: null, text: '把预约按钮颜色改成红色', intake: { classification: { decision: 'requirement' } } },
 }
 
 const countOf = (text, needle) => text.split(needle).length - 1
@@ -44,10 +53,10 @@ describe('提示词规则预算', () => {
       void normalizeRepoProfile('falive', { root: dir, baseRef: 'main' })
       const ctx = { repo: 'falive', projectId: 'FALIVE', projectName: 'Falive Web', cwd: dir, hotfixBranch: 'lark/x', baseRef: 'main', projectDocs: [], readOnly: false }
       const analysis = { summary: 's', applicableRules: [], requirements: ['r1'] }
-      for (const [kind, extra] of Object.entries(TASK_KINDS)) {
+      for (const [kind, { triage = null, ...extra }] of Object.entries(TASK_KINDS)) {
         const task = { ...baseTask, ...extra }
-        const first = buildTaskPrompt(ctx, task, 'claude', { ruleContext: { text: '', sources: [] }, analysis: null, triage: null, scopeContract: null })
-        const followUp = buildTaskPrompt(ctx, task, 'claude', { ruleContext: { text: 'RULES', sources: [] }, analysis, triage: null, scopeContract: { scope: null, lineLimit: 300 }, followUp: true })
+        const first = buildTaskPrompt(ctx, task, 'claude', { ruleContext: { text: '', sources: [] }, analysis: null, triage, scopeContract: null })
+        const followUp = buildTaskPrompt(ctx, task, 'claude', { ruleContext: { text: 'RULES', sources: [] }, analysis, triage, scopeContract: { scope: null, lineLimit: 300 }, followUp: true })
         for (const [stage, text] of [['首轮', first], ['续会话', followUp]]) {
           const label = `${kind}·${stage}`
           assert.ok(text.length <= TASK_PROMPT_BUDGET, `${label}实施提示 ${text.length} 字符，超过预算 ${TASK_PROMPT_BUDGET}：先查有没有重复块、能不能按任务类型裁剪，再合并旧规则`)
@@ -60,14 +69,37 @@ describe('提示词规则预算', () => {
         assert.match(followUp, /实施阶段/)
       }
       // 按任务类型裁剪：代答只用代答格式；缺陷分诊只给可能是缺陷的任务。
-      const prompt = (kind) => buildTaskPrompt(ctx, { ...baseTask, ...TASK_KINDS[kind] }, 'claude', { ruleContext: { text: '', sources: [] }, analysis: null, triage: null, scopeContract: null })
+      const prompt = (kind) => {
+        const { triage = null, ...extra } = TASK_KINDS[kind]
+        return buildTaskPrompt(ctx, { ...baseTask, ...extra }, 'claude', { ruleContext: { text: '', sources: [] }, analysis: null, triage, scopeContract: null })
+      }
       assert.doesNotMatch(prompt('question'), /群回复格式（/, '代答不套对接进度的群回复格式')
-      assert.match(prompt('bug'), /缺陷根因分诊（/)
-      assert.match(prompt('bug'), /taskState：缺陷类任务的诊断状态机/)
-      for (const kind of ['api_reply', 'requirement', 'question']) {
+      // 缺陷分诊按任务性质（resolveWorkKind）给：分类成 requirement 的「改成 X」也算缺陷（review B1）。
+      for (const kind of ['bug', 'bug_triaged', 'modify_as_requirement']) {
+        assert.match(prompt(kind), /缺陷根因分诊（/, `${kind} 带缺陷分诊`)
+        assert.match(prompt(kind), /taskState：缺陷类任务的诊断状态机/)
+      }
+      for (const kind of ['api_reply', 'api_reply_quoted', 'doc_intake', 'requirement', 'question', 'readonly', 'sweep', 'standing']) {
         assert.doesNotMatch(prompt(kind), /缺陷根因分诊（/, `${kind} 不带缺陷分诊`)
         assert.match(prompt(kind), /taskState \/ rootCauseLayer \/ evidence：本任务不是缺陷，都填 null/)
+        // 非缺陷任务 taskState 填 null，提示里不能再让它用 awaiting_owner_fix（review B3）。
+        assert.doesNotMatch(prompt(kind), /awaiting_owner_fix/, `${kind} 不该出现 awaiting_owner_fix`)
       }
+      // 对接答复不带整段分诊，但保留「后端根因严禁前端凑数」（review B1）。
+      for (const kind of ['api_reply', 'api_reply_quoted', 'doc_intake']) assert.match(prompt(kind), /后端根因严禁前端凑数/, `${kind} 缺后端根因条`)
+      assert.match(prompt('api_reply_quoted'), /对接答复处理（/, '带【被引用消息】的对接答复要量到答复处理块')
+      // 代答：summary 只在代答块说一次；完成口径指向结果契约（review B2）。
+      const question = prompt('question')
+      assert.doesNotMatch(question, /上面的三档口径|2～3 句|summary 直接回答/)
+      assert.match(question, /结果契约里的完成口径/)
+      // 文档入库：worker 已存档，提示里不再有覆盖规则（review C5）。
+      assert.doesNotMatch(prompt('doc_intake'), /同名已存在则覆盖|先把每份文件\*\*原样\*\*拷贝/)
+      assert.match(prompt('doc_intake'), /#kept/)
+      // 非代答的只读查询不带群回复块 / 待确认清单（review #16）。
+      assert.doesNotMatch(prompt('readonly'), /群回复（|待确认-/)
+      // 日报清扫：不渲染「不要启动 dev server」，浏览器验本次改动用 build:pre + 反代（review #15）。
+      assert.doesNotMatch(prompt('sweep'), /不要启动 dev server|可以起本仓 `pnpm dev:pre`/)
+      assert.match(prompt('sweep'), /pnpm build:pre/)
       // 默认仓（fameex 内部群）不按任务类型裁剪：显式 api: 任务照旧带缺陷分诊与根因字段说明。
       resetRepoProfiles()
       const internalApi = buildTaskPrompt({ ...ctx, repo: undefined }, { id: 'y', chatId: 'oc_internal', text: 'api: x', commandType: 'api', attachments: [] }, 'claude', { ruleContext: { text: '', sources: [] }, analysis: null, triage: null, scopeContract: null })
