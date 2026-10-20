@@ -134,13 +134,19 @@ describe('疑似任务 48h 过期（#8）', () => {
   }))
 })
 
-describe('对接文档不看归属先入库', () => {
-  it('带文档附件的仓库任务，分类 ignore 也进执行器（api 命令）', () => withStore((store) => {
-    received(store, { id: 'omt_doc', threadRootId: null, attachments: [{ type: 'file', fileName: 'PM-3217-对接文档.md', localPath: '/tmp/x.md' }] })
+describe('对接文档只认 @ 机器人带来的（教训 #53）', () => {
+  it('@ 机器人带文档附件：分类 ignore 也进执行器（api 命令），归属交分析判', () => withStore((store) => {
+    received(store, { id: 'omt_doc', threadRootId: null, addressedToBot: true, attachments: [{ type: 'file', fileName: 'PM-3217-对接文档.md', localPath: '/tmp/x.md' }] })
     store.claimById('omt_doc')
     const out = store.resolveIntake({ id: 'omt_doc', epoch: 0, classification: { decision: 'ignore', confidence: 'high', forMe: false, summary: 's', reason: 'r' } })
     assert.equal(out.actionable, true)
     assert.equal(out.task.commandType, 'api')
+  }))
+  it('没 @ 机器人的文档：按分类走，不再一律进执行器', () => withStore((store) => {
+    received(store, { id: 'omt_doc2', threadRootId: null, attachments: [{ type: 'file', fileName: '任务中心-后端问询清单.md', localPath: '/tmp/y.md' }] })
+    store.claimById('omt_doc2')
+    const out = store.resolveIntake({ id: 'omt_doc2', epoch: 0, classification: { decision: 'ignore', confidence: 'high', forMe: false, summary: 's', reason: 'r' } })
+    assert.equal(out.actionable, false)
   }))
 })
 
@@ -169,14 +175,14 @@ describe('话题补充 @ 机器人升级被动任务', () => {
     assert.equal(applySupplementAddressing({ target, addressing: resolveRepoAddressing({ repo, msg: msg({ mentions: [{ id: 'ou_bot' }] }) }) }), false)
   })
 
-  it('补充没 @ 机器人也不是文档 → 维持只记台账；带对接文档 → 解除只记台账但不算 @', () => {
+  it('补充没 @ 机器人 → 维持只记台账，带对接文档也一样（教训 #53：只处理 @bot 的消息）', () => {
     const target = { id: 'omt_p', passiveLedgerOnly: true }
     assert.equal(applySupplementAddressing({ target, addressing: resolveRepoAddressing({ repo, msg: msg({ text: '再看看' }) }) }), false)
     assert.equal(target.passiveLedgerOnly, true)
-    const doc = msg({ attachments: [{ type: 'file', fileName: 'a.md', fileKey: 'k' }] })
+    const doc = msg({ senderOpenId: 'ou_adrian', attachments: [{ type: 'file', fileName: 'a.md', fileKey: 'k' }] })
+    assert.deepEqual(resolveRepoAddressing({ repo, msg: doc }), { toBot: false, fromPrincipal: false, passiveLedgerOnly: true })
     assert.equal(applySupplementAddressing({ target, addressing: resolveRepoAddressing({ repo, msg: doc }) }), false)
-    assert.equal(target.passiveLedgerOnly, undefined)
-    assert.equal(target.addressedToBot, undefined)
+    assert.equal(target.passiveLedgerOnly, true)
   })
 })
 

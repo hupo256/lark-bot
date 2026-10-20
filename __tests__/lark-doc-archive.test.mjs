@@ -4,7 +4,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
-import { archiveDirFor, archiveDocAttachments } from '../lib/lark-doc-archive.mjs'
+import { execFileSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
+
+import { archiveDirFor, archiveDocAttachments, buildDocIntakeText, discardUnsavedDocs, shouldSkipDocSave } from '../lib/lark-doc-archive.mjs'
 
 const profile = { docIntakeDir: 'docs/delivery/pending', docReplyDir: 'docs/delivery/reply' }
 
@@ -36,5 +39,36 @@ describe('对接文档机械存档（教训 #43）', () => {
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
+  })
+})
+
+describe('跟负责人无关的文档不进仓库（教训 #53）', () => {
+  it('有结构化归属按 mine；没有时只有认出别的负责人才不存，认不出按存', () => {
+    assert.equal(shouldSkipDocSave({ declared: { mine: false, owner: 'adrian' } }), true)
+    assert.equal(shouldSkipDocSave({ declared: { mine: true } }), false)
+    assert.equal(shouldSkipDocSave({ declared: null, mine: false, owners: ['adrian'] }), true)
+    assert.equal(shouldSkipDocSave({ declared: null, mine: false, owners: [] }), false)
+    assert.equal(shouldSkipDocSave({ declared: null, mine: true, owners: ['adrian'] }), false)
+  })
+  it('撤存档：新文件删掉，仓里已有的恢复成 HEAD', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'doc-discard-'))
+    try {
+      const git = (...args) => execFileSync('git', ['-C', cwd, ...args], { stdio: 'pipe' })
+      git('init', '-q')
+      mkdirSync(join(cwd, 'docs'), { recursive: true })
+      writeFileSync(join(cwd, 'docs/old.md'), 'v1')
+      git('add', '.')
+      git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'init')
+      writeFileSync(join(cwd, 'docs/old.md'), 'v2')
+      writeFileSync(join(cwd, 'docs/new.md'), 'x')
+      discardUnsavedDocs({ cwd, paths: ['docs/new.md', 'docs/old.md'] })
+      assert.equal(existsSync(join(cwd, 'docs/new.md')), false)
+      assert.equal(readFileSync(join(cwd, 'docs/old.md'), 'utf8'), 'v1')
+    } finally {
+      rmSync(cwd, { recursive: true, force: true })
+    }
+  })
+  it('私聊结论写清没存', () => {
+    assert.match(buildDocIntakeText({ skipped: true, owners: ['adrian'], summary: '问 Go 后端的' }), /^文档内容归 adrian 负责，跟你无关，没存进仓库/)
   })
 })
