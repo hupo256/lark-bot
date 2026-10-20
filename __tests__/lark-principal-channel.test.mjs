@@ -7,6 +7,7 @@ import {
   anchorHead,
   buildPrincipalInstructionTask,
   decidePrincipalAction,
+  isReleaseHeldReply,
   latestReceiptAt,
   resolvePrincipalAnchor,
   resolvePrincipalProfile,
@@ -100,5 +101,12 @@ describe('decidePrincipalAction / buildPrincipalInstructionTask', () => {
     assert.match(task.text, /【指示针对的群消息（任务 om_group，当前 ignore，之前判定 ignore：要我们改后端）】\n@Aven\.Bot API 有问题/)
     assert.equal(task.attachments.length, 1)
     assert.equal(anchorHead({ summary: '【话题补充 12:00】第一行\n第二行' }), '第一行')
+  })
+})
+
+describe('放行被扣下的群回复（教训 #56）', () => {
+  it('以放行说法开头的短句才算；带别的要求 / 回滚 / 发布不算', () => {
+    for (const text of ['就这样回，哪里拿不准了', '就这样回', '照发', '发吧', '直接发', '可以发', '就按这个回', '按原文发群里']) assert.equal(isReleaseHeldReply(text), true, text)
+    for (const text of ['回复一下 Encone 他问的那个', '改成「都通了」再发', '回滚这条', '发布到 pre', '回头再说', '', '就这样回'.padEnd(41, '。')]) assert.equal(isReleaseHeldReply(text), false, text)
   })
 })

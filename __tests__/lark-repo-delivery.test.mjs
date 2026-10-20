@@ -11,6 +11,7 @@ import {
   buildRepoNote,
   buildRepoStartNote,
   buildRepoSuspectedNote,
+  deliverHeldGroupReply,
   deliverRepoAck,
   deliverRepoNoted,
   deliverRepoIgnoredAfterAck,
@@ -176,6 +177,11 @@ describe('「完成」口径的机械检查', () => {
     assert.equal(findCompletionContradiction('直播预告重复（R6）：都通了\n- ✅ 通了 front/upcoming：28 条不重复；要登录态的接口用 pre 测试号（uid 508），主播 428 也看了'), null)
     assert.ok(findCompletionContradiction('直播预告都通了，getRoomInfo 非主播回 500'))
     assert.ok(findCompletionContradiction('都通了，录播接口 HTTP 404'))
+    // 教训 #56：「不再报错 / 没报 500」是好了的证据；否定只剥报错类，「没有数据」照样算问题。
+    assert.equal(findCompletionContradiction('直播列表第 2 页：都通了\n- ✅ 通了 直播列表翻页：第 2 页不再报错，也没有被限流'), null)
+    assert.equal(findCompletionContradiction('都通了，getRoomInfo 没报 500，也不卡在登录'), null)
+    assert.ok(findCompletionContradiction('都通了，第 2 页不再报错，但第 3 页没有数据'))
+    assert.ok(findCompletionContradiction('都通了，第 2 页还是报错'))
     register()
     const hooks = []
     const out = await deliverRepoOutcome({
@@ -446,6 +452,37 @@ describe('群文本不回落原话 / 兜底统一出口 / 没 notifyChatId 不�
     await deliverRepoOutcome({ task: { ...base, id: 'g5', topic: 't-5', groupReply: null, payload: { groupSilent: true } }, status: 'done', result: 'x', deps })
     await deliverRepoOutcome({ task: { ...base, id: 'g6', topic: 't-6', ackedInGroup: false, groupReply: null }, status: 'done', result: 'x', deps })
     assert.equal(hooks.length, silent, 'groupSilent / 没回过收到：不补')
+  }))
+
+  it('#56：自检误扣 → 兜底一次；私聊指示任务判不用改但写了群回复 → 照发，不再补第二句「拿不准」；扣下的可按原文放行', async () => withOutbox(async () => {
+    register()
+    const hooks = []
+    const sent = []
+    const deps = mkDeps(hooks, sent)
+    const base = { chatId: 'oc_falive', repo: 'falive', operator: 'ou_encone', ackedInGroup: true, addressedToBot: true }
+    // 原任务：「都通了」里自称是假矛盾，改前被扣下 → 现在直接发
+    const ok = await deliverRepoOutcome({ task: { ...base, id: 'a1', topic: 't-a1', groupReply: '直播列表第 2 页：都通了\n- ✅ 通了 直播列表翻页：第 2 页不再报错，也没有被限流' }, status: 'done', result: 'x', deps })
+    assert.equal(ok.groupOutcome.ok, true)
+    // 真矛盾被扣下：held 带原文，私聊提示可回「就这样回」，群里补一次兜底
+    const held = await deliverRepoOutcome({ task: { ...base, id: 'h1', topic: 't-h1', groupReply: '都通了，第 3 页没有数据' }, status: 'done', result: 'x', deps })
+    assert.equal(held.groupOutcome.held, true)
+    assert.match(held.note, /回「就这样回」，我按原文发群/)
+    assert.match(hooks.at(-1).logPrefix, /^repo fallback h1/)
+    // 私聊指示任务（锚到 h1）：判 no_change_needed 但写了群回复 → 发群
+    const count = hooks.length
+    const instruct = { ...base, id: 'p1', topic: 't-p1', fromPrincipal: true, privateOrigin: { anchorId: 'h1', anchorHead: 'x' } }
+    const nc = await deliverRepoOutcome({ task: { ...instruct, groupReply: 'front/lives 复测：通了 1 项\n- ✅ 通了 第 2 页：code 0' }, status: 'no_change_needed', result: 'x', deps })
+    assert.equal(nc.groupOutcome.ok, true)
+    assert.equal(hooks.length, count + 1)
+    assert.match(hooks.at(-1).logPrefix, /^repo group reply p1/)
+    // 私聊指示任务没写群回复：原消息已补过兜底，不再补第二句
+    await deliverRepoOutcome({ task: { ...instruct, id: 'p2', privateOrigin: { anchorId: 'h1' }, groupReply: null }, status: 'no_change_needed', result: 'x', deps })
+    assert.equal(hooks.length, count + 1, '同一条原消息只说一次「拿不准」')
+    // 放行扣下的原文
+    const released = await deliverHeldGroupReply({ task: { ...base, id: 'h1', topic: 't-h1b', heldGroupReply: { text: held.groupOutcome.text, mentions: [] } }, deps })
+    assert.equal(released.ok, true)
+    assert.equal(hooks.at(-1).card.elements[0].content, '<at id=ou_encone></at> ✅ 都通了，第 3 页没有数据')
+    assert.equal((await deliverHeldGroupReply({ task: { ...base, id: 'h2' }, deps })).skipped, true, '没有扣下的不发')
   }))
 
   it('没配 notifyChatId：结果私聊不发，不回落外部群', async () => {
