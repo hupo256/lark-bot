@@ -1,26 +1,27 @@
 #!/usr/bin/env bash
-# Friendly control for the PR-01947 Lark bot (gateway + worker + bug poller).
+# falive 独立实例的控制脚本（gateway + worker，端口 3006，只服务 falive 外部群）。
+# aven 2026-10-20：falive 与 fameex 分开部署、互不影响；fameex 那套用 ~/github/lark-bot 的 lark-bot 命令。
 # Usage: lark-bot {start|stop|restart|status|doctor|logs|poll-on|poll-off|claude-auth [local|proxy]}
 set -euo pipefail
 
-REPO="/Users/aven/github/fameex-web"
+REPO="/Users/aven/github/falive-react"
 # lark-bot 仓库根：固定默认值，与 runtime/*.plist 里写死的路径一致；env LARK_BOT_ROOT 可覆盖（调试用）。
 # 不按脚本自身位置推导：从别的 worktree 跑本脚本也要控制同一套常驻服务，而不是按 worktree 路径找进程。
 # 进程匹配（pgrep -f）与 plist 来源都以它为准，故仓库位置变更后，旧位置启动的进程要用旧 CLI 停。
-LARK_BOT_ROOT="${LARK_BOT_ROOT:-/Users/aven/github/lark-bot}"
+LARK_BOT_ROOT="${FALIVE_BOT_ROOT:-/Users/aven/github/lark-bot-falive}"
 RUNTIME_DIR="$LARK_BOT_ROOT/runtime"
 GW="$RUNTIME_DIR/lark-gateway.mjs"
 WK="$RUNTIME_DIR/lark-worker.mjs"
 POLLER="$RUNTIME_DIR/lark-bugtable-poller.mjs"
-LOGDIR="$HOME/Library/Logs/fameex-lark"
-HEALTH="http://127.0.0.1:3005/lark/health"
-TASKS="http://127.0.0.1:3005/lark/tasks"
+LOGDIR="$HOME/Library/Logs/falive-lark"
+PORT=3006
+export LARK_GATEWAY_PORT="$PORT" LARK_INSTANCE_MODE=repo-only
+HEALTH="http://127.0.0.1:$PORT/lark/health"
+TASKS="http://127.0.0.1:$PORT/lark/tasks"
 AGENT_DIR="$HOME/Library/LaunchAgents"
-GW_LABEL="com.fameex.lark-gateway"
-WK_LABEL="com.fameex.lark-worker"
-POLLER_LABEL="com.fameex.lark-poller"
-LEGACY_GW_LABEL="com.aven.lark.gateway"
-LEGACY_WK_LABEL="com.aven.lark.worker"
+GW_LABEL="com.fameex.lark-falive-gateway"
+WK_LABEL="com.fameex.lark-falive-worker"
+POLLER_LABEL="com.fameex.lark-falive-poller"  # 不安装：bug 表轮询只归 fameex 那套
 GW_PLIST="$AGENT_DIR/$GW_LABEL.plist"
 WK_PLIST="$AGENT_DIR/$WK_LABEL.plist"
 POLLER_PLIST="$AGENT_DIR/$POLLER_LABEL.plist"
@@ -118,8 +119,6 @@ stop_core() {
   launchctl bootout "$DOMAIN/$WK_LABEL" 2>/dev/null || true
   _wait_gone "$WK" || echo "• worker 10s 内未退出，强制停止（在飞任务靠租约回收）"
   launchctl bootout "$DOMAIN/$GW_LABEL" 2>/dev/null || true
-  launchctl bootout "$DOMAIN/$LEGACY_WK_LABEL" 2>/dev/null || true
-  launchctl bootout "$DOMAIN/$LEGACY_GW_LABEL" 2>/dev/null || true
   _stop_script "$WK"
   _stop_script "$GW"
 }
@@ -128,8 +127,6 @@ start() {
   [ -d "$REPO" ] || { echo "repo not found: $REPO"; exit 1; }
   rotate_logs
   ensure_secret
-  launchctl bootout "$DOMAIN/$LEGACY_WK_LABEL" 2>/dev/null || true
-  launchctl bootout "$DOMAIN/$LEGACY_GW_LABEL" 2>/dev/null || true
   if ! _loaded "$GW_LABEL"; then _stop_script "$GW"; fi
   install_agent "$GW_LABEL" "$RUNTIME_DIR/$GW_LABEL.plist" "$GW_PLIST"
   echo "• gateway supervised by launchd → $LOGDIR/gateway.log"
@@ -159,6 +156,7 @@ stop() {
 
 # bug 轮询窗口：QA 期手动开、测完手动关（平时不跑）。空闲 4h 无新 bug 会自动收工。
 poll_on() {
+  echo "✖ falive 实例不跑 bug 表轮询（归 fameex 那套：lark-bot poll-on）"; return 1
   cd "$REPO" || { echo "repo not found: $REPO"; exit 1; }
   if _running "$POLLER"; then
     echo "• poller already running"
@@ -199,12 +197,12 @@ failed() {
 # 人工重触发一个 failed/blocked 任务：重置为 queued，worker 下一轮重跑
 retry() {
   [ -n "${1:-}" ] || { echo "usage: lark-bot retry <taskId>"; exit 1; }
-  curl -s -m 5 -X POST ${SECRET_HDR[@]+"${SECRET_HDR[@]}"} "http://127.0.0.1:3005/lark/tasks/$1/retry"; echo
+  curl -s -m 5 -X POST ${SECRET_HDR[@]+"${SECRET_HDR[@]}"} "http://127.0.0.1:$PORT/lark/tasks/$1/retry"; echo
 }
 
 receipt_retry() {
   [ -n "${1:-}" ] || { echo "usage: lark-bot receipt-retry <taskId>"; exit 1; }
-  curl -s -m 5 -X POST ${SECRET_HDR[@]+"${SECRET_HDR[@]}"} "http://127.0.0.1:3005/lark/tasks/$1/receipt/retry"; echo
+  curl -s -m 5 -X POST ${SECRET_HDR[@]+"${SECRET_HDR[@]}"} "http://127.0.0.1:$PORT/lark/tasks/$1/receipt/retry"; echo
 }
 
 # 清理陈旧终态任务。默认清 done；传 --failed 一并清 failed/blocked（注意：poller 运行时会重投 bug 表待处理项）
@@ -213,7 +211,7 @@ clean() {
   if [ "${1:-}" = "--failed" ]; then statuses='["done","failed","blocked"]'; hours="${2:-0}"; fi
   curl -s -m 5 -X POST ${SECRET_HDR[@]+"${SECRET_HDR[@]}"} -H 'Content-Type: application/json' \
     -d "{\"olderThanHours\":$hours,\"statuses\":$statuses}" \
-    "http://127.0.0.1:3005/lark/tasks/prune"; echo
+    "http://127.0.0.1:$PORT/lark/tasks/prune"; echo
 }
 
 status() {
@@ -257,7 +255,7 @@ status() {
         const counts = health?.counts || {};
 
         console.log(`started time: ${health?.version?.startedAt || "--"}`);
-        console.log(`lark-gateway: ${gatewayState}  port=3005`);
+        console.log(`lark-gateway: ${gatewayState}  port=${process.env.LARK_GATEWAY_PORT}`);
         console.log(`lark-worker:  ${workerState}${workerPid ? `  pid=${workerPid}` : ""}${worker?.draining ? "  排空中（磁盘代码已更新，在飞任务跑完即自动 restart）" : ""}`);
         console.log(`poller:       ${pollerState}${pollerPid ? `  pid=${pollerPid}` : ""}`);
         console.log("");
@@ -362,7 +360,7 @@ case "${1:-}" in
   clean)    clean "${2:-}" "${3:-}" ;;
   claude-auth) claude_auth "${2:-}" ;;
   sweep)
-    curl -s -X POST "http://127.0.0.1:3005/lark/sweep" -H "x-lark-gateway-secret: $(cat "$SECRET_FILE")" -H 'Content-Type: application/json' \
+    curl -s -X POST "http://127.0.0.1:$PORT/lark/sweep" -H "x-lark-gateway-secret: $(cat "$SECRET_FILE")" -H 'Content-Type: application/json' \
       -d "$(node -e 'process.stdout.write(JSON.stringify({ repo: process.argv[1] || "falive", date: process.argv[2] || "" }))' "${2:-falive}" "${3:-}")"; echo ;;
   daily-report) ( cd "$LARK_BOT_ROOT" && node scripts/lark-daily-report-now.mjs "${2:-falive}" "${@:3}" ) ;;
   intake-stats) ( cd "$LARK_BOT_ROOT" && node scripts/lark-intake-stats.mjs "${2:-falive}" "${3:-1}" "${@:4}" ) ;;

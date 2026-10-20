@@ -3,20 +3,24 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.fameex.lark-gateway</string>
+  <string>com.fameex.lark-falive-gateway</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/Users/aven/github/lark-bot/runtime/launchd-node.sh</string>
-    <string>/Users/aven/github/lark-bot/runtime/lark-gateway.mjs</string>
+    <string>/Users/aven/github/lark-bot-falive/runtime/launchd-node.sh</string>
+    <string>/Users/aven/github/lark-bot-falive/runtime/lark-gateway.mjs</string>
   </array>
   <key>WorkingDirectory</key>
-  <string>/Users/aven/github/fameex-web</string>
+  <string>/Users/aven/github/falive-react</string>
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
     <string>/Applications/ChatGPT.app/Contents/Resources:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>LARK_INSTANCE_MODE</key>
+    <string>repo-only</string>
+    <key>LARK_GATEWAY_PORT</key>
+    <string>3006</string>
     <key>LARK_LOG_FILE</key>
-    <string>/Users/aven/Library/Logs/fameex-lark/gateway.log</string>
+    <string>/Users/aven/Library/Logs/falive-lark/gateway.log</string>
   </dict>
   <key>RunAtLoad</key>
   <true/>
@@ -27,8 +31,8 @@
   <key>ProcessType</key>
   <string>Background</string>
   <key>StandardOutPath</key>
-  <string>/Users/aven/Library/Logs/fameex-lark/gateway.log</string>
+  <string>/Users/aven/Library/Logs/falive-lark/gateway.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/aven/Library/Logs/fameex-lark/gateway.log</string>
+  <string>/Users/aven/Library/Logs/falive-lark/gateway.log</string>
 </dict>
 </plist>

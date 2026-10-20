@@ -35,7 +35,7 @@ import { sweepAttachments } from './lib/lark-retention.mjs'
 import { larkAttachmentsRoot } from './lib/lark-paths.mjs'
 import { createRequestHandler } from './lib/lark-routes.mjs'
 import { createRuntimeVersion } from './lib/lark-runtime-version.mjs'
-import { GATEWAY_HOST, defaultGatewayPort, defaultTaskLeaseMs } from './lib/lark-constants.mjs'
+import { GATEWAY_HOST, defaultGatewayPort, defaultTaskLeaseMs, isRepoOnlyInstance } from './lib/lark-constants.mjs'
 import { addRepoChatIds, listRepoProfiles, registerRepoProfiles, repoProfileForTask } from './lib/lark-repo-profile.mjs'
 import { startChatPoller } from './lib/lark-chat-poller.mjs'
 import { startKeepAwake } from './lib/lark-keep-awake.mjs'
@@ -99,8 +99,13 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
 
   // 长连接消费者在 HTTP 起来、群名 / 自定义机器人解析完之后再启动（见下方）：以前它最先启动，
   // 群名还没解析、HTTP 还没 listen 的窗口里外部群消息按非仓库群处理、worker 请求 ECONNREFUSED。
+  // 独立实例（aven 2026-10-20：falive 与 fameex 分开部署、互不影响）：repo-only 只服务仓库 profile 的外部群——
+  // 不建应用机器人长连接、不补拉内部群、不回写 bug 表，这些都归 fameex 那套（~/github/lark-bot）。
+  const repoOnly = isRepoOnlyInstance()
   let consumer = null
-  const consumerHandle = { observe: () => consumer?.observe() ?? { alive: false, starting: true }, stop: () => consumer?.stop() }
+  const consumerHandle = repoOnly
+    ? { observe: () => ({ alive: true, disabled: true }), stop: () => {} }
+    : { observe: () => consumer?.observe() ?? { alive: false, starting: true }, stop: () => consumer?.stop() }
 
   // 群名 → chat_id：profile 只填了群名（外部群事先拿不到 id）时，启动用用户身份解析后并入 chatIds；
   // scope 未批时解析失败只告警，轮询器对该仓不启动，批下来 restart 即可。
@@ -130,7 +135,7 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   // 外部群（仓库 profile 配了 chatIds）：用户身份轮询拉消息喂同一条 ingest 链路。
   const chatPoller = startChatPoller({ config, store, ingest: ingestLarkEvent })
   // 内部群走长连接，睡着时收不到：开盖后从睡前时刻补拉一遍（lib/lark-wake-catchup.mjs）。
-  const wakeCatchup = startWakeCatchup({ config, store, ingest: ingestLarkEvent })
+  const wakeCatchup = repoOnly ? { stop: () => {} } : startWakeCatchup({ config, store, ingest: ingestLarkEvent })
   // 日报：每天固定时刻把当天进度 / 卡点 / 需要支持整理成卡片（试运行期私发负责人）。
   const dailyReport = startDailyReportScheduler({ store })
   // 推 pre 之后盯部署：pre 构建时间晚于推送 = 已部署，自动建复测任务（lib/lark-daily-sweep.mjs）。
@@ -139,14 +144,16 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   const server = createServer(createRequestHandler({ config, store, consumer: consumerHandle, port, runtimeVersion, chatPoller }))
   server.listen(port, GATEWAY_HOST, () => {
     console.log(`[lark-gateway] listening on http://${GATEWAY_HOST}:${port} for ${config.project}`)
-    console.log(`[lark-gateway] whitelist chats=${config.allowedChatIds === 'auto' ? 'auto(bot 所在群)' : ((config.allowedChatIds || []).join(',') || '(none)')} consume=im.message.receive_v1`)
+    console.log(repoOnly
+      ? '[lark-gateway] instanceMode=repo-only：只轮询仓库 profile 的群，不建长连接、不补拉内部群、不回写 bug 表'
+      : `[lark-gateway] whitelist chats=${config.allowedChatIds === 'auto' ? 'auto(bot 所在群)' : ((config.allowedChatIds || []).join(',') || '(none)')} consume=im.message.receive_v1`)
     for (const profile of listRepoProfiles().filter((item) => !item.isDefault)) {
       console.log(`[lark-gateway] repo ${profile.key}: project=${profile.projectKey} root=${profile.root} base=${profile.baseRef} chats=${profile.chatIds.join(',') || '(none)'} deliver=${profile.webhook ? 'webhook' : profile.notifyChatId ? `redirect:${profile.notifyChatId}` : 'bot'}`)
     }
     console.log(`[lark-gateway] code=${runtimeVersion.codeHash} startedAt=${runtimeVersion.startedAt}（health.version 会在磁盘代码变更后报 codeStale）`)
   })
 
-  consumer = startConsumer({
+  if (!repoOnly) consumer = startConsumer({
     eventKey: 'im.message.receive_v1',
     onLine: (raw) => ingestLarkEvent({ raw, config, store }),
     onDownAlert: (attempt) =>
@@ -193,12 +200,12 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   reclaimTimer.unref?.()
 
   // 回写重试：done_pending_writeback 的 bug 任务每 5min 重试回写，成功即落地 done。
-  const writebackTimer = setInterval(() => {
+  const writebackTimer = repoOnly ? null : setInterval(() => {
     retryPendingWriteback({ config, store }).catch((error) =>
       console.error(`[lark-gateway] 回写重试异常：${String(error).slice(0, 120)}`),
     )
   }, 5 * 60 * 1000)
-  writebackTimer.unref?.()
+  writebackTimer?.unref?.()
 
   // 回执重试：终态/挂起卡发送失败时任务会持久化 pendingReceipt，避免“已 done 但群里无消息”。
   const receiptTimer = setInterval(() => {
