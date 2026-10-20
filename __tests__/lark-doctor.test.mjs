@@ -102,6 +102,39 @@ describe('createDoctorMonitor（每小时私信，24 小时去重）', () => {
   })
 })
 
+describe('体检私信发送失败不记已报（aven 2026-10-20 review）', () => {
+  it('notify 返回 ok:false / 抛错 → 不写 state，下一轮照报；发成功后才进 24h 去重', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'lark-doctor-fail-'))
+    try {
+      let result = { ok: false, reason: 'HTTP 400 {"code":19002}' }
+      const notes = []
+      const monitor = createDoctorMonitor({
+        fetchHealth: async () => ({ ...healthy, version: { codeStale: true } }),
+        listTasks: async () => [],
+        profiles: () => [],
+        failures: () => ({ total: 0, byClass: {}, recurring: [], healed: 0 }),
+        dailyState: () => ({}),
+        notify: async (text) => { notes.push(text); if (result instanceof Error) throw result; return result },
+        statePath: join(dir, 'state.json'),
+        now: () => now,
+        log: () => {},
+        lidClosed: async () => false,
+      })
+      const failed = await monitor.tick()
+      assert.equal(failed.failed, true)
+      assert.equal(failed.notified.length, 0)
+      result = new Error('boom')
+      assert.equal((await monitor.tick()).failed, true)
+      result = { ok: true }
+      assert.equal((await monitor.tick()).notified.length, 1, '前两次没报出去，这次照报')
+      assert.equal((await monitor.tick()).notified.length, 0, '报出去之后才去重')
+      assert.equal(notes.length, 3)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
 describe('buildDailySelfCheckLine', () => {
   it('心跳 + 失败台账拼一行', () => {
     const line = buildDailySelfCheckLine({ now, failures: { total: 3, healed: 1, recurring: [{ fingerprint: 'x', count: 2 }], byClass: {} }, heartbeat: { heartbeatStale: false, codeStale: false } })
