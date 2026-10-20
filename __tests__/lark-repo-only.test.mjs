@@ -1,9 +1,15 @@
 import assert from 'node:assert/strict'
 import { afterEach, beforeEach, describe, it } from 'node:test'
 
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
 import { chatListMessageToEvent } from '../lib/lark-chat-poller.mjs'
 import { sendBotMarkdown, sendChatMessage } from '../lib/lark-cli.mjs'
+import { resolvePrincipalAnchor } from '../lib/lark-principal-channel.mjs'
 import { registerRepoProfiles, resetRepoProfiles, resolveWebhookForChat } from '../lib/lark-repo-profile.mjs'
+import { createTaskStore } from '../lib/lark-task-store.mjs'
 import { CONSOLE_UNANCHORED_HINT, isConsoleMessage, isForeignChat, replyUnanchoredConsole } from '../lib/lark-repo-only.mjs'
 
 // repo-only 实例（falive 独立部署，aven 2026-10-20）：只走 webhook、不用应用机器人身份发任何消息、不碰非仓库群。
@@ -69,5 +75,23 @@ describe('repo-only 实例', () => {
     delete process.env.LARK_INSTANCE_MODE
     assert.equal(isForeignChat({ msg: { chatId: 'oc_internal', chatType: 'group' }, repo: null }), false)
     assert.equal(isConsoleMessage({ chatType: 'p2p' }), false)
+  })
+
+  it('webhook 通知没有 message_id 也登记回执：控制台随口回一句能接上最近的任务，回复锚定不受合成 id 影响', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'repo-only-receipt-'))
+    try {
+      const store = createTaskStore({ tasksDir: join(dir, 'tasks'), leaseMs: 60_000 })
+      store.upsert({ id: 'om_task1', repo: 'falive', chatId: GROUP, status: 'done', text: 't', summary: '直播预告复测' })
+      store.recordReceipt('om_task1', { messageId: undefined, kind: 'done', epoch: 0 })
+      const [receipt] = store.get('om_task1').receipts
+      assert.match(receipt.messageId, /^webhook:done:/)
+      const profile = { key: 'falive' }
+      const anchor = resolvePrincipalAnchor({ msg: { chatId: CONSOLE, text: '这条再测一下', replyTo: null, replyToDirect: null }, store, profile })
+      assert.equal(anchor?.task.id, 'om_task1')
+      assert.equal(anchor?.via, 'recent')
+      assert.equal(store.findTaskByAnyReceipt('om_real_reply_target'), null)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
