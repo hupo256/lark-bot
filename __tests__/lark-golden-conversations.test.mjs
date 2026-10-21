@@ -42,7 +42,7 @@ const PROFILE = {
   root: join(tmpRoot, 'falive-react'), baseRef: 'main', chatIds: [GROUP], notifyChatId: CONSOLE,
   chatLabels: { [GROUP]: 'Falive PHP后端群' }, passiveMode: 'ledger', contextTrigger: true,
   ownership: { me: 'aven', meOpenIds: [AVEN], meAliases: ['Aven'] }, ownerMap: { aven: AVEN, Encone: ENCONE },
-  botMentionOpenIds: { [GROUP]: BOT }, memberRoles: { Encone: 'portal 后端' },
+  botMentionOpenIds: { [GROUP]: BOT }, botName: 'Aven.Bot', memberRoles: { Encone: 'portal 后端' },
   verify: { probeCommand: 'node scripts/pre-probe.mjs', env: 'pre' },
   intake: { fastLaneMs: 0, quietGapMs: 60_000, maxWaitMs: 180_000 },
   webhooksByChat: { [GROUP]: { url: 'https://hook/group' }, [CONSOLE]: { url: 'https://hook/console' } },
@@ -289,6 +289,17 @@ describe('黄金对话', () => {
     const out = await sendChatMessage({ chatId: GROUP, card: { elements: [{ tag: 'markdown', content: '**任务**：旧卡片' }] }, logPrefix: 'golden legacy' })
     assert.equal(out.ok, true)
     assert.deepEqual(sent.map((item) => item.to), ['console'])
+  })
+
+  it('S11 自定义机器人移出群再拉回来（新的 open_id）→ 按名字认出 @Aven.Bot，照常开任务，不用重启（10-21）', async () => {
+    const id = `om_golden_${(seq += 1)}`
+    await ingestLarkEvent({ raw: { message_id: id, chat_id: GROUP, chat_type: 'group', message_type: 'text', content: '@_user_1 按 Figma 把新闻详情页做出来', sender_type: 'user', sender_id: AVEN,
+      mentions: [{ id: 'ou_golden_bot_readded', key: '@_user_1', name: 'Aven.Bot' }], create_time: String(Date.now()) }, config, store })
+    assert.equal(store.get(id)?.addressedToBot, true, transcript().join('\n'))
+    const other = `om_golden_${(seq += 1)}`
+    await ingestLarkEvent({ raw: { message_id: other, chat_id: GROUP, chat_type: 'group', message_type: 'text', content: '@_user_1 看下', sender_type: 'user', sender_id: ENCONE,
+      mentions: [{ id: 'ou_someone', key: '@_user_1', name: 'Aven' }], create_time: String(Date.now()) }, config, store })
+    assert.notEqual(store.get(other)?.addressedToBot, true, '@ 别人（名字不是 Aven.Bot）不算')
   })
 
   it('S3b aven 交代的改动没过核验闸 → 执行器写好的回答不丢，私聊里带草稿可放行', async () => {
