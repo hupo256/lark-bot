@@ -22,10 +22,9 @@ import {
   isReportDay,
   parseReportDays,
   renderCounts,
-  shortReason,
   splitStatusBlock,
   stripCalloutExtras,
-  stripWalkthrough,
+  stripNonIssues,
   tableMismatches,
   validateStatusData,
 } from '../lib/lark-daily-ledger.mjs'
@@ -82,13 +81,12 @@ describe('逐功能状态', () => {
     assert.match(bad.errors.join('；'), /#1 状态「好」不合法/)
     assert.match(bad.errors.join('；'), /缺 6 个功能的状态/)
   })
-  it('进度按代码状态算，排除 #54，✅ 但 pre 看不到的单列', () => {
+  it('进度按代码状态算，排除 #54', () => {
     const { statuses } = validateStatusData(statusData, ROWS)
     const progress = computeProgress({ rows: ROWS, statuses })
     assert.equal(progress.total, 5)
     assert.equal(progress.done, 3)
     assert.equal(progress.percent, 78) // (100+60+100+30+100)/5
-    assert.deepEqual(progress.preHidden.map((item) => item.no), [5])
     assert.equal(renderCounts(progress), '**计数**（不含 #54）：✅ 3 项（aven 1、adrian 1、henry 1）。未完成 2 项：\n- aven 1 项：#4\n- adrian 1 项：#17')
     assert.deepEqual(tableMismatches(ROWS, statuses).map((item) => `${item.no}:${item.table}→${item.code}`), ['1:🟡→✅', '18:🟡→✅'])
   })
@@ -130,7 +128,11 @@ describe('回写与台账', () => {
     assert.match(out, /\| 1 \| 用户资料 \| henry \| ✅ \|/)
     assert.match(out, /\| 4 \| 预约 \| aven \| ⬜ \|/)
     assert.match(out, /\| 17–18 \| 签到 \/ 补签 \| adrian \| ⬜ \|/)
-    assert.match(out, /\| 54 \| 无 \| — \| — \|/)
+    assert.match(out, /\| 54 \| 无 \| — \| — \| -- \| -- \|/)
+    // aven 10-21：状态后面只写卡点——✅ 行一律 --，没打勾的行保留卡点
+    assert.match(out, /\| 1 \| 用户资料 \| henry \| ✅ \| -- \| -- \|/)
+    assert.match(out, /\| 4 \| 预约 \| aven \| ⬜ \| x \| y \|/)
+    assert.match(applyStatusColumn(DOC.replace('| 4 | 预约 | aven | ✅ | x | y |', '| 4 | 预约 | aven | ✅ |  | y |'), statuses), /\| 4 \| 预约 \| aven \| ⬜ \| -- \| y \|/)
     assert.deepEqual(expandNos('17–20'), [17, 18, 19, 20])
     assert.deepEqual(expandNos('**#9**'), [9])
   })
@@ -190,15 +192,6 @@ describe('网络实测（注入 fetch）', () => {
     assert.equal((await checkStreamUrl({ url: 'https://cdn/x.m3u8', fetchImpl: async () => response(200, '#EXTM3U\n#EXTINF') })).ok, true)
     const hang = (url, { signal }) => new Promise((_, reject) => signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' }))))
     assert.match((await checkStreamUrl({ url: 'https://cdn/x.m3u8', fetchImpl: hang, timeoutMs: 20 })).detail, /无响应/)
-  })
-})
-
-describe('短版原因', () => {
-  it('去提交号 / 文件名 / schema 名，截第一个分句，空原因给兜底', () => {
-    assert.equal(shortReason({ reason: 'pre 返回的 updatetime 是字符串，不过 origin/pre 上的 bannerSchema；修复在本地 4aa76f4 未合 pre' }), 'pre 返回的 updatetime 是字符串，…')
-    assert.equal(shortReason({ reason: '测试房间断流' }), '测试房间断流')
-    assert.equal(shortReason({ reason: '' }), '原因待补')
-    assert.equal(shortReason({ reason: '', pre: '未部署' }), '待部署')
   })
 })
 
@@ -267,15 +260,34 @@ describe('走查不进日报（aven 2026-10-20）', () => {
       '**不缺接口的未完成功能**：#23（只差回归 / 走查）',
       '普通行',
     ].join('\n')
-    assert.equal(stripWalkthrough(doc), [
-      '<p><b>henry：</b>负责 10 项，10 项 ✅。其中 2 项 pre 上还看不到效果：#32 测试房间 260 没在推流。</p>',
+    assert.equal(stripNonIssues(doc), [
+      '<p><b>henry：</b>负责 10 项，10 项 ✅。</p>',
       '<p><b>aven：</b>负责 5 项。</p>',
       '| 30 | 录播 tab | aven | ✅ | 已改接 | live |',
       '- **henry**：补齐了 X。',
       '**不缺接口的未完成功能**：#23（只差回归）',
       '普通行',
     ].join('\n'))
-    assert.equal(stripWalkthrough('没有相关内容\n| a | b |'), '没有相关内容\n| a | b |')
+    assert.equal(stripNonIssues('没有相关内容\n| a | b |'), '没有相关内容\n| a | b |')
+  })
+  it('部署 / 复测 / pre 看不到效果也不进日报（aven 2026-10-21）；后端「回调有没有部署」这类真问题不删', () => {
+    const doc = [
+      '<p><b>adrian：</b>负责 10 项，4 项 ✅（#12 #13），这 4 项在部署版上都还没复测。#14 补签回 400（G3）。</p>',
+      '<p><b>broker：</b>负责 3 项，2 项 ✅。#49 测试号自己没有存档，pre 没验。</p>',
+      '- **eric**：跑马灯改走 Go；已合入 pre，待发邮件部署',
+      '| 发邮件部署 pre | x | **aven** |',
+      '| 12 | 积分总额 | adrian | ✅ | 部署版还没复测 | -- |',
+      '| #18 回调 | G5 服务端回调有没有部署 | Go 后端 |',
+      '| 47 | 入口 | eric | ⬜ | 代码已接，pre 未验证；Go 回 500（G2） | Go 后端 |',
+    ].join('\n')
+    assert.equal(stripNonIssues(doc), [
+      '<p><b>adrian：</b>负责 10 项，4 项 ✅（#12 #13），#14 补签回 400（G3）。</p>',
+      '<p><b>broker：</b>负责 3 项，2 项 ✅。#49 测试号自己没有存档。</p>',
+      '- **eric**：跑马灯改走 Go；已合入 pre。',
+      '| 12 | 积分总额 | adrian | ✅ |  | -- |',
+      '| #18 回调 | G5 服务端回调有没有部署 | Go 后端 |',
+      '| 47 | 入口 | eric | ⬜ | 代码已接，Go 回 500（G2） | Go 后端 |',
+    ].join('\n'))
   })
 })
 

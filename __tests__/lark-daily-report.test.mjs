@@ -112,12 +112,14 @@ describe('事实采集与日报生成（IO 注入）', () => {
       assert.match(docPrompt, /### 2\.2 缺数据 \/ 缺配置`/)
       assert.match(docPrompt, /### 2\.3 接过但有问题的接口`/)
       assert.doesNotMatch(docPrompt, /两小节：2\.1 缺接口 \/ 缺数据 \/ 缺配置/)
-      assert.match(docPrompt, /以「10-13：」开头/)
+      // aven 10-21：一节只写卡点，✅ 行写 --；部署 / 复测不是问题
+      assert.match(docPrompt, /✅ 的行两列都写 `--`/)
+      assert.match(docPrompt, /走查、部署、复测都不是问题/)
+      assert.doesNotMatch(docPrompt, /对 ✅ 的功能再给 pre|以「10-13：」开头/)
       // 精简（aven 10-21）：高亮框只写负责 / ✅ / 卡点编号；每件事只写一处；✅ 没变化的行留空
       assert.match(docPrompt, /不写今天做了什么、不写 pre 上看不到效果、不写「运维」「外部阻塞」行/)
       assert.match(docPrompt, /每件事全文只写一处/)
       assert.match(docPrompt, /evidence 写「并入二节 <编号>」/)
-      assert.match(docPrompt, /今天没变化的行留空/)
       assert.doesNotMatch(docPrompt, /详略照模板/)
       assert.doesNotMatch(docPrompt, /状态列以功能总表（人维护）为准/)
 
@@ -207,7 +209,7 @@ describe('完整版：状态以 pre 代码为准 + 台账', () => {
       })
       const reportDir = join(dir, 'lark-daily-report', 'falive')
       mkdirSync(reportDir, { recursive: true })
-      const previous = `# 日报\n\n## 三、需要再跟进的工作\n\n| 事项 | 说明 | 负责人 |\n|---|---|---|\n| help 改名「聊天」 | x | **henry** |\n| 分支流程 | x | 待确认 |\n| 发邮件部署 | x | **aven** |\n`
+      const previous = `# 日报\n\n## 三、需要再跟进的工作\n\n| 事项 | 说明 | 负责人 |\n|---|---|---|\n| help 改名「聊天」 | x | **henry** |\n| 分支流程 | x | 待确认 |\n| 补签参数 | x | **aven** |\n`
       writeFileSync(join(reportDir, 'FaliveWeb日报-2026-10-13-完整版.md'), previous)
       const rows = parseFeatureTable(TABLE)
       const facts = {
@@ -215,7 +217,7 @@ describe('完整版：状态以 pre 代码为准 + 台账', () => {
         table: { rows, summary: summarizeFeatureTable(rows), changes: [], hadSnapshot: false }, botTasks: [], docPaths: { featureTable: 't', pendingDir: 'p', roadmap: 'r', docTemplate: 'tpl.md' },
         previousReport: { path: join(reportDir, 'FaliveWeb日报-2026-10-13-完整版.md'), date: '2026-10-13' }, apiGapSources: null,
       }
-      const full = `# Falive Web 一期 · 日报（2026-10-14）\n\n## 总体进度：待脚本填\n\n<callout><p><b>henry：</b>负责 1 项，0 项 ✅。</p></callout>\n\n## 一、功能进度总览\n\n| # | 功能 | 负责人 | 状态 | 还剩什么 | 需要谁支持 |\n|---|---|---|---|---|---|\n| 1 | 用户资料 | henry | ⬜ | x | y |\n| 2 | 节目表 | aven | ⬜ | x | y |\n| 28 | 直播存档 | broker | ⬜ | x | y |\n\n**计数**\n\n## 二、API：还缺什么、哪些有问题\n\n| 功能 | 缺什么 | 现状 | 找谁 | 文档 |\n|---|---|---|---|---|\n| #28 | anchorRecordList | 没 UI | broker | B3 |\n\n## 三、需要再跟进的工作\n\n| 事项 | 说明 | 负责人 |\n|---|---|---|\n| 发邮件部署 | x | **aven** |\n\n<!-- STATUS_JSON\n${JSON.stringify({ features: [{ no: 1, status: '✅', pre: '能用', evidence: 'pre 已接' }, { no: 2, status: '✅', pre: '看不到', reason: '没数据' }, { no: 28, status: '❌' }], resolved: [{ section: '三', key: 'help 改名「聊天」', evidence: 'pre a58b92b' }] })}\nSTATUS_JSON -->`
+      const full = `# Falive Web 一期 · 日报（2026-10-14）\n\n## 总体进度：待脚本填\n\n<callout><p><b>henry：</b>负责 1 项，0 项 ✅。</p></callout>\n\n## 一、功能进度总览\n\n| # | 功能 | 负责人 | 状态 | 还剩什么 | 需要谁支持 |\n|---|---|---|---|---|---|\n| 1 | 用户资料 | henry | ⬜ | x | y |\n| 2 | 节目表 | aven | ⬜ | x | y |\n| 28 | 直播存档 | broker | ⬜ | x | y |\n\n**计数**\n\n## 二、API：还缺什么、哪些有问题\n\n| 功能 | 缺什么 | 现状 | 找谁 | 文档 |\n|---|---|---|---|---|\n| #28 | anchorRecordList | 没 UI | broker | B3 |\n\n## 三、需要再跟进的工作\n\n| 事项 | 说明 | 负责人 |\n|---|---|---|\n| 补签参数 | x | **aven** |\n\n<!-- STATUS_JSON\n${JSON.stringify({ features: [{ no: 1, status: '✅', pre: '能用', evidence: 'pre 已接' }, { no: 2, status: '✅', pre: '看不到', reason: '没数据' }, { no: 28, status: '❌' }], resolved: [{ section: '三', key: 'help 改名「聊天」', evidence: 'pre a58b92b' }] })}\nSTATUS_JSON -->`
       const sent = []
       const prompts = []
       const outcome = await runDailyReport({
