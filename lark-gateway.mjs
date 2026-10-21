@@ -43,6 +43,7 @@ import { startKeepAwake } from './lib/lark-keep-awake.mjs'
 import { startWakeCatchup } from './lib/lark-wake-catchup.mjs'
 import { startDailyReportScheduler } from './lib/lark-daily-schedule.mjs'
 import { startDeployWatch } from './lib/lark-daily-sweep.mjs'
+import { ACK_SWEEP_EVERY_MS, sweepPendingAcks } from './lib/lark-repo-intake.mjs'
 
 // 任务领取租约：worker 领走后置 running；超过此时长仍 running 视为孤儿，下次 claim 时自动重入队。
 // 必须 > worker 的 AI 执行超时（默认 30min），避免误回收正在跑的长任务。
@@ -209,6 +210,12 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   }, 5 * 60 * 1000)
   writebackTimer?.unref?.()
 
+  // 挂着的「收到」到点照发（截止时间持久化在任务上，重启前挂着的这里接上；10-21 架构加固 P0）。
+  const sweepAcks = () => sweepPendingAcks({ store }).catch((error) => console.error(`[lark-gateway] 收到巡检异常：${String(error).slice(0, 120)}`))
+  void sweepAcks()
+  const ackTimer = setInterval(sweepAcks, ACK_SWEEP_EVERY_MS)
+  ackTimer.unref?.()
+
   // 回执重试：终态/挂起卡发送失败时任务会持久化 pendingReceipt，避免“已 done 但群里无消息”。
   const receiptTimer = setInterval(() => {
     retryPendingReceipts({ config, store }).catch((error) =>
@@ -252,6 +259,7 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
     clearInterval(sweepTimer)
     clearInterval(writebackTimer)
     clearInterval(receiptTimer)
+    clearInterval(ackTimer)
     clearInterval(parkedTimer)
     if (logTimer) clearInterval(logTimer)
     consumerHandle.stop()

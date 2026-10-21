@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, it } from 'node:test'
 import { startChatPoller } from '../lib/lark-chat-poller.mjs'
 import { ingestLarkEvent } from '../lib/lark-ingest.mjs'
 import { classifyPauseIntent, isNonSupplementalReply, isSubstantiveMessage, normalizeMessage, parseCommandType, parseControlDirective, parseResumeDirective, resolveMessageTrigger, stripMentionNames, textForParse } from '../lib/lark-message.mjs'
-import { ackInGroup, flushPendingAck, holdsSuspectedForPrincipal, isPushPrePrincipal, pickSupplementTarget } from '../lib/lark-repo-intake.mjs'
+import { DEFAULT_ACK_TIMEOUT_MS, ackInGroup, flushPendingAck, holdsSuspectedForPrincipal, sweepPendingAcks, isPushPrePrincipal, pickSupplementTarget } from '../lib/lark-repo-intake.mjs'
 import { CONSOLE_NO_TEXT_HINT } from '../lib/lark-repo-only.mjs'
 import { registerRepoProfiles, repoProfile, resetRepoProfiles } from '../lib/lark-repo-profile.mjs'
 import { resolvePrincipalProfiles, resolvePrincipalTarget } from '../lib/lark-principal-channel.mjs'
@@ -236,14 +236,21 @@ describe('#57：「收到」等分类结果，用分类器按上下文写的那�
     assert.equal(posted.length, before)
     assert.equal(store.get('om_rv_ack2').ackPending, null)
   })
-  it('分类迟迟不回：到点照发固定句，不能没下文', async () => {
-    let fire = null
+  it('分类迟迟不回：截止时间落盘，网关重启后巡检照发固定句；没到点不发', async () => {
+    const t0 = Date.parse('2026-10-21T08:00:00Z')
     const task = store.upsert({ id: 'om_rv_ack3', chatId: GROUP, repo: 'falive', operator: ENCONE, text: 'x' })
-    await ackInGroup({ store, task, setTimer: (fn) => { fire = fn; return { unref() {} } } })
-    assert.ok(store.get('om_rv_ack3').ackPending)
-    fire()
-    await new Promise((resolve) => setImmediate(resolve))
+    await ackInGroup({ store, task, now: t0 })
+    assert.ok(store.get('om_rv_ack3').ackPending.deadline)
+    // 模拟网关重启：换一个读同一目录的 store
+    const restarted = createTaskStore({ tasksDir: join(dir, 'tasks'), leaseMs: 60_000 })
+    assert.equal(await sweepPendingAcks({ store: restarted, now: t0 + 10_000 }), 0, '没到点不发')
+    assert.equal(groupCards().some((c) => c.includes('稍后回复')), false)
+    assert.equal(await sweepPendingAcks({ store: restarted, now: t0 + DEFAULT_ACK_TIMEOUT_MS + 1 }), 1)
     assert.ok(groupCards().some((c) => c.includes('收到，我查一下，稍后回复')))
-    assert.equal(store.get('om_rv_ack3').ackedInGroup, true)
+    assert.equal(restarted.get('om_rv_ack3').ackedInGroup, true)
+    assert.equal(await sweepPendingAcks({ store: restarted, now: t0 + 999_999 }), 0, '只发一次')
+    // 10-20 版留下的老格式（没有 deadline）按 at + 默认超时算
+    restarted.upsert({ id: 'om_rv_ack4', chatId: GROUP, repo: 'falive', operator: AVEN, text: 'y', ackPending: { at: new Date(t0).toISOString() } })
+    assert.equal(await sweepPendingAcks({ store: restarted, now: t0 + DEFAULT_ACK_TIMEOUT_MS + 1 }), 1)
   })
 })
