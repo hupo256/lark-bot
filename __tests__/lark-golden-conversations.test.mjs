@@ -107,7 +107,7 @@ const classify = async (id, classification) => {
   return out
 }
 // 执行器跑完：changedFiles = 工作区实测改动；闸用真实 done.trust（采证据那道换成桩）
-const work = async (id, aiResult, { changedFiles = [], gates = null, runEvidence = null } = {}) => {
+const work = async (id, aiResult, { changedFiles = [], gates = null, runEvidence = null, ownerNotes = [] } = {}) => {
   const task = claim(id)
   const evidence = { name: 'evidence', applies: () => true, check: (ctx) => { ctx.evidence.changedFiles = changedFiles; ctx.outputs.actualChangedFiles = changedFiles; return { ok: true } } }
   const realGates = gates || VERIFY_GATES.filter((gate) => ['done.trust'].includes(gate.name))
@@ -116,7 +116,7 @@ const work = async (id, aiResult, { changedFiles = [], gates = null, runEvidence
   const verify = ['done', 'done_with_warnings'].includes(result.status)
     ? await runVerifyGates({ task, workContext, aiRun: { result }, expectsCode: expectsCodeChange({ task, readOnly: workContext.readOnly }), gates: [evidence, ...realGates] })
     : null
-  const report = assembleRunReport({ aiResult: result, verify, resultText: result.summary || '已完成。', actualChangedFiles: changedFiles, evidence: runEvidence })
+  const report = assembleRunReport({ aiResult: result, verify, resultText: result.summary || '已完成。', actualChangedFiles: changedFiles, evidence: runEvidence, ownerNotes })
   // 走 worker 真实用的网关客户端回写（10-21：客户端字段白名单丢了 change / report，直接 POST 的测试测不出来）
   const out = await createGatewayClient(base).updateTask(id, report.status, report.result, 'claude', task.epoch, null, null, report.extras)
   assert.equal(out?.ok, true, `status 回写失败：${JSON.stringify(out)}`)
@@ -310,6 +310,15 @@ describe('黄金对话', () => {
     await dm(`继续任务 ${id}`)
     assert.equal(store.get(id).status, 'queued', transcript().join('\n'))
     assert.doesNotMatch(consoleTexts().join('\n'), /没有可用的补充内容/)
+  })
+
+  it('S13 任务带了截图、执行器一张没打开 → 私聊里固定提示「截图没看」（10-21 #62：漏看原型，回头问产品做不做）', async () => {
+    const { unopenedImagesNote } = await import('../lib/lark-run-report.mjs')
+    const id = await say({ from: AVEN, text: '新的 UI 来了，请同步更新一下' })
+    await classify(id, { decision: 'requirement', reply: '收到，按新稿改新闻详情页' })
+    const note = unopenedImagesNote({ evidence: { unopenedFiles: ['/a.jpg', '/b.jpg'] }, total: 2 })
+    await work(id, { status: 'done', report: { subject: '新闻详情页新稿', answer: null, items: [{ mark: 'not_usable', name: '作者行', note: '还没部署', evidence: 'code' }] } }, { changedFiles: ['src/modules/news/NewsDetailPage.tsx'], ownerNotes: [note] })
+    assert.match(consoleTexts().join('\n'), /⚠ 任务带的 2 张截图执行器一张都没打开看/, transcript().join('\n'))
   })
 
   it('S3b aven 交代的改动没过核验闸 → 执行器写好的回答不丢，私聊里带草稿可放行', async () => {

@@ -38,8 +38,27 @@ describe('结构化群回复', () => {
       const use = (id, command) => JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name: 'Bash', input: { command } }] } })
       writeFileSync(join(dir, 'a.jsonl'), [use('t1', "node scripts/pre-probe.mjs '[]'"), use('t1', "node scripts/pre-probe.mjs '[]'"), use('t2', 'cd /tmp && node -e "require(\'playwright\')"')].join('\n'))
       writeFileSync(join(dir, 'b.jsonl'), use('t3', 'git diff'))
-      assert.deepEqual(collectRunEvidence({ sessionFiles: [join(dir, 'a.jsonl'), join(dir, 'b.jsonl')], probeCommand: 'node scripts/pre-probe.mjs' }), { probeCalls: 1, browserCalls: 1 })
+      assert.deepEqual(collectRunEvidence({ sessionFiles: [join(dir, 'a.jsonl'), join(dir, 'b.jsonl')], probeCommand: 'node scripts/pre-probe.mjs' }), { probeCalls: 1, browserCalls: 1, unopenedFiles: [] })
       assert.equal(collectRunEvidence({ sessionFiles: [join(dir, 'missing.jsonl')] }), null)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('截图有没有打开（10-21 #62）', () => {
+  it('按会话记录里的 Read / 命令路径数出没打开的截图；提示只在有没打开的时候出', async () => {
+    const { unopenedImagesNote } = await import('../lib/lark-run-report.mjs')
+    const dir = mkdtempSync(join(tmpdir(), 'lark-evidence-img-'))
+    try {
+      const use = (id, name, input) => JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name, input }] } })
+      writeFileSync(join(dir, 's.jsonl'), [use('t1', 'Read', { file_path: '/att/1.jpg' }), use('t2', 'Bash', { command: 'file /att/3.jpg' })].join('\n'))
+      const evidence = collectRunEvidence({ sessionFiles: [join(dir, 's.jsonl')], watchFiles: ['/att/1.jpg', '/att/2.jpg', '/att/3.jpg'] })
+      assert.deepEqual(evidence.unopenedFiles, ['/att/2.jpg'])
+      assert.match(unopenedImagesNote({ evidence, total: 3 }), /3 张截图有 1 张执行器没打开看/)
+      assert.match(unopenedImagesNote({ evidence: { unopenedFiles: ['/a', '/b'] }, total: 2 }), /一张都没打开看/)
+      assert.equal(unopenedImagesNote({ evidence: { unopenedFiles: [] }, total: 3 }), null)
+      assert.equal(unopenedImagesNote({ evidence: null, total: 3 }), null, '读不到会话记录不提示')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

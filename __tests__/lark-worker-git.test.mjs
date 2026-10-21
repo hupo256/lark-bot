@@ -434,3 +434,13 @@ describe('合回集成分支后删任务分支（aven 2026-10-16）', () => {
     }
   })
 })
+
+describe('bot 的合并提交信息过得了业务仓 commit-msg 钩子（10-21）', () => {
+  it('以「Merge branch」开头（falive-react verify-commit-msg 只放行 <type>: … 或 Merge / Revert 开头）', async () => {
+    const { integrationMergeMessage } = await import('../lib/lark-worker-git.mjs')
+    const BYPASS = /^(Merge |Revert |fixup!|squash!)/
+    for (const message of [integrationMergeMessage({ branch: 'feature/phase-4-page', integrationBranch: 'lark/falive-integration' }), integrationMergeMessage({ branch: 'lark/falive-cb475c79', integrationBranch: 'lark/falive-integration', summary: 'aven 交办：新闻详情页按新稿改版' })]) {
+      assert.match(message, BYPASS, message)
+    }
+  })
+})
