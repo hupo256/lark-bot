@@ -11,6 +11,7 @@ import {
   buildRepoNote,
   buildRepoStartNote,
   buildRepoSuspectedNote,
+  decideGroupReply,
   deliverHeldGroupReply,
   deliverRepoAck,
   deliverRepoNoted,
@@ -536,5 +537,23 @@ describe('群文本不回落原话 / 兜底统一出口 / 没 notifyChatId 不�
       if (prev == null) delete process.env.LARK_FOLLOWUP_DOCS_DIR
       else process.env.LARK_FOLLOWUP_DOCS_DIR = prev
     }
+  })
+})
+
+describe('回答发不发群（10-21 P3：闸只管提交）', () => {
+  const t = (extra) => ({ id: 'x', groupReply: '结论', ...extra })
+  it('done / 不用改 → 发；阻塞没写回复 → 不发；groupSilent → 不发', () => {
+    assert.equal(decideGroupReply({ task: t(), status: 'done' }).mode, 'post')
+    assert.equal(decideGroupReply({ task: t(), status: 'no_change_needed' }).mode, 'post')
+    assert.equal(decideGroupReply({ task: t({ groupReply: null }), status: 'blocked' }).mode, 'none')
+    assert.equal(decideGroupReply({ task: t({ payload: { groupSilent: true } }), status: 'done' }).mode, 'none')
+  })
+  it('复测 / 回答类只是改动没提交 → 回答照发；改代码类没提交 / 任务失败 → 扣下给负责人', () => {
+    const change = { committed: false, gate: 'done.trust', reason: '只改文档' }
+    assert.equal(decideGroupReply({ task: t({ contract: { deliverable: 'verification' }, change }), status: 'failed' }).mode, 'post')
+    const held = decideGroupReply({ task: t({ contract: { deliverable: 'change' }, change }), status: 'failed' })
+    assert.equal(held.mode, 'hold')
+    assert.match(held.reason, /改动没提交（done\.trust：只改文档）/)
+    assert.match(decideGroupReply({ task: t({ contract: { deliverable: 'verification' } }), status: 'failed' }).reason, /任务没做成（failed）/, '执行器自己报失败：不是只差提交，扣下')
   })
 })

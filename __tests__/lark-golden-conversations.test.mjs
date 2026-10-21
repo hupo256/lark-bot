@@ -235,11 +235,26 @@ describe('黄金对话', () => {
     assert.equal(consoleTexts().length >= 1, true)
   })
 
-  it('S3b aven 交代的改动没过核验闸 → 执行器写好的回答不丢，私聊里带草稿可放行', { todo: 'P3 闸只管提交' }, async () => {
+  it('S3b aven 交代的改动没过核验闸 → 执行器写好的回答不丢，私聊里带草稿可放行', async () => {
     const id = await say({ from: AVEN, text: '把预约按钮文案改成「立即预约」' })
     await classify(id, { decision: 'requirement', reply: '收到，我去改预约按钮文案，改完说一声' })
     await work(id, { status: 'done', completionClaim: 'all_done', groupReply: '预约按钮文案改好了：「立即预约」' }, { changedFiles: ['docs/a.md'] })
     assert.equal(groupTexts().length, 1, transcript().join('\n'))
     assert.match(consoleTexts().join('\n'), /预约按钮文案改好了/, '私聊里要带执行器写好的回答草稿')
+    assert.match(consoleTexts().join('\n'), /就这样回/)
+    await dm('就这样回')
+    assert.equal(groupTexts().length, 2, transcript().join('\n'))
+    assert.match(groupTexts()[1], /预约按钮文案改好了/)
+  })
+
+  it('S3d 复测任务被核验闸拦下（比如顺手动了代码没过规则扫描）→ 改动不提交，但实测结论照发', async () => {
+    const id = await say({ from: AVEN, text: '去 pre 上复测一下签到' })
+    await classify(id, { decision: 'requirement', reply: '收到，我去 pre 复测签到，测完报结果' })
+    const failing = { name: 'code-rules', applies: () => true, check: () => ({ ok: false, status: 'failed', text: '规则扫描 error 1 处', reason: '规则扫描 error 1 处' }) }
+    const { verify } = await work(id, { status: 'done', preChecks: PRE_OK, groupReply: '签到复测：都通了\n- ✅ 通了 签到：pre 实测 code 0' }, { changedFiles: ['src/x.ts'], gates: [failing] })
+    assert.equal(verify.ok, false)
+    assert.equal(store.get(id).change.committed, false)
+    assert.equal(groupTexts().length, 2, transcript().join('\n'))
+    assert.match(groupTexts()[1], /签到复测/)
   })
 })
