@@ -17,8 +17,10 @@ import {
   computeProgress,
   diffLedger,
   expandNos,
+  fillEmptyTables,
   fetchSiteBuildTime,
   findPreviousFullReport,
+  sectionTableRows,
   isReportDay,
   parseReportDays,
   renderCounts,
@@ -309,5 +311,21 @@ describe('精简（aven 2026-10-21）', () => {
     const [problem] = checkVerbose(doc)
     assert.match(problem, /^超过字数上限 3 处（单元格 80 字、高亮框 100 字）：高亮框 henry（101 字）、一节 #1（81 字）、二节 #47 入口（81 字）$/)
     assert.deepEqual(checkVerbose('## 一、x\n\n| # | a |\n|---|---|\n| 1 | 短 |'), [])
+  })
+})
+
+describe('空表补 --（aven 2026-10-21）', () => {
+  it('二、三节删空的表补一行 --，不算台账行；有行的表、一节的表不动，已有 -- 行不重复补', () => {
+    const doc = [
+      '## 一、功能', '', '| # | a |', '|---|---|', '',
+      '## 二、API', '', '### 2.1 缺接口', '', '| 功能 | 缺什么 | 现状 |', '|---|---|---|', '', '### 2.2 缺数据', '', '| 功能 | 缺什么 |', '|---|---|', '| #6 | x |', '',
+      '## 三、跟进', '', '| 事项 | 说明 | 负责人 |', '|---|---|---|', '| -- | -- | -- |',
+    ].join('\n')
+    const out = fillEmptyTables(doc)
+    assert.match(out, /\| 功能 \| 缺什么 \| 现状 \|\n\|---\|---\|---\|\n\| -- \| -- \| -- \|\n/)
+    assert.match(out, /## 一、功能\n\n\| # \| a \|\n\|---\|---\|\n\n/)
+    assert.equal(out.split('| -- | -- | -- |').length - 1, 2)
+    assert.deepEqual(sectionTableRows(out, '## 二、').map((row) => row.cells[0]), ['#6'])
+    assert.deepEqual(sectionTableRows(out, '## 三、'), [])
   })
 })

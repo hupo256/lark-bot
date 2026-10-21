@@ -117,6 +117,7 @@ describe('事实采集与日报生成（IO 注入）', () => {
       // aven 10-21：一节只写卡点，✅ 行写 --；部署 / 复测不是问题
       assert.match(docPrompt, /✅ 的行两列都写 `--`/)
       assert.match(docPrompt, /走查、部署、复测都不是问题/)
+      assert.match(docPrompt, /口径没定、字段没补、要不要改走某服务这类不算缺接口/)
       assert.doesNotMatch(docPrompt, /对 ✅ 的功能再给 pre|以「10-13：」开头/)
       // 精简（aven 10-21）：高亮框只写负责 / ✅ / 卡点编号；每件事只写一处；✅ 没变化的行留空
       assert.match(docPrompt, /不写今天做了什么、不写 pre 上看不到效果、不写「运维」「外部阻塞」行/)
