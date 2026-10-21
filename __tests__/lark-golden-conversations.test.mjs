@@ -216,7 +216,7 @@ describe('黄金对话', () => {
     assert.match(acks[0], /稍后回复/)
   })
 
-  it('S2 外部同事的结论被扣下 → 群里只有那句收到，草稿私聊 aven；私聊「就这样回」才发群', { todo: 'P5 回复义务：被扣下时不再补「拿不准」' }, async () => {
+  it('S2 外部同事的结论被扣下 → 群里只有那句收到，草稿私聊 aven；私聊「就这样回」才发群', async () => {
     const id = await say({ from: ENCONE, text: 'front/lives 更新了，再试试' })
     await classify(id, { decision: 'api_reply', reply: '收到，这就复测，结果发群里' })
     await work(id, { status: 'done', completionClaim: 'all_done', preChecks: PRE_OK, groupReply: '都通了，第 3 页没有数据' }, { changedFiles: ['docs/a.md'] })
@@ -227,12 +227,31 @@ describe('黄金对话', () => {
     assert.match(groupTexts()[1], /第 3 页没有数据/)
   })
 
-  it('S5 外部同事的问题执行失败 → 群里只有那句收到，私聊 aven（不发「拿不准」）', { todo: 'P5 回复义务' }, async () => {
+  it('S5 外部同事的问题执行失败 → 群里只有那句收到，私聊 aven（不发「拿不准」）', async () => {
     const id = await say({ from: ENCONE, text: '头像是哪个接口' })
     await classify(id, { decision: 'question', reply: '收到，我查下头像用的接口，结果回群里' })
     await work(id, { status: 'failed', summary: '执行器超时' })
     assert.equal(groupTexts().length, 1, transcript().join('\n'))
     assert.equal(consoleTexts().length >= 1, true)
+  })
+
+  it('S7 外部同事的结论被扣下 → aven 私聊让再测 → 指示任务的新结论发一次，旧草稿作废，群里从头到尾没有兜底话术（10-20 原序列）', async () => {
+    const id = await say({ from: ENCONE, text: 'front/lives 更新了，再试试' })
+    await classify(id, { decision: 'api_reply', reply: '收到，这就复测，结果发群里' })
+    await work(id, { status: 'done', completionClaim: 'all_done', preChecks: PRE_OK, groupReply: '都通了，第 3 页没有数据' }, { changedFiles: ['docs/a.md'] })
+    const instructId = await dm('再测一下，看清楚第 3 页')
+    assert.equal(store.get(instructId).privateOrigin.anchorId, id, '私聊指示挂在 Encone 那条上')
+    await classify(instructId, { decision: 'api_reply', reply: '收到，再测一遍' })
+    await work(instructId, { status: 'no_change_needed', preChecks: PRE_OK, groupReply: 'front/lives 复测：都通了\n- ✅ 通了 第 2 页：code 0，第 3 页为空说明到底了' })
+    const group = groupTexts()
+    assert.equal(group.length, 2, transcript().join('\n'))
+    assert.match(group[1], /front\/lives 复测：都通了/)
+    assert.doesNotMatch(group.join('\n'), /拿不准/)
+    const tasksBefore = store.list().length
+    await dm('就这样回')
+    assert.equal(groupTexts().length, 2, '旧草稿已作废，不再放出')
+    assert.equal(store.list().length, tasksBefore, '不建新的指示任务')
+    assert.match(consoleTexts().at(-1), /已经发过更新的结论了，没有待放行的草稿/)
   })
 
   it('S3b aven 交代的改动没过核验闸 → 执行器写好的回答不丢，私聊里带草稿可放行', async () => {

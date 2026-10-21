@@ -44,6 +44,7 @@ import { startWakeCatchup } from './lib/lark-wake-catchup.mjs'
 import { startDailyReportScheduler } from './lib/lark-daily-schedule.mjs'
 import { startDeployWatch } from './lib/lark-daily-sweep.mjs'
 import { ACK_SWEEP_EVERY_MS, sweepPendingAcks } from './lib/lark-repo-intake.mjs'
+import { deliverOverdueObligations } from './lib/lark-repo-delivery.mjs'
 
 // 任务领取租约：worker 领走后置 running；超过此时长仍 running 视为孤儿，下次 claim 时自动重入队。
 // 必须 > worker 的 AI 执行超时（默认 30min），避免误回收正在跑的长任务。
@@ -230,6 +231,8 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
     remindParkedTasks({ config, store }).catch((error) =>
       console.error(`[lark-gateway] 挂起催办异常：${String(error).slice(0, 120)}`),
     )
+    // 回过「收到」却 4 小时没结论（执行器崩了 / 任务丢了）：私聊负责人一次，不发群（10-21 P5）。
+    deliverOverdueObligations({ profiles: listRepoProfiles() }).catch((error) => console.error(`[lark-gateway] 回复义务巡检异常：${String(error).slice(0, 120)}`))
     // 疑似任务 48h 无人放行自动关闭（整改 #8），按仓汇总私聊负责人一句。
     try {
       const expired = store.expireSuspected()

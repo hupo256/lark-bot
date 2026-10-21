@@ -3,7 +3,6 @@ import { afterEach, describe, it } from 'node:test'
 
 import {
   buildGroupCard,
-  FALLBACK_TEXT,
   buildRepoBlockedGroupText,
   followUpTopicKey,
   buildRepoGroupText,
@@ -13,6 +12,7 @@ import {
   buildRepoSuspectedNote,
   decideGroupReply,
   deliverHeldGroupReply,
+  deliverOverdueObligations,
   deliverRepoAck,
   deliverRepoNoted,
   deliverRepoIgnoredAfterAck,
@@ -26,6 +26,7 @@ import {
 import { findCompletionContradiction, findCountMismatch, findGroupReplyContradiction } from '../lib/lark-completion-rule.mjs'
 import { parkedReminderRound, remindParkedTasks } from '../lib/lark-parked-reminder.mjs'
 import { addRepoChatIds, registerRepoProfiles, repoProfile, resetRepoProfiles } from '../lib/lark-repo-profile.mjs'
+import { OVERDUE_AFTER_MS, getObligation, heldDraftFor, noteAck, resetObligationMemory } from '../lib/lark-reply-obligation.mjs'
 
 const ownerMap = { Ache: 'ou_ache', Encone: 'ou_encone' }
 const register = () => {
@@ -249,7 +250,7 @@ describe('阻塞时群里 @ 责任人要材料（整改 #12）', () => {
 
 describe('待确认清单按主题复用云文档（#13）与兜底话术（#15）', () => {
   afterEach(() => resetRepoProfiles())
-  it('同主题第二次走 overwrite 不新建；主题缺省取文件名去日期；守门拦下且群里回过收到 → 发兜底', async () => {
+  it('同主题第二次走 overwrite 不新建；主题缺省取文件名去日期；守门拦下 → 群里什么都不补（10-21 P5）', async () => {
     register()
     const { mkdtempSync, rmSync } = await import('node:fs')
     const { tmpdir } = await import('node:os')
@@ -275,7 +276,7 @@ describe('待确认清单按主题复用云文档（#13）与兜底话术（#15�
       assert.deepEqual(calls.filter((c) => c === 'create' || c.startsWith('overwrite')), ['create', 'overwrite:docA'])
       calls.length = 0
       await deliverRepoOutcome({ task: { id: 'g', chatId: 'oc_falive', repo: 'falive', commandType: 'status', groupReply: '接口都已对完，还差举报分类为空。', ackedInGroup: true }, status: 'done', result: 'x', deps })
-      assert.deepEqual(calls, ['repo fallback g'], '守门拦下 + 群里回过收到 → 只发兜底')
+      assert.deepEqual(calls, [], '守门拦下：群里不补兜底话术，草稿私聊负责人')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -379,7 +380,7 @@ describe('回群对着谁说（教训 #41）', () => {
   })
 })
 
-describe('群文本不回落原话 / 兜底统一出口 / 没 notifyChatId 不发（aven 2026-10-20 review）', () => {
+describe('群文本不回落原话 / 回复义务 / 没 notifyChatId 不发（aven 2026-10-20 review，10-21 P5）', () => {
   afterEach(() => resetRepoProfiles())
   const mkDeps = (hooks, sent, extra = {}) => ({
     sendMarkdown: async (a) => { sent.push(a); return { ok: true, messageId: 'om_note' } },
@@ -420,84 +421,65 @@ describe('群文本不回落原话 / 兜底统一出口 / 没 notifyChatId 不�
     assert.match(done.note, /这条没写群回复，群里没发。/)
   })
 
-  it('C2：done 没写群回复 + 群里回过收到 → 只补兜底句，不发「✅ + 对方原话」', async () => {
-    register()
-    const hooks = []
-    const sent = []
-    const out = await deliverRepoOutcome({ task: { id: 'c2', chatId: 'oc_falive', repo: 'falive', operator: 'ou_ache', ackedInGroup: true, summary: 'Ache：直播预告重复了', groupReply: '' }, status: 'done', result: '已完成，待发布。\n1. 去重修好了。', deps: mkDeps(hooks, sent) })
-    assert.equal(hooks.length, 1)
-    assert.equal(hooks[0].card.elements[0].content, `<at id=ou_ache></at> ${FALLBACK_TEXT}`)
-    assert.doesNotMatch(hooks[0].card.elements[0].content, /直播预告重复了|✅/)
-    assert.match(out.note, /这条没写群回复，群里没发。\n群里回过「收到」，已补一句/)
-  })
-
-  it('C6：done 被出口闸拦下 / 发送失败 / 失败终态，回过收到就统一补兜底；同一任务已发过 done 或兜底不再补', async () => withOutbox(async () => {
+  it('C2 / C6 → 10-21 P5：回过收到后，没写回复 / 被闸拦下 / 发送失败 / 失败终态都不在群里补兜底，只私聊说清；义务记欠着', async () => withOutbox(async () => {
     register()
     const hooks = []
     const sent = []
     const deps = mkDeps(hooks, sent)
     const base = { chatId: 'oc_falive', repo: 'falive', operator: 'ou_ache', ackedInGroup: true, addressedToBot: true, topic: 't-1', groupReply: '修好了，pre 可以复测' }
+    const noReply = await deliverRepoOutcome({ task: { ...base, id: 'c2', summary: 'Ache：直播预告重复了', groupReply: '' }, status: 'done', result: '已完成，待发布。\n1. 去重修好了。', deps })
+    assert.equal(hooks.length, 0, '没写群回复：群里什么都不发（不发「✅ + 对方原话」，也不发兜底）')
+    assert.match(noReply.note, /这条没写群回复，群里没发。\n群里只回过「收到」，结论没发，群里不会再补话。/)
+    assert.equal(getObligation({ id: 'c2', chatId: 'oc_falive' }).state, 'owed')
     await deliverRepoOutcome({ task: { ...base, id: 'g1' }, status: 'done', result: 'x', deps })
-    assert.equal(hooks.length, 1, '第一条正常发 done')
+    assert.equal(hooks.length, 1, '正常发 done')
+    assert.equal(getObligation({ id: 'g1', chatId: 'oc_falive' }).state, 'answered')
     const gated = await deliverRepoOutcome({ task: { ...base, id: 'g2' }, status: 'done', result: 'x', deps })
     assert.equal(gated.groupOutcome.gated, true, '同内容被闸拦下')
-    assert.equal(hooks.length, 2)
-    assert.match(hooks[1].logPrefix, /^repo fallback g2/)
-    assert.match(gated.note, /已补一句/)
-    await deliverRepoOutcome({ task: { ...base, id: 'g1' }, status: 'done', result: 'x', deps })
-    assert.equal(hooks.length, 2, 'g1 群里已发过 done：重投递被拦也不补兜底')
-    await deliverRepoOutcome({ task: { ...base, id: 'g3', operator: 'ou_william', topic: 't-3' }, status: 'failed', result: '处理失败。', deps })
-    assert.match(hooks[2].logPrefix, /^repo fallback g3/, '失败终态：群里回过收到也补')
-    await deliverRepoOutcome({ task: { ...base, id: 'g3', operator: 'ou_william', topic: 't-3' }, status: 'failed', result: '处理失败。', deps })
-    assert.equal(hooks.length, 3, '同一任务兜底只补一次')
-    const failing = mkDeps([], sent, { sendWebhookMessage: async (a) => (a.logPrefix.startsWith('repo fallback') ? (hooks.push(a), { ok: true }) : { ok: false, reason: 'HTTP 500' }) })
-    await deliverRepoOutcome({ task: { ...base, id: 'g4', operator: 'ou_eric', topic: 't-4', groupReply: '另一句' }, status: 'done', result: 'x', deps: failing })
-    assert.match(hooks[3].logPrefix, /^repo fallback g4/, 'done 发送失败也补')
-    const silent = hooks.length
-    await deliverRepoOutcome({ task: { ...base, id: 'g5', topic: 't-5', groupReply: null, payload: { groupSilent: true } }, status: 'done', result: 'x', deps })
-    await deliverRepoOutcome({ task: { ...base, id: 'g6', topic: 't-6', ackedInGroup: false, groupReply: null }, status: 'done', result: 'x', deps })
-    assert.equal(hooks.length, silent, 'groupSilent / 没回过收到：不补')
+    assert.equal(hooks.length, 1, '拦下不补兜底')
+    await deliverRepoOutcome({ task: { ...base, id: 'g3', operator: 'ou_william', topic: 't-3', groupReply: null }, status: 'failed', result: '处理失败。', deps })
+    assert.equal(hooks.length, 1, '失败终态不补兜底')
   }))
 
-  it('#58：要对着说的是负责人本人 → 失败也不在群里补「等 aven 看过再回」，只私聊', async () => withOutbox(async () => {
-    registerRepoProfiles({ repos: { falive: { root: '/tmp/f', baseRef: 'main', chatIds: ['oc_falive'], notifyChatId: 'oc_console', ownership: { me: 'aven', meOpenIds: ['ou_aven'] }, ownerMap: {} } } })
-    const hooks = []
-    const out = await deliverRepoOutcome({ task: { id: 'p58', chatId: 'oc_falive', repo: 'falive', operator: 'ou_aven', fromPrincipal: true, ackedInGroup: true, addressedToBot: true }, status: 'failed', result: '处理失败。', deps: mkDeps(hooks, []) })
-    assert.equal(hooks.length, 0)
-    assert.doesNotMatch(out.note, /已补一句/)
-    await deliverRepoOutcome({ task: { id: 'p58b', chatId: 'oc_falive', repo: 'falive', operator: 'ou_ache', ackedInGroup: true, addressedToBot: true }, status: 'failed', result: '处理失败。', deps: mkDeps(hooks, []) })
-    assert.match(hooks[0].logPrefix, /^repo fallback p58b/, '别人发起的照补')
-  }))
-
-  it('#56：自检误扣 → 兜底一次；私聊指示任务判不用改但写了群回复 → 照发，不再补第二句「拿不准」；扣下的可按原文放行', async () => withOutbox(async () => {
+  it('#56 → 10-21 P5：扣下的草稿存在回复义务上，私聊指示任务（同一条群消息）照发；放行读义务上的草稿，有更新的结论后不放旧草稿', async () => withOutbox(async () => {
     register()
     const hooks = []
     const sent = []
     const deps = mkDeps(hooks, sent)
     const base = { chatId: 'oc_falive', repo: 'falive', operator: 'ou_encone', ackedInGroup: true, addressedToBot: true }
-    // 原任务：「都通了」里自称是假矛盾，改前被扣下 → 现在直接发
     const ok = await deliverRepoOutcome({ task: { ...base, id: 'a1', topic: 't-a1', groupReply: '直播列表第 2 页：都通了\n- ✅ 通了 直播列表翻页：第 2 页不再报错，也没有被限流' }, status: 'done', result: 'x', deps })
     assert.equal(ok.groupOutcome.ok, true)
-    // 真矛盾被扣下：held 带原文，私聊提示可回「就这样回」，群里补一次兜底
     const held = await deliverRepoOutcome({ task: { ...base, id: 'h1', topic: 't-h1', groupReply: '都通了，第 3 页没有数据' }, status: 'done', result: 'x', deps })
     assert.equal(held.groupOutcome.held, true)
     assert.match(held.note, /回「就这样回」，我按原文发群/)
-    assert.match(hooks.at(-1).logPrefix, /^repo fallback h1/)
-    // 私聊指示任务（锚到 h1）：判 no_change_needed 但写了群回复 → 发群
-    const count = hooks.length
+    assert.equal(hooks.length, 1, '扣下：群里不补话')
+    assert.equal(heldDraftFor({ id: 'h1', chatId: 'oc_falive' }).text, '✅ 都通了，第 3 页没有数据')
+    const released = await deliverHeldGroupReply({ task: { ...base, id: 'h1', topic: 't-h1b' }, deps })
+    assert.equal(released.ok, true)
+    assert.equal(hooks.at(-1).card.elements[0].content, '<at id=ou_encone></at> ✅ 都通了，第 3 页没有数据')
+    assert.equal(heldDraftFor({ id: 'h1', chatId: 'oc_falive' }), null, '放完就清')
+    // 再扣一份，然后私聊指示任务（锚到 h1）发出了更新的结论 → 旧草稿不再放
+    await deliverRepoOutcome({ task: { ...base, id: 'h1', topic: 't-h1c', groupReply: '都通了，第 4 页没有数据' }, status: 'done', result: 'x', deps })
     const instruct = { ...base, id: 'p1', topic: 't-p1', fromPrincipal: true, privateOrigin: { anchorId: 'h1', anchorHead: 'x' } }
     const nc = await deliverRepoOutcome({ task: { ...instruct, groupReply: 'front/lives 复测：通了 1 项\n- ✅ 通了 第 2 页：code 0' }, status: 'no_change_needed', result: 'x', deps })
     assert.equal(nc.groupOutcome.ok, true)
-    assert.equal(hooks.length, count + 1)
-    assert.match(hooks.at(-1).logPrefix, /^repo group reply p1/)
-    // 私聊指示任务没写群回复：原消息已补过兜底，不再补第二句
-    await deliverRepoOutcome({ task: { ...instruct, id: 'p2', privateOrigin: { anchorId: 'h1' }, groupReply: null }, status: 'no_change_needed', result: 'x', deps })
-    assert.equal(hooks.length, count + 1, '同一条原消息只说一次「拿不准」')
-    // 放行扣下的原文
-    const released = await deliverHeldGroupReply({ task: { ...base, id: 'h1', topic: 't-h1b', heldGroupReply: { text: held.groupOutcome.text, mentions: [] } }, deps })
-    assert.equal(released.ok, true)
-    assert.equal(hooks.at(-1).card.elements[0].content, '<at id=ou_encone></at> ✅ 都通了，第 3 页没有数据')
+    assert.equal(heldDraftFor({ id: 'h1', chatId: 'oc_falive' }), null, '有更新的结论后不放旧草稿')
     assert.equal((await deliverHeldGroupReply({ task: { ...base, id: 'h2' }, deps })).skipped, true, '没有扣下的不发')
+  }))
+
+  it('答应了却 4 小时没结论 → 私聊负责人一次，不发群', async () => withOutbox(async () => {
+    register()
+    const hooks = []
+    const t0 = Date.parse('2026-10-21T08:00:00Z')
+    await deliverRepoAck({ task: { id: 'ov1', chatId: 'oc_falive', repo: 'falive', operator: 'ou_ache' }, reply: '收到，我去复测签到，结果回群里', deps: mkDeps(hooks, []) })
+    noteAck({ task: { id: 'ov1', chatId: 'oc_falive' }, text: '收到，我去复测签到，结果回群里', now: t0 })
+    const dms = []
+    const sendPrivate = async (a) => { dms.push(a); return { ok: true } }
+    assert.equal(await deliverOverdueObligations({ profiles: [repoProfile('falive')], now: t0 + 60 * 60_000, sendPrivate }), 0, '没到期')
+    assert.equal(await deliverOverdueObligations({ profiles: [repoProfile('falive')], now: t0 + OVERDUE_AFTER_MS + 1, sendPrivate }), 1)
+    assert.match(dms[0].markdown, /答应过「收到，我去复测签到，结果回群里」.*继续任务 ov1/)
+    assert.equal(await deliverOverdueObligations({ profiles: [repoProfile('falive')], now: t0 + OVERDUE_AFTER_MS * 2, sendPrivate }), 0, '只提醒一次')
+    assert.equal(hooks.length, 1, '群里只有那句收到')
   }))
 
   it('没配 notifyChatId：结果私聊不发，不回落外部群', async () => {

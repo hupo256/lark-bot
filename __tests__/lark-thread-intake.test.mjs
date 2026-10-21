@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
-import { ackedRecently, applySupplementAddressing, isCompleteMessage, resolveIntakeLane, resolveIntakeNotBefore, resolveRepoAddressing } from '../lib/lark-ingest.mjs'
+import { applySupplementAddressing, isCompleteMessage, resolveIntakeLane, resolveIntakeNotBefore, resolveRepoAddressing } from '../lib/lark-ingest.mjs'
 import { createTaskStore } from '../lib/lark-task-store.mjs'
 
 const withStore = (fn) => {
@@ -207,12 +207,6 @@ describe('分类去抖分道（阶段 2）', () => {
     assert.equal(isCompleteMessage({ msg: { text: '', attachments: [{ type: 'file', fileName: 'PM-3217.md' }] } }), true)
     assert.equal(resolveIntakeNotBefore({ lane: 'slow', complete: true, firstReceivedAt: new Date(now).toISOString(), now, intake }), new Date(now).toISOString())
   })
-  it('「收到」防重：同人同群 2 分钟内算回过；换人 / 超时不算', () => withStore((store) => {
-    received(store, { id: 'omt_ack1', threadRootId: null, operator: 'ou_arthur', chatId: 'oc_x', ackedInGroup: true, ackedAt: new Date(now - 30_000).toISOString() })
-    assert.equal(ackedRecently({ store, chatId: 'oc_x', operator: 'ou_arthur', now }), true)
-    assert.equal(ackedRecently({ store, chatId: 'oc_x', operator: 'ou_ache', now }), false)
-    assert.equal(ackedRecently({ store, chatId: 'oc_x', operator: 'ou_arthur', now: now + 150_000 }), false)
-  }))
 })
 
 describe('提问带对接文档附件（教训 #38）', () => {
