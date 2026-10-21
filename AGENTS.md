@@ -15,5 +15,6 @@ bot 在 falive 群里出错时，**先分类再动手**，每条都记进 `docs/
 - **bot 逻辑错**（判断 / 流程 / 代码缺陷）→ 改代码 + 闸或测试。**加一道闸必须合并或删一道旧闸**：完成态核验闸注册表 `lib/lark-task-gates.mjs` ≤ 16 道、提示词三档预算（`__tests__/lark-prompt-budget.test.mjs`）、gateway 纯度（`lark-gateway-purity`）、文件体量（`lark-size-budget`）都由测试锁死，超了先做减法。
 - **环境问题**（睡眠 / 合盖 / 网络 / Lark 权限 / 外部群策略）→ 改环境或运维文档，不改 bot 代码。
 - **噪音**（单次抖动、阈值太敏感）→ 只调阈值 / 配置。
+- **先对不变量，再动手**（aven 2026-10-21：出一件补一件不行）：新问题先对到 `docs/falive-lessons.md`「不变量」里的某一条，并在 `__tests__/lark-golden-conversations.test.mjs` 加一个复现它的黄金对话场景（修好前标 todo）；对不上任何一条不变量的，先做架构评审，不直接打补丁。
 改提示词或模型输出 schema 之前，先跑回放集：`node scripts/lark-replay-classify.mjs falive --dir __tests__/fixtures/falive-intake --report --gate`（forMe 召回 100%、decision 一致率 ≥ 95%）。
 改默认仓（fameex）之外的逻辑一律走仓库 profile 分支，不碰 fameex 路径。
