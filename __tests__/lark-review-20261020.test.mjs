@@ -331,3 +331,13 @@ describe('#20 结果 schema 与代码对齐', () => {
     assert.deepEqual(missing, [])
   })
 })
+
+describe('schema 实测闸：后端缺字段 / 没数据不算我方 schema 问题（10-21，日报清扫误判）', () => {
+  it('kind=backend 不判 broken；只有 backend 没有 ok 的算没实测；issues 照样 broken', async () => {
+    const { schemaVerifyVerdict } = await import('../lib/lark-completion-rule.mjs')
+    const backend = { endpoint: '/api/anchor/sort?type=1&side=10', outcome: 'code 0；user 无 hiChatUid', kind: 'backend' }
+    assert.equal(schemaVerifyVerdict([backend, { endpoint: '/api/getRoomInfo', outcome: 'code 0；userData.hiChatUid=19875', kind: 'ok' }]).verdict, 'ok')
+    assert.equal(schemaVerifyVerdict([backend]).verdict, 'unverified')
+    assert.equal(schemaVerifyVerdict([{ endpoint: '/api/x', outcome: 'issues: user.id 期望 number', kind: 'issues' }]).verdict, 'broken')
+  })
+})

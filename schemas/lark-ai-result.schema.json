@@ -315,9 +315,10 @@
             "enum": [
               "ok",
               "issues",
+              "backend",
               "unreachable"
             ],
-            "description": "实测结果归类：ok=通；issues=schema 与响应对不上 / 报错；unreachable=连不上"
+            "description": "实测结果归类：ok=通；issues=我方 schema 与响应对不上 / 解析失败 / 接口报错；backend=接口正常但后端缺字段或没配数据（要后端补，不是我方 schema 问题）；unreachable=连不上"
           }
         }
       }
