@@ -18,6 +18,7 @@ import {
   diffLedger,
   expandNos,
   fillEmptyTables,
+  replaceSection,
   fetchSiteBuildTime,
   findPreviousFullReport,
   sectionTableRows,
@@ -153,18 +154,18 @@ describe('回写与台账', () => {
     assert.deepEqual(three.unexplained, ['分支流程'])
     assert.deepEqual(diffLedger({ previous: DOC, current: previous }).find((item) => item.name === '三').added, ['help 模块改名「聊天」', '分支流程'])
     const out = annotateLedgerHeadings(DOC, diff)
-    assert.match(out, /^## 二、API：还缺什么、哪些有问题（剩 1 行）$/m)
+    // 10-21 起二节是脚本生成的测试 Bug 段，不参与台账：昨天的对接行今天没了也不算无故消失、标题不加计数
+    assert.deepEqual(diff.map((item) => item.name), ['三'])
+    assert.match(out, /^## 二、API：还缺什么、哪些有问题（剩 9 行）$/m)
     assert.match(out, /^## 三、需要再跟进的工作（剩 1 行，今日删 1 行）$/m)
-    const cleared = annotateLedgerHeadings(DOC.replace('| #4 预约 | reserveMatch | 报错 | live | live-3·1 |\n', ''), diffLedger({ previous: DOC, current: DOC.replace('| #4 预约 | reserveMatch | 报错 | live | live-3·1 |\n', ''), resolved: [{ section: '二', key: '#4 预约' }] }))
-    assert.match(cleared, /^## 二、.*（剩 0 行，今日删 1 行，已清零）$/m)
+    const cleared = annotateLedgerHeadings(DOC.replace('| 发邮件部署 pre | x | **aven** |\n', ''), diffLedger({ previous: DOC, current: DOC.replace('| 发邮件部署 pre | x | **aven** |\n', ''), resolved: [{ section: '三', key: '发邮件部署 pre' }] }))
+    assert.match(cleared, /^## 三、.*（剩 0 行，今日删 1 行，已清零）$/m)
   })
-  it('外部方汇总行「并入二节」：有依据、不算无故消失，也不算进今日删', () => {
-    const previous = DOC.replace('| 发邮件部署 pre | x | **aven** |', '| 发邮件部署 pre | x | **aven** |\n| 运维配置 | O1 O2 | 运维 |')
-    const diff = diffLedger({ previous, current: DOC, resolved: [{ section: '三', key: '运维配置', evidence: '并入二节 O1 / O2' }] })
-    const three = diff.find((item) => item.name === '三')
-    assert.deepEqual(three.unexplained, [])
-    assert.deepEqual(three.merged, ['运维配置'])
-    assert.match(annotateLedgerHeadings(DOC, diff), /^## 三、需要再跟进的工作（剩 1 行）$/m)
+  it('二节整节替换成给定行；没有二节就插到三节前面', () => {
+    const out = replaceSection(DOC, '## 二、', ['## 二、测试 Bug', '', '- 共 3 个'])
+    assert.match(out, /\n## 二、测试 Bug\n\n- 共 3 个\n\n## 三、/)
+    assert.doesNotMatch(out, /reserveMatch/)
+    assert.match(replaceSection('# t\n\n## 一、x\n\n## 三、y\n', '## 二、', ['## 二、测试 Bug']), /## 一、x\n\n## 二、测试 Bug\n\n## 三、y/)
   })
   it('模板取前一天（或更早）的完整版', () => {
     const dir = mkdtempSync(join(tmpdir(), 'ledger-'))
@@ -305,27 +306,27 @@ describe('精简（aven 2026-10-21）', () => {
     const doc = [
       `<callout><p><b>henry：</b>${'话'.repeat(101)}</p></callout>`,
       '## 一、功能进度总览', '', '| # | 功能 | 还剩什么 |', '|---|---|---|', `| 1 | 资料 | ${long} |`, `| 2 | 登录 | \`${'a'.repeat(78)}\` |`, '',
-      '## 二、API', '', '| 功能 | 现状 |', '|---|---|', `| #47 入口 | ${long} |`, '',
+      '## 二、测试 Bug', '', '| 功能 | 现状 |', '|---|---|', `| #47 入口 | ${long} |`, '',
       '## 三、跟进', '', '| 事项 | 说明 |', '|---|---|', '| 短的 | 没事 |',
     ].join('\n')
     const [problem] = checkVerbose(doc)
-    assert.match(problem, /^超过字数上限 3 处（单元格 80 字、高亮框 100 字）：高亮框 henry（101 字）、一节 #1（81 字）、二节 #47 入口（81 字）$/)
+    assert.match(problem, /^超过字数上限 2 处（单元格 80 字、高亮框 100 字）：高亮框 henry（101 字）、一节 #1（81 字）$/)
     assert.deepEqual(checkVerbose('## 一、x\n\n| # | a |\n|---|---|\n| 1 | 短 |'), [])
   })
 })
 
 describe('空表补 --（aven 2026-10-21）', () => {
-  it('二、三节删空的表补一行 --，不算台账行；有行的表、一节的表不动，已有 -- 行不重复补', () => {
+  it('三节删空的表补一行 --，不算台账行；有行的表、一节 / 二节的表不动，已有 -- 行不重复补', () => {
     const doc = [
       '## 一、功能', '', '| # | a |', '|---|---|', '',
-      '## 二、API', '', '### 2.1 缺接口', '', '| 功能 | 缺什么 | 现状 |', '|---|---|---|', '', '### 2.2 缺数据', '', '| 功能 | 缺什么 |', '|---|---|', '| #6 | x |', '',
-      '## 三、跟进', '', '| 事项 | 说明 | 负责人 |', '|---|---|---|', '| -- | -- | -- |',
+      '## 二、测试 Bug', '', '| 功能 | 缺什么 |', '|---|---|', '',
+      '## 三、跟进', '', '### A', '', '| 功能 | 缺什么 | 现状 |', '|---|---|---|', '', '### B', '', '| 事项 | 说明 |', '|---|---|', '| #6 | x |', '', '### C', '', '| 事项 | 说明 | 负责人 |', '|---|---|---|', '| -- | -- | -- |',
     ].join('\n')
     const out = fillEmptyTables(doc)
     assert.match(out, /\| 功能 \| 缺什么 \| 现状 \|\n\|---\|---\|---\|\n\| -- \| -- \| -- \|\n/)
     assert.match(out, /## 一、功能\n\n\| # \| a \|\n\|---\|---\|\n\n/)
     assert.equal(out.split('| -- | -- | -- |').length - 1, 2)
-    assert.deepEqual(sectionTableRows(out, '## 二、').map((row) => row.cells[0]), ['#6'])
-    assert.deepEqual(sectionTableRows(out, '## 三、'), [])
+    assert.match(out, /## 二、测试 Bug\n\n\| 功能 \| 缺什么 \|\n\|---\|---\|\n\n/)
+    assert.deepEqual(sectionTableRows(out, '## 三、').map((row) => row.cells[0]), ['#6'])
   })
 })

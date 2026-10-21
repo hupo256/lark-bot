@@ -110,19 +110,17 @@ describe('事实采集与日报生成（IO 注入）', () => {
       assert.match(docPrompt, /<!-- STATUS_JSON/)
       assert.match(docPrompt, /覆盖总表全部 3 个功能（#1 #2 #28）/)
       assert.match(docPrompt, /全项目接口缺口线索/)
-      assert.match(docPrompt, /### 2\.1 缺接口`/)
-      assert.match(docPrompt, /### 2\.2 缺数据 \/ 缺配置`/)
-      assert.match(docPrompt, /### 2\.3 接过但有问题的接口`/)
-      assert.doesNotMatch(docPrompt, /两小节：2\.1 缺接口 \/ 缺数据 \/ 缺配置/)
+      // aven 10-21：测试阶段二节由脚本按 bug 表生成，对接问题不进日报
+      assert.match(docPrompt, /「## 二、测试 Bug」由脚本按 bug 表生成/)
+      assert.doesNotMatch(docPrompt, /### 2\.1 缺接口/)
       // aven 10-21：一节只写卡点，✅ 行写 --；部署 / 复测不是问题
       assert.match(docPrompt, /✅ 的行两列都写 `--`/)
       assert.match(docPrompt, /走查、部署、复测都不是问题/)
-      assert.match(docPrompt, /口径没定、字段没补、要不要改走某服务这类不算缺接口/)
       assert.doesNotMatch(docPrompt, /对 ✅ 的功能再给 pre|以「10-13：」开头/)
       // 精简（aven 10-21）：高亮框只写负责 / ✅ / 卡点编号；每件事只写一处；✅ 没变化的行留空
       assert.match(docPrompt, /不写今天做了什么、不写 pre 上看不到效果、不写「运维」「外部阻塞」行/)
       assert.match(docPrompt, /每件事全文只写一处/)
-      assert.match(docPrompt, /evidence 写「并入二节 <编号>」/)
+      assert.doesNotMatch(prompt, /## 卡点/)
       assert.doesNotMatch(docPrompt, /详略照模板/)
       assert.doesNotMatch(docPrompt, /状态列以功能总表（人维护）为准/)
 
@@ -241,6 +239,9 @@ describe('完整版：状态以 pre 代码为准 + 台账', () => {
       assert.match(doc, /\| 1 \| 用户资料 \| henry \| ✅ \|/)
       assert.match(doc, /\*\*计数\*\*（不含 #54）：✅ 2 项（aven 1、henry 1）。未完成 1 项：\n- broker 1 项：#28/)
       assert.match(doc, /^## 三、需要再跟进的工作（剩 1 行，今日删 1 行）$/m)
+      // aven 10-21：模型写的二节（对接问题）被换成脚本的测试 Bug 段；没配 bug 表时写 --
+      assert.match(doc, /\n## 二、测试 Bug\n\n- --\n/)
+      assert.doesNotMatch(doc, /anchorRecordList/)
       // 短版：数字行来自脚本，和完整版一致；短版提示里带完整版正文
       const short = sent.find((item) => /^# Falive Web 日报/.test(item.markdown)).markdown
       // aven 10-20：群简报只留进度和今日增量，不列「pre 上还看不到效果」
