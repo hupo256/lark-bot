@@ -23,6 +23,7 @@ process.env.LARK_GATEWAY_SECRET = 'golden'
 const { ingestLarkEvent } = await import('../lib/lark-ingest.mjs')
 const { createRequestHandler } = await import('../lib/lark-routes.mjs')
 const { createGatewayClient } = await import('../lib/lark-gateway-client.mjs')
+const { sendChatMessage } = await import('../lib/lark-cli.mjs')
 const { createTaskStore } = await import('../lib/lark-task-store.mjs')
 const { registerRepoProfiles, resetRepoProfiles } = await import('../lib/lark-repo-profile.mjs')
 const { VERIFY_GATES, runVerifyGates } = await import('../lib/lark-task-gates.mjs')
@@ -74,12 +75,12 @@ const startServer = async () => {
 }
 
 // 群里有人说话（默认 @ 了 Aven.Bot）
-const say = async ({ from, text, mention = true }) => {
+const say = async ({ from, text, mention = true, root = null }) => {
   const id = `om_golden_${(seq += 1)}`
   const content = mention ? `@_user_1 ${text}` : text
   await ingestLarkEvent({
     raw: { message_id: id, chat_id: GROUP, chat_type: 'group', message_type: 'text', content, sender_type: 'user', sender_id: from,
-      mentions: mention ? [{ id: BOT, key: '@_user_1', name: 'Aven.Bot' }] : [], create_time: String(Date.now()) },
+      mentions: mention ? [{ id: BOT, key: '@_user_1', name: 'Aven.Bot' }] : [], create_time: String(Date.now()), ...(root ? { root_id: root, reply_to: root } : {}) },
     config, store,
   })
   return id
@@ -269,6 +270,25 @@ describe('黄金对话', () => {
     const group = groupTexts()
     assert.equal(group.length, 2, transcript().join('\n'))
     assert.match(group[1], /front\/lives 复测：通了 1 项，没通 1 项\n- ⚠️ 待验证 \/lives 滚到底续拉：20 张变 25 张；这次没实测\n- ✅ 通了 第 2 页接口/)
+  })
+
+  it('S9 外部群里没 @bot 的话题回复（「可以了，结单吧」）→ 不结单、不回任何卡片（10-21：控制通道在外部群发了旧样式「请确认」卡）', async () => {
+    // 真机序列：话题第一条没 @bot（只记台账 → ignored），后面同一话题里的回复被控制通道当成「对已结束任务结单」
+    const id = await say({ from: ENCONE, text: '已贴到新闻头条模块里', mention: false })
+    await classify(id, { decision: 'api_reply' })
+    assert.equal(store.get(id).status, 'ignored')
+    store.recordReceipt(id, { messageId: 'om_golden_receipt', kind: 'ignored', epoch: 0 }) // 控制通道靠回执锚定任务
+    const before = sent.length
+    await say({ from: ENCONE, text: '好了，这个可以结单了，可以改成真实发送验证码了是不', mention: false, root: 'om_golden_receipt' })
+    await say({ from: ENCONE, text: '可以了，结单吧', mention: false, root: 'om_golden_receipt' })
+    assert.deepEqual(sent.slice(before), [], transcript().join('\n'))
+    assert.notEqual(store.get(id).status, 'superseded', '没 @bot 的话不结单')
+  })
+
+  it('S10 旧卡片通道（sendChatMessage）发往外部群 → 一律改发控制台，外部群收不到（10-21：融合群只私聊仍收到旧卡片）', async () => {
+    const out = await sendChatMessage({ chatId: GROUP, card: { elements: [{ tag: 'markdown', content: '**任务**：旧卡片' }] }, logPrefix: 'golden legacy' })
+    assert.equal(out.ok, true)
+    assert.deepEqual(sent.map((item) => item.to), ['console'])
   })
 
   it('S3b aven 交代的改动没过核验闸 → 执行器写好的回答不丢，私聊里带草稿可放行', async () => {

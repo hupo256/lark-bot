@@ -50,9 +50,10 @@ describe('repo-only 实例', () => {
     assert.equal(posted[0].url, 'https://hook/console')
     assert.equal(posted[0].body.msg_type, 'interactive')
     assert.equal(posted[0].body.card.elements[0].content, '**完成**')
+    // 旧卡片通道发往外部群：一律改发控制台（10-21，外部群只收 sendGroupCard 出口的话）
     const card = await sendChatMessage({ chatId: GROUP, text: 'hi', logPrefix: 't', retries: 1 })
     assert.equal(card.ok, true)
-    assert.equal(posted[1].url, 'https://hook/group')
+    assert.equal(posted[1].url, 'https://hook/console')
     const refused = await sendBotMarkdown({ chatId: 'ou_someone', markdown: 'x', retries: 1 })
     assert.equal(refused.ok, false)
     assert.match(refused.reason, /repo-only/)
