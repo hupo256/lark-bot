@@ -13,6 +13,7 @@ import {
   applyProgress,
   applyStatusColumn,
   checkStreamUrl,
+  checkVerbose,
   computeProgress,
   diffLedger,
   expandNos,
@@ -23,6 +24,7 @@ import {
   renderCounts,
   shortReason,
   splitStatusBlock,
+  stripCalloutExtras,
   stripWalkthrough,
   tableMismatches,
   validateStatusData,
@@ -151,6 +153,14 @@ describe('回写与台账', () => {
     const cleared = annotateLedgerHeadings(DOC.replace('| #4 预约 | reserveMatch | 报错 | live | live-3·1 |\n', ''), diffLedger({ previous: DOC, current: DOC.replace('| #4 预约 | reserveMatch | 报错 | live | live-3·1 |\n', ''), resolved: [{ section: '二', key: '#4 预约' }] }))
     assert.match(cleared, /^## 二、.*（剩 0 行，今日删 1 行，已清零）$/m)
   })
+  it('外部方汇总行「并入二节」：有依据、不算无故消失，也不算进今日删', () => {
+    const previous = DOC.replace('| 发邮件部署 pre | x | **aven** |', '| 发邮件部署 pre | x | **aven** |\n| 运维配置 | O1 O2 | 运维 |')
+    const diff = diffLedger({ previous, current: DOC, resolved: [{ section: '三', key: '运维配置', evidence: '并入二节 O1 / O2' }] })
+    const three = diff.find((item) => item.name === '三')
+    assert.deepEqual(three.unexplained, [])
+    assert.deepEqual(three.merged, ['运维配置'])
+    assert.match(annotateLedgerHeadings(DOC, diff), /^## 三、需要再跟进的工作（剩 1 行）$/m)
+  })
   it('模板取前一天（或更早）的完整版', () => {
     const dir = mkdtempSync(join(tmpdir(), 'ledger-'))
     try {
@@ -266,5 +276,25 @@ describe('走查不进日报（aven 2026-10-20）', () => {
       '普通行',
     ].join('\n'))
     assert.equal(stripWalkthrough('没有相关内容\n| a | b |'), '没有相关内容\n| a | b |')
+  })
+})
+
+describe('精简（aven 2026-10-21）', () => {
+  it('高亮框只删「运维」「外部阻塞」两行，负责人行不动', () => {
+    const doc = ['<callout>', '  <p><b>aven：</b>负责 30 项，30 项 ✅</p>', '  <p><b>运维：</b>等 O1</p>', '  <p><b>外部阻塞：</b>Go 后端 G2</p>', '</callout>', '运维：正文里的不动'].join('\n')
+    assert.equal(stripCalloutExtras(doc), ['<callout>', '  <p><b>aven：</b>负责 30 项，30 项 ✅</p>', '</callout>', '运维：正文里的不动'].join('\n'))
+    assert.equal(stripCalloutExtras('<callout><p><b>aven：</b>x</p><p><b>运维：</b>y</p></callout>'), '<callout><p><b>aven：</b>x</p></callout>')
+  })
+  it('超长单元格和高亮框行列进核对单，不改正文；标记和反引号不计字数', () => {
+    const long = '字'.repeat(81)
+    const doc = [
+      `<callout><p><b>henry：</b>${'话'.repeat(101)}</p></callout>`,
+      '## 一、功能进度总览', '', '| # | 功能 | 还剩什么 |', '|---|---|---|', `| 1 | 资料 | ${long} |`, `| 2 | 登录 | \`${'a'.repeat(78)}\` |`, '',
+      '## 二、API', '', '| 功能 | 现状 |', '|---|---|', `| #47 入口 | ${long} |`, '',
+      '## 三、跟进', '', '| 事项 | 说明 |', '|---|---|', '| 短的 | 没事 |',
+    ].join('\n')
+    const [problem] = checkVerbose(doc)
+    assert.match(problem, /^超过字数上限 3 处（单元格 80 字、高亮框 100 字）：高亮框 henry（101 字）、一节 #1（81 字）、二节 #47 入口（81 字）$/)
+    assert.deepEqual(checkVerbose('## 一、x\n\n| # | a |\n|---|---|\n| 1 | 短 |'), [])
   })
 })

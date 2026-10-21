@@ -113,6 +113,12 @@ describe('事实采集与日报生成（IO 注入）', () => {
       assert.match(docPrompt, /### 2\.3 接过但有问题的接口`/)
       assert.doesNotMatch(docPrompt, /两小节：2\.1 缺接口 \/ 缺数据 \/ 缺配置/)
       assert.match(docPrompt, /以「10-13：」开头/)
+      // 精简（aven 10-21）：高亮框只写负责 / ✅ / 卡点编号；每件事只写一处；✅ 没变化的行留空
+      assert.match(docPrompt, /不写今天做了什么、不写 pre 上看不到效果、不写「运维」「外部阻塞」行/)
+      assert.match(docPrompt, /每件事全文只写一处/)
+      assert.match(docPrompt, /evidence 写「并入二节 <编号>」/)
+      assert.match(docPrompt, /今天没变化的行留空/)
+      assert.doesNotMatch(docPrompt, /详略照模板/)
       assert.doesNotMatch(docPrompt, /状态列以功能总表（人维护）为准/)
 
       registerRepoProfiles({})
