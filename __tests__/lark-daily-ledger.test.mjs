@@ -149,6 +149,7 @@ describe('回写与台账', () => {
     const three = diff.find((item) => item.name === '三')
     assert.deepEqual(three.removed, ['help 模块改名「聊天」', '分支流程'])
     assert.deepEqual(three.unexplained, ['分支流程'])
+    assert.deepEqual(diffLedger({ previous: DOC, current: previous }).find((item) => item.name === '三').added, ['help 模块改名「聊天」', '分支流程'])
     const out = annotateLedgerHeadings(DOC, diff)
     assert.match(out, /^## 二、API：还缺什么、哪些有问题（剩 1 行）$/m)
     assert.match(out, /^## 三、需要再跟进的工作（剩 1 行，今日删 1 行）$/m)

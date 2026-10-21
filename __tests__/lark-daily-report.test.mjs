@@ -9,9 +9,11 @@ import {
   buildDailyDocPrompt,
   buildDailyReportPrompt,
   buildDocsView,
+  buildReviewNote,
   collectApiGapSources,
   collectDailyFacts,
   diffFeatureTables,
+  generateDailyReportText,
   groupCommitsByPerson,
   judgeFeatureCheck,
   runFeatureChecks,
@@ -329,5 +331,36 @@ describe('待对接文档最新视图', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
+  })
+})
+
+describe('完整版：没测的先测完（aven 2026-10-21）', () => {
+  const fakeSpawn = (calls) => (cmd, args, opts) => {
+    calls.push({ cmd, args, opts })
+    const listeners = {}
+    const stream = (text) => ({ on: (event, fn) => { if (event === 'data' && text) setImmediate(() => fn(text)) } })
+    const child = { stdout: stream('正文'), stderr: stream(''), on: (event, fn) => { listeners[event] = fn }, kill: () => {} }
+    setImmediate(() => setImmediate(() => listeners.exit?.(0)))
+    return child
+  }
+  it('给了 probeCommand：开 Bash 但只放行这一条探针命令，不再是 plan 模式；env 原样传入', async () => {
+    const calls = []
+    const text = await generateDailyReportText({ prompt: 'p', profile: { root: '/r' }, spawnImpl: fakeSpawn(calls), probeCommand: 'node scripts/pre-probe.mjs', env: { PROBE_ALLOW_WRITE: '0', PROBE_MAIL: 'a@probe.test' } })
+    assert.equal(text, '正文')
+    const { args, opts } = calls[0]
+    assert.deepEqual(args.slice(args.indexOf('--tools'), args.indexOf('--tools') + 4), ['--tools', 'Read,Grep,Glob,Bash', '--allowedTools', 'Bash(node scripts/pre-probe.mjs:*)'])
+    assert.ok(!args.includes('plan'))
+    assert.equal(opts.env.PROBE_ALLOW_WRITE, '0')
+  })
+  it('没给 probeCommand（短版）：仍是 plan 模式、只读三件套', async () => {
+    const calls = []
+    await generateDailyReportText({ prompt: 'p', profile: { root: '/r' }, spawnImpl: fakeSpawn(calls) })
+    assert.deepEqual(calls[0].args.slice(1, 5), ['--permission-mode', 'plan', '--tools', 'Read,Grep,Glob'])
+    assert.equal(calls[0].opts.env, undefined)
+  })
+  it('私信核对单列出三节今天新加的行', () => {
+    const note = buildReviewNote({ date: '2026-10-21', ledger: [{ name: '二', added: ['#9 x'], unexplained: [], resolved: [] }, { name: '三', added: ['新事项'], unexplained: [], resolved: [] }] })
+    assert.match(note, /\*\*三节今天新加的行\*\*.*\n- 新事项/)
+    assert.doesNotMatch(note, /#9 x/)
   })
 })
