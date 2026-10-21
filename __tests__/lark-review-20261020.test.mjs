@@ -182,11 +182,9 @@ describe('A9 只改文档不算修复', () => {
     assert.equal(allowsDocsOnlyDone({ task: { ...bug, attachments: [{ type: 'file', localPath: '/tmp/a.md' }] } }), true)
     assert.equal(allowsDocsOnlyDone({ task: { ...bug, source: 'daily-sweep' } }), true)
     assert.equal(allowsDocsOnlyDone({ task: { ...bug, waitsFor: '新域名' } }), true)
-    // 教训 #58：纯 pre 复测只回填文档是完成；本条带改东西的不算；引用卡里的「在 pre 看一眼」不算。
-    const own = (line, quoted = '请测试同学在 pre 看一眼') => ({ ...bug, intake: { classification: { decision: 'requirement' } }, text: `【被引用消息】\n${quoted}\n\n【本条 @】${line}` })
-    assert.equal(allowsDocsOnlyDone({ task: own('@Aven.Bot 你自己在 pre 环境看，看完报告结果') }), true)
-    assert.equal(allowsDocsOnlyDone({ task: own('@Aven.Bot 改一下文案，改完在 pre 看下') }), false)
-    assert.equal(allowsDocsOnlyDone({ task: own('@Aven.Bot 这个接口字段不对') }), false)
+    // 教训 #58 → 任务契约（10-21 P2）：只改文档放行看 task.contract.docsOnlyOk，契约的判定见 lark-task-contract.test。
+    assert.equal(allowsDocsOnlyDone({ task: { ...bug, contract: { docsOnlyOk: true } } }), true)
+    assert.equal(allowsDocsOnlyDone({ task: { ...bug, contract: { docsOnlyOk: false } } }), false)
     for (const line of ['去 pre 上复测一下', '在浏览器里看一下滚到底', '看完报告结果']) assert.equal(requestsPreCheck({ text: `【本条 @】@Aven.Bot ${line}` }), true, line)
     for (const line of ['prepare 一下文档', '预告重复了']) assert.equal(requestsPreCheck({ text: `【本条 @】@Aven.Bot ${line}` }), false, line)
     assert.equal(requestsPreCheck({ text: '【aven 私聊指示】去 pre 看一下\n\n【指示针对的群消息】x' }), true)

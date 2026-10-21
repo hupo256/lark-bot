@@ -178,10 +178,19 @@ describe('黄金对话', () => {
       groupReply: '/lives 滚到底续拉：都通了\n- ✅ 通了 /lives 滚到底续拉：pre 浏览器实际滚到底，卡片从 20 张变成 25 张',
     }, { changedFiles: ['docs/delivery/pending/README.md'] })
     assert.equal(verify.ok, true, `核验闸拦下：${verify.reason}`)
+    assert.deepEqual(['verification', true, false], [store.get(id).contract.deliverable, store.get(id).contract.browser, store.get(id).contract.readOnly], '任务契约：复测、给浏览器、在 worktree 里跑')
     const group = groupTexts()
     assert.equal(group.length, 2, transcript().join('\n'))
     assert.match(group[0], /滚到底/)
     assert.match(group[1], /都通了/)
+  })
+
+  it('S3c 复测一个文件都没改（空 diff）→ 不判失败，结论照发（10-20 前空 diff 一律判不可信）', async () => {
+    const id = await say({ from: AVEN, text: '去 pre 上复测一下签到' })
+    await classify(id, { decision: 'requirement', reply: '收到，我去 pre 复测签到，测完报结果' })
+    const { verify } = await work(id, { status: 'done', completionClaim: 'all_done', preChecks: PRE_OK, groupReply: '签到复测：都通了\n- ✅ 通了 签到：pre 实测 code 0' }, { changedFiles: [] })
+    assert.equal(verify.ok, true, `核验闸拦下：${verify.reason}`)
+    assert.equal(groupTexts().length, 2, transcript().join('\n'))
   })
 
   it('S4 结论里「第 3 页为空说明到底了」不算问题（#58 重跑）', async () => {
