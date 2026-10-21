@@ -94,7 +94,9 @@ describe('事实采集与日报生成（IO 注入）', () => {
       assert.equal(facts.botTasks.length, 1)
       assert.match(facts.roadmapSection, /卡运维 O11/)
       const prompt = buildDailyReportPrompt(facts, { headline: '总体进度 **50.0%**，已接通 **1 / 3**。', fullDoc: '# 完整版正文' })
-      assert.match(prompt, /今天在 origin\/pre 上没有提交的人：eric/)
+      // aven 10-21：合不合 pre 不是问题也不是待办——不列没提交的人、不给本地领先提交、不要「今天没合 pre」段
+      assert.doesNotMatch(prompt, /没有提交的人|本地工作分支领先|## 今天没合 pre/)
+      assert.match(prompt, /不写谁没合 pre/)
       assert.match(prompt, /henry：1 个提交/)
       assert.match(prompt, /脚本定的数字（只能引用，不能改）：总体进度 \*\*50\.0%\*\*/)
       assert.match(prompt, /# 完整版正文/)
