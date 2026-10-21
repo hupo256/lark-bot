@@ -18,6 +18,7 @@ import {
   diffLedger,
   expandNos,
   fillEmptyTables,
+  pruneCalloutDone,
   replaceSection,
   fetchSiteBuildTime,
   findPreviousFullReport,
@@ -328,5 +329,19 @@ describe('空表补 --（aven 2026-10-21）', () => {
     assert.equal(out.split('| -- | -- | -- |').length - 1, 2)
     assert.match(out, /## 二、测试 Bug\n\n\| 功能 \| 缺什么 \|\n\|---\|---\|\n\n/)
     assert.deepEqual(sectionTableRows(out, '## 三、').map((row) => row.cells[0]), ['#6'])
+  })
+})
+
+describe('高亮框去掉已完成功能的分句（aven 2026-10-21）', () => {
+  it('全 ✅ 只留负责 / ✅；部分完成只删提到已 ✅ 编号的分句，补回「没完成的」；没编号的分句保留', () => {
+    const statuses = new Map([[16, { status: '✅' }], [17, { status: '🟠' }], [18, { status: '🟠' }], [19, { status: '✅' }], [20, { status: '✅' }], [45, { status: '✅' }]])
+    const doc = [
+      '<p><b>aven：</b>负责 30 项，30 项 ✅；没完成的 #45 卡在常见问答字段</p>',
+      '<p><b>adrian：</b>负责 10 项，5 项 ✅；没完成的 #16 卡在 P6；#17–20 卡在 L2；#19 #20 卡在 P1；等产品答复</p>',
+    ].join('\n')
+    assert.equal(pruneCalloutDone(doc, statuses), [
+      '<p><b>aven：</b>负责 30 项，30 项 ✅</p>',
+      '<p><b>adrian：</b>负责 10 项，5 项 ✅；没完成的 #17–20 卡在 L2；等产品答复</p>',
+    ].join('\n'))
   })
 })
