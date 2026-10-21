@@ -8,13 +8,12 @@ import { describe, it } from 'node:test'
 const root = resolve(new URL('..', import.meta.url).pathname)
 const LINE_BUDGET = 600
 const LEGACY_SNAPSHOT = {
-  'lib/lark-task-runner.mjs': 900,
+  'lib/lark-task-runner.mjs': 805,
   'lib/lark-ai-executor.mjs': 720,
   'lib/lark-ingest.mjs': 830,
   'lib/lark-daily-report.mjs': 830,
-  'lib/lark-task-store.mjs': 760,
+  'lib/lark-task-store.mjs': 695,
   'lib/lark-scope-contract.mjs': 730,
-  'lib/lark-worker-prompts.mjs': 660,
 }
 const countLines = (file) => readFileSync(join(root, file), 'utf8').split('\n').length
 
