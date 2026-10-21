@@ -182,6 +182,79 @@
       ],
       "description": "给项目群看的人话回复（不带路径 / sha / 内部状态）：对接进度按群回复格式 ≤ 500 字、代答 ≤ 200 字；Worker 超过 800 字截断；没有可说的填 null"
     },
+    "report": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "subject",
+        "answer",
+        "items"
+      ],
+      "description": "群里的人看到的内容（结构化，代码按它渲染：第一行数字由条目算，全部 ok 才显示「都通了」）。有 report 时 groupReply 填 null；群里无事可说填 null",
+      "properties": {
+        "subject": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "第一行的对象，如「front/lives 复测」「直播详情页接口」；代答填 null"
+        },
+        "answer": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "代答：对方问的那件事的一句话答案（做了 / 没做 / 做到哪）；不是代答填 null"
+        },
+        "items": {
+          "type": "array",
+          "description": "一个功能 / 接口一条；代答只列有保留的（pre 没验证、某处没接），没有就 []；别人负责的项 name 前写「henry：」",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "mark",
+              "name",
+              "note",
+              "evidence"
+            ],
+            "properties": {
+              "mark": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "not_usable",
+                  "not_done",
+                  "na"
+                ],
+                "description": "ok=能用（环境上实测过）；not_usable=接了但还不能用（接口报错 / 没数据 / 没配置 / 待回归）；not_done=没接；na=不涉及接口"
+              },
+              "name": {
+                "type": "string",
+                "description": "功能或接口名（人话，不写路径 / sha）"
+              },
+              "note": {
+                "type": "string",
+                "description": "一句原因或实测证据；卡在别人的写清卡在谁"
+              },
+              "evidence": {
+                "type": "string",
+                "enum": [
+                  "pre",
+                  "browser",
+                  "code",
+                  "none"
+                ],
+                "description": "这一项的依据：pre=本轮探针实测；browser=本轮浏览器实测；code=只看了代码；none=没有依据。写 pre / browser 但本轮没真跑会被降级成「待验证」"
+              }
+            }
+          }
+        }
+      }
+    },
     "followUpDoc": {
       "type": [
         "string",

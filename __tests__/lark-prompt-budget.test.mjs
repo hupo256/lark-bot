@@ -97,7 +97,8 @@ describe('提示词规则预算', () => {
       // 代答：summary 只在代答块说一次；完成口径指向结果契约（review B2）。
       const question = prompt('question')
       assert.doesNotMatch(question, /上面的三档口径|2～3 句|summary 直接回答/)
-      assert.match(question, /结果契约里的完成口径/)
+      assert.match(question, /代答填 report/, '代答按结构化 report（10-21 P6）')
+      for (const kind of Object.keys(TASK_KINDS)) assert.doesNotMatch(prompt(kind), /群回复格式（|代答回复格式（/, `${kind} 还带着旧的散文格式`)
       // 文档入库：worker 已存档，提示里不再有覆盖规则（review C5）。
       assert.doesNotMatch(prompt('doc_intake'), /同名已存在则覆盖|先把每份文件\*\*原样\*\*拷贝/)
       assert.match(prompt('doc_intake'), /#kept/)

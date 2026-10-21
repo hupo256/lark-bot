@@ -105,7 +105,7 @@ const classify = async (id, classification) => {
   return out
 }
 // 执行器跑完：changedFiles = 工作区实测改动；闸用真实 done.trust（采证据那道换成桩）
-const work = async (id, aiResult, { changedFiles = [], gates = null } = {}) => {
+const work = async (id, aiResult, { changedFiles = [], gates = null, runEvidence = null } = {}) => {
   const task = claim(id)
   const evidence = { name: 'evidence', applies: () => true, check: (ctx) => { ctx.evidence.changedFiles = changedFiles; ctx.outputs.actualChangedFiles = changedFiles; return { ok: true } } }
   const realGates = gates || VERIFY_GATES.filter((gate) => ['done.trust'].includes(gate.name))
@@ -114,7 +114,7 @@ const work = async (id, aiResult, { changedFiles = [], gates = null } = {}) => {
   const verify = ['done', 'done_with_warnings'].includes(result.status)
     ? await runVerifyGates({ task, workContext, aiRun: { result }, expectsCode: expectsCodeChange({ task, readOnly: workContext.readOnly }), gates: [evidence, ...realGates] })
     : null
-  const report = assembleRunReport({ aiResult: result, verify, resultText: result.summary || '已完成。', actualChangedFiles: changedFiles })
+  const report = assembleRunReport({ aiResult: result, verify, resultText: result.summary || '已完成。', actualChangedFiles: changedFiles, evidence: runEvidence })
   const out = await post(`/lark/tasks/${encodeURIComponent(id)}/status`, { status: report.status, result: report.result, epoch: task.epoch, ...report.extras })
   assert.equal(out.ok, true, `status 回写失败：${JSON.stringify(out)}`)
   return { report, verify }
@@ -252,6 +252,21 @@ describe('黄金对话', () => {
     assert.equal(groupTexts().length, 2, '旧草稿已作废，不再放出')
     assert.equal(store.list().length, tasksBefore, '不建新的指示任务')
     assert.match(consoleTexts().at(-1), /已经发过更新的结论了，没有待放行的草稿/)
+  })
+
+  it('S8 结构化回复：代码渲染第一行，「不再报错」「为空说明到底了」随便写；声称浏览器看过但没跑 → 那项显示待验证（P6）', async () => {
+    const id = await say({ from: ENCONE, text: 'front/lives 更新了，再试试' })
+    await classify(id, { decision: 'api_reply', deliverable: 'verification', reply: '收到，这就复测，结果发群里' })
+    await work(id, {
+      status: 'done', groupReply: null, preChecks: PRE_OK,
+      report: { subject: 'front/lives 复测', answer: null, items: [
+        { mark: 'ok', name: '第 2 页接口', note: '不再报错，第 3 页为空说明到底了', evidence: 'pre' },
+        { mark: 'ok', name: '/lives 滚到底续拉', note: '20 张变 25 张', evidence: 'browser' },
+      ] },
+    }, { changedFiles: [], runEvidence: { probeCalls: 1, browserCalls: 0 } })
+    const group = groupTexts()
+    assert.equal(group.length, 2, transcript().join('\n'))
+    assert.match(group[1], /front\/lives 复测：通了 1 项，没通 1 项\n- ⚠️ 待验证 \/lives 滚到底续拉：20 张变 25 张；这次没实测\n- ✅ 通了 第 2 页接口/)
   })
 
   it('S3b aven 交代的改动没过核验闸 → 执行器写好的回答不丢，私聊里带草稿可放行', async () => {
