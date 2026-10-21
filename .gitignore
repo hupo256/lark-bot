@@ -8,6 +8,7 @@ runtime/lark-tasks/
 runtime/lark-attachments/
 runtime/lark-audits/
 runtime/lark-outbox/
+runtime/lark-obligations/
 runtime/lark-bugtable-state.json
 runtime/lark-worker-state.json
 runtime/lark-daily-report/

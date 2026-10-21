@@ -471,7 +471,7 @@ describe('群文本不回落原话 / 回复义务 / 没 notifyChatId 不发（av
     register()
     const hooks = []
     const t0 = Date.parse('2026-10-21T08:00:00Z')
-    await deliverRepoAck({ task: { id: 'ov1', chatId: 'oc_falive', repo: 'falive', operator: 'ou_ache' }, reply: '收到，我去复测签到，结果回群里', deps: mkDeps(hooks, []) })
+    // 回复时间用固定时刻 t0（不能先用真实时钟发「收到」：义务只认第一次回复时间，测试会随当天几点跑而变红——10-21 14:01 排空重启前真机踩到）
     noteAck({ task: { id: 'ov1', chatId: 'oc_falive' }, text: '收到，我去复测签到，结果回群里', now: t0 })
     const dms = []
     const sendPrivate = async (a) => { dms.push(a); return { ok: true } }
@@ -479,7 +479,7 @@ describe('群文本不回落原话 / 回复义务 / 没 notifyChatId 不发（av
     assert.equal(await deliverOverdueObligations({ profiles: [repoProfile('falive')], now: t0 + OVERDUE_AFTER_MS + 1, sendPrivate }), 1)
     assert.match(dms[0].markdown, /答应过「收到，我去复测签到，结果回群里」.*继续任务 ov1/)
     assert.equal(await deliverOverdueObligations({ profiles: [repoProfile('falive')], now: t0 + OVERDUE_AFTER_MS * 2, sendPrivate }), 0, '只提醒一次')
-    assert.equal(hooks.length, 1, '群里只有那句收到')
+    assert.equal(hooks.length, 0, '提醒只私聊，不发群')
   }))
 
   it('没配 notifyChatId：结果私聊不发，不回落外部群', async () => {
