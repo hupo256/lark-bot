@@ -47,6 +47,22 @@ describe('lark-runtime-version', () => {
     }
   })
 
+  it('runtime/ 下任何子目录都是运行态数据，不进代码指纹（10-21：新加的 lark-obligations 漏排除，排空重启反复触发）', () => {
+    const root = makeTree()
+    try {
+      const base = computeCodeHash(root).hash
+      mkdirSync(join(root, 'runtime', 'lark-obligations'), { recursive: true })
+      writeFileSync(join(root, 'runtime', 'lark-obligations', 'oc_x.json'), '{"a":1}')
+      mkdirSync(join(root, 'runtime', 'some-future-dir'), { recursive: true })
+      writeFileSync(join(root, 'runtime', 'some-future-dir', 'x.json'), '{}')
+      assert.equal(computeCodeHash(root).hash, base)
+      writeFileSync(join(root, 'runtime', 'launchd.mjs'), 'export {}')
+      assert.notEqual(computeCodeHash(root).hash, base, 'runtime/ 根下的脚本仍算源码')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it('改源文件改变 hash；改文档 / 配置 / 队列数据不改变 hash', () => {
     const root = makeTree()
     try {

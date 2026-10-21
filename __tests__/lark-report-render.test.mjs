@@ -19,10 +19,11 @@ describe('结构化群回复', () => {
   it('代答：第一行是答案，只列给出的保留项', () => {
     assert.equal(renderReport(normalizeReport({ subject: null, answer: '头像用 getRoomInfo 的 userData.avatar', items: [] })), '头像用 getRoomInfo 的 userData.avatar')
   })
-  it('结构不对返回 null（走旧路径）；未知 mark 的条目丢掉', () => {
+  it('结构不对返回 null（走旧路径）；未知 mark 按「还不能用」保留，不能丢', () => {
     assert.equal(normalizeReport(null), null)
     assert.equal(normalizeReport({ subject: 'x', answer: null, items: [] }), null)
-    assert.equal(normalizeReport({ subject: 'x', answer: null, items: [item('weird', 'a'), item('ok', 'b')] }).items.length, 1)
+    const odd = normalizeReport({ subject: '预约 Tab', answer: null, items: [item('ok', '参数'), item('pending', 'Tab 显示', { note: '还没部署 pre' })] })
+    assert.equal(renderReport(odd), '预约 Tab：通了 1 项，没通 1 项\n- ⚠️ 接了但还不能用 Tab 显示：还没部署 pre\n- ✅ 通了 参数', '10-21 真机：pending 被丢就成了「都通了」')
   })
   it('声称 pre / 浏览器实测但本轮会话里没跑 → 那一项降成「待验证」；读不到会话记录不降', () => {
     const report = normalizeReport({ subject: '签到复测', answer: null, items: [item('ok', '签到', { evidence: 'pre' }), item('ok', '滚到底', { evidence: 'browser' }), item('ok', '文案', { evidence: 'code' })] })

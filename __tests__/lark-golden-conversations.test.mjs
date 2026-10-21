@@ -22,6 +22,7 @@ process.env.LARK_GATEWAY_SECRET = 'golden'
 
 const { ingestLarkEvent } = await import('../lib/lark-ingest.mjs')
 const { createRequestHandler } = await import('../lib/lark-routes.mjs')
+const { createGatewayClient } = await import('../lib/lark-gateway-client.mjs')
 const { createTaskStore } = await import('../lib/lark-task-store.mjs')
 const { registerRepoProfiles, resetRepoProfiles } = await import('../lib/lark-repo-profile.mjs')
 const { VERIFY_GATES, runVerifyGates } = await import('../lib/lark-task-gates.mjs')
@@ -115,8 +116,9 @@ const work = async (id, aiResult, { changedFiles = [], gates = null, runEvidence
     ? await runVerifyGates({ task, workContext, aiRun: { result }, expectsCode: expectsCodeChange({ task, readOnly: workContext.readOnly }), gates: [evidence, ...realGates] })
     : null
   const report = assembleRunReport({ aiResult: result, verify, resultText: result.summary || '已完成。', actualChangedFiles: changedFiles, evidence: runEvidence })
-  const out = await post(`/lark/tasks/${encodeURIComponent(id)}/status`, { status: report.status, result: report.result, epoch: task.epoch, ...report.extras })
-  assert.equal(out.ok, true, `status 回写失败：${JSON.stringify(out)}`)
+  // 走 worker 真实用的网关客户端回写（10-21：客户端字段白名单丢了 change / report，直接 POST 的测试测不出来）
+  const out = await createGatewayClient(base).updateTask(id, report.status, report.result, 'claude', task.epoch, null, null, report.extras)
+  assert.equal(out?.ok, true, `status 回写失败：${JSON.stringify(out)}`)
   return { report, verify }
 }
 
