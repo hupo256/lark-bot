@@ -302,6 +302,16 @@ describe('黄金对话', () => {
     assert.notEqual(store.get(other)?.addressedToBot, true, '@ 别人（名字不是 Aven.Bot）不算')
   })
 
+  it('S12 外部同事的疑似单 → aven 私聊单发「继续任务 <id>」（不带补充）就放行开跑（10-21：被当成没补充内容，只回了提示卡）', async () => {
+    const id = await say({ from: ENCONE, text: '分享卡片图 picture[0] 是 HCIMG1 密文，按文档 1.10 解密' })
+    await classify(id, { decision: 'api_reply', confidence: 'medium', reply: '收到，我看下分享卡片图的解密' })
+    assert.equal(store.get(id).status, 'waiting_confirmation')
+    assert.equal(store.get(id).suspected, true)
+    await dm(`继续任务 ${id}`)
+    assert.equal(store.get(id).status, 'queued', transcript().join('\n'))
+    assert.doesNotMatch(consoleTexts().join('\n'), /没有可用的补充内容/)
+  })
+
   it('S3b aven 交代的改动没过核验闸 → 执行器写好的回答不丢，私聊里带草稿可放行', async () => {
     const id = await say({ from: AVEN, text: '把预约按钮文案改成「立即预约」' })
     await classify(id, { decision: 'requirement', reply: '收到，我去改预约按钮文案，改完说一声' })
