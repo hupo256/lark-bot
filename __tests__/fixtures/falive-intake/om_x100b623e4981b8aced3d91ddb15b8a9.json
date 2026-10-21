@@ -40,6 +40,7 @@
           "note": "后端为查 hichat_token 调 profile/my 返回 code 500 的日志，要 10-15 17:39（+8）复测的请求时间、请求头、参数和 URL"
         }
       ]
-    }
+    },
+    "expected_deliverable": "answer"
   }
 }

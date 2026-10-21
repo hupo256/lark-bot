@@ -43,7 +43,8 @@
       "satisfiesWait": null,
       "waitsFor": null,
       "reply": "收到，手机号注册已修好，这就复测注册流程，结果记下来回群"
-    }
+    },
+    "expected_deliverable": "verification"
   },
   "createdAt": "2026-10-16T15:01:08.126Z",
   "updatedAt": "2026-10-16T15:01:25.393Z",

@@ -43,7 +43,8 @@
       "reply": "收到，这就复测 R6 两个 upcoming 接口的去重，再核对 total 和分页",
       "satisfiesWait": null,
       "waitsFor": null
-    }
+    },
+    "expected_deliverable": "verification"
   },
   "createdAt": "2026-10-16T07:55:21.510Z",
   "updatedAt": "2026-10-16T14:17:23.382Z",

@@ -1,0 +1,55 @@
+{
+  "id": "om_x100b62421f3448a4ed6cff416b29fc7",
+  "source": "lark",
+  "chatId": "oc_c2a63ac7c217235e14407ed1bba69d06",
+  "messageId": "om_x100b62421f3448a4ed6cff416b29fc7",
+  "threadRootId": null,
+  "operator": "ou_0474e2a35ff1054cdbc0bb9d9d9c9766",
+  "project": "FALIVE",
+  "repo": "falive",
+  "commandType": "api",
+  "commandTypeSource": "explicit",
+  "projectTitle": "Falive Web",
+  "text": "front/lives 更新了，再试试 @Aven.Bot\n\n【群里这条之前的消息】\nEric.ea：member/profile/my\n可以用了，是 golang\n@Arthur.a\nBroker：@Arthur.a app 游客模式登入是不是需要使用golang接口\nAven.tong：![Image](img_v3_0216l_7cf54fde-c615-4640-aab3-e45febca58hu)\n接口挂了，麻烦看一下 @.Ache.l @HQUCEncone\nHQUCEncone：正常的啊\nHQUCEncone：[Image: img_v3_0216l_dc2e9598-f0da-4c64-81d5-f54a8ebaa4ix]\nHQUCEncone：[Image: img_v3_0216l_180e7d7f-93a7-49d5-b5ea-373978bcb9ix]\nArthur.a：@Broker 晚点回复\nAven.Bot（bot，我们自己）：@Aven.tong(ou_91861d6da6cf6822e08045ba1868241e) 收到，我查一下，稍后回复。\nAven.Bot（bot，我们自己）：@Aven.tong(ou_91861d6da6cf6822e08045ba1868241e) 429 是第 2 页接口报错后，前端无限滚动反复重拉触发了限流，两边都要改：\n- ❌ 后端：front/lives 第 2 页（type=-1&page=2&limit=20）现在回 code -1（MFrontLive 的 matchId 为 null 报错），第 1、3 页正常\n- ⚠️ 前端：第 2 页失败后滚动到底的触发点还在屏幕内，会立刻再拉，1 秒超 4 次就 429；本地开发模式失败会回落假数据所以看不到，前端改成失败后停拉\nAven.tong：cc @HQUCEncone\n\n【Encone（portal 后端） 正在进行的事（2 小时内，新的在前）】\n- 15:44 bot 对他说（done，主题 new#1afca0）：@运维 pre 的 preload 复测：通了 0 项，没通 1 项（还是被限流，更严重了） - ⚠️ 服务端渲染取数据：连续密集打开页面，50 轮里 44 轮首页、直播列表、直播间、新闻、帖子页整页没数据；放慢到每 5 秒开一页 24 次\n- 15:30 bot 对他说（noted，主题 new#1afca0）：收到，pre 已更新，这就复查 preload 问题，结果回群里。\n- 15:29 bot 对他说（ack）：收到，我查一下，稍后回复。\n- 他 16:32 的消息 id=om_x100b6241bd09eca8eed1166e294f82f 主题=new#1afca0+new#a11941 状态=ignored：Encone（portal 后端）答复 aven 报的「接口挂了」：/lives 页面调的就是 api/front/lives，报错原因是 pre 的 API\n- 他 16:31 的消息 id=om_x100b6241be0ef0a0ed47f244953dbb6 主题=new#1afca0+new#a11941 状态=ignored：Encone（portal 后端）回复 aven 报的「接口挂了」：/lives?category=… 页面和 api/front/lives 报错是 429\n- 他 16:28 的消息 id=om_x100b6241aca134a0ed4e704dfa11941 主题=new#a11941 状态=ignored：aven 在群里报「接口挂了」，Encone（portal 后端）回了两张截图作答：pre 上的 lives?type=-1 接口返回 code 0、数据正常，\n- 他 15:29 的消息 id=om_x100b6241474ca8a0ed4c160651afca0 主题=new#1afca0 状态=done：Encone（portal 后端）告知 pre 已更新，请 bot 再检查一下 preload 问题。\n- 台账 new#1afca0（noted）Encone 说 pre 已更新，请复查 preload 问题；台账里没有对应条目，可能和 pre \n- 台账 new#1f7a09（noted）产品口径：falive 只有金币（coin），送礼 / 广场发动画扣金币（= 签到积分），不扣钻石；\n- 台账 new#c2b104（open）Encone 要 pre 环境测试账号密码，aven 授权直接回一份测试账号\n- 台账 new#130841-2（answered）C2：forum/hotTags 维持按热度排序，约 2 分钟缓存，前端按返回顺序展示\n- 台账 new#130841-8（answered）LN5：banner 的 addtime / updatetime 是字符串，文档已更新，前端现有兼",
+  "summary": "Encone（portal 后端）答复 bot 报的问题：front/lives 接口已更新，第 2 页（type=-1&page=2）之前回 code -1，",
+  "attachments": [],
+  "aiExecutor": "claude",
+  "status": "done",
+  "createdAt": "2026-10-20T12:57:21.010Z",
+  "updatedAt": "2026-10-20T13:00:57.882Z",
+  "addressedToBot": true,
+  "claimedAt": "2026-10-20T12:57:40.425Z",
+  "epoch": 1,
+  "topic": "new#a11941",
+  "ledgerItems": [
+    {
+      "id": "new#a11941"
+    }
+  ],
+  "ackedInGroup": true,
+  "ackedAt": "2026-10-20T12:57:22.138Z",
+  "intake": {
+    "receivedAt": "2026-10-20T12:57:21.010Z",
+    "classification_at_capture": {
+      "decision": "api_reply",
+      "confidence": "high",
+      "forMe": true,
+      "summary": "Encone（portal 后端）答复 bot 报的问题：front/lives 接口已更新，第 2 页（type=-1&page=2）之前回 code -1，现在请再测一次。",
+      "reason": "这是在答复 bot 替 aven 报的 front/lives 第 2 页后端报错（matchId 为 null）。/lives 正在直播列表是 aven 的 #29，所以需要复测第 2 页是否恢复。另外，前端第 2 页失败后会反复重拉、触发 429 的问题，之前已经定为前端要改成失败后停拉，这件仍归 aven。",
+      "items": [
+        {
+          "id": "new#a11941",
+          "transition": "answer",
+          "note": "Encone 说 front/lives 已更新（修第 2 页 code -1），请复测；前端失败后停拉的改动仍待做"
+        }
+      ],
+      "topic": "new#a11941",
+      "continues": null,
+      "relatedTaskId": null,
+      "reply": "收到，front/lives 已更新，这就复测第 2 页和 429，结果发群里。",
+      "satisfiesWait": null,
+      "waitsFor": null
+    },
+    "expected_deliverable": "verification"
+  }
+}

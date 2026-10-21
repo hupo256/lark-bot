@@ -40,6 +40,7 @@
       "reply": "收到，用 129172 重跑 profile/my，精确到秒的时间和 token 直接发群里",
       "satisfiesWait": null,
       "waitsFor": null
-    }
+    },
+    "expected_decision": "api_reply"
   }
 }

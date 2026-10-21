@@ -1,0 +1,59 @@
+{
+  "id": "om_x100b6242df874ca0ed4b5a1e05b783d",
+  "source": "lark",
+  "chatId": "oc_c2a63ac7c217235e14407ed1bba69d06",
+  "messageId": "om_x100b6242df874ca0ed4b5a1e05b783d",
+  "threadRootId": "om_x100b6242c5ac88a4ed3442879dce7a9",
+  "operator": "ou_91861d6da6cf6822e08045ba1868241e",
+  "project": "FALIVE",
+  "repo": "falive",
+  "commandType": null,
+  "commandTypeSource": null,
+  "projectTitle": "Falive Web",
+  "text": "【被引用消息】\n<card>\n@HQUCEncone(ou_0474e2a35ff1054cdbc0bb9d9d9c9766) front/lives 复测：第 2 页接口通了，还有 1 项要在浏览器里看\n- ⚠️ /lives 滚到底续拉：还没在浏览器里实际滚到底看第 2 页有没有接上，请测试同学在 pre 看一眼\n- ✅ front/lives 第 2 页：pre 实测第 1、2 页都回 code 0、有数据，第 3 页为空说明到底了，matchId 不再是 null，后台这边不用再处理了\n📝 由 aven 的助手整理\n</card>\n\n【本条 @】@Aven.Bot 你自己在 pre 环境看，看完报告结果\n\n【群里这条之前的消息】\nHQUCEncone：[Image: img_v3_0216l_dc2e9598-f0da-4c64-81d5-f54a8ebaa4ix]\nHQUCEncone：[Image: img_v3_0216l_180e7d7f-93a7-49d5-b5ea-373978bcb9ix]\nArthur.a：@Broker 晚点回复\nAven.Bot（bot，我们自己）：@Aven.tong(ou_91861d6da6cf6822e08045ba1868241e) 收到，我查一下，稍后回复。\nAven.Bot（bot，我们自己）：@Aven.tong(ou_91861d6da6cf6822e08045ba1868241e) 429 是第 2 页接口报错后，前端无限滚动反复重拉触发了限流，两边都要改：\n- ❌ 后端：front/lives 第 2 页（type=-1&page=2&limit=20）现在回 code -1（MFrontLive 的 matchId 为 null 报错），第 1、3 页正常\n- ⚠️ 前端：第 2 页失败后滚动到底的触发点还在屏幕内，会立刻再拉，1 秒超 4 次就 429；本地开发模式失败会回落假数据所以看不到，前端改成失败后停拉\nAven.tong：cc @HQUCEncone\nHQUCEncone：front/lives 更新了，再试试 @Aven.Bot\nAven.Bot（bot，我们自己）：@HQUCEncone(ou_0474e2a35ff1054cdbc0bb9d9d9c9766) 收到，我查一下，稍后回复。\nAven.Bot（bot，我们自己）：@HQUCEncone(ou_0474e2a35ff1054cdbc0bb9d9d9c9766) 这条我拿不准，等 aven 看过再回。\nAven.Bot（bot，我们自己）：@HQUCEncone(ou_0474e2a35ff1054cdbc0bb9d9d9c9766) 这条我拿不准，等 aven 看过再回。\n\n【aven 本人 正在进行的事（2 小时内，新的在前）】\n- 16:36 bot 对他说（done，主题 q:om_x100b6241b41c58a4ed610feaf5e48f5）：429 是第 2 页接口报错后，前端无限滚动反复重拉触发了限流，两边都要改： - ❌ 后端：front/lives 第 2 页（type=-1&page=2&limit=20）现在回 code -1（MFrontLive 的 matchId\n- 16:34 bot 对他说（ack）：收到，我查一下，稍后回复。\n- 他 16:34 的消息 id=om_x100b6241b41c58a4ed610feaf5e48f5 主题=q:om_x100b6241b41c58a4ed610feaf5e48f5 状态=done：aven @bot：pre 上 lives 页（/lives?category=…）调 api/front/lives 大量返回 429，同样操作本地不报。让\n- 台账 new#437502（answered）aven 问 web 直播详情页聊天室现状 / 缺口 / 能否提测；PC/H5 沿用 falive ",
+  "summary": "aven 让 bot 自己去 pre 的 /lives 页滚到底，看第 2 页有没有续拉接上（front/lives 后端已修好，复测卡片里只剩这一项没在浏览器",
+  "attachments": [],
+  "aiExecutor": "claude",
+  "status": "done",
+  "createdAt": "2026-10-20T13:14:22.783Z",
+  "updatedAt": "2026-10-20T14:27:42.588Z",
+  "addressedToBot": true,
+  "claimedAt": "2026-10-20T14:24:15.756Z",
+  "epoch": 2,
+  "topic": "new#530d43",
+  "ledgerItems": [
+    {
+      "id": "new#530d43"
+    }
+  ],
+  "ackedInGroup": true,
+  "ackedAt": "2026-10-20T13:14:23.505Z",
+  "intake": {
+    "receivedAt": "2026-10-20T13:14:22.783Z",
+    "classification_at_capture": {
+      "decision": "requirement",
+      "forMe": true,
+      "confidence": "high",
+      "summary": "aven 让 bot 自己去 pre 的 /lives 页滚到底，看第 2 页有没有续拉接上（front/lives 后端已修好，复测卡片里只剩这一项没在浏览器里看），看完报结果。",
+      "reason": "这是 aven 本人 @bot 交办的事，最高优先级。/lives 正在直播列表属于 #29 正在直播，归 aven。要验的是前端无限滚动能不能续拉第 2 页、失败后会不会停拉，是前端复核，和 16:34 那条 429 排查是同一件事。",
+      "continues": "om_x100b6241b41c58a4ed610feaf5e48f5",
+      "topic": "q:om_x100b6241b41c58a4ed610feaf5e48f5",
+      "relatedTaskId": null,
+      "items": [
+        {
+          "id": "new#530d43",
+          "transition": "notify",
+          "note": "front/lives 第 2 页接口复测已通；aven 让 bot 在 pre 浏览器里滚到底，验证 /lives 有没有续拉第 2 页"
+        }
+      ],
+      "reply": "收到，我去 pre 的 /lives 滚到底，看第 2 页有没有接上，看完报结果",
+      "satisfiesWait": null,
+      "waitsFor": null
+    },
+    "expected_deliverable": "verification",
+    "expected_decision": [
+      "requirement",
+      "bug"
+    ]
+  }
+}

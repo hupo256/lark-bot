@@ -21,6 +21,19 @@
       ],
       "description": "bug=缺陷反馈；requirement=交办的新增/调整；api_reply=对方（后端/运维/产品）对我方对接问题的答复或接口/字段/环境变化，需要据此更新前端或复核；ignore=闲聊/知会/催办；question=群里有人向被代理人提问（接口怎么调、前端现在怎么处理、某字段用不用、某功能做没做），靠仓库代码 / 文档能回答"
     },
+    "deliverable": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "verification",
+        "answer",
+        "change",
+        null
+      ],
+      "description": "要做的事交付什么：verification=去环境上看 / 复测 / 看完报结果，交付实测结论、不改代码；answer=回答提问；change=要改代码；ignore 或拿不准填 null"
+    },
     "confidence": {
       "type": "string",
       "enum": [

@@ -56,15 +56,17 @@ for (const stored of tasks) {
     out = { decision: 'ERROR', reason: String(error?.message || error).slice(0, 120) }
   }
   const head = (task.text || '').split('\n')[0].slice(0, 40)
-  console.log(JSON.stringify({ id: task.id.slice(-8), at: String(task.createdAt).slice(11, 16), head, decision: out.decision, confidence: out.confidence, forMe: out.forMe, topic: out.topic, related: out.relatedTaskId ? out.relatedTaskId.slice(-8) : null, reply: out.reply, summary: out.summary }))
+  console.log(JSON.stringify({ id: task.id.slice(-8), at: String(task.createdAt).slice(11, 16), head, decision: out.decision, deliverable: out.deliverable ?? null, confidence: out.confidence, forMe: out.forMe, topic: out.topic, related: out.relatedTaskId ? out.relatedTaskId.slice(-8) : null, reply: out.reply, summary: out.summary }))
   seen.push({ id: task.id, topic: out.topic || task.topic, status: 'done', summary: out.summary || task.summary, text: task.text })
-  rows.push({ id: task.id, out, base: stored.intake?.classification_at_capture || null })
+  rows.push({ id: task.id, out, base: stored.intake?.classification_at_capture || null, expectedDeliverable: stored.intake?.expected_deliverable || null, expectedDecision: stored.intake?.expected_decision || null })
 }
 if (report) {
   const labeled = rows.filter((row) => row.base)
   const forMeBase = labeled.filter((row) => row.base.forMe)
   const recall = forMeBase.filter((row) => row.out.forMe).length
-  const agree = labeled.filter((row) => row.out.decision === row.base.decision).length
+  // expected_decision（字符串或数组）优先于基线：基线是当时线上的判定，有几条本身就判错了（README 有记），拿它比一致率不合理（10-21 P4）。
+  const accepts = (row) => [].concat(row.expectedDecision || row.base.decision)
+  const agree = labeled.filter((row) => accepts(row).includes(row.out.decision)).length
   const medium = rows.filter((row) => row.out.confidence === 'medium').length
   const summary = {
     total: rows.length,
@@ -72,12 +74,16 @@ if (report) {
     forMeRecall: forMeBase.length ? recall / forMeBase.length : null,
     forMeMissed: forMeBase.filter((row) => !row.out.forMe).map((row) => row.id.slice(-8)),
     decisionAgreement: labeled.length ? agree / labeled.length : null,
+    decisionMissed: labeled.filter((row) => !accepts(row).includes(row.out.decision)).map((row) => `${row.id.slice(-8)}:${row.out.decision}∉${accepts(row).join('/')}`),
     mediumRatio: rows.length ? medium / rows.length : null,
     errors: rows.filter((row) => row.out.decision === 'ERROR').length,
+    // 任务契约（10-21 P4）：标了 expected_deliverable 的样例，分类器给的 deliverable 要全对。
+    deliverableLabeled: rows.filter((row) => row.expectedDeliverable).length,
+    deliverableMissed: rows.filter((row) => row.expectedDeliverable && row.out.deliverable !== row.expectedDeliverable).map((row) => `${row.id.slice(-8)}:${row.out.deliverable ?? 'null'}≠${row.expectedDeliverable}`),
   }
   console.log(`REPORT ${JSON.stringify(summary)}`)
-  if (gate && ((summary.forMeRecall != null && summary.forMeRecall < 1) || (summary.decisionAgreement != null && summary.decisionAgreement < 0.95))) {
-    console.error('GATE FAILED：forMe 召回要 100%、decision 一致率要 ≥ 95%')
+  if (gate && ((summary.forMeRecall != null && summary.forMeRecall < 1) || (summary.decisionAgreement != null && summary.decisionAgreement < 0.95) || summary.deliverableMissed.length)) {
+    console.error('GATE FAILED：forMe 召回要 100%、decision 一致率要 ≥ 95%、标注了 deliverable 的要全对')
     process.exit(2)
   }
 }
