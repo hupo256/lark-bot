@@ -3,6 +3,7 @@ import { afterEach, describe, it } from 'node:test'
 
 import {
   buildGroupCard,
+  blockedAskMentions,
   buildRepoBlockedGroupText,
   followUpTopicKey,
   buildRepoGroupText,
@@ -245,6 +246,19 @@ describe('阻塞时群里 @ 责任人要材料（整改 #12）', () => {
     assert.match(sent[0].markdown, /⏸ 停下来了.*\n要：R2 单条详情接口\n.*\n群里已回：「@Ache 「录播 tab 接详情」这边卡住了，需要你们帮忙：」/s)
     await deliverRepoOutcome({ task: { id: 'b2', chatId: 'oc_falive', repo: 'falive', summary: 's', suspected: true }, status: 'waiting_confirmation', result: 'x', deps })
     assert.equal(hooks.length, 1, '疑似任务不往群里要材料')
+  })
+
+  it('没定负责人：@ 待补充里点名的外部同事；没点名就 @ 发起人（10-22 Bug-4927 一个都没 @）', async () => {
+    register()
+    const hooks = []
+    const deps = { sendMarkdown: async () => ({ ok: true }), sendWebhookMessage: async (a) => { hooks.push(a); return { ok: true } }, webhookFor: () => ({ url: 'u' }) }
+    const result = '已阻塞，需外部材料 / 权限后才能继续。\n1. 缺账号。\n2. 待补充：缺一个嗨聊老账号；要 Ache、Encone 或测试 HTStone.z 给一个能在 pre 用的'
+    await deliverRepoOutcome({ task: { id: 'b3', chatId: 'oc_falive', repo: 'falive', summary: '复测 Bug-4927', operator: 'ou_ache' }, status: 'blocked', result, deps })
+    assert.match(hooks[0].card.elements[0].content, /^<at id=ou_ache><\/at> <at id=ou_encone><\/at> 「复测 Bug-4927」这边卡住了/)
+    const profile = repoProfile('falive')
+    assert.deepEqual(blockedAskMentions({ task: { operator: 'ou_william' }, profile, blockers: ['给一个老账号'] }), [{ owner: null, openId: 'ou_william', items: ['给一个老账号'] }])
+    assert.equal(buildRepoBlockedGroupText({ task: { summary: 's' }, mentions: [{ owner: null, openId: 'ou_william' }], blockers: ['x'] }), '<at id=ou_william></at> 「s」这边卡住了，需要你们帮忙：\n- x')
+    assert.deepEqual(blockedAskMentions({ task: {}, profile, blockers: ['Achelous 接口'] }), [], '名字要整词匹配')
   })
 })
 
