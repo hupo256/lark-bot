@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { decodeGitPath, interfaceChanges, parseUnifiedDiff, resolveSchemaVerifyGate } from '../lib/lark-schema-verify.mjs'
+import { decodeGitPath, interfaceChanges, parseUnifiedDiff, resolveSchemaVerifyGate, scopedInterfaceFiles } from '../lib/lark-schema-verify.mjs'
+import { buildVerifyRule } from '../lib/lark-completion-rule.mjs'
 import { resolveScopeGate } from '../lib/lark-scope-contract.mjs'
 
 // 10-22 新闻详情页（教训 #66）真实 `git diff -U0 HEAD -- schema.ts`：只删了三个响应字段 + 改一行注释。
@@ -66,6 +67,47 @@ describe('接口实测闸只按真实 diff 触发（#66）', () => {
     assert.equal(parseUnifiedDiff(diff)[0].path, 'x/data/queries.ts')
     assert.equal(decodeGitPath('"b/docs/delivery/pending/\\346\\226\\260\\351\\227\\273.md"'), 'docs/delivery/pending/新闻.md')
     assert.equal(decodeGitPath('/dev/null'), null)
+  })
+})
+
+describe('请求侧按源码是否引用请求入口判，不只认 schema / queries 文件名（#68）', () => {
+  const MARKED = { ...VERIFY, requestMarker: "['\"]@/kernel/http(/index\\.ts)?['\"]" }
+  const HTTP_SRC = 'import { request } from "@/kernel/http/index.ts";\nexport const reserve = (id) => request("live", "/api/live/reserveMatch", { live_id: id }, "POST");'
+  const sources = { 'src/modules/live/data/mutations.ts': [HTTP_SRC, HTTP_SRC], 'src/modules/live/data/format.ts': ['export const pad = (n) => n;'], 'src/modules/live/data/mutations.test.ts': [HTTP_SRC] }
+  const readSources = (path) => sources[path] || []
+  const MUTATION_DIFF = [
+    'diff --git a/src/modules/live/data/mutations.ts b/src/modules/live/data/mutations.ts',
+    '--- a/src/modules/live/data/mutations.ts',
+    '+++ b/src/modules/live/data/mutations.ts',
+    '@@ -2 +2 @@',
+    '-export const reserve = (id) => request("live", "/api/live/reserveMatch", { live_id: id }, "POST");',
+    '+export const reserve = (id) => request("live", "/api/live/reserveMatch", { match_id: id }, "POST");',
+  ].join('\n')
+
+  it('mutations.ts 引用 @/kernel/http → 进范围；纯逻辑文件、测试文件不进', () => {
+    const files = ['src/modules/live/data/mutations.ts', 'src/modules/live/data/format.ts', 'src/modules/live/data/mutations.test.ts']
+    assert.deepEqual(scopedInterfaceFiles({ verify: MARKED, changedFiles: files, readSources }), ['src/modules/live/data/mutations.ts'])
+    assert.deepEqual(scopedInterfaceFiles({ verify: VERIFY, changedFiles: files, readSources }), [])
+  })
+
+  it('改了写接口参数 + 没测 → 挂待确认，点名 mutations.ts', () => {
+    const gate = resolveSchemaVerifyGate({ verify: MARKED, changedFiles: ['src/modules/live/data/mutations.ts'], preChecks: [], taskId: 't', readDiff: () => MUTATION_DIFF, readSources })
+    assert.equal(gate.status, 'waiting_confirmation')
+    assert.match(gate.note, /改了对后端的请求（src\/modules\/live\/data\/mutations\.ts：.*reserveMatch/)
+  })
+
+  it('改动把 request 引用删掉（改前版本有）也算范围内', () => {
+    const files = ['src/modules/user/data/feedbacks.ts']
+    assert.deepEqual(scopedInterfaceFiles({ verify: MARKED, changedFiles: files, readSources: () => [HTTP_SRC, 'export const x = 1'] }), files)
+  })
+
+  it('实施任务且配了 writeMail 才给写接口实测口径，且只许测试号', () => {
+    const verify = { ...VERIFY, probeCommand: 'node p.mjs', writeMail: 't@probe.test' }
+    assert.doesNotMatch(buildVerifyRule({ ...verify, writeMail: '' }, { allowWrite: true }), /PROBE_ALLOW_WRITE/)
+    assert.doesNotMatch(buildVerifyRule(verify), /PROBE_ALLOW_WRITE/) // 只读 / 代答不给
+    const rule = buildVerifyRule(verify, { allowWrite: true })
+    assert.match(rule, /PROBE_ALLOW_WRITE=1 PROBE_MAIL=t@probe\.test/)
+    assert.match(rule, /破坏性写接口没实测/)
   })
 })
 
