@@ -25,6 +25,20 @@ describe('结构化群回复', () => {
     const odd = normalizeReport({ subject: '预约 Tab', answer: null, items: [item('ok', '参数'), item('pending', 'Tab 显示', { note: '还没部署 pre' })] })
     assert.equal(renderReport(odd), '预约 Tab：通了 1 项，没通 1 项\n- ⚠️ 接了但还不能用 Tab 显示：还没部署 pre\n- ✅ 通了 参数', '10-21 真机：pending 被丢就成了「都通了」')
   })
+  it('代答答案不悄悄截断：多行原样保留、条目写成字符串也列出；真超长时截在行尾并写明没发全（10-22 复现 curl 被切在密码中间）', () => {
+    const curl = `curl -s -X POST 'https://pre.example/go-api/api/auth/login' -H 'Content-Type: application/json' -d '{"username":"t@probe.test","password":"x"}'`
+    const answer = `复现 curl 如下（pre，测试号）：\n① 登录拿 token：\n${curl}\n取返回里的 data.token 记为 TOKEN。\n② 签到：\n${curl.replace('auth/login', 'checkinPointsTask/sign')}`
+    const report = normalizeReport({ subject: null, answer, items: ['没替你调 sign（写操作）', '要走网关，直连 404'] })
+    assert.equal(report.answer, answer)
+    assert.equal(renderReport(report), `${answer}\n- 没替你调 sign（写操作）\n- 要走网关，直连 404`)
+    assert.deepEqual(normalizeReport(report), report, '网关再校验一遍结果不变')
+    const long = normalizeReport({ subject: null, answer: Array.from({ length: 200 }, (_, i) => `第 ${i} 行 ${'x'.repeat(20)}`).join('\n'), items: [] })
+    assert.ok(long.answer.length <= 3000)
+    assert.match(long.answer, /x…（太长没发全）$/, '截在整行末尾，并写明没发全')
+    assert.deepEqual(normalizeReport(long), long, '再跑一遍不重复加标记')
+    const note = normalizeReport({ subject: 's', answer: null, items: [item('not_usable', 'n', { note: '长'.repeat(400) })] })
+    assert.match(note.items[0].note, /（太长没发全）$/)
+  })
   it('声称 pre / 浏览器实测但本轮会话里没跑 → 那一项降成「待验证」；读不到会话记录不降', () => {
     const report = normalizeReport({ subject: '签到复测', answer: null, items: [item('ok', '签到', { evidence: 'pre' }), item('ok', '滚到底', { evidence: 'browser' }), item('ok', '文案', { evidence: 'code' })] })
     const down = applyRunEvidence(report, { probeCalls: 1, browserCalls: 0 })
