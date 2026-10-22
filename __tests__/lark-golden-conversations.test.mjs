@@ -31,6 +31,8 @@ const { expectsCodeChange } = await import('../lib/lark-work-policy.mjs')
 const { assembleRunReport } = await import('../lib/lark-run-report.mjs')
 const { sweepPendingAcks, DEFAULT_ACK_TIMEOUT_MS } = await import('../lib/lark-repo-intake.mjs')
 const { isReadOnlyTask } = await import('../lib/lark-message.mjs')
+const { resolveSchemaVerifyGate } = await import('../lib/lark-schema-verify.mjs')
+const { repoProfileForTask } = await import('../lib/lark-repo-profile.mjs')
 
 const GROUP = 'oc_golden_php'
 const CONSOLE = 'oc_golden_console'
@@ -107,16 +109,19 @@ const classify = async (id, classification) => {
   return out
 }
 // 执行器跑完：changedFiles = 工作区实测改动；闸用真实 done.trust（采证据那道换成桩）
-const work = async (id, aiResult, { changedFiles = [], gates = null, runEvidence = null, ownerNotes = [] } = {}) => {
+const work = async (id, aiResult, { changedFiles = [], gates = null, runEvidence = null, ownerNotes = [], scope = null, schemaDiff = null } = {}) => {
   const task = claim(id)
   const evidence = { name: 'evidence', applies: () => true, check: (ctx) => { ctx.evidence.changedFiles = changedFiles; ctx.outputs.actualChangedFiles = changedFiles; return { ok: true } } }
   const realGates = gates || VERIFY_GATES.filter((gate) => ['done.trust'].includes(gate.name))
   const workContext = { readOnly: isReadOnlyTask(task), cwd: PROFILE.root }
   const result = { checks: [], changedFiles, summary: '', ...aiResult }
   const verify = ['done', 'done_with_warnings'].includes(result.status)
-    ? await runVerifyGates({ task, workContext, aiRun: { result }, expectsCode: expectsCodeChange({ task, readOnly: workContext.readOnly }), gates: [evidence, ...realGates] })
+    ? await runVerifyGates({ task, workContext, aiRun: { result, scope }, workerConfig: { localConfig: {} }, expectsCode: expectsCodeChange({ task, readOnly: workContext.readOnly }), gates: [evidence, ...realGates] })
     : null
-  const report = assembleRunReport({ aiResult: result, verify, resultText: result.summary || '已完成。', actualChangedFiles: changedFiles, evidence: runEvidence, ownerNotes })
+  const report = assembleRunReport({ aiResult: result, verify, resultText: [result.summary || '已完成。', ...(verify?.warnNotes?.length ? [`⚠ ${verify.warnNotes.join('；')}`] : [])].join('\n'), actualChangedFiles: changedFiles, evidence: runEvidence, ownerNotes })
+  // 接口实测闸：与 runner 收尾同一个纯函数，diff 由场景给（#66）
+  const schemaGate = schemaDiff != null && report.status === 'done' ? resolveSchemaVerifyGate({ verify: repoProfileForTask(task)?.verify, changedFiles, preChecks: result.preChecks, taskId: id, readDiff: () => schemaDiff }) : null
+  if (schemaGate?.status) Object.assign(report, { status: schemaGate.status, result: `${report.result}\n${schemaGate.note}`, extras: { ...report.extras, change: schemaGate.change } })
   // 走 worker 真实用的网关客户端回写（10-21：客户端字段白名单丢了 change / report，直接 POST 的测试测不出来）
   const out = await createGatewayClient(base).updateTask(id, report.status, report.result, 'claude', task.epoch, null, null, report.extras)
   assert.equal(out?.ok, true, `status 回写失败：${JSON.stringify(out)}`)
@@ -354,5 +359,32 @@ describe('黄金对话', () => {
     assert.equal(store.get(id).change.committed, false)
     assert.equal(groupTexts().length, 2, transcript().join('\n'))
     assert.match(groupTexts()[1], /签到复测/)
+  })
+
+  it('S15 只删几个响应字段（schema / mapper / 页面 / 文案 / mock / 对接文档）+ pre 连不上 → 照常交付、改动提交，不挂「接口没实测」，改过的中文路径对接文档不报疑似漏改（10-22 #66 #67）', async () => {
+    registerRepoProfiles({ repos: { falive: { ...PROFILE, docIntakeDir: 'docs/delivery/pending' } } })
+    const id = await say({ from: AVEN, text: '新闻详情页照 x9 收口，签名、阅读、评论不显示' })
+    await classify(id, { decision: 'requirement', reply: '收到，照 x9 收口新闻详情页' })
+    const doc = 'docs/delivery/pending/新闻详情页-待确认-2026-10-21.md'
+    const changedFiles = ['src/modules/news/NewsDetailPage.tsx', 'src/modules/news/data/mappers.ts', 'src/modules/news/data/schema.ts', 'src/modules/news/data/mock.ts', doc]
+    const scope = { targets: changedFiles.slice(0, 4).map((path) => ({ path, symbols: [], reason: '收口' })), siblings: { searchQueries: [], items: [{ path: doc, include: true, reason: '追加答复' }] } }
+    const schemaDiff = 'diff --git a/src/modules/news/data/schema.ts b/src/modules/news/data/schema.ts\n--- a/src/modules/news/data/schema.ts\n+++ b/src/modules/news/data/schema.ts\n@@ -22 +22 @@\n-  /** 发布人头像 / 签名 / 阅读数 / 评论数 */\n+  /** 发布人头像（同 x9） */\n@@ -105,3 +101,0 @@\n-      signature: z.string().nullish(),\n-      click: z.number().nullish(),\n-      comment_count: z.number().nullish(),'
+    const preChecks = [{ endpoint: '/api/Headlines/getInfo', outcome: 'UNREACHABLE：pre 连不上', kind: 'unreachable' }]
+    const gates = VERIFY_GATES.filter((gate) => ['done.trust', 'scope'].includes(gate.name))
+    const { report } = await work(id, { status: 'done', preChecks, checks: ['pnpm exec tsc --noEmit 通过', 'vitest run 通过'], summary: '新闻详情页已照 x9 收口，接口没改' }, { changedFiles, gates, scope, schemaDiff })
+    assert.equal(report.status, 'done', report.result)
+    assert.equal(store.get(id).status, 'done')
+    assert.equal(store.get(id).change?.committed, true)
+    const all = transcript().join('\n')
+    assert.doesNotMatch(all, /实测通过|重跑并实测/, all)
+    assert.doesNotMatch(all, /兄弟位置实测未改/, all)
+    // 同一形状换成真改了请求 → 照旧挂待确认、如实说改了哪
+    const id2 = await say({ from: AVEN, text: '新闻详情换成 getDetail 接口' })
+    await classify(id2, { decision: 'requirement', reply: '收到' })
+    const queriesDiff = 'diff --git a/src/modules/news/data/queries.ts b/src/modules/news/data/queries.ts\n--- a/src/modules/news/data/queries.ts\n+++ b/src/modules/news/data/queries.ts\n@@ -70 +70 @@\n-        request("x9", "/api/Headlines/getInfo", { id }),\n+        request("x9", "/api/Headlines/getDetail", { id }),'
+    const r2 = await work(id2, { status: 'done', preChecks, summary: '换好了' }, { changedFiles: ['src/modules/news/data/queries.ts'], schemaDiff: queriesDiff })
+    assert.equal(store.get(id2).status, 'waiting_confirmation', r2.report.result)
+    assert.equal(store.get(id2).change?.committed, false)
+    assert.match(store.get(id2).result, /改了对后端的请求（src\/modules\/news\/data\/queries\.ts/)
   })
 })
