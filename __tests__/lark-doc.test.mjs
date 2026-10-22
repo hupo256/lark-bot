@@ -2,7 +2,10 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
 import { validateSource } from '../lib/vendor/lark-command.mjs'
-import { extractLarkDocUrls, larkDocSlug, sourceTypeFromLarkUrl, taskReferencesLarkDocs } from '../lib/lark-doc.mjs'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { extractLarkDocUrls, isCompleteLarkDocUrl, larkDocSlug, prefetchLarkDocs, sourceTypeFromLarkUrl, splitTaskTextByOrigin, taskReferencesLarkDocs } from '../lib/lark-doc.mjs'
 
 describe('extractLarkDocUrls（任务正文里的 Lark 文档链接，去重）', () => {
   it('抓 wiki / docx / docs / doc 链接并去重（含带子域的 larksuite 与 feishu）', () => {
@@ -83,5 +86,35 @@ describe('vendor validateSource 不再接受 markdown 源', () => {
   it('本地 / 远程 markdown 都按不支持的类型拒绝（本地源只服务于已归档的 docs_tdd 存量项目）', () => {
     assert.throws(() => validateSource({ type: 'markdown', url: 'PR-00001/prd.md' }), /unsupported Lark source type/)
     assert.throws(() => validateSource({ type: 'markdown', url: 'https://x.larksuite.com/docx/Abc' }), /unsupported Lark source type/)
+  })
+})
+
+describe('上下文里的半截链接不拦任务（10-22 Bug-4944）', () => {
+  const HALF = 'https://qfglxo2m3dc.sg.larksuite.com/docx/CfbhdAyS'
+  const text = `api：群里发来对接文档 bug-4944直播间介绍intro-接口变更说明.md。\n\n【群里这条之前的消息】\nAven.Bot（bot，我们自己）：待确认的几点在这里：[${HALF}\n\n【Encone 正在进行的事（2 小时内，新的在前）】\n- bot 对他说：见 ${HALF}`
+  it('按来源分：本条 / 被引用是主消息，之前的消息 / 话题回复 / 正在进行的事是上下文', () => {
+    const { primary, context } = splitTaskTextByOrigin(`【被引用消息】\nPRD 在 https://x.larksuite.com/docx/AAAAAAAAAAAAAAAAAAAAAAAAAAA\n\n【本条 @】按这个做\n\n【话题其它回复】\nMateo：参考 https://x.larksuite.com/docx/BBBBBBBBBBBBBBBBBBBBBBBBBBB`)
+    assert.match(primary, /AAAA/)
+    assert.match(primary, /按这个做/)
+    assert.doesNotMatch(primary, /BBBB/)
+    assert.match(context, /BBBB/)
+  })
+  it('token 不到 20 位的是被截断的半截链接', () => {
+    assert.equal(isCompleteLarkDocUrl(HALF), false)
+    assert.equal(isCompleteLarkDocUrl('https://qfglxo2m3dc.sg.larksuite.com/docx/G5hHdiYreouN9XxHV0BlgIb4gFb'), true)
+  })
+  it('上下文里的半截链接：不去抓、不拦，记进 skipped；主消息里的半截链接照旧拦', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'lark-doc-'))
+    try {
+      const out = prefetchLarkDocs({ text, outDir: dir })
+      assert.equal(out.ok, true)
+      assert.equal(out.error, null)
+      assert.deepEqual(out.skipped.map((d) => d.url), [HALF])
+      const primary = prefetchLarkDocs({ text: `按这个 PRD 做：${HALF}`, outDir: dir })
+      assert.equal(primary.ok, false)
+      assert.match(primary.error, /链接不完整/)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })

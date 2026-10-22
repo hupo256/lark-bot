@@ -73,3 +73,13 @@ describe('这个人正在进行的事', () => {
     }
   })
 })
+
+describe('截断不留半截链接（10-22 Bug-4944）', () => {
+  it('切点落在链接中间：整段链接去掉补「…」；链接正好在切点结束的保留；不超长原样', async () => {
+    const { clipText } = await import('../lib/lark-chat-context.mjs')
+    const url = 'https://qfglxo2m3dc.sg.larksuite.com/docx/CfbhdAySabcdefghijklmnopq'
+    assert.equal(clipText(`待确认的几点在这里：[${url}](${url})`, 40), '待确认的几点在这里：…')
+    assert.equal(clipText(`见 ${url} 后面还有字`, 2 + url.length), `见 ${url}…`)
+    assert.equal(clipText('短句', 40), '短句')
+  })
+})

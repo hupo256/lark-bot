@@ -5,6 +5,7 @@ import {
   buildGroupCard,
   blockedAskMentions,
   buildRepoBlockedGroupText,
+  externalBlockers,
   followUpTopicKey,
   buildRepoGroupText,
   extractBlockers,
@@ -227,6 +228,12 @@ describe('pre 结论必须实测', () => {
     assert.match(findGroupReplyContradiction(text, { verify, preChecks: null }), /没在 pre 上实测过/)
     assert.equal(findGroupReplyContradiction(text, { verify, preChecks: [{ endpoint: '/api/report/classifyList', outcome: 'code 0，0 条' }] }), null)
     assert.equal(findGroupReplyContradiction(text), null)
+  })
+})
+
+describe('工具故障不进群（10-22 Bug-4944）', () => {
+  it('读不到 Lark 文档 / lark-cli / 授权这类我方故障不算向对方要的材料', () => {
+    assert.deepEqual(externalBlockers(['Lark 文档读取失败：https://x.larksuite.com/docx/Cfb → }', 'lark-cli 没授权', 'R2 详情接口']), ['R2 详情接口'])
   })
 })
 
