@@ -211,7 +211,7 @@
         },
         "items": {
           "type": "array",
-          "description": "一个功能 / 接口一条；代答只列有保留的（pre 没验证、某处没接），没有就 []；别人负责的项 name 前写「henry：」",
+          "description": "一个功能 / 接口一条；代答只列有保留的（某处没接、接口报错、后端缺数据），没有就 []；别人负责的项 name 前写「henry：」",
           "items": {
             "type": "object",
             "additionalProperties": false,
@@ -226,12 +226,11 @@
                 "type": "string",
                 "enum": [
                   "ok",
-                  "awaiting_deploy",
                   "not_usable",
                   "not_done",
                   "na"
                 ],
-                "description": "ok=能用（环境上实测过）；awaiting_deploy=代码已接好、只差发布到 pre（显示「已接通，待发布 pre」，算通了）；not_usable=接了但还不能用（接口报错 / 没数据 / 没配置 / 待回归，除了没部署还卡着别的）；not_done=没接；na=不涉及接口"
+                "description": "ok=开发完成并自己验证过（本地连 pre 后端或 pre 站点都算，部不部署不管）；not_usable=接了但还不能用（接口报错 / 后端没数据 / 没配置 / 缺账号；没部署、没验证都不算，没验证先去验）；not_done=没接；na=不涉及接口"
               },
               "name": {
                 "type": "string",
@@ -249,7 +248,7 @@
                   "code",
                   "none"
                 ],
-                "description": "这一项的依据：pre=本轮探针实测；browser=本轮浏览器实测；code=只看了代码；none=没有依据。写 pre / browser 但本轮没真跑会被降级成「待验证」"
+                "description": "这一项的依据：pre=本轮探针实测；browser=本轮浏览器实测（本地 dev 连 pre 后端或 pre 站点都算）；code=只看了代码（说能用前先去验）；none=没有依据。写 pre / browser 但本轮没真跑会被降级成「待验证」"
               }
             }
           }

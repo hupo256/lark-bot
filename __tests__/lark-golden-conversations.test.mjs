@@ -121,7 +121,9 @@ const work = async (id, aiResult, { changedFiles = [], gates = null, runEvidence
   const report = assembleRunReport({ aiResult: result, verify, resultText: [result.summary || '已完成。', ...(verify?.warnNotes?.length ? [`⚠ ${verify.warnNotes.join('；')}`] : [])].join('\n'), actualChangedFiles: changedFiles, evidence: runEvidence, ownerNotes })
   // 接口实测闸：与 runner 收尾同一个纯函数，diff 由场景给（#66）
   const schemaGate = schemaDiff != null && report.status === 'done' ? resolveSchemaVerifyGate({ verify: repoProfileForTask(task)?.verify, changedFiles, preChecks: result.preChecks, taskId: id, readDiff: () => schemaDiff }) : null
-  if (schemaGate?.status) Object.assign(report, { status: schemaGate.status, result: `${report.result}\n${schemaGate.note}`, extras: { ...report.extras, change: schemaGate.change } })
+  // 没测通（runner 已补测过一轮）：照常交付，结论带一句原因（aven 2026-10-22）
+  if (schemaGate?.unverified) report.result = `${report.result}\n${schemaGate.note}`
+  else if (schemaGate?.status) Object.assign(report, { status: schemaGate.status, result: `${report.result}\n${schemaGate.note}`, extras: { ...report.extras, change: schemaGate.change } })
   // 走 worker 真实用的网关客户端回写（10-21：客户端字段白名单丢了 change / report，直接 POST 的测试测不出来）
   const out = await createGatewayClient(base).updateTask(id, report.status, report.result, 'claude', task.epoch, null, null, report.extras)
   assert.equal(out?.ok, true, `status 回写失败：${JSON.stringify(out)}`)
@@ -378,13 +380,14 @@ describe('黄金对话', () => {
     const all = transcript().join('\n')
     assert.doesNotMatch(all, /实测通过|重跑并实测/, all)
     assert.doesNotMatch(all, /兄弟位置实测未改/, all)
-    // 同一形状换成真改了请求 → 照旧挂待确认、如实说改了哪
+    // 同一形状换成真改了请求 + pre 连不上 → 也照常交付、改动提交（没验证不是待确认的理由，aven 2026-10-22），结论如实说改了哪、为什么没测
     const id2 = await say({ from: AVEN, text: '新闻详情换成 getDetail 接口' })
     await classify(id2, { decision: 'requirement', reply: '收到' })
     const queriesDiff = 'diff --git a/src/modules/news/data/queries.ts b/src/modules/news/data/queries.ts\n--- a/src/modules/news/data/queries.ts\n+++ b/src/modules/news/data/queries.ts\n@@ -70 +70 @@\n-        request("x9", "/api/Headlines/getInfo", { id }),\n+        request("x9", "/api/Headlines/getDetail", { id }),'
     const r2 = await work(id2, { status: 'done', preChecks, summary: '换好了' }, { changedFiles: ['src/modules/news/data/queries.ts'], schemaDiff: queriesDiff })
-    assert.equal(store.get(id2).status, 'waiting_confirmation', r2.report.result)
-    assert.equal(store.get(id2).change?.committed, false)
+    assert.equal(store.get(id2).status, 'done', r2.report.result)
+    assert.equal(store.get(id2).change?.committed, true)
     assert.match(store.get(id2).result, /改了对后端的请求（src\/modules\/news\/data\/queries\.ts/)
+    assert.match(store.get(id2).result, /pre 连不上.*代码照常提交/)
   })
 })

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { decodeGitPath, interfaceChanges, parseUnifiedDiff, resolveSchemaVerifyGate, scopedInterfaceFiles } from '../lib/lark-schema-verify.mjs'
+import { buildVerifyPassPrompt, decodeGitPath, interfaceChanges, parseUnifiedDiff, resolveSchemaVerifyGate, runVerifyPass, scopedInterfaceFiles } from '../lib/lark-schema-verify.mjs'
 import { buildVerifyRule } from '../lib/lark-completion-rule.mjs'
 import { resolveScopeGate } from '../lib/lark-scope-contract.mjs'
 
@@ -30,14 +30,34 @@ describe('接口实测闸只按真实 diff 触发（#66）', () => {
     assert.equal(read, 0)
   })
 
-  it('请求换接口 / 改参数 + pre 连不上 → 挂待确认，如实说改了哪、为什么没测、改动没提交', () => {
+  it('请求换接口 / 改参数 + pre 连不上 → 不挂待确认、不扣改动（aven 2026-10-22），如实说改了哪、为什么没测', () => {
     const gate = resolveSchemaVerifyGate({ verify: VERIFY, changedFiles: ['src/modules/news/data/queries.ts'], preChecks: UNREACHABLE, taskId: 'om_x', readDiff: () => QUERIES_DIFF })
-    assert.equal(gate.status, 'waiting_confirmation')
-    assert.equal(gate.change.gate, 'schema-unverified')
+    assert.equal(gate.status, null)
+    assert.equal(gate.unverified, true)
+    assert.equal(gate.change, null)
     assert.match(gate.note, /改了对后端的请求（src\/modules\/news\/data\/queries\.ts：request\("x9", "\/api\/Headlines\/getDetail"/)
     assert.match(gate.note, /pre 连不上（1 条实测都没通）/)
-    assert.match(gate.note, /继续任务 om_x 重跑并实测/)
-    assert.match(gate.note, /取消任务/)
+    assert.match(gate.note, /代码照常提交/)
+    assert.doesNotMatch(gate.note, /待补充|取消任务|没提交/)
+  })
+
+  it('没测通先续会话补测一轮：只测不改、本地起 dev 连 pre 后端；新 preChecks 并回结果；非 claude / 没会话不跑', async () => {
+    const verify = { env: 'pre', probeCommand: 'node scripts/pre-probe.mjs', localDev: 'pnpm dev:pre' }
+    const prompt = buildVerifyPassPrompt({ verify, changes: [{ path: 'a/queries.ts', side: 'request', line: 'x' }] })
+    assert.match(prompt, /只测不改/)
+    assert.match(prompt, /pnpm dev:pre/)
+    assert.match(prompt, /node scripts\/pre-probe\.mjs/)
+    const calls = []
+    const aiRun = { executor: 'claude', sessionId: 's1', result: { status: 'done', summary: 'old', preChecks: [], report: null } }
+    const exec = async (opts) => { calls.push(opts); return { sessionId: 's2', result: { summary: 'new', preChecks: [{ endpoint: '/api/x', outcome: 'code 0', kind: 'ok' }], report: { subject: 's', answer: null, items: [] } } } }
+    assert.equal(await runVerifyPass({ task: { id: 't' }, aiRun, verify, changes: [], exec }), true)
+    assert.equal(calls[0].resumeSessionId, 's1')
+    assert.equal(aiRun.result.status, 'done', '其余字段照旧')
+    assert.equal(aiRun.result.preChecks[0].kind, 'ok')
+    assert.equal(aiRun.verifySessionId, 's2')
+    assert.equal(await runVerifyPass({ task: { id: 't' }, aiRun: { executor: 'codex', sessionId: 's' }, verify, changes: [], exec }), false)
+    assert.equal(await runVerifyPass({ task: { id: 't' }, aiRun: { executor: 'claude', result: {} }, verify, changes: [], exec }), false)
+    assert.equal(await runVerifyPass({ task: { id: 't' }, aiRun: { executor: 'claude', sessionId: 's', result: {} }, verify, changes: [], exec: async () => { throw new Error('boom') } }), false, '跑挂了照常交付')
   })
 
   it('请求侧只删一个参数也算；没跑实测和连不上分开说', () => {
@@ -90,9 +110,9 @@ describe('请求侧按源码是否引用请求入口判，不只认 schema / que
     assert.deepEqual(scopedInterfaceFiles({ verify: VERIFY, changedFiles: files, readSources }), [])
   })
 
-  it('改了写接口参数 + 没测 → 挂待确认，点名 mutations.ts', () => {
+  it('改了写接口参数 + 没测 → 判没测通（runner 补测），点名 mutations.ts', () => {
     const gate = resolveSchemaVerifyGate({ verify: MARKED, changedFiles: ['src/modules/live/data/mutations.ts'], preChecks: [], taskId: 't', readDiff: () => MUTATION_DIFF, readSources })
-    assert.equal(gate.status, 'waiting_confirmation')
+    assert.equal(gate.unverified, true)
     assert.match(gate.note, /改了对后端的请求（src\/modules\/live\/data\/mutations\.ts：.*reserveMatch/)
   })
 

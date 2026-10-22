@@ -25,11 +25,10 @@ describe('结构化群回复', () => {
     const odd = normalizeReport({ subject: '预约 Tab', answer: null, items: [item('ok', '参数'), item('pending', 'Tab 显示', { note: '还没部署 pre' })] })
     assert.equal(renderReport(odd), '预约 Tab：通了 1 项，没通 1 项\n- ⚠️ 接了但还不能用 Tab 显示：还没部署 pre\n- ✅ 通了 参数', '10-21 真机：pending 被丢就成了「都通了」')
   })
-  it('只差发布 pre 的显示「已接通，待发布 pre」，第一行算通了（发布不是开发的活，aven 2026-10-22）', () => {
-    const mixed = normalizeReport({ subject: '我要直播', answer: null, items: [item('awaiting_deploy', '开播记录列表', { note: '接口实测正常，页面还没部署' }), item('not_usable', '取推流地址', { note: '要主播测试号' }), item('ok', '直播分类')] })
-    assert.equal(renderReport(mixed), '我要直播：通了 2 项，没通 1 项\n- ⚠️ 接了但还不能用 取推流地址：要主播测试号\n- 🚀 已接通，待发布 pre 开播记录列表：接口实测正常，页面还没部署\n- ✅ 通了 直播分类')
-    const allDeploy = normalizeReport({ subject: '我要直播', answer: null, items: [item('awaiting_deploy', '入口'), item('ok', '分类')] })
-    assert.equal(renderReport(allDeploy).split('\n')[0], '我要直播：都通了')
+  it('发布 / 部署不归开发：10-22 短暂有过的 awaiting_deploy 按「通了」收，群里不出现「待发布」（aven 2026-10-22）', () => {
+    const report = normalizeReport({ subject: '我要直播', answer: null, items: [item('awaiting_deploy', '开播记录列表'), item('not_usable', '取推流地址', { note: '要主播测试号' }), item('ok', '直播分类')] })
+    assert.equal(renderReport(report), '我要直播：通了 2 项，没通 1 项\n- ⚠️ 接了但还不能用 取推流地址：要主播测试号\n- ✅ 通了 开播记录列表\n- ✅ 通了 直播分类')
+    assert.doesNotMatch(renderReport(report), /待发布|部署/)
   })
   it('代答答案不悄悄截断：多行原样保留、条目写成字符串也列出；真超长时截在行尾并写明没发全（10-22 复现 curl 被切在密码中间）', () => {
     const curl = `curl -s -X POST 'https://pre.example/go-api/api/auth/login' -H 'Content-Type: application/json' -d '{"username":"t@probe.test","password":"x"}'`

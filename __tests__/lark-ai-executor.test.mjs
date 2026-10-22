@@ -496,7 +496,7 @@ describe('structured result and cards', () => {
 
   it('Worker 把结构化结果转成稳定回执（群卡精简：不列验证/文件明细）', () => {
     const text = formatStructuredAiResult(result)
-    assert.match(text, /^已完成，待发布。/)
+    assert.match(text, /^已完成。/)
     assert.doesNotMatch(text, /执行器：codex/)
     assert.match(text, /修复登录按钮颜色。/)
     // 验证/文件等实现细节不上群卡
@@ -525,7 +525,7 @@ describe('structured result and cards', () => {
     const text = formatStructuredAiResult(resultWithWarnings)
     assert.equal(isCompletedAiStatus(resultWithWarnings.status), true)
     assert.equal(gatewayStatusForAiStatus(resultWithWarnings.status), 'done')
-    assert.match(text, /^已完成（有验证提醒），待发布。/)
+    assert.match(text, /^已完成（有验证提醒）。/)
     assert.match(text, /验证提醒：Playwright 页面验证因本地端口权限不可用未执行/)
     assert.doesNotMatch(text, /处理失败/)
   })

@@ -76,7 +76,10 @@ describe('提示词规则预算', () => {
         return buildTaskPrompt(ctx, { ...baseTask, ...extra }, 'claude', { ruleContext: { text: '', sources: [] }, analysis: null, triage, scopeContract: null })
       }
       // 教训 #58：本条要上 pre 看 → 给 Playwright 验 pre 的口径，不带「跳过 Browser」，也不带清扫专属口径；只在引用卡里出现不算。
-      assert.match(prompt('pre_check'), /用 Playwright 验已部署的 pre 站点/)
+      assert.match(prompt('pre_check'), /本任务明确要求浏览器验证，必须做/)
+      // 验证是 bot 的活（aven 2026-10-22）：配了 verify 的仓，普通实施也给本地起 dev 连 pre 后端验的口径，不再「禁止起 dev server」。
+      assert.match(prompt('modify_as_requirement'), /自己验证（硬规则）/)
+      assert.doesNotMatch(prompt('modify_as_requirement'), /禁止启动 dev server|写「代码已接，pre 未验证」|已接通，待发布 pre/)
       assert.doesNotMatch(prompt('pre_check'), /跳过 Browser|不要运行 Browser|日报发布后自动建立/)
       assert.doesNotMatch(prompt('api_reply_quoted'), /用 Playwright 验已部署的 pre 站点/)
       assert.doesNotMatch(prompt('question'), /群回复格式（/, '代答不套对接进度的群回复格式')
@@ -104,9 +107,9 @@ describe('提示词规则预算', () => {
       assert.match(prompt('doc_intake'), /#kept/)
       // 非代答的只读查询不带群回复块 / 待确认清单（review #16）。
       assert.doesNotMatch(prompt('readonly'), /群回复（|待确认-/)
-      // 日报清扫：不渲染「不要启动 dev server」，浏览器验本次改动用 build:pre + 反代（review #15）。
-      assert.doesNotMatch(prompt('sweep'), /不要启动 dev server|可以起本仓 `pnpm dev:pre`/)
-      assert.match(prompt('sweep'), /pnpm build:pre/)
+      // 日报清扫：不渲染「不要启动 dev server」；本次改动在本地起 dev 连 pre 后端验，看 console 有没有「回落 mock」（aven 2026-10-22，取代 review #15 的 build:pre + 反代）。
+      assert.doesNotMatch(prompt('sweep'), /不要启动 dev server|禁止启动 dev server/)
+      assert.match(prompt('sweep'), /pnpm dev:pre/)
       // 默认仓（fameex 内部群）不按任务类型裁剪：显式 api: 任务照旧带缺陷分诊与根因字段说明。
       resetRepoProfiles()
       const internalApi = buildTaskPrompt({ ...ctx, repo: undefined }, { id: 'y', chatId: 'oc_internal', text: 'api: x', commandType: 'api', attachments: [] }, 'claude', { ruleContext: { text: '', sources: [] }, analysis: null, triage: null, scopeContract: null })
