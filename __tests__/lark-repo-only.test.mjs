@@ -10,7 +10,7 @@ import { sendBotMarkdown, sendChatMessage } from '../lib/lark-cli.mjs'
 import { resolvePrincipalAnchor } from '../lib/lark-principal-channel.mjs'
 import { registerRepoProfiles, resetRepoProfiles, resolveWebhookForChat } from '../lib/lark-repo-profile.mjs'
 import { createTaskStore } from '../lib/lark-task-store.mjs'
-import { CONSOLE_UNANCHORED_HINT, isConsoleMessage, isForeignChat, replyUnanchoredConsole } from '../lib/lark-repo-only.mjs'
+import { CONSOLE_UNANCHORED_HINT, consoleUnanchoredHint, isConsoleMessage, isForeignChat, replyUnanchoredConsole } from '../lib/lark-repo-only.mjs'
 
 // repo-only 实例（falive 独立部署，aven 2026-10-20）：只走 webhook、不用应用机器人身份发任何消息、不碰非仓库群。
 const CONSOLE = 'oc_console'
@@ -70,6 +70,17 @@ describe('repo-only 实例', () => {
     assert.deepEqual(sent.map((item) => [item.chatId, item.markdown]), [[CONSOLE, CONSOLE_UNANCHORED_HINT]])
     assert.equal(chatListMessageToEvent({ message_id: 'm3' }, { chatId: CONSOLE, chatType: 'p2p' }).chat_type, 'p2p')
     assert.equal(chatListMessageToEvent({ message_id: 'm4' }, { chatId: GROUP }).chat_type, 'group')
+  })
+
+  it('点名的任务 id 锚不到 → 说找不到哪个 id；只差一两位的任务给出改好的整句（10-22 #65：6bfcc 抄成 6fbcc）', () => {
+    const tasks = [{ id: 'om_x100b62aec0488ca4ffbbaf6bfcc5e77' }, { id: 'om_x100b62ae1294cca0fe08427680cd575' }]
+    const store = { list: () => tasks, get: (id) => tasks.find((task) => task.id === id) || null }
+    const hint = (text) => consoleUnanchoredHint({ msg: { text }, store })
+    assert.equal(hint('在吗'), CONSOLE_UNANCHORED_HINT)
+    assert.equal(hint('继续任务 om_x100b62aec0488ca4ffbbaf6fbcc5e77 确认扩大范围'),
+      '找不到任务 om_x100b62aec0488ca4ffbbaf6fbcc5e77，没续跑。是不是 om_x100b62aec0488ca4ffbbaf6bfcc5e77？是的话发「继续任务 om_x100b62aec0488ca4ffbbaf6bfcc5e77 确认扩大范围」。')
+    assert.match(hint('继续任务 om_nothing_like_it'), /^找不到任务 om_nothing_like_it，没续跑。请从通知里整行复制/)
+    assert.match(hint('继续任务 om_x100b62ae1294cca0fe08427680cd575 做'), /在，但这里接不上/)
   })
 
   it('非 repo-only（fameex 那套）守卫全部不生效', () => {

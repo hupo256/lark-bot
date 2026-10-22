@@ -312,6 +312,18 @@ describe('黄金对话', () => {
     assert.doesNotMatch(consoleTexts().join('\n'), /没有可用的补充内容/)
   })
 
+  it('S14 aven 私聊「继续任务 <id> 确认扩大范围」把 id 抄错一位 → 回「找不到任务」并给出改好的整句，原任务不动（10-22 #65：回的是「12 小时内没有任务通知」）', async () => {
+    const id = await say({ from: ENCONE, text: '分享卡片图 picture[0] 是 HCIMG1 密文，按文档 1.10 解密' })
+    await classify(id, { decision: 'api_reply', confidence: 'medium', reply: '收到，我看下分享卡片图的解密' })
+    const typo = `${id.slice(0, -1)}x`
+    await dm(`继续任务 ${typo} 确认扩大范围`)
+    assert.equal(store.get(id).status, 'waiting_confirmation')
+    const last = consoleTexts().at(-1)
+    assert.match(last, new RegExp(`找不到任务 ${typo}`), transcript().join('\n'))
+    assert.ok(last.includes(`继续任务 ${id} 确认扩大范围`), last)
+    assert.doesNotMatch(last, /12 小时内/)
+  })
+
   it('S13 任务带了截图、执行器一张没打开 → 私聊里固定提示「截图没看」（10-21 #62：漏看原型，回头问产品做不做）', async () => {
     const { unopenedImagesNote } = await import('../lib/lark-run-report.mjs')
     const id = await say({ from: AVEN, text: '新的 UI 来了，请同步更新一下' })
