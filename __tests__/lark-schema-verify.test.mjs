@@ -121,6 +121,13 @@ describe('请求侧按源码是否引用请求入口判，不只认 schema / que
     assert.deepEqual(scopedInterfaceFiles({ verify: MARKED, changedFiles: files, readSources: () => [HTTP_SRC, 'export const x = 1'] }), files)
   })
 
+  it('后端报错（权限不足 / 5xx / 业务错误码）归 backend，不算我方 schema 问题、不拦提交（10-22 清扫被社区库 -10501 权限错误判成 schema 对不上）', () => {
+    const rule = buildVerifyRule({ env: 'pre', probeCommand: 'node p.mjs' })
+    assert.match(rule, /后端报错（权限不足、5xx、业务错误码），kind 填 backend/)
+    const gate = resolveSchemaVerifyGate({ verify: VERIFY, changedFiles: ['x/data/queries.ts'], preChecks: [{ endpoint: '/bbsv2/thread/listCursor', outcome: 'code -10501 SELECT command denied', kind: 'backend' }, { endpoint: '/api/x', outcome: 'code 0', kind: 'ok' }], taskId: 't', readDiff: () => 'diff --git a/x/data/queries.ts b/x/data/queries.ts\n--- a/x/data/queries.ts\n+++ b/x/data/queries.ts\n@@ -1 +1 @@\n-a()\n+b()' })
+    assert.equal(gate.status, null)
+  })
+
   it('实施任务且配了 writeMail 才给写接口实测口径，且只许测试号', () => {
     const verify = { ...VERIFY, probeCommand: 'node p.mjs', writeMail: 't@probe.test' }
     assert.doesNotMatch(buildVerifyRule({ ...verify, writeMail: '' }, { allowWrite: true }), /PROBE_ALLOW_WRITE/)
