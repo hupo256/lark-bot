@@ -11,7 +11,7 @@ import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
 import { isDefectCandidate } from '../lib/lark-defect-rules.mjs'
-import { QUESTION_REPLY_FORMAT, findCompletionContradiction, findUnverifiedPreClaim, schemaVerifyVerdict } from '../lib/lark-completion-rule.mjs'
+import { findCompletionContradiction, findUnverifiedPreClaim, schemaVerifyVerdict } from '../lib/lark-completion-rule.mjs'
 import { buildValidationRequirements } from '../lib/lark-worker-prompts.mjs'
 import { buildDocIntakeText, changedDocPaths, docArchiveDirs, planDocIntakeCommit, restoreKeptDocs } from '../lib/lark-doc-archive.mjs'
 import { integrationReport, readableBranchAfterMerge, shouldUseIntegrationBranch } from '../lib/lark-task-finish.mjs'
@@ -22,7 +22,7 @@ import { formatViolations } from '../lib/lark-lint-diff.mjs'
 import { fingerprintFailure } from '../lib/lark-failure-fingerprint.mjs'
 import { countRecentFingerprint, recordFailure } from '../lib/lark-failure-ledger.mjs'
 import { classifyWorkerFailure, failureHead } from '../lib/lark-worker-results.mjs'
-import { GROUP_REPLY_MAX_CHARS, parseStructuredAiResult, parseStructuredAnalysisValue, parseStructuredIntentResult, parseStructuredTriageResult } from '../lib/lark-ai-result.mjs'
+import { parseStructuredAiResult, parseStructuredAnalysisValue, parseStructuredIntentResult, parseStructuredTriageResult } from '../lib/lark-ai-result.mjs'
 import { classifyBlockers } from '../lib/lark-work-policy.mjs'
 import { gitTail } from '../lib/lark-worker-git.mjs'
 import { NO_CHANGE_REASONS } from '../lib/lark-triage.mjs'
@@ -59,10 +59,6 @@ describe('B1 缺陷分诊按任务性质', () => {
 })
 
 describe('B2 / #14 / C13 完成口径', () => {
-  it('代答格式指向结果契约里的完成口径', () => {
-    assert.doesNotMatch(QUESTION_REPLY_FORMAT, /上面的三档口径/)
-    assert.match(QUESTION_REPLY_FORMAT, /结果契约里的完成口径/)
-  })
   it('pre 结论自检不误伤 prepare / preview；「缺省」不算问题', () => {
     assert.equal(findUnverifiedPreClaim({ text: 'prepare 阶段没有数据', preChecks: null }), null)
     assert.equal(findUnverifiedPreClaim({ text: 'preview 图还没出', preChecks: null }), null)
@@ -318,9 +314,10 @@ describe('#13 blockerClasses 只许收紧', () => {
 
 describe('#20 结果 schema 与代码对齐', () => {
   const schema = JSON.parse(readFileSync(join(root, 'schemas/lark-ai-result.schema.json'), 'utf8'))
-  it('有 noChangeReason（取值与分诊口径一致），groupReply 说明与 Worker 截断上限一致', () => {
+  it('有 noChangeReason（取值与分诊口径一致），groupReply 说明写「不截断、超长转文档」（aven 2026-10-22）', () => {
     assert.deepEqual(schema.properties.noChangeReason.enum.filter(Boolean).sort(), Object.values(NO_CHANGE_REASONS).sort())
-    assert.match(schema.properties.groupReply.description, new RegExp(`${GROUP_REPLY_MAX_CHARS} 字截断`))
+    assert.match(schema.properties.groupReply.description, /不截断/)
+    assert.match(schema.properties.detailDoc.description, /Lark 文档/)
     assert.doesNotMatch(schema.properties.groupReply.description, /60 字/)
   })
   it('Worker 读的 AI 结果字段 schema 里都有（additionalProperties:false 不能挡掉）', () => {

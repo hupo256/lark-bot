@@ -30,19 +30,19 @@ describe('结构化群回复', () => {
     assert.equal(renderReport(report), '我要直播：通了 2 项，没通 1 项\n- ⚠️ 接了但还不能用 取推流地址：要主播测试号\n- ✅ 通了 开播记录列表\n- ✅ 通了 直播分类')
     assert.doesNotMatch(renderReport(report), /待发布|部署/)
   })
-  it('代答答案不悄悄截断：多行原样保留、条目写成字符串也列出；真超长时截在行尾并写明没发全（10-22 复现 curl 被切在密码中间）', () => {
+  it('代答答案不截断：多行原样保留、条目写成字符串也列出、条目不限条数（10-22 复现 curl 被切在密码中间）', () => {
     const curl = `curl -s -X POST 'https://pre.example/go-api/api/auth/login' -H 'Content-Type: application/json' -d '{"username":"t@probe.test","password":"x"}'`
     const answer = `复现 curl 如下（pre，测试号）：\n① 登录拿 token：\n${curl}\n取返回里的 data.token 记为 TOKEN。\n② 签到：\n${curl.replace('auth/login', 'checkinPointsTask/sign')}`
     const report = normalizeReport({ subject: null, answer, items: ['没替你调 sign（写操作）', '要走网关，直连 404'] })
     assert.equal(report.answer, answer)
     assert.equal(renderReport(report), `${answer}\n- 没替你调 sign（写操作）\n- 要走网关，直连 404`)
     assert.deepEqual(normalizeReport(report), report, '网关再校验一遍结果不变')
-    const long = normalizeReport({ subject: null, answer: Array.from({ length: 200 }, (_, i) => `第 ${i} 行 ${'x'.repeat(20)}`).join('\n'), items: [] })
-    assert.ok(long.answer.length <= 3000)
-    assert.match(long.answer, /x…（太长没发全）$/, '截在整行末尾，并写明没发全')
-    assert.deepEqual(normalizeReport(long), long, '再跑一遍不重复加标记')
-    const note = normalizeReport({ subject: 's', answer: null, items: [item('not_usable', 'n', { note: '长'.repeat(400) })] })
-    assert.match(note.items[0].note, /（太长没发全）$/)
+    // 不截断、不丢条目（aven 2026-10-22：消息靠写短 + 细节进 detailDoc，发群前超长整段转文档）
+    const longAnswer = Array.from({ length: 200 }, (_, i) => `第 ${i} 行 ${'x'.repeat(20)}`).join('\n')
+    assert.equal(normalizeReport({ subject: null, answer: longAnswer, items: [] }).answer, longAnswer)
+    const many = normalizeReport({ subject: 's', answer: null, items: Array.from({ length: 15 }, (_, i) => item('ok', `第 ${i} 项`, { note: '长'.repeat(400) })) })
+    assert.equal(many.items.length, 15)
+    assert.equal(many.items[0].note.length, 400)
   })
   it('声称 pre / 浏览器实测但本轮会话里没跑 → 那一项降成「待验证」；读不到会话记录不降', () => {
     const report = normalizeReport({ subject: '签到复测', answer: null, items: [item('ok', '签到', { evidence: 'pre' }), item('ok', '滚到底', { evidence: 'browser' }), item('ok', '文案', { evidence: 'code' })] })

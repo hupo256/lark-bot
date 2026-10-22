@@ -231,6 +231,23 @@ describe('pre 结论必须实测', () => {
   })
 })
 
+describe('细节进文档、引用只概括（aven 2026-10-22）', () => {
+  afterEach(() => resetRepoProfiles())
+  it('结果带 detailDoc：建成文档、群里附「详细见」；卡住时引用任务只取第一个分句，不按字数截', async () => {
+    register()
+    const hooks = []
+    const docs = []
+    const deps = { sendMarkdown: async () => ({ ok: true }), sendWebhookMessage: async (a) => { hooks.push(a); return { ok: true } }, webhookFor: () => ({ url: 'u' }), createLarkDoc: async (a) => { docs.push(a); return { ok: true, url: 'https://doc/curl' } } }
+    const report = { subject: null, answer: '复现 curl 在文档里', items: [] }
+    await deliverRepoOutcome({ task: { id: 'd1', chatId: 'oc_falive', repo: 'falive', summary: 'Arthur 要复现 curl', operator: 'ou_ache', addressedToBot: true, contract: { deliverable: 'answer' }, report, detailDoc: 'curl -s https://x' }, status: 'done', result: '已完成。', deps })
+    assert.match(hooks[0].card.elements[0].content, /复现 curl 在文档里\n详细见：https:\/\/doc\/curl/)
+    assert.equal(docs.length, 1)
+    hooks.length = 0
+    await deliverRepoOutcome({ task: { id: 'd2', chatId: 'oc_falive', repo: 'falive', owner: 'Ache', summary: 'Encone（portal 后端）发来 Bug-4944 直播间介绍 intro 的接口变更说明：createRoom / updateLive 新增可选参数' }, status: 'blocked', result: '已阻塞，需外部材料 / 权限后才能继续。\n1. x\n2. 待补充：主播测试号', deps })
+    assert.match(hooks[0].card.elements[0].content, /「Encone（portal 后端）发来 Bug-4944 直播间介绍 intro 的接口变更说明」这边卡住了/)
+  })
+})
+
 describe('工具故障不进群（10-22 Bug-4944）', () => {
   it('读不到 Lark 文档 / lark-cli / 授权这类我方故障不算向对方要的材料', () => {
     assert.deepEqual(externalBlockers(['Lark 文档读取失败：https://x.larksuite.com/docx/Cfb → }', 'lark-cli 没授权', 'R2 详情接口']), ['R2 详情接口'])

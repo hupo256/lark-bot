@@ -180,7 +180,7 @@
         "string",
         "null"
       ],
-      "description": "给项目群看的人话回复（不带路径 / sha / 内部状态）：对接进度按群回复格式 ≤ 500 字、代答 ≤ 200 字；Worker 超过 800 字截断；没有可说的填 null"
+      "description": "给项目群看的人话回复（不带路径 / sha / 内部状态）：先一句结论、写短，细节放 detailDoc；不截断，发群前超过 500 字整段转 Lark 文档、群里只留第一行 + 链接；没有可说的填 null"
     },
     "report": {
       "type": [
@@ -254,6 +254,13 @@
           }
         }
       }
+    },
+    "detailDoc": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "群消息里放不下的细节（curl、复现步骤、逐项证据、长清单），写成 markdown 正文；bot 建成 Lark 文档，群里只附「详细见：链接」。没有填 null"
     },
     "followUpDoc": {
       "type": [
