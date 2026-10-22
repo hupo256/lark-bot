@@ -231,7 +231,7 @@
                   "not_done",
                   "na"
                 ],
-                "description": "ok=能用（环境上实测过）；awaiting_deploy=代码已接好、只差发布到 pre（显示「已接通，待发布 pre」，不算没通）；not_usable=接了但还不能用（接口报错 / 没数据 / 没配置 / 待回归，除了没部署还卡着别的）；not_done=没接；na=不涉及接口"
+                "description": "ok=能用（环境上实测过）；awaiting_deploy=代码已接好、只差发布到 pre（显示「已接通，待发布 pre」，算通了）；not_usable=接了但还不能用（接口报错 / 没数据 / 没配置 / 待回归，除了没部署还卡着别的）；not_done=没接；na=不涉及接口"
               },
               "name": {
                 "type": "string",
