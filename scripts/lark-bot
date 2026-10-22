@@ -358,6 +358,10 @@ case "${1:-}" in
   poll-off) poll_off ;;
   failed)   failed ;;
   retry)    retry "${2:-}" ;;
+  close)
+    [ -n "${2:-}" ] || { echo "usage: lark-bot close <taskId> [cancelled|no_longer_needed|completed_elsewhere] [\"<说明>\"]"; exit 1; }
+    curl -s -m 5 -X POST "$TASKS/$2/close" -H "x-lark-gateway-secret: $(cat "$SECRET_FILE")" -H 'Content-Type: application/json' \
+      -d "$(node -e 'process.stdout.write(JSON.stringify({ closureReason: process.argv[1] || "completed_elsewhere", note: process.argv[2] || "" }))' "${3:-}" "${4:-}")"; echo ;;
   receipt-retry) receipt_retry "${2:-}" ;;
   clean)    clean "${2:-}" "${3:-}" ;;
   claude-auth) claude_auth "${2:-}" ;;
@@ -367,5 +371,5 @@ case "${1:-}" in
   daily-report) ( cd "$LARK_BOT_ROOT" && node scripts/lark-daily-report-now.mjs "${2:-falive}" "${@:3}" ) ;;
   intake-stats) ( cd "$LARK_BOT_ROOT" && node scripts/lark-intake-stats.mjs "${2:-falive}" "${3:-1}" "${@:4}" ) ;;
   doctor)   ( cd "$LARK_BOT_ROOT" && LARK_GATEWAY_SECRET="${LARK_GATEWAY_SECRET:-$(cat "$SECRET_FILE" 2>/dev/null || true)}" node scripts/lark-doctor.mjs "${@:2}" ) ;;
-  *) echo "usage: lark-bot {start|stop|restart|status|logs|poll-on|poll-off|failed|retry <id>|resume <id> \"<补充>\"|receipt-retry <id>|clean [hours]|clean --failed [hours]|claude-auth [local|proxy]|daily-report [repo] [--private] [--to <id>]|sweep [repo] [YYYY-MM-DD]|intake-stats [repo] [days] [--json]}"; exit 1 ;;
+  *) echo "usage: lark-bot {start|stop|restart|status|logs|poll-on|poll-off|failed|retry <id>|close <id> [reason] [\"<说明>\"]|resume <id> \"<补充>\"|receipt-retry <id>|clean [hours]|clean --failed [hours]|claude-auth [local|proxy]|daily-report [repo] [--private] [--to <id>]|sweep [repo] [YYYY-MM-DD]|intake-stats [repo] [days] [--json]}"; exit 1 ;;
 esac

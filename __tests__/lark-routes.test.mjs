@@ -47,6 +47,17 @@ describe('gateway 路由（第 0 批：按 id 取任务、续租、坏 body 400�
     assert.equal((await fetch(`${base}/lark/tasks/t1/heartbeat`, { method: 'POST', headers, body: '{bad' })).status, 400)
   })
 
+  it('POST /close：挂起任务结单成 superseded、记原因；已了结的 409；没密钥 401', async () => {
+    store.upsert({ id: 'w1', status: 'waiting_confirmation', createdAt: '2026-01-01T00:00:00Z', text: 'x', chatId: 'oc_1' })
+    assert.equal((await fetch(`${base}/lark/tasks/w1/close`, { method: 'POST', body: '{}' })).status, 401)
+    const ok = await fetch(`${base}/lark/tasks/w1/close`, { method: 'POST', headers, body: JSON.stringify({ closureReason: 'completed_elsewhere' }) })
+    assert.equal(ok.status, 200)
+    assert.equal((await ok.json()).previousStatus, 'waiting_confirmation')
+    assert.equal(store.get('w1').status, 'superseded')
+    assert.equal(store.get('w1').closureReason, 'completed_elsewhere')
+    assert.equal((await fetch(`${base}/lark/tasks/w1/close`, { method: 'POST', headers, body: '{}' })).status, 409)
+  })
+
   it('POST /intake 坏 body 400，任务不会被落成 ignored', async () => {
     store.upsert({ id: 't2', status: 'received', createdAt: '2026-01-01T00:00:00Z', text: 'x', intake: { required: true } })
     const res = await fetch(`${base}/lark/tasks/t2/intake`, { method: 'POST', headers, body: '"not an object"' })
