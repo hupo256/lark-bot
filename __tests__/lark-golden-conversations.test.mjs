@@ -27,7 +27,7 @@ const { sendChatMessage } = await import('../lib/lark-cli.mjs')
 const { createTaskStore } = await import('../lib/lark-task-store.mjs')
 const { registerRepoProfiles, resetRepoProfiles } = await import('../lib/lark-repo-profile.mjs')
 const { VERIFY_GATES, runVerifyGates } = await import('../lib/lark-task-gates.mjs')
-const { expectsCodeChange } = await import('../lib/lark-work-policy.mjs')
+const { expectsCodeChange, resolveWorkKind } = await import('../lib/lark-work-policy.mjs')
 const { assembleRunReport } = await import('../lib/lark-run-report.mjs')
 const { sweepPendingAcks, DEFAULT_ACK_TIMEOUT_MS } = await import('../lib/lark-repo-intake.mjs')
 const { isReadOnlyTask } = await import('../lib/lark-message.mjs')
@@ -110,9 +110,9 @@ const classify = async (id, classification) => {
   return out
 }
 // 执行器跑完：changedFiles = 工作区实测改动；闸用真实 done.trust（采证据那道换成桩）
-const work = async (id, aiResult, { changedFiles = [], gates = null, runEvidence = null, ownerNotes = [], scope = null, schemaDiff = null } = {}) => {
+const work = async (id, aiResult, { changedFiles = [], gates = null, runEvidence = null, ownerNotes = [], scope = null, schemaDiff = null, numstat = '' } = {}) => {
   const task = claim(id)
-  const evidence = { name: 'evidence', applies: () => true, check: (ctx) => { ctx.evidence.changedFiles = changedFiles; ctx.outputs.actualChangedFiles = changedFiles; return { ok: true } } }
+  const evidence = { name: 'evidence', applies: () => true, check: (ctx) => { ctx.evidence.changedFiles = changedFiles; ctx.evidence.numstat = numstat; ctx.outputs.actualChangedFiles = changedFiles; return { ok: true } } }
   const realGates = gates || VERIFY_GATES.filter((gate) => ['done.trust'].includes(gate.name))
   const workContext = { readOnly: isReadOnlyTask(task), cwd: PROFILE.root }
   const result = { checks: [], changedFiles, summary: '', ...aiResult }
@@ -480,5 +480,25 @@ describe('黄金对话', () => {
     await classify(id2, { decision: 'ignore', confidence: 'high', forMe: true, reply: '好的，21 点后再测',
       items: [{ id: 'new', transition: 'notify', note: '今晚 pre 发版' }] })
     assert.deepEqual(sent.slice(before).map((item) => item.to), ['group'], transcript().join('\n'))
+  })
+
+  it('S19 aven @bot 交办「社区发帖、评论从 x9 迁过来，api 已 ready」+ 带对接文档 → 按新需求的行数上限核对，不套缺陷修复的 200 行（10-23 #76）', async () => {
+    registerRepoProfiles({ repos: { falive: { ...PROFILE, scopeBudgets: { bugfix: 200, qa_feedback: 300, requirement: 1200 } } } })
+    const id = await say({ from: AVEN, text: '社区还有 发帖、评论 两个功能没有从 x9 项目迁移过来。现在要完成这两个功能的迁移，api 已经 ready 了，如上。' })
+    store.upsert({ ...store.get(id), attachments: [{ type: 'file', fileName: 'PM-2954-App对接文档.md' }] })
+    await classify(id, { decision: 'requirement', deliverable: 'change', reply: '收到，按 PM-2954 把 x9 的发帖、评论迁到 web' })
+    const task = store.get(id)
+    assert.deepEqual([task.commandType, task.contract.deliverable], ['api', 'doc_intake'], '带对接文档：网关补 api、契约按文档入库（真机取值链）')
+    assert.equal(resolveWorkKind(task), 'requirement', '分类器判的新需求不因网关补的 api 变成缺陷修复')
+    const files = ['src/modules/square/data/schema.ts', 'src/modules/square/data/mutations.ts', 'src/modules/square/PublishPage.tsx']
+    const { verify } = await work(id, { status: 'done', completionClaim: 'all_done', preChecks: PRE_OK, summary: '发帖、评论迁移完成' }, {
+      changedFiles: files,
+      scope: { targets: files.map((path) => ({ path, reason: '发帖 / 评论迁移' })), siblings: { searchQueries: [], items: [] } },
+      numstat: files.map((path) => `300\t0\t${path}`).join('\n'),
+      gates: VERIFY_GATES.filter((gate) => ['done.trust', 'scope'].includes(gate.name)),
+    })
+    assert.equal(verify.ok, true, `核验闸拦下：${verify.reason}\n${transcript().join('\n')}`)
+    assert.equal(verify.outputs.scopeGate.check.lineLimit, 1200, '上限取新需求的 1200')
+    assert.doesNotMatch(transcript().join('\n'), /缺陷修复上限/)
   })
 })
