@@ -501,4 +501,22 @@ describe('黄金对话', () => {
     assert.equal(verify.outputs.scopeGate.check.lineLimit, 1200, '上限取新需求的 1200')
     assert.doesNotMatch(transcript().join('\n'), /缺陷修复上限/)
   })
+
+  // aven 2026-10-23 亲自确认：我本人交办的任务不设行数上限（#76）；别人发起的新需求仍按上限核对。
+  for (const [label, from, expectOk] of [['S20 aven 本人交办', AVEN, true], ['S21 Encone 发起', ENCONE, false]]) {
+    it(`${label}的新需求改动 1553 行 → ${expectOk ? '不拦' : '仍按 1200 上限拦'}（10-23 #76）`, async () => {
+      registerRepoProfiles({ repos: { falive: { ...PROFILE, scopeBudgets: { bugfix: 200, qa_feedback: 300, requirement: 1200 } } } })
+      const id = await say({ from, text: '社区还有 发帖、评论 两个功能没有从 x9 项目迁移过来，现在要完成迁移。' })
+      await classify(id, { decision: 'requirement', confidence: 'high', forMe: true, deliverable: 'change', reply: '好的，我把发帖、评论迁过来' })
+      const files = ['src/modules/square/data/schema.ts', 'src/modules/square/PublishPage.tsx']
+      const { verify } = await work(id, { status: 'done', completionClaim: 'all_done', preChecks: PRE_OK, summary: '发帖、评论迁移完成' }, {
+        changedFiles: files,
+        scope: { targets: files.map((path) => ({ path, reason: '发帖 / 评论迁移' })), siblings: { searchQueries: [], items: [] } },
+        numstat: `1000\t0\t${files[0]}\n553\t0\t${files[1]}`,
+        gates: VERIFY_GATES.filter((gate) => ['done.trust', 'scope'].includes(gate.name)),
+      })
+      assert.equal(verify.ok, expectOk, `${verify.reason || ''}\n${transcript().join('\n')}`)
+      assert.equal(Boolean(verify.outputs?.scopeGate?.check?.overBudget), !expectOk)
+    })
+  }
 })

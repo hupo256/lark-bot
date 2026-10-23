@@ -15,9 +15,11 @@ import {
   classifyBlocker,
   hasHumanGoAhead,
   isFastLaneTask,
+  isPrincipalAssigned,
   requirementGate,
   requirementHasSpecContext,
   resolveAnalysisGate,
+  resolveTaskPolicy,
   resolveWorkKind,
 } from '../lib/lark-work-policy.mjs'
 
@@ -272,6 +274,24 @@ describe('requirementGate', () => {
     assert.equal(hasHumanGoAhead(larkTask({ text: '加个导出功能' })), false)
     assert.equal(requirementGate(larkTask({ text: '加个导出功能', resumeCount: 1 })), null)
     assert.equal(requirementGate(larkTask({ text: '加个导出功能', waitingHistory: [{ at: 'x' }] })), null)
+  })
+
+  // aven 2026-10-23 亲自确认：我本人交办的任务不设行数上限、不因缺 PRD / 设计稿阻塞（#76）。
+  it('负责人本人交办的仓库任务：视为已放行、免流程阻塞；别人发起的新需求照旧要放行', () => {
+    const contract = { v: 1, deliverable: 'change', source: 'classifier', expectsCode: true }
+    const requirement = { intake: { classification: { decision: 'requirement' } }, text: '把 x9 的发帖、评论迁过来' }
+    const mine = larkTask({ repo: 'falive', contract, fromPrincipal: true, ...requirement })
+    const viaPrivate = larkTask({ repo: 'falive', contract, privateOrigin: { anchorHead: 'x' }, ...requirement })
+    const others = larkTask({ repo: 'falive', contract, ...requirement })
+    assert.equal(isPrincipalAssigned(mine), true)
+    assert.equal(isPrincipalAssigned(viaPrivate), true)
+    assert.equal(isPrincipalAssigned(others), false)
+    assert.equal(isPrincipalAssigned(larkTask({ fromPrincipal: true, ...requirement })), false, '默认仓（无契约）不受影响')
+    assert.equal(hasHumanGoAhead(mine), true)
+    assert.equal(requirementGate(mine), null, '缺设计稿也不拦')
+    assert.equal(resolveTaskPolicy(mine).suppressProcessBlockers, true)
+    assert.equal(hasHumanGoAhead(others), false)
+    assert.equal(resolveTaskPolicy(others).suppressProcessBlockers, false)
   })
 
   it('缺陷反馈不被拦（无人值守的主路径必须一路跑完）', () => {
