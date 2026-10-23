@@ -249,9 +249,25 @@ describe('先发文档、后单独 @bot：从之前的群消息补上文档（�
   })
   it('只取最近一条发了文档的消息；没有就是 null', () => {
     const out = pickRecentContext([file('om_old', '旧清单.md', '2026-10-20 15:00'), file('om_new', '新对接文档.md', '2026-10-20 15:30'), text('om_t', '@Aven.Bot 处理一下', '2026-10-20 15:40')], { beforeMs })
-    assert.equal(pickEarlierDoc(out).messageId, 'om_new')
-    assert.equal(pickEarlierDoc([{ messageId: 'om_t', text: 'x' }]), null)
-    assert.equal(pickEarlierDoc(out, { excludeSenders: ['ou_adrian'] }), null, '负责人本人发的文档不算要接的')
+    assert.equal(pickEarlierDoc(out, { ownText: '把上面的文档接一下' }).messageId, 'om_new')
+    assert.equal(pickEarlierDoc([{ messageId: 'om_t', text: 'x' }], { ownText: '文档' }), null)
+    assert.equal(pickEarlierDoc(out, { excludeSenders: ['ou_adrian'], ownText: '文档' }), null, '负责人本人发的文档不算要接的')
+  })
+  it('只并本条确实在接的那份：同一人紧接着 @、或原话提到文档；别人发的无关文档不并（10-23 #80）', () => {
+    const doc = { messageId: 'om_doc', sender: 'Arthur.a', senderOpenId: 'ou_arthur', text: '（发了文件：修改头像接口文档.md）', docs: [{ type: 'file', fileName: '修改头像接口文档.md' }] }
+    const chat = { messageId: 'om_chat', sender: 'HTStone.z', senderOpenId: 'ou_stone', text: '你進的是機器人直播間' }
+    const own = { messageId: 'om_own', sender: 'Arthur.a', senderOpenId: 'ou_arthur', text: '修改头像的接口文档' }
+    const bot = { messageId: 'om_bot', sender: 'Aven.Bot（bot，我们自己）', text: '收到', bot: true }
+    // 10-23 真机：Encone 只发截图问开播 500，前面隔着别人的聊天
+    assert.equal(pickEarlierDoc([doc, chat], { senderOpenId: 'ou_encone', ownText: '我测试API 开播正常，但是界面web 开播 500' }), null)
+    // 同一人发完文档（可再补一句）紧接着 @bot
+    assert.equal(pickEarlierDoc([doc, own], { senderOpenId: 'ou_arthur', ownText: '看下' })?.messageId, 'om_doc')
+    assert.equal(pickEarlierDoc([doc, chat], { senderOpenId: 'ou_arthur', ownText: '看下' }), null, '中间隔了别人的话就不算紧接着')
+    assert.equal(pickEarlierDoc([doc, bot], { senderOpenId: 'ou_arthur', ownText: '看下' }), null, 'bot 已经接过话了')
+    // 原话提到文档 / 文件名
+    assert.equal(pickEarlierDoc([doc, chat], { senderOpenId: 'ou_aven', ownText: '把 Arthur 的头像接口文档接一下' })?.messageId, 'om_doc')
+    const named = { ...doc, docs: [{ type: 'file', fileName: 'PM-3217 头像.md' }] }
+    assert.equal(pickEarlierDoc([named, chat], { senderOpenId: 'ou_aven', ownText: 'PM-3217 头像 按这个改' })?.messageId, 'om_doc')
   })
 })
 
