@@ -90,7 +90,7 @@ describe('逐功能状态', () => {
     const progress = computeProgress({ rows: ROWS, statuses })
     assert.equal(progress.total, 5)
     assert.equal(progress.done, 3)
-    assert.equal(progress.percent, 78) // (100+60+100+30+100)/5
+    assert.equal(progress.percent, 60) // ✅ 3 / 5，不加权（10-23：表格只显示 ✅ / ⬜，加权的 99.3% 和 53 / 54 对不上）
     assert.equal(renderCounts(progress), '**计数**（不含 #54）：✅ 3 项（aven 1、adrian 1、henry 1）。未完成 2 项：\n- aven 1 项：#4\n- adrian 1 项：#17')
     assert.deepEqual(tableMismatches(ROWS, statuses).map((item) => `${item.no}:${item.table}→${item.code}`), ['1:🟡→✅', '18:🟡→✅'])
   })
@@ -142,7 +142,12 @@ describe('回写与台账', () => {
   })
   it('总体进度与计数块按脚本数字替换', () => {
     const out = applyProgress(DOC, computeProgress({ rows: ROWS, statuses }))
-    assert.match(out, /^## 总体进度：78\.0%（✅ 3 \/ 5）$/m)
+    assert.match(out, /^## 总体进度：60\.0%（✅ 3 \/ 5）$/m)
+    // 一节标题写全量项数时注明不计哪几项，和分母对上；重跑不重复追加
+    const titled = DOC.replace('## 一、功能进度总览', '## 一、功能进度总览（一期 6 项）')
+    const once = applyProgress(titled, computeProgress({ rows: ROWS, statuses }))
+    assert.match(once, /^## 一、功能进度总览（一期 6 项；不计 #54（不归前端），计 5 项）$/m)
+    assert.equal(applyProgress(once, computeProgress({ rows: ROWS, statuses })), once)
     assert.match(out, /\*\*计数\*\*（不含 #54）：✅ 3 项/)
     assert.doesNotMatch(out, /谁 0 项/)
     assert.match(out, /- adrian 1 项：#17\n\n## 二、/)
