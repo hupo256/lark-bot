@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
-import { ledgerSummary, loadLedger, markLedgerItems, parsePendingItems, recordLedgerEvent, saveLedger, setStandingInstruction, syncLedgerFromPending, takeStandingInstructions, workKeyFor } from '../lib/lark-ledger.mjs'
+import { ledgerAsOf, ledgerSummary, loadLedger, markLedgerItems, parsePendingItems, recordLedgerEvent, saveLedger, setStandingInstruction, syncLedgerFromPending, takeStandingInstructions, workKeyFor } from '../lib/lark-ledger.mjs'
 
 describe('对接台账（事实层）', () => {
   it('pending 文档 → 条目：小标题编号与表格首列编号', () => {
@@ -45,6 +45,25 @@ describe('对接台账（事实层）', () => {
     }
     void syncLedgerFromPending
     void profile
+  })
+
+  it('回放用的 ledgerAsOf：后来才建的条目不出现，最近事件退回到当时那次，没事件的文档条目原样留（10-23 回放接上 10-22 的条目）', () => {
+    const ev = (at, id, transition, excerpt) => ({ at, messageId: `om_${at}`, sender: 'ou_x', items: [{ id, transition }], excerpt })
+    const ledger = {
+      items: {
+        'new#old': { id: 'new#old', title: '旧事', status: 'answered', lastEvent: { at: '2026-10-22T10:00:00Z', transition: 'answer', note: '后来的答复' } },
+        'new#late': { id: 'new#late', title: '10-22 才建', status: 'answered', lastEvent: { at: '2026-10-22T16:00:00Z', transition: 'answer' } },
+        'new#noev': { id: 'new#noev', title: '没事件、后来的', status: 'open', lastEvent: { at: '2026-10-22T16:00:00Z', transition: 'new' } },
+        '对接-live后端-3#1': { id: '对接-live后端-3#1', title: '文档条目', status: 'open' },
+      },
+      events: [ev('2026-10-15T08:00:00Z', 'new#old', 'new', '当时的提问'), ev('2026-10-22T10:00:00Z', 'new#old', 'answer', '后来的答复'), ev('2026-10-22T16:00:00Z', 'new#late', 'new', '后来')],
+    }
+    const asOf = ledgerAsOf(ledger, '2026-10-16T09:00:00Z')
+    assert.deepEqual(Object.keys(asOf.items).sort(), ['new#old', '对接-live后端-3#1'])
+    assert.deepEqual([asOf.items['new#old'].lastEvent.at, asOf.items['new#old'].lastEvent.transition, asOf.items['new#old'].lastEvent.note], ['2026-10-15T08:00:00Z', 'new', '当时的提问'])
+    assert.equal(asOf.events.length, 1)
+    assert.equal(ledger.items['new#old'].lastEvent.at, '2026-10-22T10:00:00Z', '不改原台账')
+    assert.equal(ledgerAsOf(ledger, ''), ledger)
   })
 })
 

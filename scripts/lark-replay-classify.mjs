@@ -32,9 +32,13 @@ registerRepoProfiles(localConfig)
 const workerConfig = { projectId: localConfig.project, projectName: localConfig.title, aiExecutor: 'claude', localConfig }
 
 const RECENT_HEADER = '【群里这条之前的消息】'
-const tasks = readdirSync(dir).filter((name) => name.endsWith('.json'))
+const loaded = readdirSync(dir).filter((name) => name.endsWith('.json'))
   .map((name) => JSON.parse(readFileSync(join(dir, name), 'utf8')))
   .filter((task) => task.repo === key && task.text)
+// 10-23 起只响应 @bot（064f2fa）：没 @bot 的消息不进分类器，回放也不跑（录得早的样例留着当历史，报告里计 skipped）。
+// 私聊指示也是 addressedToBot；话题里补 @bot 的（1746dd0d）样例里已按新口径标 true。
+const skippedNotAddressed = loaded.filter((task) => !task.addressedToBot).length
+const tasks = loaded.filter((task) => task.addressedToBot)
   .filter((task) => !ids || ids.some((id) => task.id === id || task.id.endsWith(id)))
   .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
   .slice(0, limit)
@@ -53,7 +57,8 @@ for (const stored of tasks) {
   try {
     // 按原来的分道回放：没 @ 的慢道用低强度、快道用高强度（10-23 分道定强度）；录得早没有 lane 的按是否 @ 机器人补。
     const lane = task.intake?.lane || (task.addressedToBot ? 'fast' : 'slow')
-    out = await classifyTaskIntent(workerConfig, { ...task, intake: { required: true, lane } }, null, null, { candidates })
+    // 台账退回到这条消息收到的时刻（ledgerAsOf），不拿今天的台账判 10-16 的消息。
+    out = await classifyTaskIntent(workerConfig, { ...task, intake: { required: true, lane }, ledgerAsOf: task.intake?.receivedAt || task.createdAt }, null, null, { candidates })
   } catch (error) {
     out = { decision: 'ERROR', reason: String(error?.message || error).slice(0, 120) }
   }
@@ -72,6 +77,7 @@ if (report) {
   const medium = rows.filter((row) => row.out.confidence === 'medium').length
   const summary = {
     total: rows.length,
+    skippedNotAddressed,
     labeled: labeled.length,
     forMeRecall: forMeBase.length ? recall / forMeBase.length : null,
     forMeMissed: forMeBase.filter((row) => !row.out.forMe).map((row) => row.id.slice(-8)),

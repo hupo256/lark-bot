@@ -15,7 +15,7 @@
   "status": "ignored",
   "createdAt": "2026-10-15T09:24:44.946Z",
   "topic": "对接-live后端-3#1",
-  "addressedToBot": null,
+  "addressedToBot": true,
   "fromPrincipal": null,
   "passiveLedgerOnly": true,
   "intake": {

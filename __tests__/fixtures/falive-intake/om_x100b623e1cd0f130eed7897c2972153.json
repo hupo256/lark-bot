@@ -41,6 +41,10 @@
       "satisfiesWait": null,
       "waitsFor": null
     },
-    "expected_decision": "api_reply"
+    "expected_decision": [
+      "api_reply",
+      "requirement"
+    ],
+    "expected_deliverable": "verification"
   }
 }

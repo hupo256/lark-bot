@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 // 静态统计 it( 的个数，只许持平或变少。要加测试先看能不能：① 并进现有用例表（加一行，循环里的 it 只算一个）；
 // ② 同一次提交删掉被新口径取代的旧测试。确实要净增，就在同一次提交里调高 TEST_CASE_BUDGET 并在提交说明里写原因。
 // 运行时间预算（全量 ≤ 15 秒）在 scripts/test-all.mjs（合并前跑），测试里量不了自己。
-const TEST_CASE_BUDGET = 927 // 10-23 +7：新模块 lark-deploy-watch（盯部署 + 接群里等部署的承诺，#84）的独立场景，已先并成用例表
+const TEST_CASE_BUDGET = 929 // 10-23 +2：新模块 lark-bug-record（bug 表记录分享链接）一条用例表、回放用 ledgerAsOf 一条；之前 +7 是 lark-deploy-watch（#84）
 
 const dir = dirname(fileURLToPath(import.meta.url))
 export const countTestCases = (source) => (source.match(/^\s*it\(/gm) || []).length

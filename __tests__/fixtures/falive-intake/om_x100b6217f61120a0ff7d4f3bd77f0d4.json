@@ -52,7 +52,12 @@
       "reply": "收到，开任务在 pre 复测任务中心数据，结果记进对接文档",
       "satisfiesWait": null,
       "waitsFor": null
-    }
+    },
+    "expected_decision": [
+      "api_reply",
+      "requirement"
+    ],
+    "expected_deliverable": "verification"
   },
   "addressedToBot": true,
   "fromPrincipal": true,
