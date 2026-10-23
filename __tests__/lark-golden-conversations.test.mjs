@@ -34,6 +34,7 @@ const { isReadOnlyTask } = await import('../lib/lark-message.mjs')
 const { resolveSchemaVerifyGate } = await import('../lib/lark-schema-verify.mjs')
 const { repoProfileForTask } = await import('../lib/lark-repo-profile.mjs')
 const { loadLedger, saveLedger } = await import('../lib/lark-ledger.mjs')
+const { runGroupReplyPass } = await import('../lib/lark-group-reply-pass.mjs')
 
 const GROUP = 'oc_golden_php'
 const CONSOLE = 'oc_golden_console'
@@ -110,12 +111,16 @@ const classify = async (id, classification) => {
   return out
 }
 // 执行器跑完：changedFiles = 工作区实测改动；闸用真实 done.trust（采证据那道换成桩）
-const work = async (id, aiResult, { changedFiles = [], gates = null, runEvidence = null, ownerNotes = [], scope = null, schemaDiff = null, numstat = '' } = {}) => {
+// replyPass：群里答应过下文、结果没写群回复时，runner 续会话补写那一趟的桩结果（null = 补写没成，#79）。
+const work = async (id, aiResult, { changedFiles = [], gates = null, runEvidence = null, ownerNotes = [], scope = null, schemaDiff = null, numstat = '', replyPass = null } = {}) => {
   const task = claim(id)
   const evidence = { name: 'evidence', applies: () => true, check: (ctx) => { ctx.evidence.changedFiles = changedFiles; ctx.evidence.numstat = numstat; ctx.outputs.actualChangedFiles = changedFiles; return { ok: true } } }
   const realGates = gates || VERIFY_GATES.filter((gate) => ['done.trust'].includes(gate.name))
   const workContext = { readOnly: isReadOnlyTask(task), cwd: PROFILE.root }
-  const result = { checks: [], changedFiles, summary: '', ...aiResult }
+  let result = { checks: [], changedFiles, summary: '', ...aiResult }
+  // 与 runner 同一个纯函数：AI 跑完、进核验闸之前补写群回复（#79）
+  const aiRun = { result, sessionId: 'golden-session', executor: 'claude' }
+  if (await runGroupReplyPass({ task, aiRun, exec: async () => ({ result: replyPass }) })) result = aiRun.result
   const verify = ['done', 'done_with_warnings'].includes(result.status)
     ? await runVerifyGates({ task, workContext, aiRun: { result, scope }, workerConfig: { localConfig: {} }, expectsCode: expectsCodeChange({ task, readOnly: workContext.readOnly }), gates: [evidence, ...realGates] })
     : null
@@ -519,4 +524,73 @@ describe('黄金对话', () => {
       assert.equal(Boolean(verify.outputs?.scopeGate?.check?.overBudget), !expectOk)
     })
   }
+
+  // ── 10-23 14:06 真机：Encone 只发截图「我测试API 开播正常，但是界面web 开播 500」（#79 / #80）──────────────
+  const fileMsg = (id, name, from, atMs) => ({ message_id: id, msg_type: 'file', create_time: String(atMs), sender: { id: from.id, sender_type: 'user', name: from.name }, content: JSON.stringify({ file_key: `fk_${id}`, file_name: name }) })
+  const textMsg = (id, text, from, atMs) => ({ message_id: id, msg_type: 'text', create_time: String(atMs), sender: { id: from.id, sender_type: 'user', name: from.name }, content: JSON.stringify({ text }) })
+  const ARTHUR = { id: 'ou_golden_arthur', name: 'Arthur.a' }
+  const STONE = { id: 'ou_golden_stone', name: 'HTStone.z' }
+  const MIN = 60_000
+  const createRoomResult = (extra = {}) => ({
+    // 真机是 done + 只改了对接文档（契约被 #80 判成文档入库才过了 done.trust）；按正确契约，这是「测试环境版本旧、代码已修」
+    status: 'no_change_needed', noChangeReason: 'env_version', groupReply: null, report: null, preChecks: PRE_OK,
+    summary: 'Encone 看到的 web 开播失败不是 lang、intro、tag_ids 引起的。OPS pre 上跑的还是 407 修复之前的旧前端，它把 tag_ids 数组拼进了签名串，后端回 407 验签失败。修复（5df6b03、ba493a9）已在 feature/phase-4-api 上，还没合进 pre；分支 lark/falive-78f6c6cc。',
+    ...extra,
+  })
+
+  it('S22 群里回过「…查完回你」、执行器没写群回复 → 续会话补写一段人话发群；私聊如实说群里回了什么，不再说「不会再补话」（10-23 #79）', async () => {
+    const id = await say({ from: ENCONE, text: '我测试API 开播正常，但是界面web 开播 500' })
+    await classify(id, { decision: 'bug', deliverable: 'change', reply: '收到截图，我对比下 web 发出的 createRoom 和你直接调的参数差在哪，查完回你' })
+    await work(id, createRoomResult(), {
+      replyPass: { groupReply: '查到了：web 开播 500 是 pre 上的前端还是旧版本，签名把 tag_ids 算进去了，后端验签不过；前端已经修好，等 pre 更新后你再点一次开播就行，后端不用改。' },
+    })
+    const group = groupTexts()
+    assert.equal(group.length, 2, transcript().join('\n'))
+    assert.match(group[0], /查完回你/)
+    assert.match(group[1], /旧版本/)
+    assert.doesNotMatch(group[1], /5df6b03|lark\/falive|feature\//, '群里不贴提交号 / 分支名')
+    assert.doesNotMatch(consoleTexts().join('\n'), /不会再补话|这条没写群回复/)
+    assert.match(consoleTexts().join('\n'), /群里已回：「/)
+  })
+
+  it('S22b 补写也没成 → 结论人话化作草稿私聊负责人，回「就这样回」发群；群里不会只剩那句收到（10-23 #79）', async () => {
+    const id = await say({ from: ENCONE, text: '我测试API 开播正常，但是界面web 开播 500' })
+    await classify(id, { decision: 'bug', deliverable: 'change', reply: '收到截图，我对比下 web 发出的 createRoom 和你直接调的参数差在哪，查完回你' })
+    await work(id, createRoomResult(), { replyPass: null })
+    assert.equal(groupTexts().length, 1, transcript().join('\n'))
+    const note = consoleTexts().join('\n')
+    assert.match(note, /执行器没写群回复，补写也没成[\s\S]*就这样回[\s\S]*旧前端/, note)
+    assert.doesNotMatch(note, /不会再补话/)
+    await dm('就这样回')
+    assert.equal(groupTexts().length, 2, transcript().join('\n'))
+    assert.match(groupTexts()[1], /旧前端/)
+  })
+
+  it('S23 @bot 只发截图，群里一小时前 Arthur 发过不相干的对接文档 → 文档只留在上下文文字里，不并成本条附件，契约不判文档入库（10-23 #80）', async () => {
+    const now = Date.now()
+    chatHistory([
+      fileMsg('om_golden_avatar_doc', '修改头像接口文档.md', ARTHUR, now - 60 * MIN),
+      textMsg('om_golden_avatar_txt', '修改头像的接口文档 @Aven.tong', ARTHUR, now - 60 * MIN + 1000),
+      textMsg('om_golden_stone', '你進的是機器人直播間，有時長是對的', STONE, now - 20 * MIN),
+    ])
+    const id = await say({ from: ENCONE, text: '我测试API 开播正常，但是界面web 开播 500' })
+    const task = store.get(id)
+    assert.match(task.text, /（发了文件：修改头像接口文档\.md）/, '上下文里看得到有人发过这份文档')
+    assert.deepEqual((task.attachments || []).filter((item) => item.type === 'file'), [], '不并成本条附件')
+    await classify(id, { decision: 'bug', deliverable: 'change', reply: '收到截图，我对比下 web 发出的 createRoom 和你直接调的参数差在哪，查完回你' })
+    assert.deepEqual([store.get(id).contract.deliverable, store.get(id).contract.source], ['change', 'classifier'])
+  })
+
+  it('S23b 同一人发完文档紧接着 @bot、或原话说「上面那份文档」→ 照常并入，按文档入库（#54 不回退）', async () => {
+    const now = Date.now()
+    chatHistory([fileMsg('om_golden_enc_doc', 'intro 对接.md', { id: ENCONE, name: 'HQUCEncone' }, now - 2 * MIN)])
+    const id = await say({ from: ENCONE, text: '看下' })
+    assert.deepEqual(store.get(id).attachments.filter((item) => item.type === 'file').map((item) => item.fileName), ['intro 对接.md'])
+    chatHistory([
+      fileMsg('om_golden_avatar_doc2', '修改头像接口文档.md', ARTHUR, now - 60 * MIN),
+      textMsg('om_golden_stone2', '你進的是機器人直播間', STONE, now - 20 * MIN),
+    ])
+    const id2 = await say({ from: AVEN, text: '把上面 Arthur 发的头像接口文档接一下' })
+    assert.deepEqual(store.get(id2).attachments.filter((item) => item.type === 'file').map((item) => item.fileName), ['修改头像接口文档.md'])
+  })
 })

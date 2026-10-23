@@ -456,16 +456,17 @@ describe('群文本不回落原话 / 回复义务 / 没 notifyChatId 不发（av
     assert.match(done.note, /这条没写群回复，群里没发。/)
   })
 
-  it('C2 / C6 → 10-21 P5：回过收到后，没写回复 / 被闸拦下 / 发送失败 / 失败终态都不在群里补兜底，只私聊说清；义务记欠着', async () => withOutbox(async () => {
+  it('C2 / C6 → 10-21 P5（10-23 #79 改）：回过收到后没写回复 → 结论人话化作草稿私聊（就这样回发群）；被闸拦下 / 发送失败 / 失败终态不在群里补兜底', async () => withOutbox(async () => {
     register()
     const hooks = []
     const sent = []
     const deps = mkDeps(hooks, sent)
     const base = { chatId: 'oc_falive', repo: 'falive', operator: 'ou_ache', ackedInGroup: true, addressedToBot: true, topic: 't-1', groupReply: '修好了，pre 可以复测' }
     const noReply = await deliverRepoOutcome({ task: { ...base, id: 'c2', summary: 'Ache：直播预告重复了', groupReply: '' }, status: 'done', result: '已完成，待发布。\n1. 去重修好了。', deps })
-    assert.equal(hooks.length, 0, '没写群回复：群里什么都不发（不发「✅ + 对方原话」，也不发兜底）')
-    assert.match(noReply.note, /这条没写群回复，群里没发。\n群里只回过「收到」，结论没发，群里不会再补话。/)
-    assert.equal(getObligation({ id: 'c2', chatId: 'oc_falive' }).state, 'owed')
+    assert.equal(hooks.length, 0, '没写群回复：群里不直接贴结论原文（不发「✅ + 对方原话」，也不发兜底）')
+    assert.match(noReply.note, /群里没发（执行器没写群回复，补写也没成）。没问题就回「就这样回」，我按原文发群：\n去重修好了。/)
+    assert.doesNotMatch(noReply.note, /不会再补话|这条没写群回复/)
+    assert.equal(getObligation({ id: 'c2', chatId: 'oc_falive' }).state, 'held')
     await deliverRepoOutcome({ task: { ...base, id: 'g1' }, status: 'done', result: 'x', deps })
     assert.equal(hooks.length, 1, '正常发 done')
     assert.equal(getObligation({ id: 'g1', chatId: 'oc_falive' }).state, 'answered')
