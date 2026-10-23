@@ -19,7 +19,6 @@ import {
   deliverRepoNoted,
   deliverRepoIgnoredAfterAck,
   deliverRepoOutcome,
-  mentionsMe,
   humanizeResult,
   isHumanDeliveryTask,
   addressTo as addressToForAddressee,
@@ -158,8 +157,6 @@ describe('直接 @ 负责人先回「收到」', () => {
   it('@ 到负责人才回；有 webhook 才发；判 ignore 后私聊说明', async () => {
     registerRepoProfiles({ repos: { falive: { root: '/tmp/f', baseRef: 'main', chatIds: ['oc_t'], notifyChatId: 'ou_aven', taskMentionOpenIds: ['ou_aven'], ownership: { me: 'aven' } } } })
     const profile = repoProfile('falive')
-    assert.equal(mentionsMe({ profile, mentions: [{ id: 'ou_aven' }] }), true)
-    assert.equal(mentionsMe({ profile, mentions: [{ id: 'ou_x' }] }), false)
     const hooks = []
     const ok = await deliverRepoAck({ task: { id: 't', chatId: 'oc_t', repo: 'falive' }, deps: { composeAck: async () => null, webhookFor: () => ({ url: 'u' }), sendWebhookMessage: async (a) => { hooks.push(a); return { ok: true } } } })
     assert.equal(ok.ok, true)

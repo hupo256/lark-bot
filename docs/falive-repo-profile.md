@@ -10,7 +10,7 @@
 | 实例形态 | **单实例多仓**：同一套 gateway / worker，按 `repos.<key>` profile 路由；不起第二套 launchd 实例 |
 | falive 基线 | `feature/phase-3-api`（aven 的本地集成分支，不 fetch）；bot 分支 `lark/falive-<id>` 只本地 commit，做完 no-ff 合进 `lark/falive-integration` 后**自动删除**（2026-10-16；冲突 / 失败的保留），aven 把集成分支合回 feature |
 | 别人负责的功能 | bot **跳过并 @ 负责人**（功能总表「前端」列），aven 本人点名要做的当次放行 |
-| @aven 自动入队 | **打开**（`taskMentionOpenIds`，经只读意图分类） |
+| 外部群触发 | **只认 @bot**（2026-10-23）：没 @bot 的一律不建任务、不分类、不记台账；@ aven 本人的也不管（是他的事他会再 @bot）。这些消息由 @bot 时读上下文带进来 |
 | 群消息读取权限 | 用户身份 `im` scope 已提交企业管理员审批，待批 |
 | push | **不允许**，与 fameex 一致 |
 | 执行器 | 意图 / 信息分类 **Opus 4.8**；只读分析 / 分诊 **Opus 5.5 `--effort high`**；实施 **Opus 5.5 `--effort medium`**；鉴权保持 `local`（2026-10-13 定） |
@@ -49,7 +49,6 @@ webhook 发出的卡片没有 `message_id`，不能作为「回复卡片」的�
 | `branchPrefix` | 临时分支前缀（缺省 `lark/<key>`） | `lark/falive` |
 | `worktreesDir` | 临时 worktree 目录（缺省 `<root>/../.lark-<key>`） | `~/github/.lark-falive` |
 | `chatIds` / `chatNames` | 属于该仓的群（优先于群名解析项目号；视同白名单）；只填群名时 gateway 启动用用户身份 chat-search 解析成 id | falive后端go天团、Falive PHP后端群 |
-| `taskMentionOpenIds` | 该仓群里 @ 谁会触发只读意图分类（与全局叠加） | aven |
 | `privateOnlyChats` | 只私聊的群（chat_id 或群名）：照常收消息、派活，但不往群里发任何消息，原本要回群的话改私聊负责人（教训 #50） | 【专项】Falive融合技术讨论群 |
 | `webhook` / `webhooksByChat` | `{ file }` 指向 0600 JSON（`webhookUrl` / `secret`）或 inline；`webhooksByChat` 按群名各配一个（每个外部群的自定义机器人 webhook 不同）；bot 发不进群时的兜底 | 两个群各一个文件 |
 | `notifyChatId` | bot 与 webhook 都不可用时改投（私聊 open_id 或群） | aven 私聊 |
@@ -61,7 +60,7 @@ webhook 发出的卡片没有 `message_id`，不能作为「回复卡片」的�
 | `ownership` | `{ me, meOpenIds, table }` 归属规则 | me=aven，表=功能总表 |
 | `ownerMap` | 人名 → open_id（结果卡 @ 负责人用） | 待补 |
 | `docIntakeDir` | 群里别人发来的对接文档落到仓库的目录；配了即启用文档消息自动进分类 | `docs/delivery/待对接` |
-| `contextTrigger` / `intake` | 外部群按上下文判任务：别人发的实质消息都进只读分类（缺省开）；去抖分道（10-15）：快道（@ 机器人 / 回复 bot 的卡 / 负责人本人 / 对接文档 / ≥200 字）等 `fastLaneMs`，慢道最后一条之后安静 `quietGapMs` 再分类、从首条起最多 `maxWaitMs`；旧字段 `intakeDebounceMs` 仍读 = quietGapMs | 开 / 0s · 60s · 180s |
+| `intake` | 分类去抖：@bot 的消息走快道，等 `fastLaneMs`；同人连发 / 话题里紧跟的补充在 `quietGapMs` 内并进还没分类的 @bot 任务；旧字段 `intakeDebounceMs` 仍读 = quietGapMs。（`contextTrigger` / `passiveMode` / `taskMentionOpenIds` 10-23 删除） | 0s · 60s · 180s |
 | `concurrency` | 该仓同时最多跑几条任务；同主题串行、不同主题并行（缺省 3） | 3 |
 | `quietQueuedCards` | 外部群排队卡改发 notifyChatId，群里只出结果卡（缺省开） | 开 |
 | `commitPrefix` | bot 提交标题前缀，满足仓库 commit-msg 钩子 | `feat(bot)` |

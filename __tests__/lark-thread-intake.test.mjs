@@ -161,30 +161,16 @@ describe('负责人本人 @ 机器人', () => {
   }))
 })
 
-describe('话题补充 @ 机器人升级被动任务', () => {
-  const repo = { key: 'falive', passiveMode: 'ledger', botMentionOpenIds: { oc_x: 'ou_bot' }, ownership: { meOpenIds: ['ou_aven'] } }
-  const msg = (extra) => ({ chatId: 'oc_x', senderOpenId: 'ou_aven', mentions: [], attachments: [], ...extra })
-
-  it('主消息只 @ 负责人 → 只记台账；补充 @ 机器人 → 去掉 passiveLedgerOnly、标显式通道并要补发收到', () => {
-    const main = resolveRepoAddressing({ repo, msg: msg({ senderOpenId: 'ou_ache', mentions: [{ id: 'ou_aven' }] }) })
-    assert.deepEqual(main, { toBot: false, fromPrincipal: false, passiveLedgerOnly: true })
+describe('话题补充 @ 机器人（10-23 起外部群只有 @bot 的任务）', () => {
+  it('补充 @ 机器人：标显式通道；10-23 前的存量被动任务被接手，去掉只记台账；补充没 @ 不改通道', () => {
     const target = { id: 'omt_reserve', passiveLedgerOnly: true }
-    const needsAck = applySupplementAddressing({ target, addressing: resolveRepoAddressing({ repo, msg: msg({ mentions: [{ id: 'ou_bot' }] }) }) })
-    assert.equal(needsAck, true)
+    assert.equal(applySupplementAddressing({ target, addressing: { toBot: true, fromPrincipal: true } }), true)
     assert.equal(target.passiveLedgerOnly, undefined)
     assert.equal(target.addressedToBot, true)
     assert.equal(target.fromPrincipal, true)
-    assert.equal(applySupplementAddressing({ target, addressing: resolveRepoAddressing({ repo, msg: msg({ mentions: [{ id: 'ou_bot' }] }) }) }), false)
-  })
-
-  it('补充没 @ 机器人 → 维持只记台账，带对接文档也一样（教训 #53：只处理 @bot 的消息）', () => {
-    const target = { id: 'omt_p', passiveLedgerOnly: true }
-    assert.equal(applySupplementAddressing({ target, addressing: resolveRepoAddressing({ repo, msg: msg({ text: '再看看' }) }) }), false)
-    assert.equal(target.passiveLedgerOnly, true)
-    const doc = msg({ senderOpenId: 'ou_adrian', attachments: [{ type: 'file', fileName: 'a.md', fileKey: 'k' }] })
-    assert.deepEqual(resolveRepoAddressing({ repo, msg: doc }), { toBot: false, fromPrincipal: false, passiveLedgerOnly: true })
-    assert.equal(applySupplementAddressing({ target, addressing: resolveRepoAddressing({ repo, msg: doc }) }), false)
-    assert.equal(target.passiveLedgerOnly, true)
+    assert.equal(applySupplementAddressing({ target, addressing: { toBot: true } }), false, '已经是显式通道，不重复回收到')
+    const other = { id: 'omt_p', addressedToBot: true }
+    assert.equal(applySupplementAddressing({ target: other, addressing: { toBot: false } }), false)
   })
 })
 
@@ -195,7 +181,7 @@ describe('分类去抖分道（阶段 2）', () => {
     assert.equal(resolveIntakeLane({ addressing: { toBot: true } }), 'fast')
     assert.equal(resolveIntakeLane({ addressing: { fromPrincipal: true } }), 'fast')
     assert.equal(resolveIntakeLane({ addressing: {}, quotedIsOurs: true }), 'fast')
-    assert.equal(resolveIntakeLane({ addressing: { toBot: false, passiveLedgerOnly: true } }), 'slow')
+    assert.equal(resolveIntakeLane({ addressing: { toBot: false } }), 'slow')
   })
   it('快道不等；慢道首条等安静期；补充只顺延到首条 + 封顶；超过封顶立刻', () => {
     assert.equal(resolveIntakeNotBefore({ lane: 'fast', firstReceivedAt: new Date(now).toISOString(), now, intake }), new Date(now).toISOString())

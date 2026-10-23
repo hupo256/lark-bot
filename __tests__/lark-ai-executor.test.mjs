@@ -946,13 +946,3 @@ describe('只读任务拿不到可写面；子进程按进程组终止（第 0 �
     }
   })
 })
-
-describe('分类强度按分道（aven 2026-10-23：额度不够）', () => {
-  it('没 @ 的慢道用 claudeIntentPassiveEffort；快道（@ 机器人 / 负责人 / 回复 bot）照旧；没配就不变', async () => {
-    const { intentProfileFor } = await import('../lib/lark-worker-run.mjs')
-    const profile = { key: 'falive', claudeIntentEffort: 'high', claudeIntentPassiveEffort: 'low' }
-    assert.equal(intentProfileFor({ intake: { lane: 'slow' } }, profile).claudeIntentEffort, 'low')
-    assert.equal(intentProfileFor({ intake: { lane: 'fast' } }, profile).claudeIntentEffort, 'high')
-    assert.equal(intentProfileFor({ intake: { lane: 'slow' } }, { claudeIntentEffort: 'high' }).claudeIntentEffort, 'high')
-  })
-})

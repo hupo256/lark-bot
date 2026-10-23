@@ -66,7 +66,7 @@ describe('A2：ingest 失败回滚「已见」，轮询器下轮重喂能落成�
       return store.upsert(task)
     } }
     const nowMs = Date.now()
-    const message = { message_id: 'om_rv_a2', msg_type: 'text', create_time: String(nowMs), sender: { id: ENCONE, sender_type: 'user' }, content: '直播列表接口返回的字段不对，帮忙看一下' }
+    const message = { message_id: 'om_rv_a2', msg_type: 'text', create_time: String(nowMs), sender: { id: ENCONE, sender_type: 'user' }, content: '@Aven.Bot 直播列表接口返回的字段不对，帮忙看一下', mentions: [{ id: BOT, key: '@_user_1', name: 'Aven.Bot' }] }
     const poller = startChatPoller({
       config, store: flaky, ingest: ingestLarkEvent, statePath: join(dir, 'poller.json'),
       deps: {
@@ -88,15 +88,14 @@ describe('A2：ingest 失败回滚「已见」，轮询器下轮重喂能落成�
 describe('C3：疑似单只有负责人能放行', () => {
   const suspected = () => store.upsert({ id: 'om_rv_sus', source: 'lark', repo: 'falive', chatId: GROUP, threadRootId: 'om_rv_sus', operator: ENCONE, text: '原消息', status: 'waiting_confirmation', suspected: true, epoch: 1, createdAt: now() })
 
-  it('别人在话题里回一句：只追加正文，任务继续等，不发卡（真实 ingest，控制通道 resume 分支）', async () => {
+  it('别人在话题里不 @ 机器人回一句：不处理（10-23 起外部群只响应 @bot），疑似单原样等负责人，不发卡', async () => {
     suspected()
     await ingestLarkEvent({ raw: groupEvent({ id: 'om_rv_sus_r1', text: '接口已经部署好了，可以联调', root: 'om_rv_sus', parent: 'om_rv_sus' }), config, store })
     const task = store.get('om_rv_sus')
     assert.equal(task.status, 'waiting_confirmation')
-    assert.equal(task.suspected, true)
     assert.equal(task.epoch, 1)
-    assert.match(task.text, /待负责人放行】接口已经部署好了/)
-    assert.equal(task.suspectedSupplements[0].operator, ENCONE)
+    assert.equal(task.text, '原消息')
+    assert.equal(task.suspectedSupplements, undefined)
     assert.equal(posted.length, 0)
   })
 

@@ -71,10 +71,9 @@ describe('列消息 → 事件归一', () => {
     assert.equal(toEpochMs('2026-10-13T10:00:00+04:00'), Date.parse('2026-10-13T10:00:00+04:00'))
     assert.equal(toEpochMs(''), 0)
   })
-  it('对接文档消息无需 @ 即触发只读意图分类（仅配了 docAttachmentsTrigger 的群）', () => {
+  it('对接文档消息不 @ 机器人不触发（10-23 起外部群只认 @bot，原 docAttachmentsTrigger 已删）', () => {
     const msg = { chatType: 'group', senderType: 'user', mentions: [], attachments: [{ type: 'file', fileName: 'api.md' }] }
-    assert.equal(resolveMessageTrigger({ msg, config: { botOpenId: 'ou_bot', docAttachmentsTrigger: true } }), 'task_mention')
-    assert.equal(resolveMessageTrigger({ msg, config: { botOpenId: 'ou_bot' } }), null)
+    assert.equal(resolveMessageTrigger({ msg, config: { botOpenId: 'ou_bot', docAttachmentsTrigger: true } }), null)
   })
 })
 

@@ -280,17 +280,14 @@ describe('黄金对话', () => {
     assert.match(group[1], /front\/lives 复测：通了 1 项，没通 1 项\n- ⚠️ 待验证 \/lives 滚到底续拉：20 张变 25 张；这次没实测\n- ✅ 通了 第 2 页接口/)
   })
 
-  it('S9 外部群里没 @bot 的话题回复（「可以了，结单吧」）→ 不结单、不回任何卡片（10-21：控制通道在外部群发了旧样式「请确认」卡）', async () => {
-    // 真机序列：话题第一条没 @bot（只记台账 → ignored），后面同一话题里的回复被控制通道当成「对已结束任务结单」
-    const id = await say({ from: ENCONE, text: '已贴到新闻头条模块里', mention: false })
-    await classify(id, { decision: 'api_reply' })
-    assert.equal(store.get(id).status, 'ignored')
-    store.recordReceipt(id, { messageId: 'om_golden_receipt', kind: 'ignored', epoch: 0 }) // 控制通道靠回执锚定任务
+  it('S9 外部群里没 @bot 的消息（主楼 + 话题里「可以了，结单吧」）→ 不建任务、不分类、不回任何话（10-23 起外部群只响应 @bot）', async () => {
     const before = sent.length
-    await say({ from: ENCONE, text: '好了，这个可以结单了，可以改成真实发送验证码了是不', mention: false, root: 'om_golden_receipt' })
-    await say({ from: ENCONE, text: '可以了，结单吧', mention: false, root: 'om_golden_receipt' })
+    const id = await say({ from: ENCONE, text: '已贴到新闻头条模块里', mention: false })
+    await say({ from: ENCONE, text: '好了，这个可以结单了，可以改成真实发送验证码了是不', mention: false, root: id })
+    await say({ from: AVEN, text: '可以了，结单吧', mention: false, root: id })
+    assert.equal(store.get(id), undefined, '没 @bot 不建任务')
+    assert.equal(store.list().filter((task) => task.chatId === GROUP && !task.addressedToBot).length, 0, transcript().join('\n'))
     assert.deepEqual(sent.slice(before), [], transcript().join('\n'))
-    assert.notEqual(store.get(id).status, 'superseded', '没 @bot 的话不结单')
   })
 
   it('S10 旧卡片通道（sendChatMessage）发往外部群 → 一律改发控制台，外部群收不到（10-21：融合群只私聊仍收到旧卡片）', async () => {
