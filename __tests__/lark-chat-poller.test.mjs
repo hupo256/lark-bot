@@ -172,18 +172,32 @@ describe('群里之前的消息：真人 + 本群 Aven.Bot 自己的卡（2026-1
     { message_id: 'om_4', create_time: '2026-10-15 13:49', msg_type: 'text', sender: { id: 'ou_arthur', sender_type: 'user', name: 'Arthur.a' }, content: '@Aven.Bot 重跑一次' },
     { message_id: 'om_5', create_time: '2026-10-15 13:50', msg_type: 'text', sender: { id: 'ou_x', sender_type: 'user', name: '后来的人' }, content: '晚于本条，不该出现' },
   ]
-  it('保留真人与自家 bot 的卡（剥 <card> 与署名、标「bot，我们自己」），丢别家机器人、排除本条与晚于本条的', () => {
+  it('保留真人、自家 bot 的卡（剥 <card> 与署名、标「bot，我们自己」）和别家机器人（标「机器人」，10-23 起也要读）；排除本条与晚于本条的；带发送时间', () => {
     const beforeMs = Date.parse('2026-10-15 13:49') + 46_000
     const out = pickRecentContext(messages, { beforeMs, excludeIds: ['om_4'], botOpenIds: [BOT] })
-    assert.deepEqual(out.map((item) => item.messageId), ['om_1', 'om_2'])
+    assert.deepEqual(out.map((item) => item.messageId), ['om_1', 'om_2', 'om_3'])
     assert.equal(out[1].sender, 'Aven.Bot（bot，我们自己）')
     assert.equal(out[1].bot, true)
     assert.equal(out[1].text, '@Arthur.a(ou_arthur) 那次请求信息如下\n需要的话我重跑一次')
+    assert.equal(out[2].sender, '别的机器人（机器人）')
+    assert.equal(out[2].text, '广告')
     assert.equal(out[0].bot, undefined)
+    assert.equal(out[0].time, '10-15 13:44')
   })
-  it('没配 botOpenIds 时机器人消息一律不要（旧行为）', () => {
-    const out = pickRecentContext(messages, { beforeMs: Date.parse('2026-10-15 13:49') + 46_000, excludeIds: ['om_4'] })
-    assert.deepEqual(out.map((item) => item.messageId), ['om_1'])
+  it('没配 botOpenIds 时机器人消息都标「机器人」，不冒充我们自己；系统消息（没有发送人）不要', () => {
+    const system = { message_id: 'om_sys', create_time: '2026-10-15 13:45', msg_type: 'system', sender: { id: '', sender_type: '' }, content: 'Aven.tong invited Aven.Bot to the group.' }
+    const out = pickRecentContext([...messages, system], { beforeMs: Date.parse('2026-10-15 13:49') + 46_000, excludeIds: ['om_4'] })
+    assert.deepEqual(out.map((item) => item.messageId), ['om_1', 'om_2', 'om_3'])
+    assert.equal(out[1].sender, 'Aven.Bot（机器人）')
+  })
+  it('真人长消息不再截到 300 字（上限 2000，截断不切链接）；纯图片消息也留下，附件交调用方下载', () => {
+    const long = '很'.repeat(1500)
+    const image = { message_id: 'om_img', create_time: '2026-10-15 13:46', msg_type: 'image', sender: { id: 'ou_e', sender_type: 'user', name: 'Encone' }, content: '[Image: img_v3_abc]' }
+    const text = { message_id: 'om_long', create_time: '2026-10-15 13:47', msg_type: 'text', sender: { id: 'ou_e', sender_type: 'user', name: 'Encone' }, content: long }
+    const out = pickRecentContext([image, text], { beforeMs: Date.parse('2026-10-15 13:49') })
+    assert.equal(out[0].text, '（发了 1 张图）')
+    assert.deepEqual(out[0].attachments, [{ type: 'image', imageKey: 'img_v3_abc' }])
+    assert.equal(out[1].text, long)
   })
 })
 
@@ -218,17 +232,20 @@ describe('先发文档、后单独 @bot：从之前的群消息补上文档（�
   const beforeMs = Date.parse('2026-10-20 16:00')
   const file = (id, name, time) => ({ message_id: id, create_time: time, msg_type: 'file', sender: { id: 'ou_adrian', sender_type: 'user', name: 'adrian' }, content: JSON.stringify({ file_key: `fk_${id}`, file_name: name }) })
   const text = (id, body, time) => ({ message_id: id, create_time: time, msg_type: 'text', sender: { id: 'ou_x', sender_type: 'user', name: '某人' }, content: body })
-  it('文件消息留在上下文里（带 docs），图片 / 非文档文件不算', () => {
+  it('文件消息留在上下文里：文档进 docs（只取最近一份另下），非文档文件进 attachments（10-23 起也下载）', () => {
     const out = pickRecentContext([
       file('om_old', '旧清单.md', '2026-10-20 15:00'),
       text('om_t', '看下这个', '2026-10-20 15:10'),
       file('om_zip', '包.zip', '2026-10-20 15:20'),
       file('om_new', '新对接文档.md', '2026-10-20 15:30'),
     ], { beforeMs })
-    assert.deepEqual(out.map((item) => item.messageId), ['om_old', 'om_t', 'om_new'])
-    assert.equal(out[2].text, '（发了文件：新对接文档.md）')
-    assert.deepEqual(out[2].docs, [{ type: 'file', fileKey: 'fk_om_new', fileName: '新对接文档.md' }])
-    assert.equal(out[2].senderOpenId, 'ou_adrian')
+    assert.deepEqual(out.map((item) => item.messageId), ['om_old', 'om_t', 'om_zip', 'om_new'])
+    assert.equal(out[3].text, '（发了文件：新对接文档.md）')
+    assert.deepEqual(out[3].docs, [{ type: 'file', fileKey: 'fk_om_new', fileName: '新对接文档.md' }])
+    assert.deepEqual(out[3].attachments, [])
+    assert.equal(out[3].senderOpenId, 'ou_adrian')
+    assert.deepEqual(out[2].attachments, [{ type: 'file', fileKey: 'fk_om_zip', fileName: '包.zip' }])
+    assert.equal(out[2].docs, undefined)
   })
   it('只取最近一条发了文档的消息；没有就是 null', () => {
     const out = pickRecentContext([file('om_old', '旧清单.md', '2026-10-20 15:00'), file('om_new', '新对接文档.md', '2026-10-20 15:30'), text('om_t', '@Aven.Bot 处理一下', '2026-10-20 15:40')], { beforeMs })
