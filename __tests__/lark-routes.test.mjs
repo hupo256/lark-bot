@@ -58,6 +58,11 @@ describe('gateway 路由（第 0 批：按 id 取任务、续租、坏 body 400�
     assert.equal((await fetch(`${base}/lark/tasks/w1/close`, { method: 'POST', headers, body: '{}' })).status, 409)
   })
 
+  it('POST /notify：没密钥 401；没有外部群 profile（拿不到控制台群）404，不乱发', async () => {
+    assert.equal((await fetch(`${base}/lark/notify`, { method: 'POST', body: '{}' })).status, 401)
+    assert.equal((await fetch(`${base}/lark/notify`, { method: 'POST', headers, body: JSON.stringify({ repo: 'falive', markdown: 'x' }) })).status, 404)
+  })
+
   it('POST /intake 坏 body 400，任务不会被落成 ignored', async () => {
     store.upsert({ id: 't2', status: 'received', createdAt: '2026-01-01T00:00:00Z', text: 'x', intake: { required: true } })
     const res = await fetch(`${base}/lark/tasks/t2/intake`, { method: 'POST', headers, body: '"not an object"' })
