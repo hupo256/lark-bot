@@ -4,6 +4,7 @@ import { describe, it } from 'node:test'
 import { pickRecentAttachments, shortTime } from '../lib/lark-chat-context.mjs'
 import { prefetchTaskReferences } from '../lib/lark-task-prefetch.mjs'
 import { formatTaskAttachments } from '../lib/lark-classify-prompt.mjs'
+import { fetchRecentChatContext } from '../lib/lark-cli.mjs'
 
 // 10-23 起外部群只响应 @bot：没 @ 的讨论只能靠 @bot 时读上下文带进来，要读全。
 describe('@bot 时的上下文读取', () => {
@@ -71,5 +72,41 @@ describe('消息正文格式', () => {
     assert.equal(unwrapParagraphs('<p>@Kevin web 端已提测</p><p>相关 bug 抛到话题下</p>'), '@Kevin web 端已提测\n相关 bug 抛到话题下')
     assert.equal(unwrapParagraphs('模板里写 <p>标题</p> 就行'), '模板里写 <p>标题</p> 就行')
     assert.equal(parseTextAndAttachments({ messageType: 'text', rawContent: '<p>第一段</p><p>第二段</p>', mentions: [] }).text, '第一段\n第二段')
+  })
+})
+
+// 10-23 #74：bot 22:46 在结果里 @Encone 要主播号，他第二天 10:36 才 @bot 说给了——按时间窗截就丢了那张卡。
+describe('群里这条之前的消息：取紧挨着的最近 N 条，不按时间窗截', () => {
+  const at = (iso) => String(Date.parse(iso))
+  const human = (id, iso, text) => ({ message_id: id, msg_type: 'text', create_time: at(iso), sender: { sender_type: 'user', id: 'ou_x', name: 'Encone' }, content: JSON.stringify({ text }) })
+  const bot = (id, iso, text) => ({ message_id: id, msg_type: 'text', create_time: at(iso), sender: { sender_type: 'app', open_bot_id: 'ou_bot', name: 'Aven.Bot' }, content: JSON.stringify({ text }) })
+  const beforeMs = Date.parse('2026-10-23T02:36:00Z')
+
+  it('12 小时前 bot 向他要东西的卡、中间没人说话：照样带上', async () => {
+    const calls = []
+    const list = async (args) => {
+      calls.push(args)
+      return { ok: true, messages: [bot('om_card', '2026-10-22T14:46:00Z', '@Encone 给一个 pre 主播测试号，用来实测开播写入')], hasMore: false, pageToken: null }
+    }
+    const out = await fetchRecentChatContext({ chatId: 'oc', beforeMs, botOpenIds: ['ou_bot'], list })
+    assert.deepEqual(out.map((item) => item.messageId), ['om_card'])
+    assert.match(out[0].sender, /bot，我们自己/)
+    assert.equal(calls[0].order, 'desc')
+    assert.ok(beforeMs / 1000 - Number(calls[0].start) >= 7 * 24 * 3600 - 1, '兜底拉取范围 7 天')
+  })
+
+  it('一页凑不够 N 条就往前翻页；凑够了就停；最多翻 maxPages 页', async () => {
+    const pages = [
+      { ok: true, messages: [human('m3', '2026-10-23T02:00:00Z', '三'), { message_id: 'sys', msg_type: 'system', create_time: at('2026-10-23T01:00:00Z'), sender: {} }], hasMore: true, pageToken: 'p2' },
+      { ok: true, messages: [human('m2', '2026-10-22T20:00:00Z', '二'), human('m1', '2026-10-21T20:00:00Z', '一')], hasMore: true, pageToken: 'p3' },
+      { ok: true, messages: [human('m0', '2026-10-20T20:00:00Z', '零')], hasMore: false, pageToken: null },
+    ]
+    let index = 0
+    const out = await fetchRecentChatContext({ chatId: 'oc', beforeMs, limit: 3, list: async () => pages[index++] })
+    assert.deepEqual(out.map((item) => item.messageId), ['m1', 'm2', 'm3'], '按时间正序、最新的在后')
+    assert.equal(index, 2, '凑够 3 条就不再翻')
+    index = 0
+    assert.equal((await fetchRecentChatContext({ chatId: 'oc', beforeMs, limit: 10, maxPages: 2, list: async () => pages[index++] })).length, 3)
+    assert.deepEqual(await fetchRecentChatContext({ chatId: 'oc', beforeMs, list: async () => ({ ok: false }) }), [])
   })
 })

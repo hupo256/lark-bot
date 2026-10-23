@@ -74,6 +74,30 @@ describe('这个人正在进行的事', () => {
   })
 })
 
+describe('他提起过的台账条目，bot 推进后仍在他的上下文里（10-23 #74）', () => {
+  it('lastEvent 被 bot 改写（工单已做）：按台账事件认出是他提的，照样列出；别人提的不列', () => {
+    const tasksDir = mkdtempSync(join(tmpdir(), 'lark-conv-ledger-'))
+    try {
+      const store = createTaskStore({ tasksDir, leaseMs: 60_000 })
+      const ledger = {
+        items: {
+          'new#9fff15': { id: 'new#9fff15', status: 'applied', title: 'Bug-4944 直播间介绍 intro', updatedAt: '2026-10-22T18:46:00Z', lastEvent: { sender: 'bot', transition: 'applied' } },
+          'new#other': { id: 'new#other', status: 'applied', title: '别人的', updatedAt: '2026-10-22T18:00:00Z', lastEvent: { sender: 'bot' } },
+        },
+        events: [
+          { at: '2026-10-22T17:06:28Z', messageId: 'om_src', sender: 'ou_encone', decision: 'api_reply', items: [{ id: 'new#9fff15', transition: 'answer' }] },
+          { at: '2026-10-22T17:00:00Z', messageId: 'om_x', sender: 'ou_ache', decision: 'bug', items: [{ id: 'new#other', transition: 'new' }] },
+        ],
+      }
+      const out = buildConversationContext({ store, ledger, repo: { key: 'falive' }, msg: { messageId: 'om_new', chatId: 'oc_x', senderOpenId: 'ou_encone', text: '已经将uid 508 设成主播' }, senderLabel: 'Encone', nowMs: Date.parse('2026-10-23T02:36:00Z') })
+      assert.match(out.activityBlock, /台账 new#9fff15（applied）Bug-4944 直播间介绍 intro/)
+      assert.doesNotMatch(out.activityBlock, /new#other/)
+    } finally {
+      rmSync(tasksDir, { recursive: true, force: true })
+    }
+  })
+})
+
 describe('截断不留半截链接（10-22 Bug-4944）', () => {
   it('切点落在链接中间：整段链接去掉补「…」；链接正好在切点结束的保留；不超长原样', async () => {
     const { clipText } = await import('../lib/lark-chat-context.mjs')
