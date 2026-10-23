@@ -45,7 +45,7 @@ describe('接口实测闸只按真实 diff 触发（#66）', () => {
     const verify = { env: 'pre', probeCommand: 'node scripts/pre-probe.mjs', localDev: 'pnpm dev:pre' }
     const prompt = buildVerifyPassPrompt({ verify, changes: [{ path: 'a/queries.ts', side: 'request', line: 'x' }] })
     assert.match(prompt, /只测不改/)
-    assert.match(prompt, /pnpm dev:pre/)
+    assert.match(prompt, /verify-page\.mjs check --cwd/)
     assert.match(prompt, /node scripts\/pre-probe\.mjs/)
     const calls = []
     const aiRun = { executor: 'claude', sessionId: 's1', result: { status: 'done', summary: 'old', preChecks: [], report: null } }
