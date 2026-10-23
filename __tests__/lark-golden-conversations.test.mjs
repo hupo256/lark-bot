@@ -7,7 +7,7 @@
  */
 
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -33,6 +33,7 @@ const { sweepPendingAcks, DEFAULT_ACK_TIMEOUT_MS } = await import('../lib/lark-r
 const { isReadOnlyTask } = await import('../lib/lark-message.mjs')
 const { resolveSchemaVerifyGate } = await import('../lib/lark-schema-verify.mjs')
 const { repoProfileForTask } = await import('../lib/lark-repo-profile.mjs')
+const { loadLedger, saveLedger } = await import('../lib/lark-ledger.mjs')
 
 const GROUP = 'oc_golden_php'
 const CONSOLE = 'oc_golden_console'
@@ -168,7 +169,7 @@ describe('黄金对话', () => {
   it('S1 外部同事答复「接口更新了」→ 贴上下文的收到 + 一条结论；结论里「不再报错」不算问题（#56 / #57）', async () => {
     const id = await say({ from: ENCONE, text: 'front/lives 更新了，再试试' })
     assert.deepEqual(groupTexts(), [], '分类前不发固定句')
-    await classify(id, { decision: 'api_reply', reply: '收到，front/lives 已更新，这就复测第 2 页，结果发群里' })
+    await classify(id, { decision: 'api_reply', deliverable: 'verification', reply: '收到，front/lives 已更新，这就复测第 2 页，结果发群里' })
     await work(id, {
       status: 'done', completionClaim: 'all_done', preChecks: PRE_OK,
       groupReply: '直播列表第 2 页：都通了\n- ✅ 通了 直播列表翻页：pre 按顺序拉第 1、2、3 页都正常，第 2 页不再报错，也没有被限流',
@@ -228,7 +229,7 @@ describe('黄金对话', () => {
 
   it('S2 外部同事的结论被扣下 → 群里只有那句收到，草稿私聊 aven；私聊「就这样回」才发群', async () => {
     const id = await say({ from: ENCONE, text: 'front/lives 更新了，再试试' })
-    await classify(id, { decision: 'api_reply', reply: '收到，这就复测，结果发群里' })
+    await classify(id, { decision: 'api_reply', deliverable: 'verification', reply: '收到，这就复测，结果发群里' })
     await work(id, { status: 'done', completionClaim: 'all_done', preChecks: PRE_OK, groupReply: '都通了，第 3 页没有数据' }, { changedFiles: ['docs/a.md'] })
     assert.equal(groupTexts().length, 1, transcript().join('\n'))
     assert.match(consoleTexts().join('\n'), /就这样回/)
@@ -247,11 +248,11 @@ describe('黄金对话', () => {
 
   it('S7 外部同事的结论被扣下 → aven 私聊让再测 → 指示任务的新结论发一次，旧草稿作废，群里从头到尾没有兜底话术（10-20 原序列）', async () => {
     const id = await say({ from: ENCONE, text: 'front/lives 更新了，再试试' })
-    await classify(id, { decision: 'api_reply', reply: '收到，这就复测，结果发群里' })
+    await classify(id, { decision: 'api_reply', deliverable: 'verification', reply: '收到，这就复测，结果发群里' })
     await work(id, { status: 'done', completionClaim: 'all_done', preChecks: PRE_OK, groupReply: '都通了，第 3 页没有数据' }, { changedFiles: ['docs/a.md'] })
     const instructId = await dm('再测一下，看清楚第 3 页')
     assert.equal(store.get(instructId).privateOrigin.anchorId, id, '私聊指示挂在 Encone 那条上')
-    await classify(instructId, { decision: 'api_reply', reply: '收到，再测一遍' })
+    await classify(instructId, { decision: 'api_reply', deliverable: 'verification', reply: '收到，再测一遍' })
     await work(instructId, { status: 'no_change_needed', preChecks: PRE_OK, groupReply: 'front/lives 复测：都通了\n- ✅ 通了 第 2 页：code 0，第 3 页为空说明到底了' })
     const group = groupTexts()
     assert.equal(group.length, 2, transcript().join('\n'))
@@ -311,7 +312,7 @@ describe('黄金对话', () => {
 
   it('S12 外部同事的疑似单 → aven 私聊单发「继续任务 <id>」（不带补充）就放行开跑（10-21：被当成没补充内容，只回了提示卡）', async () => {
     const id = await say({ from: ENCONE, text: '分享卡片图 picture[0] 是 HCIMG1 密文，按文档 1.10 解密' })
-    await classify(id, { decision: 'api_reply', confidence: 'medium', reply: '收到，我看下分享卡片图的解密' })
+    await classify(id, { decision: 'api_reply', confidence: 'medium', forMe: null, reply: '收到，我看下分享卡片图的解密' })
     assert.equal(store.get(id).status, 'waiting_confirmation')
     assert.equal(store.get(id).suspected, true)
     await dm(`继续任务 ${id}`)
@@ -321,7 +322,7 @@ describe('黄金对话', () => {
 
   it('S14 aven 私聊「继续任务 <id> 确认扩大范围」把 id 抄错一位 → 回「找不到任务」并给出改好的整句，原任务不动（10-22 #65：回的是「12 小时内没有任务通知」）', async () => {
     const id = await say({ from: ENCONE, text: '分享卡片图 picture[0] 是 HCIMG1 密文，按文档 1.10 解密' })
-    await classify(id, { decision: 'api_reply', confidence: 'medium', reply: '收到，我看下分享卡片图的解密' })
+    await classify(id, { decision: 'api_reply', confidence: 'medium', forMe: null, reply: '收到，我看下分享卡片图的解密' })
     const typo = `${id.slice(0, -1)}x`
     await dm(`继续任务 ${typo} 确认扩大范围`)
     assert.equal(store.get(id).status, 'waiting_confirmation')
@@ -389,5 +390,106 @@ describe('黄金对话', () => {
     assert.equal(store.get(id2).change?.committed, true)
     assert.match(store.get(id2).result, /改了对后端的请求（src\/modules\/news\/data\/queries\.ts/)
     assert.match(store.get(id2).result, /pre 连不上.*代码照常提交/)
+  })
+
+  // ── 10-23 真机：bot 向 Encone 要主播号，第二天他给了，bot 没接上；群里先下结论、私聊又问（#74）──────────────
+  const HOURS = 60 * 60_000
+  // 把「昨天」挪到 20 小时前：任务、发件簿都出 2 小时窗口（对话包「正在进行的事」看不到它们）。
+  const ageEverything = (ids, ms) => {
+    for (const id of ids) store.upsert({ ...store.get(id), createdAt: new Date(Date.now() - ms).toISOString() })
+    const file = join(process.env.LARK_OUTBOX_DIR, `${GROUP}.jsonl`)
+    if (!existsSync(file)) return
+    const shifted = readFileSync(file, 'utf8').split('\n').filter(Boolean).map((line) => JSON.parse(line)).map((entry) => ({ ...entry, at: new Date(Date.parse(entry.at) - ms).toISOString() }))
+    writeFileSync(file, `${shifted.map((entry) => JSON.stringify(entry)).join('\n')}\n`)
+  }
+
+  it('S16 bot 结果里向 Encone 要主播号 → 记成「等他给」；20 小时后他说「已经将 uid 508 设成主播」→ 对话包带上这件事，续跑源工单剩下的实测，结论回群、台账更新（10-23 #74 ①）', { todo: '修好前标 todo（#74）' }, async () => {
+    const src = await say({ from: ENCONE, text: 'intro 接口上线了：createRoom / updateLive 加了可选参数 intro，getRoomInfo 返回 info.intro' })
+    await classify(src, { decision: 'api_reply', deliverable: 'change', reply: '收到 intro 接口变更说明，开播表单加介绍输入框这就接上',
+      items: [{ id: 'new', transition: 'new', note: 'Bug-4944 直播间介绍 intro' }] })
+    await work(src, {
+      status: 'done', preChecks: PRE_OK,
+      report: { subject: '直播间介绍 intro 对接', answer: null, items: [
+        { mark: 'ok', name: '直播间页介绍卡改读 intro', note: 'pre 上 getRoomInfo 已返回 intro', evidence: 'pre' },
+        { mark: 'not_usable', name: '开播设置加直播间介绍', note: '代码已接好；测试号不是主播，开播写入测不了', evidence: 'pre' },
+      ] },
+      followUps: [{ owner: 'Encone', items: ['给一个 pre 主播测试号（或把 uid 508 设成主播），用来实测开播设置里直播间介绍的写入、回填和展示'] }],
+    }, { changedFiles: ['src/modules/live/data/schema.ts', 'src/modules/live/components/Stream/StreamSettingsForm.tsx'], runEvidence: { probeCalls: 1, browserCalls: 0 } })
+    const itemId = store.get(src).ledgerItems[0].id
+    const waiting = loadLedger('falive').items[itemId]
+    assert.equal(waiting.status, 'waiting', JSON.stringify(waiting))
+    assert.deepEqual([waiting.standing?.kind, waiting.standing?.taskId, waiting.standing?.from], ['bot_ask', src, [ENCONE]], '记下：等 Encone 给、源工单是哪张')
+    ageEverything([src], 20 * HOURS)
+
+    const before = sent.length
+    const id = await say({ from: ENCONE, text: '已经将uid 508 设成主播' })
+    const text = store.get(id).text
+    assert.match(text, /bot 在等 Encone（portal 后端）给的东西/, text)
+    assert.ok(text.includes(src) && text.includes(itemId), '对话包里带源工单与台账条目（不受 2 小时窗口限制）')
+    assert.doesNotMatch(text, /正在进行的事/, '昨天的任务 / 发件簿确实都出了 2 小时窗口')
+    await classify(id, { decision: 'api_reply', confidence: 'medium', deliverable: null, continues: src, satisfiesWait: true,
+      items: [{ id: itemId, transition: 'answer', note: '508 已设成主播' }], reply: '收到，这就用 508 去 pre 实测开播写入，测完回群里' })
+    const resumed = store.get(id)
+    assert.equal(resumed.status, 'queued', transcript().join('\n'))
+    assert.deepEqual(resumed.standingFrom, [src])
+    assert.equal(resumed.resumeOf, src)
+    assert.match(resumed.text, /续跑工单/)
+    assert.match(resumed.text, /主播测试号/)
+    assert.equal(resumed.contract.deliverable, 'verification', '续跑剩下的实测：交付实测结论，空 diff 也算完成')
+    assert.equal(loadLedger('falive').items[itemId].standing, undefined, '等的东西到了：取走')
+    assert.doesNotMatch(consoleTexts().join('\n'), /可能是你的事/, '判得出是我的事：不私聊问')
+    await work(id, {
+      status: 'done', preChecks: PRE_OK,
+      report: { subject: '开播写入直播间介绍', answer: null, items: [{ mark: 'ok', name: '开播设置写入 / 回填 / 展示 intro', note: 'pre 用 508 开播，intro 写入、回填、直播间页展示都对', evidence: 'pre' }] },
+    }, { changedFiles: [], runEvidence: { probeCalls: 1, browserCalls: 0 } })
+    const group = sent.slice(before).filter((item) => item.to === 'group').map((item) => item.text)
+    assert.equal(group.length, 2, transcript().join('\n'))
+    assert.match(group[0], /用 508 去 pre 实测开播写入/)
+    assert.match(group[1], /开播写入直播间介绍/)
+    const item = loadLedger('falive').items[itemId]
+    assert.equal(item.status, 'applied', JSON.stringify(item))
+    assert.match(item.lastEvent.note, new RegExp(id))
+  })
+
+  it('S17 外部同事的通知（forMe、medium、前端不用做）→ 只记台账 + 群里一句中性确认、直接结单；不私聊、不开 worktree、契约不算改代码（10-23 #74 ②）', { todo: '修好前标 todo（#74）' }, async () => {
+    const id = await say({ from: ENCONE, text: '现在pre 还不能发帖、评论' })
+    await classify(id, { decision: 'api_reply', confidence: 'medium', forMe: true, deliverable: null,
+      summary: 'Encone 说 pre 上 web 还不能发帖、评论', reply: '收到：pre 发帖和评论还没开，web 发帖先保持「即将上线」',
+      items: [{ id: 'new', transition: 'notify', note: 'pre 上 web 还不能发帖、评论' }] })
+    const task = store.get(id)
+    assert.equal(task.status, 'ignored', transcript().join('\n'))
+    assert.equal(task.recordOnly, true)
+    assert.equal(task.contract.expectsCode, false, '没要做的事：契约不算改代码')
+    assert.equal(task.suspected, undefined)
+    assert.deepEqual(consoleTexts(), [], '不私聊负责人')
+    const group = groupTexts()
+    assert.equal(group.length, 1, transcript().join('\n'))
+    assert.match(group[0], /收到/)
+    assert.doesNotMatch(group[0], /还没开|先保持/, '先行回复不替人下结论')
+    assert.ok(Object.values(loadLedger('falive').items).some((item) => item.lastEvent?.messageId === id), '台账记了')
+
+    // 同一个人交办要做的事（forMe、medium、要改代码）→ 直接开跑，不挂「可能是你的事」
+    const id2 = await say({ from: ENCONE, text: '直播间介绍超长会报 LIVE_ROOM_INTRO_TOO_LONG，前端提示一下' })
+    await classify(id2, { decision: 'api_reply', confidence: 'medium', forMe: true, deliverable: 'change', reply: '收到，开播表单加超长提示' })
+    assert.equal(store.get(id2).status, 'queued', transcript().join('\n'))
+    assert.doesNotMatch(consoleTexts().join('\n'), /可能是你的事/)
+  })
+
+  it('S18 归属拿不准（forMe 未给、medium）才挂疑似：群里只回中性的「收到，记下了」，私聊负责人；开跑前的先行回复带结论 → 换成固定句（10-23 #74 ③）', { todo: '修好前标 todo（#74）' }, async () => {
+    const id = await say({ from: ENCONE, text: '首页那个按钮是不是有点问题' })
+    await classify(id, { decision: 'bug', confidence: 'medium', forMe: null, reply: '收到，是后端的问题，前端不用改' })
+    assert.equal(store.get(id).status, 'waiting_confirmation')
+    assert.equal(groupTexts().length, 1, transcript().join('\n'))
+    assert.match(groupTexts()[0], /收到，记下了/)
+    assert.doesNotMatch(groupTexts()[0], /后端|不用改/)
+    assert.match(consoleTexts().join('\n'), /可能是你的事/)
+
+    const before = sent.length
+    const id2 = await say({ from: AVEN, text: '签到接口后端说好了，你再测下' })
+    await classify(id2, { decision: 'requirement', deliverable: 'verification', reply: '收到，签到还没生效是后端的问题，这就复测' })
+    const ack = sent.slice(before).filter((item) => item.to === 'group').map((item) => item.text)
+    assert.equal(ack.length, 1, transcript().join('\n'))
+    assert.doesNotMatch(ack[0], /没生效|后端的问题/)
+    assert.match(ack[0], /收到/)
   })
 })
