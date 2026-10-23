@@ -34,6 +34,10 @@
       "reply": "收到「重跑」，但没看出是哪条，请引用要重跑的原消息再 @ 我",
       "satisfiesWait": null,
       "waitsFor": null
-    }
+    },
+    "expected_decision": [
+      "api_reply",
+      "question"
+    ]
   }
 }
