@@ -37,7 +37,6 @@ import {
   classifyReopenIntent,
   inferCommandType,
   isForBot,
-  isManualResolutionMessage,
   isNonSupplementalReply,
   isReadOnlyCommand,
   isReadOnlyTask,
@@ -607,13 +606,9 @@ describe('parseCommandType', () => {
   })
 
   it('只把明确的人工完成确认识别为直接结单', () => {
-    assert.equal(isManualResolutionMessage('已由另一位 AI 同学完成了，请同步更新状态'), true)
-    assert.equal(isManualResolutionMessage('👍 该问题已解决'), true)
-    assert.equal(isManualResolutionMessage('这个问题处理好了'), true)
-    assert.equal(isManualResolutionMessage('该问题未解决'), false)
-    assert.equal(isManualResolutionMessage('只完成了一部分，还需继续处理'), false)
-    assert.equal(isManualResolutionMessage('请解决这个问题'), false)
-    assert.equal(isManualResolutionMessage('问题解决不了怎么办？'), false)
+    const closes = (text) => classifyClosureIntent(text).intent === 'close'
+    for (const text of ['已由另一位 AI 同学完成了，请同步更新状态', '👍 该问题已解决', '这个问题处理好了']) assert.equal(closes(text), true, text)
+    for (const text of ['该问题未解决', '只完成了一部分，还需继续处理', '请解决这个问题', '问题解决不了怎么办？']) assert.equal(closes(text), false, text)
   })
 
   it('classifyClosureIntent：取消/无需/外部完成语族 → close(high) + 正确 closureReason', () => {

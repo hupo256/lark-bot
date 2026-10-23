@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, it } from 'node:test'
 
 import { startChatPoller } from '../lib/lark-chat-poller.mjs'
 import { ingestLarkEvent } from '../lib/lark-ingest.mjs'
-import { classifyPauseIntent, isNonSupplementalReply, isSubstantiveMessage, normalizeMessage, parseCommandType, parseControlDirective, parseResumeDirective, resolveMessageTrigger, stripMentionNames, textForParse } from '../lib/lark-message.mjs'
+import { classifyPauseIntent, isNonSupplementalReply, normalizeMessage, parseCommandType, parseControlDirective, parseResumeDirective, resolveMessageTrigger, stripMentionNames, textForParse } from '../lib/lark-message.mjs'
 import { DEFAULT_ACK_TIMEOUT_MS, ackInGroup, flushPendingAck, holdsSuspectedForPrincipal, sweepPendingAcks, isPushPrePrincipal, pickSupplementTarget } from '../lib/lark-repo-intake.mjs'
 import { CONSOLE_NO_TEXT_HINT } from '../lib/lark-repo-only.mjs'
 import { registerRepoProfiles, repoProfile, resetRepoProfiles } from '../lib/lark-repo-profile.mjs'
@@ -119,7 +119,7 @@ describe('C3：疑似单只有负责人能放行', () => {
 
 describe('C10：外部群保留 @名字 后，判实质内容与指令解析先剥掉 @', () => {
   const botMention = [{ id: BOT, key: '@_user_1', name: 'Aven.Bot' }]
-  it('纯函数：剥 @ 后 ^ 锚定的解析都能命中；「@Encone 👍」不算实质内容', () => {
+  it('纯函数：剥 @ 后 ^ 锚定的解析都能命中；没 @ 机器人的「@Encone 👍」不触发', () => {
     const msg = normalizeMessage(groupEvent({ id: 'om_rv_p', text: '@Aven.Bot 取消任务 om_rv_abc', mentions: botMention }), { keepMentions: true })
     assert.equal(msg.text, '@Aven.Bot 取消任务 om_rv_abc', '正文仍保留 @名字')
     assert.equal(parseControlDirective(textForParse(msg))?.taskId, 'om_rv_abc')
@@ -129,7 +129,6 @@ describe('C10：外部群保留 @名字 后，判实质内容与指令解析先�
     assert.equal(isNonSupplementalReply({ text: at('@Aven.Bot 收到') }), true)
     assert.equal(parseCommandType(at('@Aven.Bot 状态：做到哪了')), 'status')
     const thumbs = { text: '@Encone 👍', mentions: [{ id: 'ou_e', name: 'Encone' }], attachments: [] }
-    assert.equal(isSubstantiveMessage(thumbs), false)
     assert.equal(resolveMessageTrigger({ msg: { ...thumbs, chatType: 'group', senderOpenId: 'ou_x' }, config: { contextTrigger: true, botOpenId: 'ou_b' } }), null)
   })
 

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
-import { hashText, lastOutboxTo, listOutbox, localHHMM, pruneOutbox, recordOutbox, shouldSend } from '../lib/lark-outbox.mjs'
+import { hashText, listOutbox, localHHMM, pruneOutbox, recordOutbox, shouldSend } from '../lib/lark-outbox.mjs'
 import { sendGroupCard } from '../lib/lark-repo-delivery.mjs'
 
 const withDir = (fn) => {
@@ -13,7 +13,7 @@ const withDir = (fn) => {
 }
 
 describe('发件簿（阶段 3）', () => {
-  it('记一条、按群列出、找 bot 最近对某人说的话（to 或 mentions 命中）', () => withDir((dir) => {
+  it('记一条、按群列出（只列本群）；转文档前的原文另存 fullText、正文不截断', () => withDir((dir) => {
     const t0 = Date.parse('2026-10-15T13:48:00Z')
     recordOutbox({ dir, now: t0, chatId: 'oc_x', taskId: 'om_1', topic: 'new#63a595', phase: 'done', to: 'ou_arthur', text: '那次请求信息如下，需要的话我重跑一次' })
     recordOutbox({ dir, now: t0 + 60_000, chatId: 'oc_x', taskId: 'om_2', phase: 'ack', to: 'ou_ache', mentions: ['ou_arthur'], text: '收到' })
@@ -21,10 +21,12 @@ describe('发件簿（阶段 3）', () => {
     const all = listOutbox({ dir, chatId: 'oc_x' })
     assert.deepEqual(all.map((item) => item.phase), ['done', 'ack'])
     assert.equal(all[0].hash, hashText('那次请求信息如下，需要的话我重跑一次'))
-    assert.equal(lastOutboxTo({ dir, chatId: 'oc_x', to: 'ou_arthur' }).taskId, 'om_2', 'mentions 里 @ 到也算对他说')
-    assert.equal(lastOutboxTo({ dir, chatId: 'oc_x', to: 'ou_arthur', sinceMs: t0 + 70_000 }), null)
-    assert.equal(lastOutboxTo({ dir, chatId: 'oc_x', to: 'ou_nobody' }), null)
     assert.equal(recordOutbox({ dir, chatId: '', phase: 'ack', text: 'x' }), null)
+    const long = '很'.repeat(2500)
+    recordOutbox({ dir, now: t0 + 120_000, chatId: 'oc_x', taskId: 'om_4', phase: 'done', text: '结论\n完整内容：https://doc', fullText: long })
+    const last = listOutbox({ dir, chatId: 'oc_x' }).at(-1)
+    assert.equal(last.fullText, long, '别人复制被转进文档的那段时要按原文找（lark-quote-lookup）')
+    assert.equal(all[0].fullText, undefined, '没转文档的不另存')
   }))
 
   it('保留 7 天：清理只删过期行，文件其它行原样', () => withDir((dir) => {
