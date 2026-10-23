@@ -232,7 +232,7 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
       console.error(`[lark-gateway] 挂起催办异常：${String(error).slice(0, 120)}`),
     )
     // 回过「收到」却 4 小时没结论（执行器崩了 / 任务丢了）：私聊负责人一次，不发群（10-21 P5）。
-    deliverOverdueObligations({ profiles: listRepoProfiles() }).catch((error) => console.error(`[lark-gateway] 回复义务巡检异常：${String(error).slice(0, 120)}`))
+    deliverOverdueObligations({ profiles: listRepoProfiles(), getTask: store.get }).catch((error) => console.error(`[lark-gateway] 回复义务巡检异常：${String(error).slice(0, 120)}`))
     // 疑似任务 48h 无人放行自动关闭（整改 #8），按仓汇总私聊负责人一句。
     try {
       const expired = store.expireSuspected()

@@ -28,6 +28,7 @@ import { findCompletionContradiction, findCountMismatch, findGroupReplyContradic
 import { parkedReminderRound, remindParkedTasks } from '../lib/lark-parked-reminder.mjs'
 import { addRepoChatIds, registerRepoProfiles, repoProfile, resetRepoProfiles } from '../lib/lark-repo-profile.mjs'
 import { OVERDUE_AFTER_MS, getObligation, heldDraftFor, noteAck, resetObligationMemory } from '../lib/lark-reply-obligation.mjs'
+import { recordOutbox } from '../lib/lark-outbox.mjs'
 
 const ownerMap = { Ache: 'ou_ache', Encone: 'ou_encone' }
 const register = () => {
@@ -516,6 +517,15 @@ describe('群文本不回落原话 / 回复义务 / 没 notifyChatId 不发（av
     assert.match(dms[0].markdown, /答应过「收到，我去复测签到，结果回群里」.*继续任务 ov1/)
     assert.equal(await deliverOverdueObligations({ profiles: [repoProfile('falive')], now: t0 + OVERDUE_AFTER_MS * 2, sendPrivate }), 0, '只提醒一次')
     assert.equal(hooks.length, 0, '提醒只私聊，不发群')
+    // 发件簿里已有结论、出口漏记 noteAnswer（#74 前「记下了」，10-23 Encone 那条误报）→ 补记 answered，不提醒
+    noteAck({ task: { id: 'ov2', chatId: 'oc_falive' }, text: '收到，我查一下，稍后回复。', now: t0 })
+    recordOutbox({ chatId: 'oc_falive', taskId: 'ov2', phase: 'noted', text: '收到：508 已设为主播。', now: t0 + 90_000 })
+    assert.equal(await deliverOverdueObligations({ profiles: [repoProfile('falive')], now: t0 + OVERDUE_AFTER_MS * 3, sendPrivate }), 0, '群里已有结论不提醒')
+    assert.equal(getObligation({ id: 'ov2', chatId: 'oc_falive' }).state, 'answered')
+    // 负责人已手动结单（externalResolution）→ 不提醒
+    noteAck({ task: { id: 'ov3', chatId: 'oc_falive' }, text: '收到', now: t0 })
+    const getTask = (id) => (id === 'ov3' ? { id, status: 'superseded', externalResolution: { closureReason: 'completed_elsewhere' } } : null)
+    assert.equal(await deliverOverdueObligations({ profiles: [repoProfile('falive')], now: t0 + OVERDUE_AFTER_MS * 3, sendPrivate, getTask }), 0, '手动结单不提醒')
   }))
 
   it('没配 notifyChatId：结果私聊不发，不回落外部群', async () => {
