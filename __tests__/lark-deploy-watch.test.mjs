@@ -42,22 +42,25 @@ const fakeGit = ({ heads = {}, ancestor = true, log = 'abc1234 fix: x\n' } = {})
 }
 
 describe('等部署的原话', () => {
-  it('认得出 bot 自己答应的「部署完我再测 / 告诉你」，只取那一句', () => {
-    assert.equal(findPromiseSentence(PROMISE_1023), '修复已经在开发分支上，合进 pre 部署后就好，部署完我再测一遍告诉你')
-    assert.ok(findPromiseSentence('前端已修好，发布后我复测一下再回你'))
-    assert.ok(findPromiseSentence('等 pre 更新后我再看一眼'))
-  })
-  it('做完的汇报不算承诺：「pre 部署后复测了：…」（10-23 真机发给 Encone 的复测结论）', () => {
-    assert.equal(findPromiseSentence('<at id=ou_encone></at> pre 部署后复测了：web 开播提交已经正常，不再「请求失败」，修改场次时介绍、语言、标签都能写进去。'), null)
-    assert.equal(findPromiseSentence('部署后再测过了，没问题'), null)
-    assert.equal(findPromiseSentence('其中 18 项在 pre 上还看不到效果：#1 Go 资料改动待部署；#12 部署版还没复测'), null, '10-20 状态汇报')
-  })
-
-  it('让对方做的、只说还没部署的，不算', () => {
-    assert.equal(findPromiseSentence('前端已经修好，等 pre 更新后你再点一次开播就行，后端不用改。'), null)
-    assert.equal(findPromiseSentence('- ⚠️ 接了但还不能用 开播记录列表：接口在 pre 实测正常；页面还没部署'), null)
-    assert.equal(findPromiseSentence('部署后你再看看'), null)
-    assert.equal(findPromiseSentence('收到，我对比下参数，查完回你'), null)
+  // 用例表（测试棘轮：一类判据一条 it）：[原话, 期望]——期望为字符串 = 认出的那句，true = 认得出，null = 不算承诺。
+  it('只认 bot 自己答应的「部署完再测 / 告诉你」；做完的汇报、状态汇报、让对方做的都不算', () => {
+    const cases = [
+      [PROMISE_1023, '修复已经在开发分支上，合进 pre 部署后就好，部署完我再测一遍告诉你'],
+      ['前端已修好，发布后我复测一下再回你', true],
+      ['等 pre 更新后我再看一眼', true],
+      ['<at id=ou_encone></at> pre 部署后复测了：web 开播提交已经正常，不再「请求失败」，修改场次时介绍、语言、标签都能写进去。', null], // 10-23 发给 Encone 的复测结论
+      ['部署后再测过了，没问题', null],
+      ['其中 18 项在 pre 上还看不到效果：#1 Go 资料改动待部署；#12 部署版还没复测', null], // 10-20 状态汇报
+      ['前端已经修好，等 pre 更新后你再点一次开播就行，后端不用改。', null],
+      ['- ⚠️ 接了但还不能用 开播记录列表：接口在 pre 实测正常；页面还没部署', null],
+      ['部署后你再看看', null],
+      ['收到，我对比下参数，查完回你', null],
+    ]
+    for (const [text, expected] of cases) {
+      const hit = findPromiseSentence(text)
+      if (expected === true) assert.ok(hit, text)
+      else assert.equal(hit, expected, text)
+    }
   })
   it('发件簿：只取窗口内真发到群里的（gated 没发出去不算），同一源任务只留一句', () => {
     const dir = mkdtempSync(join(tmpdir(), 'lark-deploy-outbox-'))
@@ -76,25 +79,27 @@ describe('等部署的原话', () => {
 })
 
 describe('部署带进去的提交', () => {
-  it('上次部署点是新头的祖先 → 从它算到构建时 pre 的头', async () => {
-    const { git, calls } = fakeGit({ heads: { [Date.parse('2026-10-23T09:00:00Z')]: 'h2' } })
-    const out = await deployedCommits({ root: '/r', prevHead: 'h1', prevBuildTime: 1, buildTime: Date.parse('2026-10-23T10:37:00Z'), git })
-    assert.equal(out.head, 'h2')
-    assert.deepEqual(out.commits, ['abc1234 fix: x'])
-    assert.equal(calls[0], 'fetch origin pre')
-    assert.ok(calls.includes('log --no-merges --format=%h %s h1..h2'))
-  })
-  it('构建机时钟比 GitLab 早一点（10-23：构建 10:37:04Z、合并提交 10:37:05Z）→ 仍取到触发这次构建的合并', async () => {
-    const buildTime = Date.parse('2026-10-23T10:37:04.293Z')
-    const { git } = fakeGit({ heads: { [Date.parse('2026-10-23T10:00:00Z')]: 'h1', [Date.parse('2026-10-23T10:37:05Z')]: '4bcbea9' } })
-    assert.equal((await deployedCommits({ root: '/r', prevHead: 'h1', buildTime, git })).head, '4bcbea9')
-  })
-  it('上次部署点拿不到 → 退回上次构建时间那一刻的 pre 头', async () => {
-    const t1 = Date.parse('2026-10-22T10:00:00Z')
-    const { git, calls } = fakeGit({ ancestor: false, heads: { [t1 - 1000]: 'h0', [Date.parse('2026-10-23T09:00:00Z')]: 'h2' } })
-    const out = await deployedCommits({ root: '/r', prevHead: 'gone', prevBuildTime: t1, buildTime: Date.parse('2026-10-23T10:37:00Z'), git })
-    assert.equal(out.from, 'h0')
-    assert.ok(calls.includes('log --no-merges --format=%h %s h0..h2'))
+  it('提交范围：上次部署点是祖先 → 从它算到构建时 pre 的头；构建机时钟早一点仍取到触发的合并；部署点拿不到 → 退回上次构建那一刻的 pre 头', async () => {
+    {
+      const { git, calls } = fakeGit({ heads: { [Date.parse('2026-10-23T09:00:00Z')]: 'h2' } })
+      const out = await deployedCommits({ root: '/r', prevHead: 'h1', prevBuildTime: 1, buildTime: Date.parse('2026-10-23T10:37:00Z'), git })
+      assert.equal(out.head, 'h2')
+      assert.deepEqual(out.commits, ['abc1234 fix: x'])
+      assert.equal(calls[0], 'fetch origin pre')
+      assert.ok(calls.includes('log --no-merges --format=%h %s h1..h2'))
+    }
+    { // 10-23：构建 10:37:04Z、合并提交 10:37:05Z
+      const buildTime = Date.parse('2026-10-23T10:37:04.293Z')
+      const { git } = fakeGit({ heads: { [Date.parse('2026-10-23T10:00:00Z')]: 'h1', [Date.parse('2026-10-23T10:37:05Z')]: '4bcbea9' } })
+      assert.equal((await deployedCommits({ root: '/r', prevHead: 'h1', buildTime, git })).head, '4bcbea9')
+    }
+    {
+      const t1 = Date.parse('2026-10-22T10:00:00Z')
+      const { git, calls } = fakeGit({ ancestor: false, heads: { [t1 - 1000]: 'h0', [Date.parse('2026-10-23T09:00:00Z')]: 'h2' } })
+      const out = await deployedCommits({ root: '/r', prevHead: 'gone', prevBuildTime: t1, buildTime: Date.parse('2026-10-23T10:37:00Z'), git })
+      assert.equal(out.from, 'h0')
+      assert.ok(calls.includes('log --no-merges --format=%h %s h0..h2'))
+    }
   })
 })
 

@@ -141,7 +141,7 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   const wakeCatchup = repoOnly ? { stop: () => {} } : startWakeCatchup({ config, store, ingest: ingestLarkEvent })
   // 日报：每天固定时刻把当天进度 / 卡点 / 需要支持整理成卡片（试运行期私发负责人）。
   const dailyReport = startDailyReportScheduler({ store })
-  // 盯 pre 部署（不管谁发的）：构建时间比上次新 = 一次部署，自动复测并接上群里「部署后再测」的原话（lib/lark-deploy-watch.mjs，#82）。
+  // 盯 pre 部署（不管谁发的）：构建时间比上次新 = 一次部署，自动复测并接上群里「部署后再测」的原话（lib/lark-deploy-watch.mjs，#84）。
   const deployWatch = startDeployWatch({ store })
 
   const server = createServer(createRequestHandler({ config, store, consumer: consumerHandle, port, runtimeVersion, chatPoller }))

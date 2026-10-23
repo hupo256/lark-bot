@@ -243,7 +243,7 @@ describe('推 pre', () => {
     assert.ok(!calls.some((cmd) => cmd.startsWith('push')))
   })
 
-  it('推完回部署邮件正文；待部署提交从盯部署记下的上次部署点算起（#82：不再记 lastPush）', async () => {
+  it('推完回部署邮件正文；待部署提交从盯部署记下的上次部署点算起（#84：不再记 lastPush）', async () => {
     register()
     const runtimeDir = mkdtempSync(join(tmpdir(), 'lark-sweep-state-'))
     try {

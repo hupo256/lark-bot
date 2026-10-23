@@ -594,7 +594,7 @@ describe('黄金对话', () => {
     assert.deepEqual(store.get(id2).attachments.filter((item) => item.type === 'file').map((item) => item.fileName), ['修改头像接口文档.md'])
   })
 
-  it('S24 bot 在群里答应「部署完我再测一遍告诉你」，pre 由 MR 合入后部署（bot 没推过）→ 自动建复测挂在原群，结论对原来的人回；同一次部署不重复建（10-23 #82）', async () => {
+  it('S24 bot 在群里答应「部署完我再测一遍告诉你」，pre 由 MR 合入后部署（bot 没推过）→ 自动建复测挂在原群，结论对原来的人回；同一次部署不重复建（10-23 #84）', async () => {
     const { checkDeployAndRetest } = await import('../lib/lark-deploy-watch.mjs')
     const runtimeDir = join(dir, 'state')
     const profile = { ...repoProfile('falive'), dailyReport: { sweep: { preSiteUrl: 'https://pre.example/', timeoutMs: 60 * MIN, effort: 'high' } } }
