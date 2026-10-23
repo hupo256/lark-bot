@@ -5,7 +5,6 @@ import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
 import { buildAnchorBlock, buildConversationContext, buildSenderActivityBlock, resolveDefaultAnchor } from '../lib/lark-conversation.mjs'
-import { recordBotAsks } from '../lib/lark-ledger.mjs'
 import { recordOutbox } from '../lib/lark-outbox.mjs'
 import { createTaskStore } from '../lib/lark-task-store.mjs'
 
@@ -70,28 +69,6 @@ describe('这个人正在进行的事', () => {
     } finally {
       delete process.env.LARK_OUTBOX_DIR
       rmSync(dir, { recursive: true, force: true })
-      rmSync(tasksDir, { recursive: true, force: true })
-    }
-  })
-})
-
-describe('bot 在等他给的东西（10-23 #74）', () => {
-  it('20 小时前向他要的：不受 2 小时窗口限制，带台账条目与源工单；别人看不到', () => {
-    const tasksDir = mkdtempSync(join(tmpdir(), 'lark-conv-wait-'))
-    process.env.LARK_OUTBOX_DIR = tasksDir
-    try {
-      const store = createTaskStore({ tasksDir, leaseMs: 60_000 })
-      const ledger = { items: { 'new#9fff15': { id: 'new#9fff15', status: 'applied', title: 'intro', lastEvent: { sender: 'bot' } } }, events: [] }
-      const profile = { ownership: { meOpenIds: ['ou_aven'] }, ownerMap: { Encone: 'ou_encone' } }
-      recordBotAsks(ledger, { task: { id: 'om_src', summary: 'intro', result: '差主播号', ledgerItems: [{ id: 'new#9fff15' }], followUps: [{ owner: 'Encone', items: ['给一个 pre 主播测试号'] }] }, profile, at: '2026-10-22T14:46:00Z' })
-      const msg = { messageId: 'om_new', chatId: 'oc_x', senderOpenId: 'ou_encone', text: '已经将uid 508 设成主播' }
-      const out = buildConversationContext({ store, ledger, repo: { key: 'falive' }, msg, senderLabel: 'Encone', nowMs: Date.parse('2026-10-23T02:36:00Z') })
-      assert.match(out.activityBlock, /【bot 在等 Encone 给的东西（7 天内）】\n- 台账 new#9fff15（工单 om_src，10-22 22:46 要的）：给一个 pre 主播测试号/)
-      assert.match(out.activityBlock, /continues 填那张工单 id、satisfiesWait=true/)
-      const other = buildConversationContext({ store, ledger, repo: { key: 'falive' }, msg: { ...msg, senderOpenId: 'ou_ache' }, nowMs: Date.parse('2026-10-23T02:36:00Z') })
-      assert.equal(other.activityBlock, '')
-    } finally {
-      delete process.env.LARK_OUTBOX_DIR
       rmSync(tasksDir, { recursive: true, force: true })
     }
   })

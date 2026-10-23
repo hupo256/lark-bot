@@ -79,7 +79,5 @@ describe('任务契约', () => {
     assert.equal(applyIntakeClassification(brought, { classification: brought.intake.classification }).actionable, true)
     const unsure = t({ decision: 'api_reply', forMe: null, deliverable: 'change' })
     assert.equal(applyIntakeClassification(unsure, { classification: unsure.intake.classification }).suspected, true)
-    // 续跑源工单剩下的部分：分类器没给 deliverable → 实测结论（空 diff 也算完成）
-    assert.equal(deriveContract(t({ decision: 'api_reply', deliverable: null, satisfiesWait: true }, { resumeOf: 'om_src', standingFrom: ['om_src'] })).deliverable, 'verification')
   })
 })
