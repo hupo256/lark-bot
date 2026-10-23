@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { buildGroupReplyPassPrompt, owesGroupReply, runGroupReplyPass } from '../lib/lark-group-reply-pass.mjs'
+import { buildGroupReplyPassPrompt, docIntakeGroupReply, owesGroupReply, runGroupReplyPass } from '../lib/lark-group-reply-pass.mjs'
 
 // 10-23 #79：群里回过「…查完回你」、执行器结论没写群回复 → 续会话补写一次。
 const task = { id: 't', repo: 'falive', ackedInGroup: true, ackReply: '收到截图，我对比下参数差在哪，查完回你' }
@@ -43,4 +43,12 @@ describe('群里答应过下文的补写群回复', () => {
     assert.equal(await runGroupReplyPass({ task, aiRun: empty, exec: async () => { throw new Error('boom') } }), false)
     assert.equal(empty.result.groupReply, null)
   })
+
+  // 10-23 #81：对接文档入库原是一律不回群（#44）；群里回过「收到，按文档改」的答应了下文，结论照常回群。
+  it('文档入库：回过收到 → 保留群回复、不静默；没回过收到 → 维持静默', () => {
+    assert.deepEqual(docIntakeGroupReply({ task, result: { groupReply: ' 文档收到，已按它接好 ' } }), { groupReply: '文档收到，已按它接好', groupSilent: false })
+    assert.deepEqual(docIntakeGroupReply({ task, result: { groupReply: null } }), { groupReply: null, groupSilent: false }, '补写也没成：交出口按 #79 草稿私聊负责人')
+    assert.deepEqual(docIntakeGroupReply({ task: { ...task, ackedInGroup: false }, result: { groupReply: '不该发' } }), { groupReply: null, groupSilent: true })
+  })
 })
+
