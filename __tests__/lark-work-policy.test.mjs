@@ -111,27 +111,27 @@ describe('resolveWorkKind', () => {
     assert.equal(requirementGate(larkTask({ commandType: 'docs', text: '同步文档' })), null)
   })
 
-  // 10-23 #76：仓库任务带了对接文档，网关补成 api，旧口径 api 一律 bugfix，新需求被套缺陷修复的行数上限。
+  // 10-23 #78：仓库任务带了对接文档，网关补成 api，旧口径 api 一律 bugfix，新需求被套缺陷修复的行数上限。
   const repoTask = (extra) => larkTask({ repo: 'falive', addressedToBot: true, commandType: 'api', commandTypeSource: 'explicit',
     contract: { v: 1, deliverable: 'doc_intake', source: 'attachment', expectsCode: true }, attachments: [{ type: 'file', fileName: 'PM-2954-App对接文档.md' }], ...extra })
-  it('仓库任务：网关因对接文档补的 api 不决定性质，分类器判 requirement 就是新需求（#76）', () => {
+  it('仓库任务：网关因对接文档补的 api 不决定性质，分类器判 requirement 就是新需求（#78）', () => {
     const task = repoTask({ text: '社区还有 发帖、评论 两个功能没有从 x9 项目迁移过来。现在要完成这两个功能的迁移，api 已经 ready 了，如上。', intake: { classification: { decision: 'requirement' } } })
     assert.equal(resolveWorkKind(task), WORK_KINDS.requirement)
     assert.equal(isFastLaneTask(task), false)
   })
 
-  it('仓库任务：bug / 对接答复带文档仍是 bugfix；原话写了「api：」前缀照旧按显式命令（#76 不放宽缺陷）', () => {
+  it('仓库任务：bug / 对接答复带文档仍是 bugfix；原话写了「api：」前缀照旧按显式命令（#78 不放宽缺陷）', () => {
     assert.equal(resolveWorkKind(repoTask({ text: '发帖按钮点了没反应', intake: { classification: { decision: 'bug' } } })), WORK_KINDS.bugfix)
     assert.equal(resolveWorkKind(repoTask({ text: 'intro 接口上线了，按文档接上', intake: { classification: { decision: 'api_reply' } } })), WORK_KINDS.bugfix)
     assert.equal(resolveWorkKind(repoTask({ text: '@Aven.Bot api：按文档把评论接上', intake: { classification: { decision: 'requirement' } } })), WORK_KINDS.bugfix)
   })
 
-  it('默认仓（无契约）的 api 命令照旧 bugfix，不受 #76 影响', () => {
+  it('默认仓（无契约）的 api 命令照旧 bugfix，不受 #78 影响', () => {
     const task = larkTask({ commandType: 'api', text: 'api：接口文档更新了', intake: { classification: { decision: 'requirement' } } })
     assert.equal(resolveWorkKind(task), WORK_KINDS.bugfix)
   })
 
-  it('仓库任务：「自带规格改动」只看本条原话，话题回复 / 群里之前的消息里的「调整 / 改成」不把新需求翻成缺陷（#76）', () => {
+  it('仓库任务：「自带规格改动」只看本条原话，话题回复 / 群里之前的消息里的「调整 / 改成」不把新需求翻成缺陷（#78）', () => {
     const contract = { v: 1, deliverable: 'change', source: 'classifier', expectsCode: true }
     const fromContext = larkTask({ repo: 'falive', contract, intake: { classification: { decision: 'requirement' } },
       text: '【本条 @】把 x9 的评论迁过来\n\n【话题其它回复】\nKevin：顺便把标题改成 16px' })
@@ -276,7 +276,7 @@ describe('requirementGate', () => {
     assert.equal(requirementGate(larkTask({ text: '加个导出功能', waitingHistory: [{ at: 'x' }] })), null)
   })
 
-  // aven 2026-10-23 亲自确认：我本人交办的任务不设行数上限、不因缺 PRD / 设计稿阻塞（#76）。
+  // aven 2026-10-23 亲自确认：我本人交办的任务不设行数上限、不因缺 PRD / 设计稿阻塞（#78）。
   it('负责人本人交办的仓库任务：视为已放行、免流程阻塞；别人发起的新需求照旧要放行', () => {
     const contract = { v: 1, deliverable: 'change', source: 'classifier', expectsCode: true }
     const requirement = { intake: { classification: { decision: 'requirement' } }, text: '把 x9 的发帖、评论迁过来' }

@@ -482,7 +482,7 @@ describe('黄金对话', () => {
     assert.deepEqual(sent.slice(before).map((item) => item.to), ['group'], transcript().join('\n'))
   })
 
-  it('S19 aven @bot 交办「社区发帖、评论从 x9 迁过来，api 已 ready」+ 带对接文档 → 按新需求的行数上限核对，不套缺陷修复的 200 行（10-23 #76）', async () => {
+  it('S19 aven @bot 交办「社区发帖、评论从 x9 迁过来，api 已 ready」+ 带对接文档 → 按新需求的行数上限核对，不套缺陷修复的 200 行（10-23 #78）', async () => {
     registerRepoProfiles({ repos: { falive: { ...PROFILE, scopeBudgets: { bugfix: 200, qa_feedback: 300, requirement: 1200 } } } })
     const id = await say({ from: AVEN, text: '社区还有 发帖、评论 两个功能没有从 x9 项目迁移过来。现在要完成这两个功能的迁移，api 已经 ready 了，如上。' })
     store.upsert({ ...store.get(id), attachments: [{ type: 'file', fileName: 'PM-2954-App对接文档.md' }] })
@@ -502,9 +502,9 @@ describe('黄金对话', () => {
     assert.doesNotMatch(transcript().join('\n'), /缺陷修复上限/)
   })
 
-  // aven 2026-10-23 亲自确认：我本人交办的任务不设行数上限（#76）；别人发起的新需求仍按上限核对。
+  // aven 2026-10-23 亲自确认：我本人交办的任务不设行数上限（#78）；别人发起的新需求仍按上限核对。
   for (const [label, from, expectOk] of [['S20 aven 本人交办', AVEN, true], ['S21 Encone 发起', ENCONE, false]]) {
-    it(`${label}的新需求改动 1553 行 → ${expectOk ? '不拦' : '仍按 1200 上限拦'}（10-23 #76）`, async () => {
+    it(`${label}的新需求改动 1553 行 → ${expectOk ? '不拦' : '仍按 1200 上限拦'}（10-23 #78）`, async () => {
       registerRepoProfiles({ repos: { falive: { ...PROFILE, scopeBudgets: { bugfix: 200, qa_feedback: 300, requirement: 1200 } } } })
       const id = await say({ from, text: '社区还有 发帖、评论 两个功能没有从 x9 项目迁移过来，现在要完成迁移。' })
       await classify(id, { decision: 'requirement', confidence: 'high', forMe: true, deliverable: 'change', reply: '好的，我把发帖、评论迁过来' })
