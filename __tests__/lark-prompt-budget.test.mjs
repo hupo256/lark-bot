@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, it } from 'node:test'
 
+import { larkBotRoot } from '../lib/lark-paths.mjs'
 import { normalizeRepoProfile, registerRepoProfiles, resetRepoProfiles } from '../lib/lark-repo-profile.mjs'
 import { buildAnalysisPrompt, buildIntentClassificationPrompt, buildTaskPrompt } from '../lib/lark-worker-prompts.mjs'
 
@@ -38,6 +39,8 @@ const TASK_KINDS = {
 }
 
 const countOf = (text, needle) => text.split(needle).length - 1
+// 量字数时把 lark-bot 检出路径换成定长占位：预算量的是规则，不随检出在哪个目录变（10-23：worktree 路径长 9 个字就超 1 字）。
+const sizeOf = (text) => text.split(larkBotRoot).join('<lark-bot>').length
 
 describe('提示词规则预算', () => {
   afterEach(() => resetRepoProfiles())
@@ -61,7 +64,7 @@ describe('提示词规则预算', () => {
         const followUp = buildTaskPrompt(ctx, task, 'claude', { ruleContext: { text: 'RULES', sources: [] }, analysis, triage, scopeContract: { scope: null, lineLimit: 300 }, followUp: true })
         for (const [stage, text] of [['首轮', first], ['续会话', followUp]]) {
           const label = `${kind}·${stage}`
-          assert.ok(text.length <= TASK_PROMPT_BUDGET, `${label}实施提示 ${text.length} 字符，超过预算 ${TASK_PROMPT_BUDGET}：先查有没有重复块、能不能按任务类型裁剪，再合并旧规则`)
+          assert.ok(sizeOf(text) <= TASK_PROMPT_BUDGET, `${label}实施提示 ${sizeOf(text)} 字符，超过预算 ${TASK_PROMPT_BUDGET}：先查有没有重复块、能不能按任务类型裁剪，再合并旧规则`)
           for (const block of SINGLE_USE_BLOCKS) assert.ok(countOf(text, block) <= 1, `${label}提示里「${block}」出现 ${countOf(text, block)} 次：共用规则块只渲染一次`)
           assert.equal(countOf(text, '完成口径（硬规则'), 1, `${label}提示缺完成口径`)
           assert.match(text, /产品拍板/, `${label}提示缺需求口径`)

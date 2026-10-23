@@ -80,9 +80,10 @@ describe('分类回写：被动闸先于并单、疑似单不并单、幂等重�
     assert.equal(posted.length, 0, '重放没发「开始做」')
   })
 
-  it('疑似单（medium）不并进同条目在排队的工单，单独挂待确认', async () => {
+  // 10-23 #74 起 forMe=true 的 medium 直接开跑，疑似只剩「归属拿不准（forMe 未给）+ medium」
+  it('疑似单（归属拿不准、medium）不并进同条目在排队的工单，单独挂待确认', async () => {
     received('om_rvw_s')
-    const out = await intake('om_rvw_s', { decision: 'bug', confidence: 'medium', forMe: true, summary: 's', reason: 'r', continues: 'om_rvw_q', items: [] })
+    const out = await intake('om_rvw_s', { decision: 'bug', confidence: 'medium', summary: 's', reason: 'r', continues: 'om_rvw_q', items: [] })
     assert.equal(out.suspected, true)
     assert.equal(out.mergedInto, undefined)
     assert.equal(store.get('om_rvw_s').status, 'waiting_confirmation')

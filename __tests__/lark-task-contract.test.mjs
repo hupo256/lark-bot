@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
 import { assessDoneResult, allowsDocsOnlyDone } from '../lib/lark-quality-gate.mjs'
-import { applyIntakeClassification } from '../lib/lark-intake-resolve.mjs'
+import { applyIntakeClassification, intakeActionable } from '../lib/lark-intake-resolve.mjs'
 import { isReadOnlyTask } from '../lib/lark-message.mjs'
 import { deriveContract, refreshContract, taskContract } from '../lib/lark-task-contract.mjs'
 import { WORK_KINDS, expectsCodeChange, requirementGate, resolveWorkKind } from '../lib/lark-work-policy.mjs'
@@ -63,5 +63,23 @@ describe('任务契约', () => {
     assert.equal(taskContract({ ...t, contract: { v: 0 } }).v, 1, '旧版本现算')
     t.text = '【本条 @】@Aven.Bot 把按钮改成红色'
     assert.equal(refreshContract(t).contract.deliverable, 'change')
+  })
+
+  it('10-23 #74：forMe=true 的 medium 直接开跑，归属拿不准才挂疑似；对接答复前端不用做 → 只记一笔，契约不算改代码', () => {
+    const t = (cls, extra = {}) => ({ id: 't', repo: 'falive', addressedToBot: true, attachments: [], text: '@Aven.Bot x', ...extra, intake: { classification: { confidence: 'medium', summary: 's', ...cls } } })
+    assert.equal(intakeActionable(t({}), { decision: 'bug', confidence: 'medium', forMe: true }), true)
+    assert.equal(intakeActionable(t({}), { decision: 'bug', confidence: 'medium', forMe: null }), false)
+    assert.equal(intakeActionable(t({}), { decision: 'bug', confidence: 'high' }), true)
+    const notice = t({ decision: 'api_reply', forMe: true, deliverable: null })
+    const out = applyIntakeClassification(notice, { classification: notice.intake.classification })
+    assert.deepEqual([out.actionable, out.suspected, out.recordOnly, notice.status, notice.recordOnly], [false, false, true, 'ignored', true])
+    assert.deepEqual([notice.contract.deliverable, notice.contract.expectsCode], ['record', false])
+    // 带来了等的东西 / 拿不准归属但要改代码：不算只记一笔
+    const brought = t({ decision: 'api_reply', forMe: true, deliverable: null, satisfiesWait: true })
+    assert.equal(applyIntakeClassification(brought, { classification: brought.intake.classification }).actionable, true)
+    const unsure = t({ decision: 'api_reply', forMe: null, deliverable: 'change' })
+    assert.equal(applyIntakeClassification(unsure, { classification: unsure.intake.classification }).suspected, true)
+    // 续跑源工单剩下的部分：分类器没给 deliverable → 实测结论（空 diff 也算完成）
+    assert.equal(deriveContract(t({ decision: 'api_reply', deliverable: null, satisfiesWait: true }, { resumeOf: 'om_src', standingFrom: ['om_src'] })).deliverable, 'verification')
   })
 })

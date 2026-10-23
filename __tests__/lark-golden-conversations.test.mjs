@@ -312,7 +312,7 @@ describe('黄金对话', () => {
 
   it('S12 外部同事的疑似单 → aven 私聊单发「继续任务 <id>」（不带补充）就放行开跑（10-21：被当成没补充内容，只回了提示卡）', async () => {
     const id = await say({ from: ENCONE, text: '分享卡片图 picture[0] 是 HCIMG1 密文，按文档 1.10 解密' })
-    await classify(id, { decision: 'api_reply', confidence: 'medium', forMe: null, reply: '收到，我看下分享卡片图的解密' })
+    await classify(id, { decision: 'api_reply', confidence: 'medium', forMe: null, deliverable: 'change', reply: '收到，我看下分享卡片图的解密' })
     assert.equal(store.get(id).status, 'waiting_confirmation')
     assert.equal(store.get(id).suspected, true)
     await dm(`继续任务 ${id}`)
@@ -322,7 +322,7 @@ describe('黄金对话', () => {
 
   it('S14 aven 私聊「继续任务 <id> 确认扩大范围」把 id 抄错一位 → 回「找不到任务」并给出改好的整句，原任务不动（10-22 #65：回的是「12 小时内没有任务通知」）', async () => {
     const id = await say({ from: ENCONE, text: '分享卡片图 picture[0] 是 HCIMG1 密文，按文档 1.10 解密' })
-    await classify(id, { decision: 'api_reply', confidence: 'medium', forMe: null, reply: '收到，我看下分享卡片图的解密' })
+    await classify(id, { decision: 'api_reply', confidence: 'medium', forMe: null, deliverable: 'change', reply: '收到，我看下分享卡片图的解密' })
     const typo = `${id.slice(0, -1)}x`
     await dm(`继续任务 ${typo} 确认扩大范围`)
     assert.equal(store.get(id).status, 'waiting_confirmation')
@@ -403,7 +403,7 @@ describe('黄金对话', () => {
     writeFileSync(file, `${shifted.map((entry) => JSON.stringify(entry)).join('\n')}\n`)
   }
 
-  it('S16 bot 结果里向 Encone 要主播号 → 记成「等他给」；20 小时后他说「已经将 uid 508 设成主播」→ 对话包带上这件事，续跑源工单剩下的实测，结论回群、台账更新（10-23 #74 ①）', { todo: '修好前标 todo（#74）' }, async () => {
+  it('S16 bot 结果里向 Encone 要主播号 → 记成「等他给」；20 小时后他说「已经将 uid 508 设成主播」→ 对话包带上这件事，续跑源工单剩下的实测，结论回群、台账更新（10-23 #74 ①）', async () => {
     const src = await say({ from: ENCONE, text: 'intro 接口上线了：createRoom / updateLive 加了可选参数 intro，getRoomInfo 返回 info.intro' })
     await classify(src, { decision: 'api_reply', deliverable: 'change', reply: '收到 intro 接口变更说明，开播表单加介绍输入框这就接上',
       items: [{ id: 'new', transition: 'new', note: 'Bug-4944 直播间介绍 intro' }] })
@@ -424,7 +424,7 @@ describe('黄金对话', () => {
     const before = sent.length
     const id = await say({ from: ENCONE, text: '已经将uid 508 设成主播' })
     const text = store.get(id).text
-    assert.match(text, /bot 在等 Encone（portal 后端）给的东西/, text)
+    assert.match(text, /【bot 在等 Encone（portal 后端） 给的东西（7 天内）】/, text)
     assert.ok(text.includes(src) && text.includes(itemId), '对话包里带源工单与台账条目（不受 2 小时窗口限制）')
     assert.doesNotMatch(text, /正在进行的事/, '昨天的任务 / 发件簿确实都出了 2 小时窗口')
     await classify(id, { decision: 'api_reply', confidence: 'medium', deliverable: null, continues: src, satisfiesWait: true,
@@ -451,7 +451,7 @@ describe('黄金对话', () => {
     assert.match(item.lastEvent.note, new RegExp(id))
   })
 
-  it('S17 外部同事的通知（forMe、medium、前端不用做）→ 只记台账 + 群里一句中性确认、直接结单；不私聊、不开 worktree、契约不算改代码（10-23 #74 ②）', { todo: '修好前标 todo（#74）' }, async () => {
+  it('S17 外部同事的通知（forMe、medium、前端不用做）→ 只记台账 + 群里一句中性确认、直接结单；不私聊、不开 worktree、契约不算改代码（10-23 #74 ②）', async () => {
     const id = await say({ from: ENCONE, text: '现在pre 还不能发帖、评论' })
     await classify(id, { decision: 'api_reply', confidence: 'medium', forMe: true, deliverable: null,
       summary: 'Encone 说 pre 上 web 还不能发帖、评论', reply: '收到：pre 发帖和评论还没开，web 发帖先保持「即将上线」',
@@ -475,7 +475,7 @@ describe('黄金对话', () => {
     assert.doesNotMatch(consoleTexts().join('\n'), /可能是你的事/)
   })
 
-  it('S18 归属拿不准（forMe 未给、medium）才挂疑似：群里只回中性的「收到，记下了」，私聊负责人；开跑前的先行回复带结论 → 换成固定句（10-23 #74 ③）', { todo: '修好前标 todo（#74）' }, async () => {
+  it('S18 归属拿不准（forMe 未给、medium）才挂疑似：群里只回中性的「收到，记下了」，私聊负责人；开跑前的先行回复带结论 → 换成固定句（10-23 #74 ③）', async () => {
     const id = await say({ from: ENCONE, text: '首页那个按钮是不是有点问题' })
     await classify(id, { decision: 'bug', confidence: 'medium', forMe: null, reply: '收到，是后端的问题，前端不用改' })
     assert.equal(store.get(id).status, 'waiting_confirmation')

@@ -51,7 +51,9 @@ for (const stored of tasks) {
   const candidates = seen.slice(-10)
   let out
   try {
-    out = await classifyTaskIntent(workerConfig, { ...task, intake: { required: true } }, null, null, { candidates })
+    // 按原来的分道回放：没 @ 的慢道用低强度、快道用高强度（10-23 分道定强度）；录得早没有 lane 的按是否 @ 机器人补。
+    const lane = task.intake?.lane || (task.addressedToBot ? 'fast' : 'slow')
+    out = await classifyTaskIntent(workerConfig, { ...task, intake: { required: true, lane } }, null, null, { candidates })
   } catch (error) {
     out = { decision: 'ERROR', reason: String(error?.message || error).slice(0, 120) }
   }

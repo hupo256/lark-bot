@@ -31,10 +31,11 @@ const received = (store, extra = {}) => store.upsert({
 })
 
 describe('外部群任务入口：准确优先', () => {
-  it('仓库 profile 的任务只有 high 且 forMe≠false 才开跑；medium 挂疑似待确认且不催办；ignore 静默', () => withStore((store) => {
+  // 10-23 #74：forMe=true 的 medium 也直接开跑（见 lark-task-contract.test），疑似只剩归属拿不准 + medium；对接答复前端不用做的只记一笔
+  it('仓库 profile 的任务：归属拿不准（forMe 未给）又不到 high 挂疑似待确认且不催办；ignore 静默', () => withStore((store) => {
     received(store)
     assert.ok(store.claimById('omt_thread1'))
-    let out = store.resolveIntake({ id: 'omt_thread1', epoch: 0, classification: { decision: 'api_reply', confidence: 'medium', forMe: true, summary: 's', reason: 'r' } })
+    let out = store.resolveIntake({ id: 'omt_thread1', epoch: 0, classification: { decision: 'bug', confidence: 'medium', summary: 's', reason: 'r' } })
     assert.equal(out.actionable, false)
     assert.equal(out.suspected, true)
     assert.equal(out.task.status, 'waiting_confirmation')
@@ -50,7 +51,8 @@ describe('外部群任务入口：准确优先', () => {
 
     received(store, { id: 'omt_thread3', threadRootId: 'omt_thread3' })
     store.claimById('omt_thread3')
-    out = store.resolveIntake({ id: 'omt_thread3', epoch: 0, classification: { decision: 'api_reply', confidence: 'high', forMe: true, summary: 's', reason: 'r' } })
+    // 10-23 #74：对接答复要说清前端交付什么才开跑（deliverable=null 是「前端不用做、只记一笔」）
+    out = store.resolveIntake({ id: 'omt_thread3', epoch: 0, classification: { decision: 'api_reply', confidence: 'high', forMe: true, deliverable: 'change', summary: 's', reason: 'r' } })
     assert.equal(out.actionable, true)
     assert.equal(out.task.status, 'queued')
     assert.equal(out.task.commandType, 'api')
