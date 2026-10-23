@@ -24,6 +24,7 @@ import {
   findPreviousFullReport,
   sectionTableRows,
   isReportDay,
+  keepUnchangedStatuses,
   parseReportDays,
   renderCounts,
   splitStatusBlock,
@@ -91,6 +92,11 @@ describe('逐功能状态', () => {
     assert.equal(progress.total, 5)
     assert.equal(progress.done, 3)
     assert.equal(progress.percent, 60) // ✅ 3 / 5，不加权（10-23：表格只显示 ✅ / ⬜，加权的 99.3% 和 53 / 54 对不上）
+    // 状态和昨天不同要给 change，没给沿用昨天（10-23 #13 两次跑判法不同）；给了 change / 昨天没有的照今天
+    const sticky = new Map([[1, { no: 1, status: '✅', evidence: 'e' }], [4, { no: 4, status: '✅', evidence: 'e', change: '今天 abc 修好' }], [5, { no: 5, status: '🟠', evidence: 'e' }]])
+    assert.deepEqual(keepUnchangedStatuses(sticky, { 1: { status: '🟠' }, 4: { status: '🟠' }, 5: { status: '🟠' } }), [{ no: 1, today: '✅', kept: '🟠' }])
+    assert.deepEqual([...sticky.values()].map((item) => item.status), ['🟠', '✅', '🟠'])
+    assert.deepEqual(keepUnchangedStatuses(sticky, null), [])
     assert.equal(renderCounts(progress), '**计数**（不含 #54）：✅ 3 项（aven 1、adrian 1、henry 1）。未完成 2 项：\n- aven 1 项：#4\n- adrian 1 项：#17')
     assert.deepEqual(tableMismatches(ROWS, statuses).map((item) => `${item.no}:${item.table}→${item.code}`), ['1:🟡→✅', '18:🟡→✅'])
   })
