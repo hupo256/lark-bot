@@ -32,7 +32,7 @@ const { assembleRunReport } = await import('../lib/lark-run-report.mjs')
 const { sweepPendingAcks, DEFAULT_ACK_TIMEOUT_MS } = await import('../lib/lark-repo-intake.mjs')
 const { isReadOnlyTask } = await import('../lib/lark-message.mjs')
 const { resolveSchemaVerifyGate } = await import('../lib/lark-schema-verify.mjs')
-const { repoProfileForTask } = await import('../lib/lark-repo-profile.mjs')
+const { repoProfileForTask, repoProfile } = await import('../lib/lark-repo-profile.mjs')
 const { loadLedger, saveLedger } = await import('../lib/lark-ledger.mjs')
 const { runGroupReplyPass } = await import('../lib/lark-group-reply-pass.mjs')
 
@@ -592,5 +592,54 @@ describe('黄金对话', () => {
     ])
     const id2 = await say({ from: AVEN, text: '把上面 Arthur 发的头像接口文档接一下' })
     assert.deepEqual(store.get(id2).attachments.filter((item) => item.type === 'file').map((item) => item.fileName), ['修改头像接口文档.md'])
+  })
+
+  it('S24 bot 在群里答应「部署完我再测一遍告诉你」，pre 由 MR 合入后部署（bot 没推过）→ 自动建复测挂在原群，结论对原来的人回；同一次部署不重复建（10-23 #82）', async () => {
+    const { checkDeployAndRetest } = await import('../lib/lark-deploy-watch.mjs')
+    const runtimeDir = join(dir, 'state')
+    const profile = { ...repoProfile('falive'), dailyReport: { sweep: { preSiteUrl: 'https://pre.example/', timeoutMs: 60 * MIN, effort: 'high' } } }
+    const git = async (_cwd, args) => {
+      const cmd = args.join(' ')
+      if (cmd.startsWith('rev-list')) return { ok: true, stdout: deployed ? 'h2\n' : 'h1\n', stderr: '' }
+      if (cmd.startsWith('log')) return { ok: true, stdout: '5df6b03 fix(live): 开播设置提交 407——JSON body 的数组不进验签串\n', stderr: '' }
+      return { ok: true, stdout: '', stderr: '' }
+    }
+    let deployed = false
+    let buildTime = Date.now() - 60 * MIN
+    const check = (now = new Date()) => checkDeployAndRetest({ store, profile, now, deps: { runtimeDir, git, probePreBuildTime: async () => buildTime } })
+    // bot 第一次启动：只记基线，不建复测（不会对上线前的旧承诺补测）
+    assert.equal((await check()).baseline, true)
+    assert.equal(store.list().filter((task) => task.id.startsWith('retest-')).length, 0)
+
+    const id = await say({ from: ENCONE, text: 'web 开播点提交弹「请求失败」' })
+    await classify(id, { decision: 'bug', deliverable: 'change', reply: '收到，我对比下 web 提交的参数，查完回你' })
+    await work(id, createRoomResult(), { replyPass: { groupReply: '查到了：pre 上的 web 还是旧版本，开播提交时把 tag_ids 也算进了签名，后端验签不过（407）。修复已经在开发分支上，合进 pre 部署后就好，部署完我再测一遍告诉你。' } })
+    assert.equal(groupTexts().length, 2, transcript().join('\n'))
+
+    // 开发分支走 GitLab MR 合进 pre、运维部署：bot 没推过 pre，照样认出这次部署
+    deployed = true
+    buildTime = Date.now() + 1000
+    const out = await check(new Date(Date.now() + 5 * MIN))
+    assert.equal(out.deployed, true)
+    assert.equal(out.promiseTaskIds.length, 1, JSON.stringify(out))
+    const retest = store.get(out.promiseTaskIds[0])
+    assert.deepEqual([retest.chatId, retest.operator, retest.ackedInGroup], [GROUP, ENCONE, true], '挂在原群、对着原来的人')
+    assert.match(retest.text, /部署完我再测一遍告诉你/)
+    assert.match(retest.text, new RegExp(id))
+    assert.match(retest.text, /5df6b03/)
+    assert.ok(out.taskId && store.get(out.taskId).chatId === CONSOLE, '按提交的整体复测仍只私信负责人')
+
+    await work(retest.id, {
+      status: 'done', completionClaim: 'all_done', preChecks: PRE_OK,
+      groupReply: 'pre 已经更新，我刚在 pre 上重新提交了开播设置：通过，不再弹「请求失败」，你那边再点一次就行。',
+    })
+    const group = groupTexts()
+    assert.equal(group.length, 3, transcript().join('\n'))
+    assert.match(group[2], new RegExp(`<at id=${ENCONE}></at>[\\s\\S]*不再弹「请求失败」`))
+
+    // 同一次部署再探一次 / 下一次部署：承诺已接过，不再建
+    assert.equal((await check(new Date(Date.now() + 10 * MIN))).deployed, false)
+    buildTime += 60 * MIN
+    assert.deepEqual((await check(new Date(Date.now() + 70 * MIN))).promiseTaskIds, [])
   })
 })

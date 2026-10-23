@@ -6,7 +6,6 @@ import { afterEach, describe, it } from 'node:test'
 
 import {
   buildSweepTask,
-  checkDeployAndRetest,
   enqueueDailySweep,
   extractOwnerTodos,
   handlePushPre,
@@ -215,6 +214,17 @@ describe('推 pre', () => {
     assert.match(calls.filter((cmd) => cmd.startsWith('merge --no-ff')).at(-1), /lark\/falive-20261014$/)
   })
 
+  it('logFrom（上次部署点）是新头的祖先 → 提交从它算起；不是祖先 → 退回本次推送起点', async () => {
+    register()
+    const { git, calls } = fakeGit()
+    await pushToPre({ profile: repoProfile('falive'), logFrom: 'dep1', git })
+    assert.ok(calls.includes('log --no-merges --format=%h %s dep1..h2'), calls.join('\n'))
+    const notAncestor = async (cwd, args) => (args[0] === 'merge-base' ? { ok: false, stdout: '', stderr: '' } : git(cwd, args))
+    calls.length = 0
+    await pushToPre({ profile: repoProfile('falive'), logFrom: 'stale', git: notAncestor })
+    assert.ok(calls.includes('log --no-merges --format=%h %s h1..h2'), calls.join('\n'))
+  })
+
   it('冲突 → abort、不推送，告诉负责人冲突文件', async () => {
     register()
     const { git, calls } = fakeGit({ conflictOn: 'lark/falive-integration' })
@@ -233,48 +243,18 @@ describe('推 pre', () => {
     assert.ok(!calls.some((cmd) => cmd.startsWith('push')))
   })
 
-  it('推完回部署邮件正文并记下推送，供盯部署', async () => {
+  it('推完回部署邮件正文；待部署提交从盯部署记下的上次部署点算起（#82：不再记 lastPush）', async () => {
     register()
     const runtimeDir = mkdtempSync(join(tmpdir(), 'lark-sweep-state-'))
     try {
-      const reply = await handlePushPre({ deps: { runtimeDir, pushToPre: async () => ({ ok: true, head: 'abcdef1234', base: 'h1', commits: ['abc1234 fix: 关注接口扁平'], pushedAt: '2026-10-14T16:00:00.000Z' }) } })
-      assert.match(reply, /已推 pre（abcdef12，待部署 1 个提交）/)
+      saveSweepState('falive', { lastDeploy: { buildTime: 1, head: 'deployed1' } }, { runtimeDir })
+      let seen = null
+      const reply = await handlePushPre({ deps: { runtimeDir, pushToPre: async ({ logFrom }) => { seen = logFrom; return { ok: true, head: 'abcdef1234', base: 'h1', commits: ['abc1234 fix: 关注接口扁平', 'bbb2222 docs: 回填'], pushedAt: '2026-10-14T16:00:00.000Z' } } } })
+      assert.equal(seen, 'deployed1')
+      assert.match(reply, /已推 pre（abcdef12，待部署 2 个提交）/)
       assert.match(reply, /主题：falive pre 前端部署申请/)
       assert.match(reply, /- fix: 关注接口扁平/)
-      assert.equal(loadSweepState('falive', { runtimeDir }).lastPush.head, 'abcdef1234')
-      // 上一次还没部署又推了一次：复测清单 / 邮件合并两次的提交，base 取最早那次。
-      const second = await handlePushPre({ deps: { runtimeDir, pushToPre: async () => ({ ok: true, head: '9999999999', base: 'abcdef1234', commits: ['bbb2222 docs: 回填'], pushedAt: '2026-10-14T18:00:00.000Z' }) } })
-      assert.match(second, /待部署 2 个提交/)
-      assert.match(second, /- fix: 关注接口扁平/)
-      const merged = loadSweepState('falive', { runtimeDir }).lastPush
-      assert.deepEqual(merged.commits, ['bbb2222 docs: 回填', 'abc1234 fix: 关注接口扁平'])
-      assert.equal(merged.base, 'h1')
-    } finally {
-      rmSync(runtimeDir, { recursive: true, force: true })
-    }
-  })
-})
-
-describe('盯部署自动复测', () => {
-  afterEach(() => resetRepoProfiles())
-
-  it('构建时间晚于推送才建复测任务，且只建一次', async () => {
-    register()
-    const runtimeDir = mkdtempSync(join(tmpdir(), 'lark-sweep-watch-'))
-    try {
-      const store = createTaskStore({ tasksDir: join(runtimeDir, 'tasks'), leaseMs: 1000 })
-      const pushedAt = '2026-10-14T16:00:00.000Z'
-      saveSweepState('falive', { lastPush: { head: 'abcdef1234', pushedAt, commits: ['abc1234 fix: x'], retestTaskId: null } }, { runtimeDir })
-      const now = new Date('2026-10-14T17:00:00Z')
-      const old = await checkDeployAndRetest({ store, profile: repoProfile('falive'), now, deps: { runtimeDir, probePreBuildTime: async () => Date.parse(pushedAt) - 1000 } })
-      assert.equal(old.deployed, false)
-      const fresh = await checkDeployAndRetest({ store, profile: repoProfile('falive'), now, deps: { runtimeDir, probePreBuildTime: async () => Date.parse(pushedAt) + 60_000 } })
-      assert.equal(fresh.taskId, 'retest-falive-abcdef12')
-      const task = store.get('retest-falive-abcdef12')
-      assert.equal(task.source, 'daily-sweep')
-      assert.match(task.text, /abc1234 fix: x/)
-      const again = await checkDeployAndRetest({ store, profile: repoProfile('falive'), now, deps: { runtimeDir, probePreBuildTime: async () => Date.now() } })
-      assert.equal(again.checked, false)
+      assert.equal(loadSweepState('falive', { runtimeDir }).lastPush, undefined, '不再记 lastPush')
     } finally {
       rmSync(runtimeDir, { recursive: true, force: true })
     }

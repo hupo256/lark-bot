@@ -42,7 +42,7 @@ import { startChatPoller } from './lib/lark-chat-poller.mjs'
 import { startKeepAwake } from './lib/lark-keep-awake.mjs'
 import { startWakeCatchup } from './lib/lark-wake-catchup.mjs'
 import { startDailyReportScheduler } from './lib/lark-daily-schedule.mjs'
-import { startDeployWatch } from './lib/lark-daily-sweep.mjs'
+import { startDeployWatch } from './lib/lark-deploy-watch.mjs'
 import { ACK_SWEEP_EVERY_MS, sweepPendingAcks } from './lib/lark-repo-intake.mjs'
 import { deliverOverdueObligations } from './lib/lark-repo-delivery.mjs'
 
@@ -141,7 +141,7 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   const wakeCatchup = repoOnly ? { stop: () => {} } : startWakeCatchup({ config, store, ingest: ingestLarkEvent })
   // 日报：每天固定时刻把当天进度 / 卡点 / 需要支持整理成卡片（试运行期私发负责人）。
   const dailyReport = startDailyReportScheduler({ store })
-  // 推 pre 之后盯部署：pre 构建时间晚于推送 = 已部署，自动建复测任务（lib/lark-daily-sweep.mjs）。
+  // 盯 pre 部署（不管谁发的）：构建时间比上次新 = 一次部署，自动复测并接上群里「部署后再测」的原话（lib/lark-deploy-watch.mjs，#82）。
   const deployWatch = startDeployWatch({ store })
 
   const server = createServer(createRequestHandler({ config, store, consumer: consumerHandle, port, runtimeVersion, chatPoller }))
