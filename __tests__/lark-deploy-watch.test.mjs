@@ -47,6 +47,12 @@ describe('等部署的原话', () => {
     assert.ok(findPromiseSentence('前端已修好，发布后我复测一下再回你'))
     assert.ok(findPromiseSentence('等 pre 更新后我再看一眼'))
   })
+  it('做完的汇报不算承诺：「pre 部署后复测了：…」（10-23 真机发给 Encone 的复测结论）', () => {
+    assert.equal(findPromiseSentence('<at id=ou_encone></at> pre 部署后复测了：web 开播提交已经正常，不再「请求失败」，修改场次时介绍、语言、标签都能写进去。'), null)
+    assert.equal(findPromiseSentence('部署后再测过了，没问题'), null)
+    assert.equal(findPromiseSentence('其中 18 项在 pre 上还看不到效果：#1 Go 资料改动待部署；#12 部署版还没复测'), null, '10-20 状态汇报')
+  })
+
   it('让对方做的、只说还没部署的，不算', () => {
     assert.equal(findPromiseSentence('前端已经修好，等 pre 更新后你再点一次开播就行，后端不用改。'), null)
     assert.equal(findPromiseSentence('- ⚠️ 接了但还不能用 开播记录列表：接口在 pre 实测正常；页面还没部署'), null)
