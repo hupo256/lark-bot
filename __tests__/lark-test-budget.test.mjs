@@ -11,10 +11,11 @@ import { eachCase, runSteps } from './support/steps.mjs'
 // （每段都跑、失败全报、每段 before / after 隔离），不许写一失败就停的循环或本地 step（aven 2026-10-24：优化不能以健壮性为代价）。
 //确实要净增，就在同一次提交里调高 TEST_CASE_BUDGET 并在提交说明里写原因。
 // 运行时间预算（全量 ≤ 15 秒）在 scripts/test-all.mjs（合并前跑），测试里量不了自己。
-const TEST_CASE_BUDGET = 332 // 10-24 +1：合并用例的执行器与调用约束（support/steps.mjs 自检 + 调用处必须 await、禁本地 step）。同日 10-24 合并细碎 it：929 → 331（aven「900+ 测试太多」）；断言不删，原标题进断言 message / 用例表 name。之前 10-23 +2 lark-bug-record、+7 lark-deploy-watch（#84）
+const TEST_CASE_BUDGET = 334 // 10-24 +2：棘轮改为连 test( 一起数（lark-worktree-deps 原有 2 个 test( 之前漏数，不是新增）。同日 +1：合并用例的执行器与调用约束（support/steps.mjs 自检 + 调用处必须 await、禁本地 step）。同日 10-24 合并细碎 it：929 → 331（aven「900+ 测试太多」）；断言不删，原标题进断言 message / 用例表 name。之前 10-23 +2 lark-bug-record、+7 lark-deploy-watch（#84）
 
 const dir = dirname(fileURLToPath(import.meta.url))
-export const countTestCases = (source) => (source.match(/^\s*it\(/gm) || []).length
+// it( 和 test( 都算（10-24 前只数 it(，lark-worktree-deps 的 test( 漏数）。
+export const countTestCases = (source) => (source.match(/^\s*(it|test)\(/gm) || []).length
 
 describe('测试体量棘轮', () => {
   it(`it( 总数不超过 ${TEST_CASE_BUDGET}（只许持平或变少）`, () => {
