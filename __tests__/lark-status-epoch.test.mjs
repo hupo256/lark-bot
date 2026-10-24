@@ -162,6 +162,25 @@ describe('状态回写写前核对（第 0 批：await 期间被换代 / 结单�
       assert.equal(store.get('t').lastDeliveredReceipt?.idempotencyKey, 't-e0-fail')
       assert.equal(store.findByReceiptMessageId('om_fail')?.id, 't')
     })],
+    ['结果卡送达结算同键 pending 时，发送期间被回写重试改成的 result_pending_receipt 一并落回 done，不永久卡住（bug 修复 10-24）', () => withStore(async (store) => {
+      // 上一轮：回写失败 + 回执失败 → done_pending_writeback 且存了同代 pending；worker 同代重发 done，
+      // 发卡期间回写重试定时器成功，因有 pending 把状态原地改成 result_pending_receipt。
+      store.upsert({ id: 't', ...running({ status: 'done_pending_writeback' }), pendingReceipt: { status: 'done', result: '完成', epoch: 0, idempotencyKey: 't-e0-done', attempts: 1, gaveUp: false } })
+      const outcome = await handleStatusUpdate({ ...stubs, store, id: 't', status: 'done', result: '完成', epoch: 0, sendMessage: async () => { store.get('t').status = 'result_pending_receipt'; return { ok: true, messageId: 'om_done' } } })
+      assert.deepEqual(outcome, { ok: true })
+      assert.equal(store.get('t').pendingReceipt, undefined)
+      assert.equal(store.get('t').status, 'done', '两个重试器都不再管它，必须当场落回本次状态')
+      assert.equal(store.get('t').lastDeliveredReceipt?.idempotencyKey, 't-e0-done')
+    })],
+    ['回执此前已送达、同键 pending 还挂着：同代重发 done 不重发卡、结算 pending、状态为 done（提前返回分支前状态已落成本次，中间无 await，不会卡在 result_pending_receipt）（10-24）', () => withStore(async (store) => {
+      store.upsert({ id: 't', ...running({ status: 'result_pending_receipt' }), pendingReceipt: { status: 'done', result: '完成', epoch: 0, idempotencyKey: 't-e0-done', attempts: 1, gaveUp: false }, lastDeliveredReceipt: { idempotencyKey: 't-e0-done', status: 'done', epoch: 0, deliveredAt: '2026-01-01T00:00:00Z' } })
+      let sends = 0
+      const outcome = await handleStatusUpdate({ ...stubs, store, id: 't', status: 'done', result: '完成', epoch: 0, sendMessage: async () => { sends += 1; return { ok: true, messageId: 'om_dup' } } })
+      assert.equal(outcome.receiptAlreadyDelivered, true)
+      assert.equal(sends, 0, '已送达过不重发')
+      assert.equal(store.get('t').pendingReceipt, undefined)
+      assert.equal(store.get('t').status, 'done', '删了 pending 必须落回本次状态，否则两个重试器都不再管它')
+    })],
     ['挂起卡发送失败：pending 存下本轮结果正文，任务保持挂起态（不转 result_pending_receipt，补料续跑可用）（变异补测 10-24）', () => withStore(async (store) => {
       store.upsert({ id: 't', ...running() })
       const outcome = await handleStatusUpdate({ ...stubs, store, id: 't', status: 'blocked', result: '等补料：缺接口文档', epoch: 0, sendMessage: async () => ({ ok: false, reason: 'network down' }) })
