@@ -86,9 +86,11 @@ falive 那边 `docs/falive-lessons.md` 从 #87 往后的新条目，以及 `git 
 
 ## 第二批：自愈（10-24 下午）
 
-aven 10-24 下午定：「刻意没搬的」里的排空重启和自愈环 2 这次要搬。两件分两条分支并行做（排空重启 `lark/port-drain-restart`，失败指纹 + 剧本 + 失败台账另一条），本节先记排空重启。
+aven 10-24 下午定：「刻意没搬的」里的排空重启和自愈环 2 这次要搬。两件分两条分支并行做，每项有开关、默认开。来源 falive `docs/falive-self-healing.md`。
 
 通知通道：fameex 没有控制台群，新增配置键 `notifyOpenId`（负责人 open_id，`ou_` 开头，`validateConfig` 校验；不是 `ou_` 开头拒绝启动，没配只告警），自愈消息只私信这个人（`sendChatMessage` 对 `ou_` 自动走 `--user-id`）。没配就只写 worker.log。
+
+### 排空重启（分支 `lark/port-drain-restart`）
 
 | # | 能力 | 来源（falive 教训 / 批次） | 落在哪 | 配置 | 怎么验（真机） |
 |---|---|---|---|---|---|
@@ -96,7 +98,7 @@ aven 10-24 下午定：「刻意没搬的」里的排空重启和自愈环 2 这
 | 28 | 只改配置也有「磁盘改动时间」（原来只算源码 mtime，只改配置时排空不等存盘稳定） | 移植时补 | `lib/lark-runtime-version.mjs` `diskChangedAt` | 无 | — |
 | 29 | `lark-bot status` / health：worker 排空中时旧代码提示改成「在飞任务跑完、自检绿会自动 restart」，不再叫人手动 restart | 自愈环 3 | `scripts/lark-bot` status、`lib/lark-routes.mjs` | 无 | 同 #27 |
 
-按 fameex 改了的地方：
+按 fameex 改了的地方（排空重启部分）：
 
 - 通知不走 repo profile 的 `notifyChatId`（fameex 没有 profile / 控制台群），改走 `notifyOpenId` 私信；消息带幂等键 `drain-red-<磁盘指纹>`，重试不重发。
 - 去掉 `botCliName()`（fameex 只有 `lark-bot` 一个 CLI 名）、`isRepoOnlyInstance`；`hermeticTestEnv` 放进本模块，去掉全部 `LARK_*` 和 `NODE_TEST_CONTEXT`（falive 只去三个）。
@@ -109,3 +111,24 @@ aven 10-24 下午定：「刻意没搬的」里的排空重启和自愈环 2 这
 1. 合进运行分支后**第一次仍要手动** `lark-bot restart`（旧进程里没有排空重启的代码）；之后合代码会自动上线。
 2. 配置 `runtime/lark-bot.local.json` 加 `"notifyOpenId": "ou_<你的 open_id>"`（不加也能跑，只是自检红只写日志）。想关就加 `"selfHeal": { "drainRestart": false }`。
 3. 合进运行目录 = 几分钟内上线：合之前跑 `node scripts/test-all.mjs`；单测红 bot 会拦下不重启，但能过单测的坏改动拦不住。
+
+### 失败指纹 + 已知类剧本 + 失败台账 + 失败卡旁证（分支 `lark/port-failure-playbook`）
+
+| # | 能力 | 来源（falive） | 落在哪 | 配置 | 怎么验（真机） |
+|---|---|---|---|---|---|
+| 30 | 失败指纹：worker 层报错去掉路径 / id / 时间 / 数字后归一成指纹（`<类>:<8 位哈希>`），分到固定 14 类；执行器非零退出只看前缀，尾巴里有瞬时错误才改判 `transient_api`；**任务总预算到点**（报的是 exec aborted）按 `timeout` 归类而不是「被中断」（fameex 补的，falive 会归成不算失败） | 自愈 §3.1，`lib/lark-failure-fingerprint.mjs` | `lib/lark-failure-fingerprint.mjs`（导出 `fingerprintFailure` / `decideFailurePlaybook` / `formatFingerprintLine` / `buildSelfHealHint` / `normalizeFailureText`，类别常量 `FAILURE_CLASSES` / `REQUEUE_CLASSES` / `NOT_FAILURE_CLASSES`） | 无 | 审计 JSON 出现 `failureFingerprint` / `failurePlaybook` |
+| 31 | 已知类剧本：`result_missing / result_invalid / transient_api / git / readonly_violation / exec_exit` 每任务最多自动交还队列重领 1 次（`client.releaseTask`，静默、不发失败卡、epoch++）；重领后分诊 / 分析 / 实施提示末尾带「【自动重跑】上次失败类别 + 针对性一句」；`stale_epoch / aborted` 不算失败（不进台账，卡照发、换代的由网关 409 挡）；其余直接失败 | 自愈 §3.1 | `lib/lark-failure-playbook.mjs`（`handleTaskFailure` / `selfHealHintFor` / `failurePlaybookEnabled`）；`lib/lark-task-runner.mjs` 的 catch 与开工处各一处调用；`lib/lark-worker-run.mjs` `runAI` 追加提示 | `selfHeal.playbook=false` 或环境 `LARK_FAILURE_PLAYBOOK=0` 整段关掉（失败卡回到原格式、不记台账、不重排队） | worker.log 出现「自愈：…自动重排队（第 1/1 次），已交还队列重领（指纹 …）」，下一次「自愈重跑第 2 次（上次：…）」 |
+| 32 | 失败台账：`runtime/lark-failures/fameex.jsonl`，一行一次处置（at / repo / taskId / epoch / cls / fingerprint / label / action / reason / recurring / message≤300） | 自愈 §3.1，`lib/lark-failure-ledger.mjs` | `lib/lark-failure-ledger.mjs`（`recordFailure` / `listFailures` / `selfHealAttemptsForTask` / `countRecentFingerprint` / `summarizeFailures`，常量 `FAILURE_LEDGER_KEY='fameex'`、`failuresDir`） | 同上开关 | `tail runtime/lark-failures/fameex.jsonl` |
+| 33 | 失败卡第 3 行「失败归类：<类>，[已自动重跑 1 次仍失败，][同一种错 7 天内第 N 次，]指纹 <类:哈希>」 | 自愈 §3.1 | `lib/lark-worker-results.mjs` `buildFailureResult(task, error, { fingerprintLine, evidenceLine })` | 同上开关 | 下一张 Worker 层失败卡第 3 行 |
+| 34 | 失败卡旁证（第 4 行）：falive 查发件簿；fameex 没有发件簿，只用自己有的——审计里停在哪个阶段（分诊 / 只读分析 / 实施）、工作区未提交改动（列前 3 个）、本任务开工后分支上新增的提交（对比开工时记录的 HEAD）。只给事实，不下「活可能已经干成」的判断；只读任务不看工作区 | 自愈 §2 的 1.6，`lib/lark-failure-evidence.mjs` | `lib/lark-failure-evidence.mjs`（`collectFailureEvidence` / `formatFailureEvidence` / `readFailureEvidence`） | 同上开关 | 失败卡第 4 行「旁证：失败时已在实施阶段（分析已跑完）；工作区有 2 个文件未提交（…，现场已保留）」 |
+
+按 fameex 改掉的 falive 专属依赖（失败剧本部分）：
+
+- 台账不按 repo profile 分本：fameex 一个 worker 跨多个 PR 项目，复发要按整个 bot 数，固定一本 `fameex.jsonl`（参数名仍叫 `repo`，与 falive 同形，方便后续自修工单 / 体检直接用）。
+- 旁证不读发件簿（`lark-outbox`）、不判「日报已发群」；失败私信（`lark-repo-delivery.buildRepoNote` 的「⚠ 可能做成了」）不搬——fameex 没有私信失败通知，失败卡走原来的群卡片。
+- 失败卡行序：falive 旁证在失败类型前（因为它能说「活可能已经干成」）；fameex 旁证只是事实，排在归类之后，归类固定第 3 行。
+- 指纹 `nextStep` 文案去掉 `profile.ruleProfile`、「进自修工单」等 falive 说法；自修工单（§3.2）留给后续步骤。
+
+后续步骤（自修工单 / 体检）读这里：`listFailures({ sinceMs })`、`summarizeFailures({ days })` → `{ total, byClass, recurring: [{ fingerprint, count }], healed }`、`countRecentFingerprint({ fingerprint })`；`recordFailure` 的 `action` 除 `requeue / fail / ignore` 外可自定义（如 `self_fix`），复发计数只数 `fail / requeue`。
+
+测试：`__tests__/lark-failure-playbook.test.mjs`（真实错误形状回归分类、台账、真实 git 旁证、接入层：可重排队类重领一次 → 第二次直接失败且卡上第 3 行归类第 4 行旁证、交还失败改报失败、预算到点、开关关掉回原格式、runAI 追加提示）。`node scripts/mutate.mjs --diff 66ae872` 61 个变异点全抓到。
