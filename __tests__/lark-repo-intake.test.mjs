@@ -13,6 +13,7 @@ import { CONSOLE_NO_TEXT_HINT } from '../lib/lark-repo-only.mjs'
 import { registerRepoProfiles, repoProfile, resetRepoProfiles } from '../lib/lark-repo-profile.mjs'
 import { resolvePrincipalProfiles, resolvePrincipalTarget } from '../lib/lark-principal-channel.mjs'
 import { createTaskStore } from '../lib/lark-task-store.mjs'
+import { noteAnswer, resetObligationMemory } from '../lib/lark-reply-obligation.mjs'
 
 // aven 2026-10-20 review：falive 独立实例（repo-only）入口的 11 条问题。真实 ingest 路径 + 注入 fetch，不发任何 Lark 消息。
 const GROUP = 'oc_review_group'
@@ -62,32 +63,41 @@ const groupEvent = ({ id, text, sender = ENCONE, mentions = [], root = null, par
 const now = () => new Date().toISOString()
 
 describe('A2：ingest 失败回滚「已见」，轮询器下轮重喂能落成任务（真实 ingest）', () => {
-  beforeEach(setup)
-  afterEach(teardown)
-  it('第一轮建任务时落盘抛错 → 第二轮同一条重喂，任务建出来', async () => {
-    let failOnce = true
-    const flaky = { ...store, upsert: (task) => {
-      if (failOnce && task.id === 'om_rv_a2') { failOnce = false; throw new Error('disk full') }
-      return store.upsert(task)
-    } }
-    const nowMs = Date.now()
-    const message = { message_id: 'om_rv_a2', msg_type: 'text', create_time: String(nowMs), sender: { id: ENCONE, sender_type: 'user' }, content: '@Aven.Bot 直播列表接口返回的字段不对，帮忙看一下', mentions: [{ id: BOT, key: '@_user_1', name: 'Aven.Bot' }] }
-    const poller = startChatPoller({
-      config, store: flaky, ingest: ingestLarkEvent, statePath: join(dir, 'poller.json'),
-      deps: {
-        now: () => new Date(nowMs), setTimeout: () => ({ unref() {} }), isLidClosed: async () => false, isChatMember: async () => false,
-        sendChatMessage: async () => ({ ok: true }), listThreadMessages: async () => ({ ok: true, messages: [] }),
-        listChatMessages: async () => ({ ok: true, messages: [message], hasMore: false, pageToken: null }),
-      },
-    })
-    const profile = repoProfile('falive')
-    await poller.pollOnce({ chatId: GROUP, profile })
-    assert.equal(store.has('om_rv_a2'), false, '第一轮落盘失败')
-    await poller.pollOnce({ chatId: GROUP, profile })
-    assert.equal(store.get('om_rv_a2')?.status, 'received', '重喂没被「最近见过」挡掉，任务建出来等分类')
-    poller.stop()
-    assert.equal(posted.length, 0)
-  })
+  it('第一轮建任务时落盘抛错 → 第二轮同一条重喂，任务建出来', () => runSteps([
+    ['第一轮建任务时落盘抛错 → 第二轮同一条重喂，任务建出来', async () => {
+      let failOnce = true
+      const flaky = { ...store, upsert: (task) => {
+        if (failOnce && task.id === 'om_rv_a2') { failOnce = false; throw new Error('disk full') }
+        return store.upsert(task)
+      } }
+      const nowMs = Date.now()
+      const message = { message_id: 'om_rv_a2', msg_type: 'text', create_time: String(nowMs), sender: { id: ENCONE, sender_type: 'user' }, content: '@Aven.Bot 直播列表接口返回的字段不对，帮忙看一下', mentions: [{ id: BOT, key: '@_user_1', name: 'Aven.Bot' }] }
+      const poller = startChatPoller({
+        config, store: flaky, ingest: ingestLarkEvent, statePath: join(dir, 'poller.json'),
+        deps: {
+          now: () => new Date(nowMs), setTimeout: () => ({ unref() {} }), isLidClosed: async () => false, isChatMember: async () => false,
+          sendChatMessage: async () => ({ ok: true }), listThreadMessages: async () => ({ ok: true, messages: [] }),
+          listChatMessages: async () => ({ ok: true, messages: [message], hasMore: false, pageToken: null }),
+        },
+      })
+      const profile = repoProfile('falive')
+      await poller.pollOnce({ chatId: GROUP, profile })
+      assert.equal(store.has('om_rv_a2'), false, '第一轮落盘失败')
+      await poller.pollOnce({ chatId: GROUP, profile })
+      assert.equal(store.get('om_rv_a2')?.status, 'received', '重喂没被「最近见过」挡掉，任务建出来等分类')
+      poller.stop()
+      assert.equal(posted.length, 0)
+    }],
+    ['消息已落成任务、进程内去重表已清空（网关重启）时同一条再推一次：不重复入队、原任务原样、不发消息（变异补测 10-24）', async () => {
+      // 进程内的「最近见过」只防同一进程里的重推；重启后全靠 store 里已有这条任务挡住
+      store.upsert({ id: 'om_rv_dup', source: 'lark', repo: 'falive', chatId: GROUP, operator: ENCONE, text: '原任务正文', status: 'running', epoch: 2, createdAt: now() })
+      const snapshot = JSON.parse(JSON.stringify(store.get('om_rv_dup')))
+      await ingestLarkEvent({ raw: groupEvent({ id: 'om_rv_dup', text: '@Aven.Bot 直播列表接口返回的字段不对，帮忙看一下', mentions: [{ id: BOT, key: '@_user_1', name: 'Aven.Bot' }] }), config, store })
+      assert.deepEqual(store.get('om_rv_dup'), snapshot, '原任务不被重推覆盖')
+      assert.equal(store.list().length, 1, '不另建任务')
+      assert.equal(posted.length, 0, '不发消息')
+    }],
+  ], hooks))
 })
 
 describe('C3：疑似单只有负责人能放行', () => {
@@ -180,37 +190,69 @@ describe('#7：私聊「推 pre」只认负责人', () => {
 })
 
 describe('#11：控制台只发文件不建空任务', () => {
-  beforeEach(setup)
-  afterEach(teardown)
-  it('锚得到任务也只回提示，不建「私聊指示」空任务', async () => {
-    store.upsert({ id: 'om_rv_anchor', source: 'lark', repo: 'falive', chatId: GROUP, text: 'x', status: 'ignored', receipts: [{ messageId: 'om_rv_card', epoch: 0, createdAt: now() }], createdAt: now() })
-    await ingestLarkEvent({ raw: { message_id: 'om_rv_file', chat_id: CONSOLE, chat_type: 'p2p', message_type: 'file', content: '{"file_key":"file_v3_rv","file_name":"a.md"}', sender_type: 'user', sender_id: AVEN }, config, store })
-    assert.equal(store.has('om_rv_file'), false)
-    assert.equal(posted.length, 1)
-    assert.equal(posted[0].url, 'https://hook/console')
-    assert.equal(posted[0].body.card.elements[0].content, CONSOLE_NO_TEXT_HINT)
-  })
+  it('锚得到任务也只回提示，不建「私聊指示」空任务', () => runSteps([
+    ['锚得到任务也只回提示，不建「私聊指示」空任务', async () => {
+      store.upsert({ id: 'om_rv_anchor', source: 'lark', repo: 'falive', chatId: GROUP, text: 'x', status: 'ignored', receipts: [{ messageId: 'om_rv_card', epoch: 0, createdAt: now() }], createdAt: now() })
+      await ingestLarkEvent({ raw: { message_id: 'om_rv_file', chat_id: CONSOLE, chat_type: 'p2p', message_type: 'file', content: '{"file_key":"file_v3_rv","file_name":"a.md"}', sender_type: 'user', sender_id: AVEN }, config, store })
+      assert.equal(store.has('om_rv_file'), false)
+      assert.equal(posted.length, 1)
+      assert.equal(posted[0].url, 'https://hook/console')
+      assert.equal(posted[0].body.card.elements[0].content, CONSOLE_NO_TEXT_HINT)
+    }],
+    ['控制台回复一条非仓库任务的待确认卡：控制通道续跑原任务，不再补「没对上任务」提示、不建新任务（变异补测 10-24）', async () => {
+      store.upsert({ id: 'om_rv_park', source: 'lark', chatId: CONSOLE, text: '原任务', status: 'waiting_confirmation', epoch: 1, receipts: [{ messageId: 'om_rv_park_card', epoch: 1, createdAt: now() }], createdAt: now() })
+      await ingestLarkEvent({ raw: { message_id: 'om_rv_park_r', chat_id: CONSOLE, chat_type: 'p2p', message_type: 'text', content: '接口地址改成 /api/v2/live 了，按这个改', sender_type: 'user', sender_id: AVEN, reply_to: 'om_rv_park_card' }, config, store })
+      const task = store.get('om_rv_park')
+      assert.equal(task.status, 'queued', '续跑原任务')
+      assert.equal(task.resumeCount, 1)
+      assert.equal(store.has('om_rv_park_r'), false, '不建新任务')
+      assert.equal(posted.some((item) => JSON.stringify(item.body).includes('没对上任务')), false, '已续跑就不再回「没对上任务」')
+    }],
+    ['控制台在有两条未结束任务的话题里说话：不建任务，回卡列出每条任务的摘要，没摘要的写状态（变异补测 10-24）', async () => {
+      store.upsert({ id: 'om_rv_amb1', source: 'lark', chatId: CONSOLE, threadRootId: 'omt_rv_amb', text: 'a', summary: '直播列表 cover 字段为空', status: 'running', createdAt: now() })
+      store.upsert({ id: 'om_rv_amb2', source: 'lark', chatId: CONSOLE, threadRootId: 'omt_rv_amb', text: 'b', status: 'queued', createdAt: now() })
+      await ingestLarkEvent({ raw: { message_id: 'om_rv_amb_r', chat_id: CONSOLE, chat_type: 'p2p', message_type: 'text', content: '这个再看下', sender_type: 'user', sender_id: AVEN, root_id: 'omt_rv_amb' }, config, store })
+      assert.equal(store.has('om_rv_amb_r'), false, '归属不明不建任务')
+      assert.equal(posted.length, 1)
+      const card = JSON.stringify(posted[0].body)
+      assert.ok(card.includes('om_rv_amb1：直播列表 cover 字段为空'), '有摘要列摘要')
+      assert.ok(card.includes('om_rv_amb2：queued'), '没摘要列状态')
+    }],
+  ], hooks))
 })
 
 describe('C12：多仓共用负责人 / 控制台时取回执最新的任务锚定', () => {
-  beforeEach(setup)
-  afterEach(teardown)
   const registerTwo = () => registerRepoProfiles({ repos: { falive: faliveRaw, 'lark-bot': { root: '/tmp/lark-bot-review', baseRef: 'main', chatIds: [], notifyChatId: CONSOLE, ownership: { me: 'Aven', meOpenIds: [AVEN] } } } })
-  it('notifyChatId 是 oc_ 控制台时按 meOpenIds 命中两个仓；recent 取最新；点名优先', () => {
-    registerTwo()
-    const profiles = [repoProfile('falive'), repoProfile('lark-bot')]
-    assert.deepEqual(resolvePrincipalProfiles({ senderOpenId: AVEN, profiles }).map((p) => p.key), ['falive', 'lark-bot'])
-    assert.deepEqual(resolvePrincipalProfiles({ senderOpenId: ENCONE, profiles }), [])
-    const t = Date.now()
-    store.upsert({ id: 'om_rv_f', repo: 'falive', chatId: GROUP, status: 'done', receipts: [{ messageId: 'c1', epoch: 0, createdAt: new Date(t - 60_000).toISOString() }], createdAt: now() })
-    store.upsert({ id: 'om_rv_l', repo: 'lark-bot', chatId: CONSOLE, status: 'done', receipts: [{ messageId: 'c2', epoch: 0, createdAt: new Date(t - 1000).toISOString() }], createdAt: now() })
-    const msg = { messageId: 'm', chatId: CONSOLE, chatType: 'p2p', senderOpenId: AVEN, text: '这个再看下', mentions: [] }
-    const recent = resolvePrincipalTarget({ msg, store, profiles, now: t })
-    assert.deepEqual([recent.profile.key, recent.anchor.task.id, recent.anchor.via], ['lark-bot', 'om_rv_l', 'recent'])
-    const named = resolvePrincipalTarget({ msg: { ...msg, text: '继续任务 om_rv_f 再跑' }, store, profiles, now: t })
-    assert.deepEqual([named.profile.key, named.anchor.task.id, named.anchor.via], ['falive', 'om_rv_f', 'explicit'])
-    assert.equal(resolvePrincipalTarget({ msg: { ...msg, senderOpenId: ENCONE }, store, profiles, now: t }), null)
-  })
+  it('notifyChatId 是 oc_ 控制台时按 meOpenIds 命中两个仓；recent 取最新；点名优先', () => runSteps([
+    ['notifyChatId 是 oc_ 控制台时按 meOpenIds 命中两个仓；recent 取最新；点名优先', () => {
+      registerTwo()
+      const profiles = [repoProfile('falive'), repoProfile('lark-bot')]
+      assert.deepEqual(resolvePrincipalProfiles({ senderOpenId: AVEN, profiles }).map((p) => p.key), ['falive', 'lark-bot'])
+      assert.deepEqual(resolvePrincipalProfiles({ senderOpenId: ENCONE, profiles }), [])
+      const t = Date.now()
+      store.upsert({ id: 'om_rv_f', repo: 'falive', chatId: GROUP, status: 'done', receipts: [{ messageId: 'c1', epoch: 0, createdAt: new Date(t - 60_000).toISOString() }], createdAt: now() })
+      store.upsert({ id: 'om_rv_l', repo: 'lark-bot', chatId: CONSOLE, status: 'done', receipts: [{ messageId: 'c2', epoch: 0, createdAt: new Date(t - 1000).toISOString() }], createdAt: now() })
+      const msg = { messageId: 'm', chatId: CONSOLE, chatType: 'p2p', senderOpenId: AVEN, text: '这个再看下', mentions: [] }
+      const recent = resolvePrincipalTarget({ msg, store, profiles, now: t })
+      assert.deepEqual([recent.profile.key, recent.anchor.task.id, recent.anchor.via], ['lark-bot', 'om_rv_l', 'recent'])
+      const named = resolvePrincipalTarget({ msg: { ...msg, text: '继续任务 om_rv_f 再跑' }, store, profiles, now: t })
+      assert.deepEqual([named.profile.key, named.anchor.task.id, named.anchor.via], ['falive', 'om_rv_f', 'explicit'])
+      assert.equal(resolvePrincipalTarget({ msg: { ...msg, senderOpenId: ENCONE }, store, profiles, now: t }), null)
+    }],
+    ['负责人从别的私聊会话回「就这样回」但草稿已作废：说明发到仓库登记的负责人控制台，不发回来源会话、不建任务（变异补测 10-24）', async () => {
+      const anchor = store.upsert({ id: 'om_rv_held', source: 'lark', repo: 'falive', chatId: GROUP, operator: ENCONE, text: '直播列表接口字段不对', status: 'done', receipts: [{ messageId: 'om_rv_held_card', epoch: 0, createdAt: now() }], createdAt: now() })
+      try {
+        noteAnswer({ task: anchor, text: '更新的结论' })
+        await ingestLarkEvent({ raw: { message_id: 'om_rv_held_r', chat_id: 'oc_rv_aven_dm', chat_type: 'p2p', message_type: 'text', content: '就这样回', sender_type: 'user', sender_id: AVEN, reply_to: 'om_rv_held_card' }, config, store })
+        assert.equal(posted.length, 1)
+        assert.equal(posted[0].url, 'https://hook/console', '发到 profile.notifyChatId')
+        assert.match(JSON.stringify(posted[0].body), /已经发过更新的结论了/)
+        assert.equal(store.has('om_rv_held_r'), false, '不建指示任务重跑')
+      } finally {
+        resetObligationMemory()
+      }
+    }],
+  ], hooks))
 })
 
 describe('#9：分类中的任务回队落回 received', () => {
