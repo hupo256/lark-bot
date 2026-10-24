@@ -10,6 +10,7 @@ runtime/lark-audits/
 runtime/lark-outbox/
 runtime/lark-obligations/
 runtime/lark-bugtable-state.json
+runtime/lark-bug-record-links.json
 runtime/lark-worker-state.json
 runtime/lark-daily-report/
 runtime/lark-daily-sweep/
