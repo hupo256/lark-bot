@@ -153,5 +153,30 @@ describe('runFinalVerification', () => {
         rmSync(cwd, { recursive: true, force: true })
       }
     }],
+    ['提交前指纹：终检后没动放行、HEAD 换了才报 HEAD 漂移、读不到工作树只报读取失败（变异补测 10-24）', () => {
+      const cwd = makeRepo()
+      const notGit = mkdtempSync(join(tmpdir(), 'lark-final-verify-not-git-'))
+      try {
+        writeFileSync(join(cwd, 'source.ts'), 'export const value = 2\n')
+        const receipt = runFinalVerification({ cwd, changedFiles: ['source.ts'], now: fixedNow })
+        const expected = { expectedHeadSha: receipt.fingerprint.headSha, expectedDiffHash: receipt.fingerprint.diffHash }
+        const same = inspectWorkingTreeFingerprint({ cwd, ...expected })
+        assert.equal(same.ok, true, '终检后没动 → 放行')
+        assert.deepEqual(same.problems, [])
+
+        run(cwd, 'git', ['commit', '-am', 'moved head'])
+        const moved = inspectWorkingTreeFingerprint({ cwd, expectedHeadSha: receipt.fingerprint.headSha })
+        assert.equal(moved.ok, false)
+        assert.deepEqual(moved.problems.map((problem) => problem.startsWith('终检后 HEAD 从')), [true], 'HEAD 换了只报 HEAD 漂移')
+
+        const unreadable = inspectWorkingTreeFingerprint({ cwd: notGit, ...expected })
+        assert.equal(unreadable.ok, false)
+        assert.equal(unreadable.problems.length, 1, '读不到就只报读取失败，不拿空 HEAD 去比')
+        assert.match(unreadable.problems[0], /无法读取提交前工作树指纹/)
+      } finally {
+        rmSync(cwd, { recursive: true, force: true })
+        rmSync(notGit, { recursive: true, force: true })
+      }
+    }],
   ]))
 })

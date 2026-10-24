@@ -71,20 +71,37 @@ describe('结构化群回复', () => {
 })
 
 describe('截图有没有打开（10-21 #62）', () => {
-  it('按会话记录里的 Read / 命令路径数出没打开的截图；提示只在有没打开的时候出', async () => {
-    const { unopenedImagesNote } = await import('../lib/lark-run-report.mjs')
-    const dir = mkdtempSync(join(tmpdir(), 'lark-evidence-img-'))
-    try {
-      const use = (id, name, input) => JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name, input }] } })
-      writeFileSync(join(dir, 's.jsonl'), [use('t1', 'Read', { file_path: '/att/1.jpg' }), use('t2', 'Bash', { command: 'file /att/3.jpg' })].join('\n'))
-      const evidence = collectRunEvidence({ sessionFiles: [join(dir, 's.jsonl')], watchFiles: ['/att/1.jpg', '/att/2.jpg', '/att/3.jpg'] })
-      assert.deepEqual(evidence.unopenedFiles, ['/att/2.jpg'])
-      assert.match(unopenedImagesNote({ evidence, total: 3 }), /3 张截图有 1 张执行器没打开看/)
-      assert.match(unopenedImagesNote({ evidence: { unopenedFiles: ['/a', '/b'] }, total: 2 }), /一张都没打开看/)
-      assert.equal(unopenedImagesNote({ evidence: { unopenedFiles: [] }, total: 3 }), null)
-      assert.equal(unopenedImagesNote({ evidence: null, total: 3 }), null, '读不到会话记录不提示')
-    } finally {
-      rmSync(dir, { recursive: true, force: true })
-    }
-  })
+  it('按会话记录里的 Read / 命令路径数出没打开的截图；提示只在有没打开的时候出', () => runSteps([
+    ['按会话记录里的 Read / 命令路径数出没打开的截图；提示只在有没打开的时候出', async () => {
+      const { unopenedImagesNote } = await import('../lib/lark-run-report.mjs')
+      const dir = mkdtempSync(join(tmpdir(), 'lark-evidence-img-'))
+      try {
+        const use = (id, name, input) => JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name, input }] } })
+        writeFileSync(join(dir, 's.jsonl'), [use('t1', 'Read', { file_path: '/att/1.jpg' }), use('t2', 'Bash', { command: 'file /att/3.jpg' })].join('\n'))
+        const evidence = collectRunEvidence({ sessionFiles: [join(dir, 's.jsonl')], watchFiles: ['/att/1.jpg', '/att/2.jpg', '/att/3.jpg'] })
+        assert.deepEqual(evidence.unopenedFiles, ['/att/2.jpg'])
+        assert.match(unopenedImagesNote({ evidence, total: 3 }), /3 张截图有 1 张执行器没打开看/)
+        assert.match(unopenedImagesNote({ evidence: { unopenedFiles: ['/a', '/b'] }, total: 2 }), /一张都没打开看/)
+        assert.equal(unopenedImagesNote({ evidence: { unopenedFiles: [] }, total: 3 }), null)
+        assert.equal(unopenedImagesNote({ evidence: null, total: 3 }), null, '读不到会话记录不提示')
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    }],
+    ['只把带本地路径的图片附件算进截图核对：文件、没下载下来的图片不算（变异补测 10-24）', async () => {
+      const { imageAttachmentPaths } = await import('../lib/lark-run-report.mjs')
+      const task = { attachments: [{ type: 'image', localPath: '/att/1.jpg' }, { type: 'file', localPath: '/att/a.pdf' }, { type: 'image', imageKey: 'img_x', downloadError: '403' }, { type: 'image', localPath: '/att/2.jpg' }] }
+      assert.deepEqual(imageAttachmentPaths(task), ['/att/1.jpg', '/att/2.jpg'])
+      assert.deepEqual(imageAttachmentPaths({}), [])
+    }],
+    ['核验闸拦下：回写带上是哪道闸拦的（投递据此写「改动没提交（闸：原因）」），没给闸名记 null（变异补测 10-24）', async () => {
+      const { buildGateFailureReport } = await import('../lib/lark-run-report.mjs')
+      const report = buildGateFailureReport({ verify: { ok: false, status: 'failed', text: '终检没过', gate: 'final-verification', reason: 'Biome 非零' } })
+      assert.deepEqual([report.status, report.result], ['failed', '终检没过'])
+      assert.deepEqual(report.extras.change, { committed: false, gate: 'final-verification', reason: 'Biome 非零' })
+      const unnamed = buildGateFailureReport({ verify: { ok: false, status: 'failed', text: 'x', reason: 'r'.repeat(400) } })
+      assert.equal(unnamed.extras.change.gate, null)
+      assert.equal(unnamed.extras.change.reason.length, 300)
+    }],
+  ]))
 })

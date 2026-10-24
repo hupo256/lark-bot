@@ -72,6 +72,16 @@ describe('repo profile 归一与注册', () => {
       assert.throws(() => buildRepoRegistry({ repos: { a: { ...faliveRaw, projectKey: 'XX' }, b: { ...faliveRaw, projectKey: 'XX', chatIds: ['oc_other'] } } }), /projectKey XX 重复/)
       assert.throws(() => buildRepoRegistry({ repos: { a: { ...faliveRaw, projectKey: 'AA' }, b: { ...faliveRaw, projectKey: 'BB' } } }), /oc_falive_1 同时属于/)
     }],
+    ['外部群分类去抖按 intake 配置分道（旧 intakeDebounceMs 只兜 quietGapMs）；排队卡缺省只发私聊、显式 false 才回群（变异补测 10-24）', () => {
+      const tuned = normalizeRepoProfile('falive', { ...faliveRaw, intake: { fastLaneMs: 5000, quietGapMs: 30_000, maxWaitMs: 90_000 }, intakeDebounceMs: 120_000 })
+      assert.deepEqual(tuned.intake, { fastLaneMs: 5000, quietGapMs: 30_000, maxWaitMs: 90_000 }, '配了 intake 就照读，不被旧字段盖掉')
+      assert.equal(tuned.intakeDebounceMs, 30_000, '旧引用 = quietGapMs')
+      const legacy = normalizeRepoProfile('falive', { ...faliveRaw, intakeDebounceMs: 120_000 })
+      assert.deepEqual(legacy.intake, { fastLaneMs: 0, quietGapMs: 120_000, maxWaitMs: 180_000 }, '只有旧字段：当 quietGapMs，其余缺省')
+      assert.deepEqual(normalizeRepoProfile('falive', faliveRaw).intake, { fastLaneMs: 0, quietGapMs: 60_000, maxWaitMs: 180_000 })
+      assert.equal(normalizeRepoProfile('falive', faliveRaw).quietQueuedCards, true, '缺省排队卡只发负责人私聊')
+      assert.equal(normalizeRepoProfile('falive', { ...faliveRaw, quietQueuedCards: false }).quietQueuedCards, false, '显式 false 才发回群')
+    }],
   ], hooks))
 
   it('注册前 FALIVE 不是合法项目号、validateConfig 校验 root 存在；注册后群 / 任务 → 仓、safeProject、标题取 profile.title', () => runSteps([

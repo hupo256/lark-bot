@@ -3,8 +3,9 @@ import { describe, it } from 'node:test'
 
 import { pickRecentAttachments, shortTime } from '../lib/lark-chat-context.mjs'
 import { prefetchTaskReferences } from '../lib/lark-task-prefetch.mjs'
-import { formatTaskAttachments } from '../lib/lark-classify-prompt.mjs'
+import { buildIntentClassificationPrompt, formatTaskAttachments } from '../lib/lark-classify-prompt.mjs'
 import { fetchRecentChatContext } from '../lib/lark-cli.mjs'
+import { registerRepoProfiles, resetRepoProfiles } from '../lib/lark-repo-profile.mjs'
 import { runSteps } from './support/steps.mjs'
 
 // 10-23 起外部群只响应 @bot：没 @ 的讨论只能靠 @bot 时读上下文带进来，要读全。
@@ -35,6 +36,17 @@ describe('@bot 时的上下文读取', () => {
       const text = formatTaskAttachments({ attachments: [{ type: 'file', fileName: 'a.md', origin: '本条', localPath: '/x/a.md' }, { type: 'image', origin: '群里之前的消息 · Encone 10-23 13:28', localPath: '/x/b.png' }] })
       assert.match(text, /1\. file「a\.md」；来源：本条；本地路径：\/x\/a\.md/)
       assert.match(text, /2\. image；来源：群里之前的消息 · Encone 10-23 13:28/)
+    }],
+    ['分类提示写明本条发送人：登记成员带角色、本人标本人、没有发送人写「未知」（变异补测 10-24）', () => {
+      registerRepoProfiles({ repos: { falive: { root: '/tmp/lark-ctx-capture-no-such-repo', baseRef: 'main', chatIds: ['oc_ctx'], ownership: { me: 'aven', meOpenIds: ['ou_aven'] }, ownerMap: { henry: 'ou_henry' }, memberRoles: { henry: 'live php 后端' } } } })
+      try {
+        const prompt = (operator) => buildIntentClassificationPrompt({ id: 't', repo: 'falive', text: '这个按钮不对', attachments: [], ...(operator ? { operator } : {}) }, { ledger: { items: {}, events: [] } })
+        assert.match(prompt('ou_henry'), /本条发送人：henry（live php 后端）；/)
+        assert.match(prompt('ou_aven'), /本条发送人：aven 本人；/)
+        assert.match(prompt(null), /本条发送人：未知；/)
+      } finally {
+        resetRepoProfiles()
+      }
     }],
   ]))
 })
