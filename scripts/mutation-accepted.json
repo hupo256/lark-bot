@@ -1,1 +1,62 @@
-[]
+[
+  {
+    "file": "lib/lark-task-runner.mjs",
+    "code": "Date.now() - Date.parse(item.updatedAt || item.createdAt || 0) < 7 * 24 * 60 * 60_000)",
+    "op": "< → <=",
+    "reason": "等价：只在「当前时间 - 更新时间」恰好等于 7 天整（毫秒级相等）时有区别，主题候选窗口的边界毫秒不影响分类"
+  },
+  {
+    "file": "lib/lark-task-runner.mjs",
+    "code": ".sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1)).slice(0, 15)",
+    "op": "< → <=",
+    "reason": "等价：排序比较器里只影响 updatedAt 完全相同的并列候选的先后，分类器拿到的是候选集合，并列项先后无业务含义"
+  },
+  {
+    "file": "lib/lark-task-runner.mjs",
+    "code": "if (outcome.ok && outcome.committed && workContext.hotfixBranch) removeTempWorktreeIfClean({ path: workContext.cwd, repoRoot: workContext.repoRoot })",
+    "op": "&& → ||",
+    "reason": "等价（本行第二个 && → ||）：scoped 提交分支只在 commitScopedPaths 非空时进，而它来自 planDocIntakeCommit 的 git 实测有改动的文档；进来后要么提交成功（ok && committed），要么提交失败、改动仍在工作区（dirty）。变异后多出的 removeTempWorktreeIfClean 调用自带「工作区干净才删」守卫，dirty 时什么都不做；「改动在收尾前消失」那条会先被提交前的工作树指纹校验拦下。本行第一个 && 由「人的项目 worktree 入库后原样保留」一段钉住"
+  },
+  {
+    "file": "lib/lark-task-runner.mjs",
+    "code": "} else if (!(workerVerification = runFinalVerification({ cwd: workContext.cwd, changedFiles: archivedDocs, finalChecks: repoProfileForTask(task)?.finalChecks || null })).ok) {",
+    "op": "|| → &&",
+    "reason": "等价：finalChecks 只在改动含 .ts/.tsx/.mts/.cts 时跑 typecheck、含 *.test.ts 时跑 tests（lark-final-verification）；文档入库的 changedFiles 只会是 DOC_FILE_RE 的文档后缀（md/pdf/docx/txt/json/yaml/xlsx/csv，lark-doc-archive），传不传 finalChecks 终检结果一样"
+  },
+  {
+    "file": "lib/lark-task-runner.mjs",
+    "code": "let schemaGate = gatewayStatus === 'done' && !workContext.readOnly && task.repo ? judgeSchema() : null",
+    "op": "&& → ||",
+    "reason": "等价（本行两处 && → ||）：非 done 时 actualChangedFiles 只可能是空（未完成态不进核验闸）或文档入库存档的文档（DOC_FILE_RE 后缀）；只读任务 actualChangedFiles 恒空。schemaFiles 指向接口文件、requestMarker 只认 .ts/.mts/.js/.mjs 源码，这些情况下 resolveSchemaVerifyGate 都返回 null。本行 === → !== 由 WIP 改道一段（接口实测 issues 降级 failed）钉住"
+  },
+  {
+    "file": "lib/lark-task-runner.mjs",
+    "code": "else if (branchCleanup && !branchCleanup.deleted) console.warn(`[lark-worker] ⚠ ${task.id} 任务分支 ${workContext.hotfixBranch} 未删：${branchCleanup.reason}`)",
+    "op": "&& → ||",
+    "reason": "纯日志：只决定是否多打一行「任务分支未删」的 console.warn，分支清理结果已原样记进审计 integration.branchCleanup"
+  },
+  {
+    "file": "lib/lark-task-runner.mjs",
+    "code": "outbox: task.chatId ? listOutbox({ chatId: task.chatId, sinceMs: Date.parse(task.claimedAt || task.createdAt || '') || 0 }) : [],",
+    "op": "|| → &&",
+    "reason": "等价（本行三处 || → &&）：变异只会让 listOutbox 预筛的 sinceMs 变成 createdAt 或 0（放宽预筛；领取时刻必在创建之后）；collectFailureEvidence 自己按同一口径（claimedAt || createdAt）再筛一遍发件记录，旁证结果不变"
+  },
+  {
+    "file": "lib/lark-task-runner.mjs",
+    "code": "worktreeState: workContext?.cwd && existsSync(workContext.cwd) ? worktreeState(workContext.cwd) : null,",
+    "op": "&& → ||",
+    "reason": "等价：cwd 有值时与原式相同；cwd 为空时 existsSync(undefined) 为 false，同样得 null；目录不存在时 worktreeState 返回 'error'，collectFailureEvidence 只认 'dirty'，旁证不变"
+  },
+  {
+    "file": "lib/lark-task-runner.mjs",
+    "code": "if (!outcome.ok && finalTask?.status === 'done') {",
+    "op": "&& → ||",
+    "reason": "纯日志：只决定是否打一行「已置 done 但收尾提交失败」的 console.error（卡片已发出无法降级），提交结果已记进审计 commit"
+  },
+  {
+    "file": "lib/lark-task-runner.mjs",
+    "code": "if (!outcome.ok && finalTask?.status === 'done') {",
+    "op": "=== → !==",
+    "reason": "纯日志：同上，只影响一行 console.error，提交结果已记进审计 commit"
+  }
+]
