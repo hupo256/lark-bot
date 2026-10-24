@@ -66,6 +66,13 @@ describe('任务契约', () => {
       t.text = '【本条 @】@Aven.Bot 把按钮改成红色'
       assert.equal(refreshContract(t).contract.deliverable, 'change')
     }],
+    ['分类失败不落契约（变异补测 10-24）：契约只按成功的分类结果算一次，失败任务停在 intake_failed', () => {
+      const t = { ...task({ own: '你自己在 pre 环境看，看完报告结果' }), status: 'running', intake: { required: true } }
+      const out = applyIntakeClassification(t, { classification: null, error: 'claude 超时' })
+      assert.equal(out.actionable, false)
+      assert.equal(t.status, 'intake_failed')
+      assert.equal(t.contract, undefined, '正文像复测也不凭失败的分类落契约')
+    }],
     ['10-23 #74：forMe=true 的 medium 直接开跑，归属拿不准才挂疑似；对接答复前端不用做 → 只记一笔，契约不算改代码', () => {
       const t = (cls, extra = {}) => ({ id: 't', repo: 'falive', addressedToBot: true, attachments: [], text: '@Aven.Bot x', ...extra, intake: { classification: { confidence: 'medium', summary: 's', ...cls } } })
       assert.equal(intakeActionable(t({}), { decision: 'bug', confidence: 'medium', forMe: true }), true)
