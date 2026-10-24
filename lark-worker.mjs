@@ -19,6 +19,8 @@ import { resolveWorkContext, safeProject } from './lib/lark-work-context.mjs'
 import { createTaskRunner } from './lib/lark-task-runner.mjs'
 import { startLogRotation } from './lib/lark-log-rotate.mjs'
 import { createRuntimeVersion, versionWarnings, writeWorkerHeartbeat } from './lib/lark-runtime-version.mjs'
+import { createDrainRestart, drainRestartSwitch } from './lib/lark-drain-restart.mjs'
+import { sendChatMessage } from './lib/lark-cli.mjs'
 import { larkRuntimeDir } from './lib/lark-repo.mjs'
 import { defaultTaskLeaseMs } from './lib/lark-constants.mjs'
 
@@ -104,6 +106,22 @@ export async function runLarkWorker({
   // 放在 --once 之后：一次性执行不需要定时器。只有 plist 注入了 LARK_LOG_FILE 才真的截断。
   const logTimer = startLogRotation()
 
+  // 排空重启（从 falive 移植）：磁盘代码 / 配置变了 → 不再领新任务 → 在飞跑完、磁盘稳定、自检绿 → lark-bot restart。
+  // 自检红：不重启、私信 notifyOpenId 一次（没配只写日志），同一版磁盘不再重跑。开关见 drainRestartSwitch。
+  const selfHeal = localConfig.selfHeal || {}
+  const drainSwitch = drainRestartSwitch({ selfHeal })
+  const notifyOpenId = typeof localConfig.notifyOpenId === 'string' && localConfig.notifyOpenId.startsWith('ou_') ? localConfig.notifyOpenId : null
+  const drain = createDrainRestart({
+    version: runtimeVersion,
+    configPath,
+    enabled: drainSwitch.enabled,
+    settleMs: Number(selfHeal.settleMs) > 0 ? Number(selfHeal.settleMs) : undefined,
+    notify: notifyOpenId
+      ? (text, { idempotencyKey } = {}) => sendChatMessage({ chatId: notifyOpenId, text, idempotencyKey, logPrefix: 'drain-restart' })
+      : async () => {},
+  })
+  console.log(`[lark-worker] 排空重启：${drainSwitch.enabled ? `开（磁盘改动 → 排空 → 自检绿 → 自动 restart；自检红${notifyOpenId ? '私信 notifyOpenId' : '只写日志：未配 notifyOpenId'}）` : `关（${drainSwitch.reason}）`}`)
+
   // 优雅退出：SIGTERM/SIGINT（launchd bootout 与 lark-bot stop 都发 SIGTERM）时，先把在飞任务
   // 交还队列（releaseTask → queued + epoch++），再中断在跑的 AI 子进程，让重启后的 worker 立刻重领，
   // 而非空等 40min 租约过期。必须「先释放再 abort」：被中断执行随后那条 failed 迟到回写会因 epoch
@@ -114,10 +132,10 @@ export async function runLarkWorker({
   let shuttingDown = false
 
   // 版本心跳 + 自检告警：每分钟落一次盘（供 gateway health 汇总），同时把落后状态打进 worker.log。
-  // 只告警不自杀——正在跑的长任务比"跑最新代码"更值得保住，重启时机由人或 launchd 决定。
+  // 这里只告警不自杀——正在跑的长任务比"跑最新代码"更值得保住；重启时机由上面的排空重启（或人）决定。
   let lastVersionWarning = ''
   const heartbeatTimer = setInterval(() => {
-    heartbeat({ inFlight: inFlight.size })
+    heartbeat({ inFlight: inFlight.size, draining: drain.isDraining() })
     // 版本落后只在内容变化时打一行（原每分钟一行，worker.log 里一天几千行同样的话）。
     const warningText = versionWarnings(runtimeVersion.observe()).join('\n')
     if (warningText && warningText !== lastVersionWarning) console.warn(`[lark-worker] ⚠ ${warningText}`)
@@ -150,11 +168,17 @@ export async function runLarkWorker({
 
   // 并行调度器：inFlight 以 workContext.cwd 为 key（同一 worktree 只允许一个在飞、天然串行；
   // 不同 worktree 并行）。git worktree add/remove 等走 spawnSync 同步执行，本就互不交错，无需额外锁。
+  let lastDraining = false
   for (;;) {
     // 本轮跳过集：claim 竞态失败的 id 记下来，避免「可列出却不可领」的任务被反复重挑，
     // 把内层 while 变成不带退避的紧循环、满速打 gateway。每轮重新开始，不会永久屏蔽任务。
     const skipThisRound = new Set()
-    while (!shuttingDown && inFlight.size < defaultConcurrency) {
+    // 排空重启每轮先判：排空中不领新任务（在飞的照常跑完）。
+    await drain.tick({ inFlight: inFlight.size }).catch((error) => console.error('[lark-worker] 排空重启 tick 异常（忽略）：', error))
+    // 排空状态一变就补写心跳，health / `lark-bot status` 不用等下一分钟才看到「排空中」。
+    if (drain.isDraining() !== lastDraining) heartbeat({ inFlight: inFlight.size, draining: drain.isDraining() })
+    lastDraining = drain.isDraining()
+    while (!shuttingDown && !drain.isDraining() && inFlight.size < defaultConcurrency) {
       // gateway 重启 / 抖动时不裸崩：listClaimable 的 reliableRequest 只重试 3×150ms，超过就抛；
       // 原来这里没 try，一次 ECONNREFUSED 就让整个 worker 进程退出、在飞任务成孤儿。
       let candidates

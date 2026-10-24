@@ -83,3 +83,29 @@
 ## 下一次移植时看什么
 
 falive 那边 `docs/falive-lessons.md` 从 #87 往后的新条目，以及 `git log 659f3d6..` 里标 `fix(worker)` / `fix(executor)` / `refactor(batch-*)` 且不含 `repo-delivery` / `daily` / `ledger` / `intake` 字样的提交。通用的标准还是一条：fameex 群里 @bot 修 bug 这条路径用得上、且不需要新配通知通道。
+
+## 第二批：自愈（10-24 下午）
+
+aven 10-24 下午定：「刻意没搬的」里的排空重启和自愈环 2 这次要搬。两件分两条分支并行做（排空重启 `lark/port-drain-restart`，失败指纹 + 剧本 + 失败台账另一条），本节先记排空重启。
+
+通知通道：fameex 没有控制台群，新增配置键 `notifyOpenId`（负责人 open_id，`ou_` 开头，`validateConfig` 校验；不是 `ou_` 开头拒绝启动，没配只告警），自愈消息只私信这个人（`sendChatMessage` 对 `ou_` 自动走 `--user-id`）。没配就只写 worker.log。
+
+| # | 能力 | 来源（falive 教训 / 批次） | 落在哪 | 配置 | 怎么验（真机） |
+|---|---|---|---|---|---|
+| 27 | 排空重启：运行目录的代码 / 配置与进程加载的不一致 → worker 不再领新任务 → 在飞跑完、磁盘稳定 1 分钟 → 自检（代码改了跑全量单测，hermetic 环境去掉全部 `LARK_*`、5 分钟超时；配置改了做启动期同款 `validateConfig`）→ 绿：脱离进程组起 `scripts/lark-bot restart`（`LARK_BOT_ROOT` 钉成本仓）；红：不重启，私信一次失败摘要（只摘「✖ failing tests」节），同一版磁盘不再重跑，再改一版重新来。只在 launchd 托管（plist 注入 `LARK_LOG_FILE`）时开 | 自愈环 3（falive 10-16） | `lib/lark-drain-restart.mjs`；`lark-worker.mjs` 主循环每轮先 `drain.tick`、排空中不领任务；心跳带 `draining`（状态一变立即补写） | `selfHeal.drainRestart=false` 或 `LARK_DRAIN_RESTART=0` 关；`selfHeal.settleMs` 调稳定等待（默认 60000）；`notifyOpenId` | 往 `~/github/lark-bot` 合一个小改动：worker.log 出现「排空重启：磁盘代码已更新…不再领新任务」→「自检绿…已发起 lark-bot restart」，`lark-bot status` 排空期间 worker 行带「排空中（在飞 N 个…）」，几分钟后 `codeStale` 消失 |
+| 28 | 只改配置也有「磁盘改动时间」（原来只算源码 mtime，只改配置时排空不等存盘稳定） | 移植时补 | `lib/lark-runtime-version.mjs` `diskChangedAt` | 无 | — |
+| 29 | `lark-bot status` / health：worker 排空中时旧代码提示改成「在飞任务跑完、自检绿会自动 restart」，不再叫人手动 restart | 自愈环 3 | `scripts/lark-bot` status、`lib/lark-routes.mjs` | 无 | 同 #27 |
+
+按 fameex 改了的地方：
+
+- 通知不走 repo profile 的 `notifyChatId`（fameex 没有 profile / 控制台群），改走 `notifyOpenId` 私信；消息带幂等键 `drain-red-<磁盘指纹>`，重试不重发。
+- 去掉 `botCliName()`（fameex 只有 `lark-bot` 一个 CLI 名）、`isRepoOnlyInstance`；`hermeticTestEnv` 放进本模块，去掉全部 `LARK_*` 和 `NODE_TEST_CONTEXT`（falive 只去三个）。
+- 单测文件列表与 `scripts/test-all.mjs` 一致（读 `__tests__/*.test.mjs`，不靠 node 的 glob），显式 `--test-reporter=spec`；不卡 18 秒预算（机器忙时变慢不该让 bot 起不来）。
+- 配置改动的自检：falive 注释说「校验 JSON」但实际直接放行；这里真做 `loadConfig` + `validateConfig`，坏配置不重启（gateway 启动校验不过会直接起不来）。
+- falive 的体检（doctor）、分支回收（reaper）、合盖暂停不带。
+
+上线：
+
+1. 合进运行分支后**第一次仍要手动** `lark-bot restart`（旧进程里没有排空重启的代码）；之后合代码会自动上线。
+2. 配置 `runtime/lark-bot.local.json` 加 `"notifyOpenId": "ou_<你的 open_id>"`（不加也能跑，只是自检红只写日志）。想关就加 `"selfHeal": { "drainRestart": false }`。
+3. 合进运行目录 = 几分钟内上线：合之前跑 `node scripts/test-all.mjs`；单测红 bot 会拦下不重启，但能过单测的坏改动拦不住。

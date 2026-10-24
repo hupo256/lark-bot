@@ -1510,6 +1510,7 @@ describe('validateConfig（启动期配置结构校验）', () => {
     project: 'PR-02306',
     botOpenId: 'ou_bot',
     botAppId: 'cli_bot',
+    notifyOpenId: 'ou_owner',
     allowedChatIds: 'auto',
     bugTable: { appToken: 'app', tableId: 'tbl', statusField: '状态', assigneeField: '负责人', doneValue: '已处理' },
   }
@@ -1519,6 +1520,16 @@ describe('validateConfig（启动期配置结构校验）', () => {
     assert.deepEqual(warnings, [])
     assert.ok(validateConfig({ ...base, botAppId: undefined }).warnings.some((w) => w.includes('botAppId')))
     assert.ok(validateConfig({ ...base, botAppId: 1 }).errors.some((e) => e.includes('botAppId')))
+  })
+  it('notifyOpenId：没配只告警（自愈消息只写日志），配了必须是 ou_ 开头的 open_id', () => {
+    const missing = validateConfig({ ...base, notifyOpenId: undefined })
+    assert.deepEqual(missing.errors, [])
+    assert.deepEqual(missing.warnings, ['未配 notifyOpenId：自愈消息（排空重启自检红等）不私信，只写日志'])
+    for (const bad of ['oc_group', 1, '']) {
+      const { errors, warnings } = validateConfig({ ...base, notifyOpenId: bad })
+      assert.deepEqual(errors, ['notifyOpenId 必须是负责人 open_id（ou_ 开头）：自愈消息只私信这个人'], String(bad))
+      assert.deepEqual(warnings, [], String(bad))
+    }
   })
   it('project 缺失 / 空串 → error', () => {
     assert.ok(validateConfig({ ...base, project: undefined }).errors.some((e) => e.includes('project')))

@@ -258,7 +258,10 @@ status() {
 
         console.log(`started time: ${health?.version?.startedAt || "--"}`);
         console.log(`lark-gateway: ${gatewayState}  port=3005`);
-        console.log(`lark-worker:  ${workerState}${workerPid ? `  pid=${workerPid}` : ""}`);
+        // 排空重启：磁盘代码 / 配置已更新，worker 不领新任务，在飞跑完、自检绿自己发起 restart（lib/lark-drain-restart.mjs）。
+        const draining = Boolean(worker?.draining && workerPid && worker.pid === Number(workerPid) && !worker.heartbeatStale);
+        const staleFix = draining ? "worker 排空中，在飞任务跑完、自检绿会自动 restart" : "需 lark-bot restart";
+        console.log(`lark-worker:  ${workerState}${workerPid ? `  pid=${workerPid}` : ""}${draining ? `  排空中（在飞 ${worker.inFlight ?? "?"} 个，跑完即自动 restart）` : ""}`);
         console.log(`poller:       ${pollerState}${pollerPid ? `  pid=${pollerPid}` : ""}`);
         console.log("");
         console.log(`executor:     ${readiness?.executor || "--"}${readiness?.model ? `  model=${readiness.model}  reasoning=${readiness.reasoningEffort}  probe=${readiness.modelProbe}` : ""}${readiness?.executor === "claude" ? `  auth=${process.env.LARK_STATUS_CLAUDE_AUTH}` : ""}`);
@@ -285,13 +288,13 @@ status() {
         }
 
         if (health?.version?.codeStale) {
-          console.log(`\n⚠ gateway 跑的是旧代码（${health.version.codeHash || "?"}，磁盘 ${health.version.diskCodeHash || "?"}）：需 lark-bot restart`);
+          console.log(`\n⚠ gateway 跑的是旧代码（${health.version.codeHash || "?"}，磁盘 ${health.version.diskCodeHash || "?"}）：${staleFix}`);
         }
         if (health?.version?.configStale) {
-          console.log(`\n⚠ gateway 跑的是旧配置（${health.version.configHash || "?"}，磁盘 ${health.version.diskConfigHash || "?"}）：需 lark-bot restart`);
+          console.log(`\n⚠ gateway 跑的是旧配置（${health.version.configHash || "?"}，磁盘 ${health.version.diskConfigHash || "?"}）：${staleFix}`);
         }
         if (worker?.codeStale) {
-          console.log(`\n⚠ worker 跑的是旧代码（${worker.codeHash || "?"}，磁盘 ${health?.version?.diskCodeHash || "?"}）：需 lark-bot restart`);
+          console.log(`\n⚠ worker 跑的是旧代码（${worker.codeHash || "?"}，磁盘 ${health?.version?.diskCodeHash || "?"}）：${staleFix}`);
         }
         for (const warning of health?.warnings || []) console.log(`⚠ ${warning}`);
 

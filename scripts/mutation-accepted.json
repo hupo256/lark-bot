@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "file": "lib/lark-drain-restart.mjs",
+    "code": "for (let i = start + 1; i < lines.length && out.length < limit; i += 1) {",
+    "op": "< → <=",
+    "reason": "多走的一步 i === lines.length 时 lines[i] 是 undefined，/^✖ /.test(undefined) 恒为假直接 continue，输出不变（等价变异）"
+  }
+]

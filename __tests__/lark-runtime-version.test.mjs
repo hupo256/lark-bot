@@ -6,7 +6,7 @@
  */
 
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
@@ -112,6 +112,44 @@ describe('lark-runtime-version', () => {
       assert.equal(observed.configStale, true)
       assert.equal(observed.codeStale, false)
       assert.equal(versionWarnings(observed).length, 1)
+      // 只改配置也要有改动时间（排空重启等人存完盘再校验），取配置文件的 mtime
+      assert.equal(observed.diskChangedAt, new Date(statSync(configPath).mtimeMs).toISOString())
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('observe(): diskChangedAt 取变了的那一样的 mtime，两样都变取较新的；都没变为 null', () => {
+    const root = makeTree()
+    const configPath = join(root, 'runtime', 'lark-bot.local.json')
+    try {
+      let clock = 1_000_000
+      const version = createRuntimeVersion({ root, configPath, ttlMs: 0, now: () => clock })
+      assert.equal(version.observe().diskChangedAt, null)
+      const old = new Date('2026-01-01T00:00:00.000Z')
+      const newer = new Date('2026-02-01T00:00:00.000Z')
+      writeFileSync(join(root, 'lib', 'a.mjs'), 'export const a = 7\n')
+      for (const file of ['lib/a.mjs', 'lib/b.mjs', 'schemas.json']) utimesSync(join(root, file), old, old)
+      utimesSync(configPath, newer, newer)
+      clock += 1
+      assert.equal(version.observe().diskChangedAt, old.toISOString(), '只有代码变：配置 mtime 再新也不算')
+      writeFileSync(configPath, '{"project":"PR-07777"}\n')
+      utimesSync(configPath, newer, newer)
+      clock += 1
+      assert.equal(version.observe().diskChangedAt, newer.toISOString(), '两样都变取较新的')
+      for (const file of ['lib/a.mjs']) utimesSync(join(root, file), new Date('2026-03-01T00:00:00.000Z'), new Date('2026-03-01T00:00:00.000Z'))
+      clock += 1
+      assert.equal(version.observe().diskChangedAt, '2026-03-01T00:00:00.000Z')
+      // 配置文件被删：没有 mtime，回落到代码 mtime；代码也一致时回落到观测时刻
+      rmSync(configPath)
+      clock += 1
+      assert.equal(version.observe().diskChangedAt, '2026-03-01T00:00:00.000Z')
+      writeFileSync(join(root, 'lib', 'a.mjs'), 'export const a = 1\n')
+      for (const file of ['lib/a.mjs']) utimesSync(join(root, file), old, old)
+      clock += 1
+      const back = version.observe()
+      assert.equal(back.codeStale, false)
+      assert.equal(back.diskChangedAt, new Date(clock).toISOString())
     } finally {
       rmSync(root, { recursive: true, force: true })
     }

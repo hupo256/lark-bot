@@ -144,6 +144,35 @@ describe('lark-bot control script', () => {
     assert.doesNotMatch(result.stdout, /rules:/)
   })
 
+  it('worker 排空中：status 显示排空与在飞数，旧代码 / 旧配置提示改成「会自动 restart」；心跳停了或 pid 对不上不算排空', () => {
+    const statusWith = (worker, version) => runBash(`
+      export LARK_BOT_SOURCE_ONLY=1
+      source ${JSON.stringify(script)}
+      _pid() { echo 101 ; }
+      curl() {
+        if printf '%s' "$*" | grep -q '/lark/tasks'; then
+          printf '%s' '{"tasks":[]}'
+        else
+          printf '%s' '${JSON.stringify({ ok: true, worker, version, counts: {}, pendingReceipts: { total: 0 } })}'
+        fi
+      }
+      status
+    `)
+    const version = { codeStale: true, codeHash: 'aaa', diskCodeHash: 'bbb', configStale: true, configHash: 'c1', diskConfigHash: 'c2' }
+    const draining = { pid: 101, codeHash: 'aaa', codeStale: true, draining: true, inFlight: 2, readiness: { ok: true, executor: 'claude' } }
+    const out = statusWith(draining, version).stdout
+    assert.match(out, /lark-worker:  unhealthy  pid=101  排空中（在飞 2 个，跑完即自动 restart）\n/)
+    assert.match(out, /gateway 跑的是旧代码（aaa，磁盘 bbb）：worker 排空中，在飞任务跑完、自检绿会自动 restart/)
+    assert.match(out, /gateway 跑的是旧配置（c1，磁盘 c2）：worker 排空中/)
+    assert.match(out, /worker 跑的是旧代码（aaa，磁盘 bbb）：worker 排空中/)
+    assert.doesNotMatch(out, /需 lark-bot restart/)
+    for (const notDraining of [{ ...draining, draining: false }, { ...draining, heartbeatStale: true }, { ...draining, pid: 999 }]) {
+      const plain = statusWith(notDraining, version).stdout
+      assert.doesNotMatch(plain, /排空中/)
+      assert.match(plain, /worker 跑的是旧代码（aaa，磁盘 bbb）：需 lark-bot restart/)
+    }
+  })
+
   it('无挂起任务时不输出挂起区块', () => {
     const result = runBash(`
       export LARK_BOT_SOURCE_ONLY=1
