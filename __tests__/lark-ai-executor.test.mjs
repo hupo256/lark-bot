@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import { EventEmitter } from 'node:events'
-import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { PassThrough } from 'node:stream'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { describe, it } from 'node:test'
 
 import { parseAiExecutorDirective, resolveGatewayAiExecutor } from '../lib/lark-ingest.mjs'
@@ -17,6 +19,7 @@ import {
   executorReadableDirs,
   formatStructuredAiResult,
   isTransientAiError,
+  preflightAiExecutor,
   resolveAiExecutor,
   validateAiExecutor,
 } from '../lib/lark-ai-executor.mjs'
@@ -122,6 +125,23 @@ describe('claude headless command', () => {
       assert.match(recovery, /不要重跑任务/)
       assert.match(recovery, /\/tmp\/r\/result\.json/)
     }],
+    ['AI 硬超时：两个环境变量都没设默认 30 分钟；LARK_WORKER_AI_TIMEOUT_MS 优先，旧名 LARK_WORKER_CODEX_TIMEOUT_MS 仍兼容（变异补测 10-24）', () => {
+      // 常量在模块加载时读环境变量：每种环境起一个干净子进程 import，读导出的 aiTimeoutMs。
+      const moduleUrl = pathToFileURL(join(larkBotRoot, 'lib/lark-ai-executor.mjs')).href
+      const timeoutWith = (vars) => {
+        const env = { ...process.env }
+        delete env.LARK_WORKER_AI_TIMEOUT_MS
+        delete env.LARK_WORKER_CODEX_TIMEOUT_MS
+        Object.assign(env, vars)
+        const res = spawnSync(process.execPath, ['--input-type=module', '-e', `const { aiTimeoutMs } = await import(${JSON.stringify(moduleUrl)}); process.stdout.write('AI_TIMEOUT=' + aiTimeoutMs)`], { env, encoding: 'utf8' })
+        assert.equal(res.status, 0, res.stderr)
+        return Number(res.stdout.match(/AI_TIMEOUT=(\d+)/)?.[1])
+      }
+      assert.equal(timeoutWith({}), 1800000, '都没设默认 30 分钟')
+      assert.equal(timeoutWith({ LARK_WORKER_AI_TIMEOUT_MS: '600000' }), 600000, '设了新名按新名')
+      assert.equal(timeoutWith({ LARK_WORKER_CODEX_TIMEOUT_MS: '900000' }), 900000, '只设旧名按旧名')
+      assert.equal(timeoutWith({ LARK_WORKER_AI_TIMEOUT_MS: '600000', LARK_WORKER_CODEX_TIMEOUT_MS: '900000' }), 600000, '两个都设新名优先')
+    }],
   ]))
 
   it('Claude 只读面：readiness probe、意图分类只开 Read + plan、只读分析含 scope Schema、分析结果解析、只读放行目录', () => runSteps([
@@ -181,6 +201,33 @@ describe('claude headless command', () => {
       assert.ok(dirs.length >= 1)
       assert.ok(dirs.every((dir) => existsSync(dir)))
       assert.ok(dirs.includes(realpathSync(larkBotRoot)))
+    }],
+    ['预检结果按执行器 + 模型缓存：已预检过不重复跑 CLI；要求模型探针时只有探针通过过的缓存才算数，通过后不再重复探（变异补测 10-24）', () => {
+      const bin = mkdtempSync(join(tmpdir(), 'lark-preflight-bin-'))
+      const log = join(bin, 'calls.log')
+      const savedPath = process.env.PATH
+      try {
+        writeFileSync(join(bin, 'claude'), `#!/bin/sh\necho "$1" >> '${log}'\nif [ "$1" = "--version" ]; then echo '9.9.9 (fake)'; exit 0; fi\necho CLAUDE_MODEL_READY\n`)
+        chmodSync(join(bin, 'claude'), 0o755)
+        process.env.PATH = `${bin}:${savedPath}`
+        const calls = () => (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n') : [])
+        // 模型名唯一：缓存是模块级的，不和别的用例串。
+        const localConfig = { claudeModel: 'mutfix-preflight-model' }
+        const first = preflightAiExecutor('claude', { localConfig })
+        assert.equal(first.modelProbe, 'not_run')
+        assert.deepEqual(calls(), ['--version'])
+        assert.equal(preflightAiExecutor('claude', { localConfig }), first, '已预检过直接用缓存')
+        assert.deepEqual(calls(), ['--version'], '不重复跑 --version')
+        const probed = preflightAiExecutor('claude', { localConfig, probeModel: true })
+        assert.equal(probed.modelProbe, 'passed')
+        assert.deepEqual(calls(), ['--version', '--version', '-p'], '缓存没探过模型 → 要求探针时重新预检并真探一次')
+        assert.equal(preflightAiExecutor('claude', { localConfig, probeModel: true }), probed, '探针通过过的缓存直接用')
+        assert.equal(preflightAiExecutor('claude', { localConfig }), probed)
+        assert.equal(calls().length, 3, '探过之后不再重复烧模型请求')
+      } finally {
+        process.env.PATH = savedPath
+        rmSync(bin, { recursive: true, force: true })
+      }
     }],
   ]))
 

@@ -31,20 +31,46 @@ const bugTask = (executor, extra = {}) => ({ id: `t-${executor}`, source: 'lark'
 
 describe('runAI：所有执行器在会改代码的任务上先跑只读分析', () => {
   for (const executor of ['claude']) {
-    it(`${executor}：分析 → 实施两阶段，scope 随返回值带出，实施提示注入契约`, async () => {
-      const { exec, calls } = mockExec()
-      const run = await runAI({ localConfig: {} }, bugTask(executor), workContext(), null, undefined, { exec, snapshot: stableSnapshot })
-      assert.deepEqual(calls.map((call) => call.resultKind), ['analysis', 'task'])
-      assert.ok(calls.every((call) => call.executor === executor))
-      assert.deepEqual(run.scope, scope)
-      assert.equal(run.result.status, 'done')
-      assert.match(calls[0].promptText, /修改范围契约（scope 字段/)
-      assert.match(calls[0].promptText, /同因搜索/)
-      assert.match(calls[1].promptText, /第一阶段只读分析已判定 ready/)
-      assert.match(calls[1].promptText, /可改文件：\n {2}- apps\/web\/src\/a\.ts〔amount〕：首个出错位置/)
-      assert.match(calls[1].promptText, /改动行数上限 120 行/)
-      assert.match(calls[1].promptText, /实施中发现必须改契约外的文件 → 停止/)
-    })
+    it(`${executor}：分析 → 实施两阶段，scope 随返回值带出，实施提示注入契约`, () => runSteps([
+      [`${executor}：分析 → 实施两阶段，scope 随返回值带出，实施提示注入契约`, async () => {
+        const { exec, calls } = mockExec()
+        const run = await runAI({ localConfig: {} }, bugTask(executor), workContext(), null, undefined, { exec, snapshot: stableSnapshot })
+        assert.deepEqual(calls.map((call) => call.resultKind), ['analysis', 'task'])
+        assert.ok(calls.every((call) => call.executor === executor))
+        assert.deepEqual(run.scope, scope)
+        assert.equal(run.result.status, 'done')
+        assert.match(calls[0].promptText, /修改范围契约（scope 字段/)
+        assert.match(calls[0].promptText, /同因搜索/)
+        assert.match(calls[1].promptText, /第一阶段只读分析已判定 ready/)
+        assert.match(calls[1].promptText, /可改文件：\n {2}- apps\/web\/src\/a\.ts〔amount〕：首个出错位置/)
+        assert.match(calls[1].promptText, /改动行数上限 120 行/)
+        assert.match(calls[1].promptText, /实施中发现必须改契约外的文件 → 停止/)
+      }],
+      ['实施续分析会话：claude 带分析 sessionId 且分析 / 实施同模型 → 续会话、发增量提示、完整提示作回退；分析换了模型 → 不续、发完整提示（变异补测 10-24）', async () => {
+        const sessionExec = () => {
+          const calls = []
+          const exec = async (options) => {
+            calls.push(options)
+            return options.resultKind === 'analysis'
+              ? { executor: options.executor, sessionId: 'sess-analysis', result: readyAnalysis() }
+              : { executor: options.executor, result: doneResult }
+          }
+          return { exec, calls }
+        }
+        const same = sessionExec()
+        const run = await runAI({ localConfig: { claudeModel: 'opus' } }, bugTask(executor), workContext(), null, undefined, { exec: same.exec, snapshot: stableSnapshot })
+        assert.deepEqual(same.calls.map((call) => call.resultKind || 'task'), ['analysis', 'task'])
+        assert.equal(same.calls[1].resumeSessionId, 'sess-analysis', '同执行器同模型续分析会话')
+        assert.doesNotMatch(same.calls[1].promptText, /<<<UNTRUSTED_TASK_INPUT/, '续会话发增量提示，不重复任务正文')
+        assert.match(same.calls[1].fallbackPromptText, /<<<UNTRUSTED_TASK_INPUT/, '续不上时回退完整提示')
+        assert.equal(run.analysisSessionId, 'sess-analysis')
+        const switched = sessionExec()
+        await runAI({ localConfig: { claudeModel: 'opus', claudeAnalysisModel: 'sonnet' } }, bugTask(executor), workContext(), null, undefined, { exec: switched.exec, snapshot: stableSnapshot })
+        assert.equal(switched.calls[1].resumeSessionId, null, '分析换了模型不续会话')
+        assert.equal(switched.calls[1].fallbackPromptText, null)
+        assert.match(switched.calls[1].promptText, /<<<UNTRUSTED_TASK_INPUT/, '不续时发完整提示')
+      }],
+    ]))
   }
 
   it('只读查询单趟、自测类不注入契约、分析 blocked 不实施、分析改了工作区直接抛错', () => runSteps([
