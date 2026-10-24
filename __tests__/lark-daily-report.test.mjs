@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, it } from 'node:test'
@@ -13,6 +13,7 @@ import {
   collectApiGapSources,
   collectDailyFacts,
   diffFeatureTables,
+  ensureReviewDeps,
   generateDailyReportText,
   groupCommitsByPerson,
   judgeFeatureCheck,
@@ -64,100 +65,169 @@ describe('功能总表解析与 diff、提交按人归并', () => {
 describe('事实采集与日报生成（IO 注入）', () => {
   afterEach(() => resetRepoProfiles())
 
-  it('采集 git / 总表 / 路线图 / bot 任务，prompt 含模板与无提交名单；runDailyReport 落盘快照并发卡', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'lark-daily-'))
-    try {
-      const profile = normalizeRepoProfile('falive', {
-        root: dir,
-        baseRef: 'feature/phase-3-api',
-        title: 'Falive Web',
-        notifyChatId: 'ou_aven',
-        ownership: { me: 'aven' },
-        dailyReport: { at: '19:00', othersRef: 'origin/pre', featureTable: 'table.md', roadmap: 'README.md', people: { aven: ['aven.tong'], henry: ['henry'], eric: ['eric'] }, fetch: false },
-      })
-      const git = (root, args) => {
-        if (args[0] === 'log') return { ok: true, stdout: 'b2|henry|h@x|feat: 群组\nm3|aven|aven@x|Merge branch x into pre\na1|aven|aven@x|feat: 搜索\n' }
-        if (args[0] === 'rev-parse') return { ok: true, stdout: '2a074a7\n' }
-        return { ok: true, stdout: '' }
-      }
-      const files = { [join(dir, 'table.md')]: TABLE, [join(dir, 'README.md')]: '# x\n\n## 一、分档\n\n| L1 | … | 卡运维 O11 | 运维 |\n\n## 三、对接文档\n' }
-      const store = { list: () => [{ id: 't1', repo: 'falive', status: 'blocked', summary: '主播公告', result: '已阻塞。\n1. 字段确认不了', updatedAt: '2026-10-13T05:00:00.000Z' }] }
-      const now = new Date(2026, 9, 13, 19, 0, 0)
-      const checkout = { dir, note: '' }
-      const facts = collectDailyFacts({ profile, store, now, git, readFile: (path) => files[path] ?? '', snapshotDir: join(dir, 'snap'), checkout })
-      assert.equal(facts.date, '2026-10-13')
-      assert.equal(facts.reviewHead, '2a074a7')
-      assert.deepEqual(Object.keys(facts.others), ['henry', 'aven'])
-      assert.equal(facts.others.aven.commits.length, 1)
-      assert.equal(facts.others.aven.merges, 1)
-      assert.equal(facts.table.summary.total, 3)
-      assert.equal(facts.botTasks.length, 1)
-      assert.match(facts.roadmapSection, /卡运维 O11/)
-      const prompt = buildDailyReportPrompt(facts, { headline: '总体进度 **50.0%**，已接通 **1 / 3**。', fullDoc: '# 完整版正文' })
-      // aven 10-21：合不合 pre 不是问题也不是待办——不列没提交的人、不给本地领先提交、不要「今天没合 pre」段
-      assert.doesNotMatch(prompt, /没有提交的人|本地工作分支领先|## 今天没合 pre/)
-      assert.match(prompt, /不写谁没合 pre/)
-      assert.match(prompt, /henry：1 个提交/)
-      assert.match(prompt, /脚本定的数字（只能引用，不能改）：总体进度 \*\*50\.0%\*\*/)
-      assert.match(prompt, /# 完整版正文/)
-      const docPrompt = buildDailyDocPrompt(facts, profile.dailyReport)
-      assert.match(docPrompt, /<callout emoji="📝"/)
-      assert.match(docPrompt, /## 总体进度：待脚本填/)
-      assert.match(docPrompt, /所有状态以 origin\/pre（2a074a7）的真实代码为准/)
-      assert.match(docPrompt, /它的状态列是人手维护的、经常落后，不作数/)
-      assert.match(docPrompt, /每个负责人都一样/)
-      assert.match(docPrompt, /已经解决的整行删掉/)
-      assert.match(docPrompt, /\| 事项 \| 说明 \| 负责人 \|/)
-      assert.match(docPrompt, /aven 的在最前/)
-      assert.match(docPrompt, /<!-- STATUS_JSON/)
-      assert.match(docPrompt, /覆盖总表全部 3 个功能（#1 #2 #28）/)
-      assert.match(docPrompt, /全项目接口缺口线索/)
-      // aven 10-21：测试阶段二节由脚本按 bug 表生成，对接问题不进日报
-      assert.match(docPrompt, /「## 二、测试 Bug」由脚本按 bug 表生成/)
-      assert.doesNotMatch(docPrompt, /### 2\.1 缺接口/)
-      // aven 10-21：一节只写卡点，✅ 行写 --；部署 / 复测不是问题
-      assert.match(docPrompt, /✅ 的行两列都写 `--`/)
-      assert.match(docPrompt, /走查、部署、复测都不是问题/)
-      assert.doesNotMatch(docPrompt, /对 ✅ 的功能再给 pre|以「10-13：」开头/)
-      // 精简（aven 10-21）：高亮框只写负责 / ✅ / 卡点编号；每件事只写一处；✅ 没变化的行留空
-      assert.match(docPrompt, /不写今天做了什么、不写 pre 上看不到效果、不写「运维」「外部阻塞」行/)
-      assert.match(docPrompt, /每件事全文只写一处/)
-      assert.doesNotMatch(prompt, /## 卡点/)
-      assert.doesNotMatch(docPrompt, /详略照模板/)
-      assert.doesNotMatch(docPrompt, /状态列以功能总表（人维护）为准/)
+  it('采集 git / 总表 / 路线图 / bot 任务，prompt 含模板与无提交名单；runDailyReport 落盘快照并发卡', () => runSteps([
+    ['采集 git / 总表 / 路线图 / bot 任务，prompt 含模板与无提交名单；runDailyReport 落盘快照并发卡', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'lark-daily-'))
+      try {
+        const profile = normalizeRepoProfile('falive', {
+          root: dir,
+          baseRef: 'feature/phase-3-api',
+          title: 'Falive Web',
+          notifyChatId: 'ou_aven',
+          ownership: { me: 'aven' },
+          dailyReport: { at: '19:00', othersRef: 'origin/pre', featureTable: 'table.md', roadmap: 'README.md', people: { aven: ['aven.tong'], henry: ['henry'], eric: ['eric'] }, fetch: false },
+        })
+        const git = (root, args) => {
+          if (args[0] === 'log') return { ok: true, stdout: 'b2|henry|h@x|feat: 群组\nm3|aven|aven@x|Merge branch x into pre\na1|aven|aven@x|feat: 搜索\n' }
+          if (args[0] === 'rev-parse') return { ok: true, stdout: '2a074a7\n' }
+          return { ok: true, stdout: '' }
+        }
+        const files = { [join(dir, 'table.md')]: TABLE, [join(dir, 'README.md')]: '# x\n\n## 一、分档\n\n| L1 | … | 卡运维 O11 | 运维 |\n\n## 三、对接文档\n' }
+        const store = { list: () => [{ id: 't1', repo: 'falive', status: 'blocked', summary: '主播公告', result: '已阻塞。\n1. 字段确认不了', updatedAt: '2026-10-13T05:00:00.000Z' }] }
+        const now = new Date(2026, 9, 13, 19, 0, 0)
+        const checkout = { dir, note: '' }
+        const facts = collectDailyFacts({ profile, store, now, git, readFile: (path) => files[path] ?? '', snapshotDir: join(dir, 'snap'), checkout })
+        assert.equal(facts.date, '2026-10-13')
+        assert.equal(facts.reviewHead, '2a074a7')
+        assert.deepEqual(Object.keys(facts.others), ['henry', 'aven'])
+        assert.equal(facts.others.aven.commits.length, 1)
+        assert.equal(facts.others.aven.merges, 1)
+        assert.equal(facts.table.summary.total, 3)
+        assert.equal(facts.botTasks.length, 1)
+        assert.match(facts.roadmapSection, /卡运维 O11/)
+        const prompt = buildDailyReportPrompt(facts, { headline: '总体进度 **50.0%**，已接通 **1 / 3**。', fullDoc: '# 完整版正文' })
+        // aven 10-21：合不合 pre 不是问题也不是待办——不列没提交的人、不给本地领先提交、不要「今天没合 pre」段
+        assert.doesNotMatch(prompt, /没有提交的人|本地工作分支领先|## 今天没合 pre/)
+        assert.match(prompt, /不写谁没合 pre/)
+        assert.match(prompt, /henry：1 个提交/)
+        assert.match(prompt, /脚本定的数字（只能引用，不能改）：总体进度 \*\*50\.0%\*\*/)
+        assert.match(prompt, /# 完整版正文/)
+        const docPrompt = buildDailyDocPrompt(facts, profile.dailyReport)
+        assert.match(docPrompt, /<callout emoji="📝"/)
+        assert.match(docPrompt, /## 总体进度：待脚本填/)
+        assert.match(docPrompt, /所有状态以 origin\/pre（2a074a7）的真实代码为准/)
+        assert.match(docPrompt, /它的状态列是人手维护的、经常落后，不作数/)
+        assert.match(docPrompt, /每个负责人都一样/)
+        assert.match(docPrompt, /已经解决的整行删掉/)
+        assert.match(docPrompt, /\| 事项 \| 说明 \| 负责人 \|/)
+        assert.match(docPrompt, /aven 的在最前/)
+        assert.match(docPrompt, /<!-- STATUS_JSON/)
+        assert.match(docPrompt, /覆盖总表全部 3 个功能（#1 #2 #28）/)
+        assert.match(docPrompt, /全项目接口缺口线索/)
+        // aven 10-21：测试阶段二节由脚本按 bug 表生成，对接问题不进日报
+        assert.match(docPrompt, /「## 二、测试 Bug」由脚本按 bug 表生成/)
+        assert.doesNotMatch(docPrompt, /### 2\.1 缺接口/)
+        // aven 10-21：一节只写卡点，✅ 行写 --；部署 / 复测不是问题
+        assert.match(docPrompt, /✅ 的行两列都写 `--`/)
+        assert.match(docPrompt, /走查、部署、复测都不是问题/)
+        assert.doesNotMatch(docPrompt, /对 ✅ 的功能再给 pre|以「10-13：」开头/)
+        // 精简（aven 10-21）：高亮框只写负责 / ✅ / 卡点编号；每件事只写一处；✅ 没变化的行留空
+        assert.match(docPrompt, /不写今天做了什么、不写 pre 上看不到效果、不写「运维」「外部阻塞」行/)
+        assert.match(docPrompt, /每件事全文只写一处/)
+        assert.doesNotMatch(prompt, /## 卡点/)
+        assert.doesNotMatch(docPrompt, /详略照模板/)
+        assert.doesNotMatch(docPrompt, /状态列以功能总表（人维护）为准/)
 
-      registerRepoProfiles({})
-      const sent = []
-      const outcome = await runDailyReport({
-        config: { project: 'PR-0', title: 't' },
-        store,
-        profile,
-        now,
-        deps: {
-          runtimeDir: dir,
-          collectFacts: () => facts,
-          generateText: async ({ prompt: p }) => { assert.match(p, /日报撰写者/); return '## 今天\n- **aven**：搜索' },
-          sendUserMarkdown: async (args) => { sent.push(args); return { ok: true } },
-        },
-      })
-      assert.equal(outcome.ok, true)
-      assert.equal(outcome.to, 'ou_aven')
-      // 没配完整版：短版数字回落总表，私信核对单说明
-      assert.match(sent.find((item) => /日报核对/.test(item.markdown)).markdown, /完整版没生成，短版数字回落功能总表/)
-      const short = sent.find((item) => /^# Falive Web 日报 2026-10-13/.test(item.markdown)).markdown
-      assert.match(short, /已接通 \*\*1 \/ 3\*\*/)
-      assert.match(short, /## 今天\n- \*\*aven\*\*：搜索/)
-      assert.ok(outcome.reportPath.endsWith('/lark-daily-report/falive/FaliveWeb日报-2026-10-13.md'))
-      // 快照已按日期落盘：同一天再采集（重试 / 重发）不拿当天的快照当基线（aven 2026-10-20 review C15）；第二天才比得出状态变化
-      const upgraded = (path) => (path.endsWith('table.md') ? TABLE.replace('| 🟠 |', '| ✅ |') : files[path] ?? '')
-      const sameDay = collectDailyFacts({ profile, store, now, git, readFile: upgraded, snapshotDir: join(dir, 'lark-daily-report', 'falive'), checkout })
-      assert.deepEqual(sameDay.table.changes, [])
-      const facts2 = collectDailyFacts({ profile, store, now: new Date(2026, 9, 14, 19, 0, 0), git, readFile: upgraded, snapshotDir: join(dir, 'lark-daily-report', 'falive'), checkout })
-      assert.deepEqual(facts2.table.changes, [{ no: 1, feature: '用户资料', owner: 'henry', from: '🟠', to: '✅' }])
-    } finally {
-      rmSync(dir, { recursive: true, force: true })
-    }
-  })
+        registerRepoProfiles({})
+        const sent = []
+        const outcome = await runDailyReport({
+          config: { project: 'PR-0', title: 't' },
+          store,
+          profile,
+          now,
+          deps: {
+            runtimeDir: dir,
+            collectFacts: () => facts,
+            generateText: async ({ prompt: p }) => { assert.match(p, /日报撰写者/); return '## 今天\n- **aven**：搜索' },
+            sendUserMarkdown: async (args) => { sent.push(args); return { ok: true } },
+          },
+        })
+        assert.equal(outcome.ok, true)
+        assert.equal(outcome.to, 'ou_aven')
+        // 没配完整版：短版数字回落总表，私信核对单说明
+        assert.match(sent.find((item) => /日报核对/.test(item.markdown)).markdown, /完整版没生成，短版数字回落功能总表/)
+        const short = sent.find((item) => /^# Falive Web 日报 2026-10-13/.test(item.markdown)).markdown
+        assert.match(short, /已接通 \*\*1 \/ 3\*\*/)
+        assert.match(short, /## 今天\n- \*\*aven\*\*：搜索/)
+        assert.ok(outcome.reportPath.endsWith('/lark-daily-report/falive/FaliveWeb日报-2026-10-13.md'))
+        // 快照已按日期落盘：同一天再采集（重试 / 重发）不拿当天的快照当基线（aven 2026-10-20 review C15）；第二天才比得出状态变化
+        const upgraded = (path) => (path.endsWith('table.md') ? TABLE.replace('| 🟠 |', '| ✅ |') : files[path] ?? '')
+        const sameDay = collectDailyFacts({ profile, store, now, git, readFile: upgraded, snapshotDir: join(dir, 'lark-daily-report', 'falive'), checkout })
+        assert.deepEqual(sameDay.table.changes, [])
+        const facts2 = collectDailyFacts({ profile, store, now: new Date(2026, 9, 14, 19, 0, 0), git, readFile: upgraded, snapshotDir: join(dir, 'lark-daily-report', 'falive'), checkout })
+        assert.deepEqual(facts2.table.changes, [{ no: 1, feature: '用户资料', owner: 'henry', from: '🟠', to: '✅' }])
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    }],
+    ['评审检出软链主仓 node_modules：主仓没有就不链（不留悬空软链）、主仓有才链、检出里已有的不动（变异补测 10-24）', () => {
+      const base = mkdtempSync(join(tmpdir(), 'lark-review-deps-'))
+      try {
+        const root = join(base, 'root')
+        const dir = join(base, 'review')
+        mkdirSync(root)
+        mkdirSync(dir)
+        ensureReviewDeps({ dir, root })
+        assert.throws(() => lstatSync(join(dir, 'node_modules')), { code: 'ENOENT' }, '主仓没有 node_modules 时不建悬空软链')
+        mkdirSync(join(root, 'node_modules'))
+        ensureReviewDeps({ dir, root })
+        assert.equal(lstatSync(join(dir, 'node_modules')).isSymbolicLink(), true)
+        assert.equal(realpathSync(join(dir, 'node_modules')), realpathSync(join(root, 'node_modules')))
+        const own = join(base, 'own')
+        mkdirSync(join(own, 'node_modules'), { recursive: true })
+        ensureReviewDeps({ dir: own, root })
+        assert.equal(lstatSync(join(own, 'node_modules')).isSymbolicLink(), false, '检出里已有 node_modules 不覆盖')
+      } finally {
+        rmSync(base, { recursive: true, force: true })
+      }
+    }],
+    ['配了 bug 表：用注入的 fetchBugRecords 读表（不走真实 lark-cli），群简报带「测试 Bug」段；读不到照发、私信说明（变异补测 10-24）', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'lark-daily-bugs-'))
+      try {
+        const profile = normalizeRepoProfile('falive', {
+          root: dir,
+          baseRef: 'feature/phase-3-api',
+          title: 'Falive Web',
+          notifyChatId: 'ou_aven',
+          dailyReport: { at: '19:00', featureTable: 'table.md', people: { aven: ['aven'] }, fetch: false, bugTable: { baseToken: 'bascn_test', tableId: 'tbl_test' } },
+        })
+        const rows = parseFeatureTable(TABLE)
+        const facts = () => ({
+          date: '2026-10-21', title: 'Falive Web', othersRef: 'origin/pre', reviewHead: 'abc', reviewDir: dir, fetchNote: '', others: {}, people: ['aven'],
+          table: { rows, summary: summarizeFeatureTable(rows), changes: [], hadSnapshot: false }, botTasks: [], docPaths: { featureTable: 't', pendingDir: 'p', roadmap: 'r' },
+          previousReport: null, apiGapSources: null,
+        })
+        const run = async (fetchBugRecords) => {
+          registerRepoProfiles({})
+          const tables = []
+          const sent = []
+          const outcome = await runDailyReport({
+            config: {}, store: null, profile, now: new Date(2026, 9, 21, 19, 0),
+            deps: {
+              runtimeDir: join(dir, `run-${Math.random().toString(36).slice(2)}`),
+              collectFacts: facts,
+              fetchBugRecords: async ({ table }) => { tables.push(table); return fetchBugRecords() },
+              generateText: async () => '## 今天\n- **aven**：修 bug',
+              sendUserMarkdown: async (args) => { sent.push(args); return { ok: true } },
+            },
+          })
+          return { outcome, tables, sent }
+        }
+        const person = (name) => ({ id: `ou_${name}`, name })
+        const ok = await run(() => ({ ok: true, records: [{ fields: { 状态: ['待处理'], 负责RD: [person('Henry')], 创建时间: '2026-10-21T10:00:00.000+04:00' } }, { fields: { 状态: ['待推版'], 负责RD: [person('Aven.tong')], 创建时间: '2026-10-20T10:00:00.000+04:00' } }] }))
+        assert.equal(ok.outcome.ok, true)
+        assert.deepEqual(ok.tables, [{ baseToken: 'bascn_test', tableId: 'tbl_test', viewId: null }], '读表用 profile 配的 bug 表、走注入的读表函数')
+        const short = ok.sent.find((item) => /^# Falive Web 日报/.test(item.markdown)).markdown
+        assert.match(short, /\n## 测试 Bug\n- 共 2 个，今天新增 1：待处理 1、待推版 1\n- 待处理 \/ 修复中按负责人：Henry 1/)
+        const failed = await run(() => ({ ok: false, reason: 'missing_scope' }))
+        assert.equal(failed.outcome.ok, true, '读不到 bug 表日报照发')
+        assert.doesNotMatch(failed.sent.find((item) => /^# Falive Web 日报/.test(item.markdown)).markdown, /## 测试 Bug/)
+        assert.match(failed.sent.find((item) => /日报核对/.test(item.markdown)).markdown, /Bug 段没出来：missing_scope/)
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    }],
+  ], { after: () => resetRepoProfiles() }))
 })
 
 describe('全项目接口缺口线索', () => {

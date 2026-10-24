@@ -6,6 +6,7 @@ import { describe, it } from 'node:test'
 import { runSteps } from './support/steps.mjs'
 
 import {
+  buildDeployEmail,
   buildSweepTask,
   enqueueDailySweep,
   extractOwnerTodos,
@@ -200,6 +201,16 @@ describe('推 pre', () => {
       } finally {
         rmSync(runtimeDir, { recursive: true, force: true })
       }
+    }],
+    ['部署邮件最多列 15 个提交：正好 15 个全列、不写「另 0 个」；16 个列前 15 个并写「另 1 个提交」（变异补测 10-24）', () => {
+      const commits = (n) => Array.from({ length: n }, (_, i) => `h${i + 1}abcd feat: 提交 ${i + 1}`)
+      const email = (n) => buildDeployEmail({ profile: { key: 'falive' }, head: 'abcdef1234', commits: commits(n), pushedAt: '2026-10-24T08:00:00.000Z' })
+      const fifteen = email(15)
+      assert.match(fifteen, /- feat: 提交 15\n部署完回个邮件/)
+      assert.doesNotMatch(fifteen, /另 \d+ 个提交/)
+      const sixteen = email(16)
+      assert.match(sixteen, /- feat: 提交 15\n- …另 1 个提交\n部署完回个邮件/)
+      assert.doesNotMatch(sixteen, /提交 16/)
     }],
   ], hooks))
 
