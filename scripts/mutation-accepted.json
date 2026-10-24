@@ -1,1 +1,62 @@
-[]
+[
+  {
+    "file": "lib/lark-task-store.mjs",
+    "code": "if (changeLog.length > 500) changeLog.splice(0, changeLog.length - 500)",
+    "op": "> → >=",
+    "reason": "等价：length 恰为 500 时 >= 分支执行 splice(0, 0)，不删任何条目，与不进分支结果相同"
+  },
+  {
+    "file": "lib/lark-task-store.mjs",
+    "code": "task.status === 'running' && task.claimedAt && now - new Date(task.claimedAt).getTime() > leaseFor(task)",
+    "op": "> → >=",
+    "reason": "等价：只在「now - claimedAt」与租约毫秒数精确相等的那一毫秒有区别，租约边界早一毫秒晚一毫秒回收无业务含义"
+  },
+  {
+    "file": "lib/lark-task-store.mjs",
+    "code": "Date.parse(task.updatedAt || task.createdAt || 0) >= cutoff)",
+    "op": ">= → >",
+    "reason": "等价：只在任务更新时刻与 cutoff（调用时 Date.now() 现算）精确相等的那一毫秒有区别，候选窗口边界无业务含义"
+  },
+  {
+    "file": "lib/lark-task-store.mjs",
+    "code": ".sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))",
+    "op": "< → <=",
+    "reason": "等价：只影响 updatedAt 完全相同的并列项先后；分类器候选列表对并列项顺序无要求"
+  },
+  {
+    "file": "lib/lark-task-store.mjs",
+    "code": "if (Number.isFinite(ts) && ts > cutoff) continue",
+    "op": "> → >=",
+    "reason": "等价：只在任务时间戳与 cutoff（调用时 Date.now() 现算）精确相等的那一毫秒有区别，清理边界早晚一毫秒无业务含义"
+  },
+  {
+    "file": "lib/lark-task-store.mjs",
+    "code": ".filter((task) => task.status === 'queued' || (task.status === 'received' && !(task.intake?.notBefore && Date.now() < Date.parse(task.intake.notBefore))))",
+    "op": "< → <=",
+    "reason": "等价：只在 Date.now() 与 notBefore 精确相等的那一毫秒有区别，去抖窗口边界无业务含义"
+  },
+  {
+    "file": "lib/lark-task-store.mjs",
+    "code": ".sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1))[0]",
+    "op": "< → <=",
+    "reason": "等价：只影响 createdAt 完全相同的并列项先后；同一时刻创建的任务谁先领取业务不在乎（原比较器对并列项本也不保证 FIFO）"
+  },
+  {
+    "file": "lib/lark-task-store.mjs",
+    "code": "if (task.status === 'received' && task.intake?.notBefore && Date.now() < Date.parse(task.intake.notBefore)) return null",
+    "op": "< → <=",
+    "reason": "等价：只在 Date.now() 与 notBefore 精确相等的那一毫秒有区别，去抖窗口边界无业务含义"
+  },
+  {
+    "file": "lib/lark-task-store.mjs",
+    "code": "if (Number.isFinite(age) && age > oldestQueuedAgeMs) oldestQueuedAgeMs = age",
+    "op": "> → >=",
+    "reason": "等价：age 与当前最大值相等时赋同一个值，结果不变"
+  },
+  {
+    "file": "lib/lark-task-store.mjs",
+    "code": "if (minLeaseRemainingMs === null || remaining < minLeaseRemainingMs) minLeaseRemainingMs = remaining",
+    "op": "< → <=",
+    "reason": "等价：remaining 与当前最小值相等时赋同一个值，结果不变"
+  }
+]
