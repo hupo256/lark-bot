@@ -24,6 +24,16 @@ describe('webhook 重试只对确定没送达的失败', () => {
     assert.equal(attempts, 3)
   })
 
+  it('TLS 握手失败（ERR_SSL_*）→ 请求没发出去，重试（10-24 真机「收到」丢失）', async () => {
+    assert.equal(isConnectError(fetchFailed('ERR_SSL_TLSV1_ALERT_INTERNAL_ERROR')), true)
+    const { out, attempts } = await run(async (n) => {
+      if (n === 1) throw fetchFailed('ERR_SSL_TLSV1_ALERT_INTERNAL_ERROR')
+      return { ok: true, status: 200, text: async () => '{"code":0}' }
+    })
+    assert.equal(out.ok, true)
+    assert.equal(attempts, 2)
+  })
+
   it('请求超时 / 连接中途断开 → 不重试（可能已送达）', async () => {
     const timeout = await run(async () => { throw Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' }) })
     assert.equal(timeout.out.ok, false)
