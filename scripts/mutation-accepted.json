@@ -1,1 +1,14 @@
-[]
+[
+  {
+    "file": "lib/lark-routes.mjs",
+    "code": "const eventStale = consumerObs.lastEventAt != null && Date.now() - consumerObs.lastEventAt > staleMs",
+    "op": "> → >=",
+    "reason": "等价：只在「距上次事件」恰好等于阈值（同一毫秒）时结果不同；eventStale 只是 health 里的诊断告警、不参与 ok，差 1ms 早报晚报没有业务区别"
+  },
+  {
+    "file": "lib/lark-routes.mjs",
+    "code": "if (!outcome.ok) return sendJson(res, outcome.code || 409, outcome)",
+    "op": "|| → &&",
+    "reason": "等价：这里的 outcome 来自 store.resolveIntake，它所有 ok:false 的返回都带 code: 409（lark-task-store resolveIntake 两处失败分支），`409 || 409` 与 `409 && 409` 同值"
+  }
+]
