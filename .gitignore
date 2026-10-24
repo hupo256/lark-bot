@@ -7,5 +7,6 @@ runtime/*.local.json
 runtime/lark-tasks/
 runtime/lark-attachments/
 runtime/lark-audits/
+runtime/lark-failures/
 runtime/lark-bugtable-state.json
 runtime/lark-worker-state.json
