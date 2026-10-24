@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "file": "lib/lark-ingest.mjs",
+    "code": "if (candidates.length > 1) {",
+    "op": "> → >=",
+    "reason": "等价：只在 resolveControlTarget 返回 null 时走到这里，而 controlCandidates 与它的话题兜底是同一查询（threadRootId || replyTo → listActiveByThread 排除本条，中间无 await、store 不变）；target 为 null 说明该查询结果不是恰好 1 条，candidates.length 只可能是 0 或 ≥ 2，> 1 与 >= 1 结果相同"
+  }
+]
