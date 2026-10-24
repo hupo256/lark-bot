@@ -1,1 +1,20 @@
-[]
+[
+  {
+    "file": "lib/lark-ingest.mjs",
+    "code": "if (earlierDoc) console.log(`[lark-gateway] ${msg.messageId} 单独 @ 机器人，带上之前 ${earlierDoc.sender || '群里'} 发的文档 ${earlierDoc.docs.map((item) => item.fileName).join('、')}`)",
+    "op": "|| → &&",
+    "reason": "纯日志：只影响 console.log 里「带上之前 X 发的文档」的发送人文字，不进任务正文、不发给人，没人读它的具体内容。"
+  },
+  {
+    "file": "lib/lark-ingest.mjs",
+    "code": "if (repo && toBot) await ackInGroup({ store, task })",
+    "op": "&& → ||",
+    "reason": "等价：走到这里必是 task_mention（intake.required）。仓库群的 trigger 只在 mentionsBot 为真时才是 task_mention（ingestWhitelistedEvent 开头 `repo ? (mentionsBot(...) ? \"task_mention\" : null)`），toBot 是 resolveRepoAddressing 用同一组参数再判一次 mentionsBot，恒为 true，repo && toBot 与 repo || toBot 都为真；非仓库群 repo 为 null，toBot 恒为 false（resolveRepoAddressing 要求 repo），两者都为假。任何可达输入下都不变。"
+  },
+  {
+    "file": "lib/lark-ingest.mjs",
+    "code": "? `**说明**：将在 ${repo.title || repo.key} 仓基于 \\`${repo.baseRef}\\` 开隔离分支处理，完成后只本地提交、不 push。`",
+    "op": "|| → &&",
+    "reason": "不可达：这行只在「不是 task_mention 且 repo 非空」时求值；仓库群的 trigger 只可能是 task_mention 或 null（ingestWhitelistedEvent 开头按 mentionsBot 定，null 在 `if (!trigger) return` 已返回），task_mention 一律 intake.required、在「received task-mention」分支 return，走不到排队卡说明。"
+  }
+]
