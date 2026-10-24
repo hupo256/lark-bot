@@ -216,13 +216,22 @@ describe('C10：外部群保留 @名字 后，判实质内容与指令解析先�
       assert.equal(store.get('om_rv_t1').closureReason, 'cancelled')
       assert.equal(store.has('om_rv_c10'), false, '没另建任务')
     }],
-    ['外部群 @bot 建的任务正文保留点名的 @名字，轮询拍平的消息和长连接 event 包都一样（变异补测 10-24）', async () => {
+    ['外部群 @bot 消息按 normalizeMessage 支持的每种包法进来（轮询拍平 / 长连接 event / data.event），任务正文都保留点名的 @名字（bug 修复 10-24）', async () => {
       const mentions = [...BOT_MENTION, { id: 'ou_review_world', key: '@_user_2', name: 'World' }]
-      await ingestLarkEvent({ raw: groupEvent({ id: 'om_rv_km1', text: '@Aven.Bot 让 @World 看下 cover 字段', sender: AVEN, mentions }), config, store })
-      const { sender_type: senderType, sender_id: senderId, ...message } = groupEvent({ id: 'om_rv_km2', text: '@Aven.Bot 让 @World 看下 cover 字段', mentions })
-      await ingestLarkEvent({ raw: { event: { message, sender: { sender_type: senderType, sender_id: { open_id: senderId } } } }, config, store })
-      assert.match(store.get('om_rv_km1')?.text || '', /让 @World 看下 cover 字段/, '拍平形状')
-      assert.match(store.get('om_rv_km2')?.text || '', /让 @World 看下 cover 字段/, 'event 包形状')
+      const wrap = (flat) => {
+        const { sender_type: senderType, sender_id: senderId, ...message } = flat
+        return { message, sender: { sender_type: senderType, sender_id: { open_id: senderId } } }
+      }
+      // 三条分属三个发送人：同人连发会并进他刚建的待分类任务，就拿不到各自的任务了。
+      const shapes = [
+        ['拍平', 'om_rv_km1', AVEN, (flat) => flat],
+        ['event 包', 'om_rv_km2', ENCONE, (flat) => ({ event: wrap(flat) })],
+        ['data.event 包', 'om_rv_km3', 'ou_review_third', (flat) => ({ data: { event: wrap(flat) } })],
+      ]
+      for (const [, id, sender, pack] of shapes) {
+        await ingestLarkEvent({ raw: pack(groupEvent({ id, text: '@Aven.Bot 让 @World 看下 cover 字段', sender, mentions })), config, store })
+      }
+      for (const [label, id] of shapes) assert.match(store.get(id)?.text || '', /让 @World 看下 cover 字段/, label)
     }],
     ['非仓库会话（控制台私聊）不保留 @名字：续跑落进原任务的补料是剥掉 @ 的正文（变异补测 10-24）', async () => {
       store.upsert({ id: 'om_rv_km_park', source: 'lark', chatId: CONSOLE, text: '原任务', status: 'waiting_confirmation', epoch: 1, receipts: [{ messageId: 'om_rv_km_card', epoch: 1, createdAt: now() }], createdAt: now() })
