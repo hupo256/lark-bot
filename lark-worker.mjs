@@ -143,6 +143,7 @@ export async function runLarkWorker({
   const drainNotifyChatId = listRepoProfiles().find((profile) => !profile.isDefault && profile.notifyChatId)?.notifyChatId || null
   const drain = createDrainRestart({
     version: runtimeVersion,
+    configPath,
     enabled: drainEnabled,
     settleMs: Number(selfHeal.settleMs) > 0 ? Number(selfHeal.settleMs) : undefined,
     notify: drainNotifyChatId
