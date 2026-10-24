@@ -21,6 +21,8 @@ import { startLogRotation } from './lib/lark-log-rotate.mjs'
 import { createRuntimeVersion, versionWarnings, writeWorkerHeartbeat } from './lib/lark-runtime-version.mjs'
 import { createDrainRestart, drainRestartSwitch } from './lib/lark-drain-restart.mjs'
 import { startDoctorSchedule } from './lib/lark-doctor.mjs'
+import { selfFixEnabled } from './lib/lark-self-fix.mjs'
+import { createSelfFixRunner } from './lib/lark-self-fix-run.mjs'
 import { sendChatMessage } from './lib/lark-cli.mjs'
 import { larkRuntimeDir } from './lib/lark-repo.mjs'
 import { defaultTaskLeaseMs } from './lib/lark-constants.mjs'
@@ -136,6 +138,19 @@ export async function runLarkWorker({
   const inFlight = new Map() // cwd -> { promise, taskId }
   let shuttingDown = false
 
+  // 自修工单（从 falive 移植，lib/lark-self-fix-run.mjs）：没有在飞任务时一次跑一张 runtime/lark-self-fix 里的待执行工单；
+  // 跑的时候不领新任务，排空重启把它算一个在飞（不会在自修中途重启）。开关 selfHeal.selfFix=false / LARK_SELF_FIX=0。
+  const selfFixOn = selfFixEnabled({ localConfig })
+  const selfFix = createSelfFixRunner({
+    localConfig,
+    enabled: selfFixOn,
+    signal: shutdownController.signal,
+    notify: notifyOpenId
+      ? (text, { idempotencyKey } = {}) => sendChatMessage({ chatId: notifyOpenId, text, idempotencyKey, logPrefix: 'self-fix' })
+      : async () => {},
+  })
+  console.log(`[lark-worker] 自修工单：${selfFixOn ? `开（空闲时执行；结果${notifyOpenId ? '私信 notifyOpenId' : '只写日志与 lark-bot self-fix list：未配 notifyOpenId'}）` : '关（selfHeal.selfFix=false 或 LARK_SELF_FIX=0）'}`)
+
   // 版本心跳 + 自检告警：每分钟落一次盘（供 gateway health 汇总），同时把落后状态打进 worker.log。
   // 这里只告警不自杀——正在跑的长任务比"跑最新代码"更值得保住；重启时机由上面的排空重启（或人）决定。
   let lastVersionWarning = ''
@@ -163,7 +178,7 @@ export async function runLarkWorker({
     )
     shutdownController.abort()
     // 给在飞任务一点收尾时间（worktree 清理等），但不超过 launchd SIGKILL 宽限（~5s）。
-    await Promise.race([Promise.allSettled(entries.map(({ promise }) => promise)), sleep(3000)])
+    await Promise.race([Promise.allSettled([...entries.map(({ promise }) => promise), selfFix.current()]), sleep(3000)])
     process.exit(0)
   }
   // 任何漏网的 rejection 只记日志不退出：进程退出 = 在飞任务全部成孤儿、要等租约回收。
@@ -179,11 +194,11 @@ export async function runLarkWorker({
     // 把内层 while 变成不带退避的紧循环、满速打 gateway。每轮重新开始，不会永久屏蔽任务。
     const skipThisRound = new Set()
     // 排空重启每轮先判：排空中不领新任务（在飞的照常跑完）。
-    await drain.tick({ inFlight: inFlight.size }).catch((error) => console.error('[lark-worker] 排空重启 tick 异常（忽略）：', error))
+    await drain.tick({ inFlight: inFlight.size + selfFix.inFlightCount() }).catch((error) => console.error('[lark-worker] 排空重启 tick 异常（忽略）：', error))
     // 排空状态一变就补写心跳，health / `lark-bot status` 不用等下一分钟才看到「排空中」。
     if (drain.isDraining() !== lastDraining) heartbeat({ inFlight: inFlight.size, draining: drain.isDraining() })
     lastDraining = drain.isDraining()
-    while (!shuttingDown && !drain.isDraining() && inFlight.size < defaultConcurrency) {
+    while (!shuttingDown && !drain.isDraining() && !selfFix.busy() && inFlight.size < defaultConcurrency) {
       // gateway 重启 / 抖动时不裸崩：listClaimable 的 reliableRequest 只重试 3×150ms，超过就抛；
       // 原来这里没 try，一次 ECONNREFUSED 就让整个 worker 进程退出、在飞任务成孤儿。
       let candidates
@@ -236,6 +251,8 @@ export async function runLarkWorker({
       inFlight.set(key, { promise: running, taskId: claimed.id })
     }
 
+    // 没领到任务、也没有在飞的：跑一张自修工单（一次一张）。
+    selfFix.maybeStart({ inFlight: inFlight.size, draining: drain.isDraining(), shuttingDown })
     if (shuttingDown) return
     await sleep(pollMs)
   }

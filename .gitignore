@@ -12,3 +12,4 @@ runtime/lark-bugtable-state.json
 runtime/lark-worker-state.json
 runtime/lark-bugtable-poller-state.json
 runtime/lark-doctor-state.json
+runtime/lark-self-fix/

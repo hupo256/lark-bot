@@ -133,6 +133,36 @@ aven 10-24 下午定：「刻意没搬的」里的排空重启和自愈环 2 这
 
 测试：`__tests__/lark-failure-playbook.test.mjs`（真实错误形状回归分类、台账、真实 git 旁证、接入层：可重排队类重领一次 → 第二次直接失败且卡上第 3 行归类第 4 行旁证、交还失败改报失败、预算到点、开关关掉回原格式、runAI 追加提示）。`node scripts/mutate.mjs --diff 66ae872` 61 个变异点全抓到。
 
+### 自修工单（分支 `lark/port-self-fix`）
+
+| # | 能力 | 来源（falive） | 落在哪 | 配置 | 怎么验（真机） |
+|---|---|---|---|---|---|
+| 35 | 开单决策：失败剧本判为直接失败、失败卡发出后，「未归类」/「同指纹 7 天内复发」/「自动重排队 1 次仍失败」才开；`timeout / exec_exit / transient_api` 只有复发才开；`permission / tool_missing / quality_gate / stale_epoch / aborted` 永不开。预算：每天（本地日期）最多 3 张、同指纹 7 天 1 张，按失败台账 `action=self_fix` 的行数 | 自愈 §3.2，`lib/lark-self-fix.mjs` `shouldOpenSelfFix` | `lib/lark-self-fix.mjs`（`shouldOpenSelfFix` / `selfFixBudget` / `maybeOpenSelfFix`）；接入点 `handleTaskFailure` 新增 `onFail` 钩子（失败卡发出后调，出错只记日志），`lib/lark-task-runner.mjs` 传 `maybeOpenSelfFix` | `selfHeal.selfFix=false` 或环境 `LARK_SELF_FIX=0` 关；依赖失败剧本（剧本关了不开单） | worker.log「om_x 已开自修工单 sf-…（未归类），worker 空闲时执行」；`tail runtime/lark-failures/fameex.jsonl` 多一行 `action: self_fix` |
+| 36 | 工单落盘：`runtime/lark-self-fix/<id>.json`（id `sf-<本地日期>-<指纹哈希>`），含错误原文、指纹 / 类别 / 复发次数 / 重跑次数、原任务审计 JSON 与事件流绝对路径、worker.log 路径与尾 150 行、开单时 lark-bot HEAD、分支名、状态与 history。状态 `pending → running → ready / rejected / reported / failed`，人工 `applied / discarded` | 自愈 §3.2（falive 是一条网关任务） | `lib/lark-self-fix.mjs`（`writeTicket` / `readTicket` / `listTickets` / `updateTicket`）；`.gitignore` 加 `runtime/lark-self-fix/` | 同上 | `lark-bot self-fix list` |
+| 37 | 执行器：worker 主循环在**没有在飞任务**、不在排空、不在退出时一次跑一张 pending 工单；跑的时候不领新任务；排空重启的在飞数 + 1（不会在自修中途重启）；SIGTERM 时中断并退回 pending（被中断满 2 次置 failed），启动时把上个进程跑到一半的退回 pending 并删现场。临时 worktree 在仓库同级 `<lark-bot>-<id>`，分支 `lark/self-fix-<指纹短>-<日期>`，基于开单时 HEAD（= 出错那版代码）；`execAiExecutor` claude 实施模式，cwd = 临时 worktree，40 分钟（`execAiExecutor` 新增 `timeoutMs` 覆盖，自修不占网关租约） | 自愈 §3.2 流程 1–2（falive 走多仓 profile 任务队列，fameex 没有 profile，改独立执行器） | `lib/lark-self-fix-run.mjs`（`createSelfFixRunner`：`maybeStart` / `busy` / `inFlightCount` / `current`）；`lark-worker.mjs` 一小块：建 runner、`drain.tick` 在飞数加 `inFlightCount()`、领任务条件加 `!busy()`、每轮领完后 `maybeStart`、优雅退出等它收尾 | 同上 | worker.log「自修工单 sf-… 开始执行（…），跑完前不领新任务」；期间 `ls ~/github/lark-bot-sf-*` 有现场 |
+| 38 | 提示词（照 falive `buildSelfFixTaskText` 改）：先定根因层写进 summary 开头 `[harness] / [prompt] / [env] / [model] / [external]`；只有 harness / prompt 且有把握才改 `lib/ scripts/ __tests__/ docs/`、补单测、在 `docs/self-fix-log.md` 追加一行教训；env / external / model 只报不改；硬边界：不碰 runtime/、不改 fameex-web、不改 rules/、不 commit（worker 验收过才提交）、不 push、不 restart | 自愈 §3.2 | `lib/lark-self-fix-run.mjs` `buildSelfFixPrompt`；教训台账新建 `docs/self-fix-log.md`（fameex 没有 falive-lessons.md） | 无 | 工单执行审计 `runtime/lark-self-fix/<id>.log`（stream-json） |
+| 39 | 机械验收（不信 AI 自报）：AI 自报 done、summary 标了 harness / prompt 层、有改动，才验收——改动（相对开单 HEAD，含新文件）只能在 `lib/ scripts/ __tests__/ docs/`，越界整单作废；临时 worktree 里 `node scripts/test-all.mjs --budget-ms 120000` 全绿（不卡 18 秒，hermetic 环境去掉 `LARK_*`）；`node scripts/mutate.mjs --diff <开单 HEAD> --lanes 1` 存活 0。全过 → 本地提交（不 push），`ready`，保留现场；否则 `rejected`、记原因与卡在哪一闸、删临时 worktree 和分支。没改代码 → `reported`；只报层却改了文件 / 没标层 / 自报没做完却改了文件 → `rejected`；执行器出错 → `failed` | 自愈 §3.2「护栏」（falive 靠终检 `node --test`，fameex 加了变异闸与范围闸） | `lib/lark-self-fix-run.mjs`（`verifySelfFix` / `defaultRunTests` / `defaultRunMutate` / `runCommand` 异步跑，不卡主循环和心跳） | 无 | 工单 JSON 的 `verdict`（`stage: scope / tests / mutate / commit / done`） |
+| 40 | 交付：结束态私信 `notifyOpenId` 一条人话（现象 / 根因层 / 改了什么 / 测试与变异结果；ready 时附「执行 `lark-bot self-fix apply <id>` 合进运行分支，合进后排空重启自动上线；不要就 `lark-bot self-fix discard <id>`」），幂等键 `self-fix-<id>-<状态>`；没配 notifyOpenId 只写 worker.log 和 `self-fix list` | 自愈 §3.2 流程 3 | `buildSelfFixReport`；`lark-worker.mjs` 的 notify 闭包（与排空重启同一写法，logPrefix `self-fix`） | `notifyOpenId` | 私信 / worker.log「自修工单 sf-…：验收通过，等 apply」 |
+| 41 | CLI：`lark-bot self-fix list`（工单与状态）/ `apply <id>`（只认 ready；运行目录工作区有未提交的已跟踪改动就拒绝；`merge --no-ff` 进当前分支，有冲突 `merge --abort`、运行目录原样、报冲突文件；成功删工单 worktree 与分支、提交在运行分支里、置 applied）/ `discard <id>`（删 worktree 与分支，置 discarded；执行中 / 已合 / 已丢弃不能丢） | 自愈 §3.2 流程 4（falive 是回「上线」） | `scripts/lark-bot` 加 `self-fix)` 一行 → `scripts/lark-self-fix.mjs` → `lib/lark-self-fix-cli.mjs`（shim 透传参数，不用重装） | 无 | `lark-bot self-fix list` |
+
+按 fameex 改掉的 falive 专属依赖（自修工单部分）：
+
+- 不走任务队列：去掉 `repoProfile('lark-bot')` / `profileExists`、`client.enqueueTask`、`source=self-heal` 的网关任务、`lark/lark-bot-integration` 集成分支与「回『上线』我就合」——改成 runtime 里的工单文件 + worker 空闲时的独立执行器 + `lark-bot self-fix apply`。「不套娃」：工单不是网关任务、执行失败不进失败剧本，天然不会再开单；`shouldOpenSelfFix` 仍认 `task.source === 'self-fix'` 兜底。
+- 台账动作用 `self_fix`（falive 是 `self_fix_opened`）；复发计数只数 `fail / requeue`，开单行不算复发。
+- 验收由 worker 机械做（范围 / 全量单测 / 变异 / 提交），AI 不提交；falive 是 AI 自己跑终检后提交。
+- 教训记 `docs/self-fix-log.md`（fameex 没有 `falive-lessons.md`）；`model` 层不写「规则候选」节，只在私信里报。
+- 可改目录去掉 `rules/`（fameex 的 rules/ 是冻结快照）。
+- 每天的预算按本地日期（falive 按 UTC）。
+
+上线：
+
+1. 合进运行分支后要一次手动 `lark-bot restart`（或由已上线的排空重启自动 restart）。
+2. 默认开；关：`runtime/lark-bot.local.json` 加 `"selfHeal": { "selfFix": false }`（或 launchd 环境 `LARK_SELF_FIX=0`）。私信要配 `notifyOpenId`（见排空重启一节）。
+3. 每张工单最多占 worker 约 40 分钟（AI）+ 全量单测 + 变异测试，期间不领新任务；只在没有在飞任务时开跑。
+4. 工单 worktree 落在仓库同级（`~/github/lark-bot-sf-<日期>-<哈希>`），ready 的要 apply 或 discard 才会删。
+
+测试：`__tests__/lark-self-fix.test.mjs`（开单决策表与预算、失败剧本 `onFail` 接入、工单落盘与 history、临时 git 仓 + 假执行器跑 ready / 越界 / 测试红 / 变异存活 / 只报不改 / 执行器出错 / 提交被钩子拒 / 中断与启动恢复、主循环调度与排空在飞数、验收命令输出解析、`execAiExecutor` 的 `timeoutMs`、CLI apply 干净能合 / 冲突 abort / 脏工作区拒绝 / discard）。`node scripts/mutate.mjs --diff a2f4fbc` 88 个变异点全抓到。
+
 ### 体检（分支 `lark/port-doctor`）
 
 | # | 能力 | 来源（falive） | 落在哪 | 配置 | 怎么验（真机） |
