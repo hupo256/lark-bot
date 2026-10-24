@@ -45,26 +45,17 @@ describe('群里答应过下文的补写群回复', () => {
   })
 
   // 10-23 #81：对接文档入库原是一律不回群（#44）；群里回过「收到，按文档改」的答应了下文，结论照常回群。
-  it('文档入库：回过收到 → 保留群回复、不静默；没回过收到 → 维持静默', () => {
+  it('文档入库 / 归属别人：回过收到（或 @ 过 bot）→ 有下文；都没有 → 维持静默', () => {
     assert.deepEqual(docIntakeGroupReply({ task, result: { groupReply: ' 文档收到，已按它接好 ' } }), { groupReply: '文档收到，已按它接好', groupSilent: false })
     assert.deepEqual(docIntakeGroupReply({ task, result: { groupReply: null } }), { groupReply: null, groupSilent: false }, '补写也没成：交出口按 #79 草稿私聊负责人')
     assert.deepEqual(docIntakeGroupReply({ task: { ...task, ackedInGroup: false }, result: { groupReply: '不该发' } }), { groupReply: null, groupSilent: true })
-  })
-})
-
-
-// 10-24 真机：Encone @bot 报他人主页游客打不开，归属判 henry → 原来静默忽略，群里一句没回。
-describe('归属别人（other_owner）的群回复', () => {
-  const otherOwner = { status: 'no_change_needed', noChangeReason: 'other_owner', owner: 'henry', groupReply: null }
-  it('@ 过 bot：回一句归谁（@ 由网关按 ownerMap 补），功能序号补 #', () => {
+    // 10-24 真机：Encone @bot 报他人主页游客打不开，归属判 henry → 原来静默忽略。@ 过 bot / 回过收到的回一句归谁（@ 由网关按 ownerMap 补）。
+    const otherOwner = { status: 'no_change_needed', noChangeReason: 'other_owner', owner: 'henry', groupReply: null }
     const reply = otherOwnerGroupReply({ task: { addressedToBot: true }, result: otherOwner, featureIds: ['46', '#1'] })
     assert.match(reply, /henry 负责的部分（功能总表 #46、#1）/)
     assert.doesNotMatch(reply, /<at/)
-  })
-  it('群里回过收到也算欠下文；执行器写了群回复就用它', () => {
     assert.equal(otherOwnerGroupReply({ task: { ackedInGroup: true }, result: { ...otherOwner, groupReply: ' 问题在前端 ' } }), '问题在前端')
-  })
-  it('没 @ bot、也没回过收到：维持静默', () => {
-    assert.equal(otherOwnerGroupReply({ task: {}, result: otherOwner }), null)
+    assert.equal(otherOwnerGroupReply({ task: {}, result: otherOwner }), null, '没 @ bot、也没回过收到：维持静默')
   })
 })
+

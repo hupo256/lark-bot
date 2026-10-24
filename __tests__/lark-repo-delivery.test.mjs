@@ -91,24 +91,21 @@ describe('仓库任务的人话出口', () => {
     assert.equal(hooks.length, 1)
     assert.match(hooks[0].card.elements[0].content, /^<at id=ou_ache><\/at> Ache 回复复测：通了 3 项\n/)
     assert.equal((hooks[0].card.elements[0].content.match(/<at id=ou_ache>/g) || []).length, 1)
-  })
-
-  it('归属别人（other_owner）且写了群回复：群里 @ 提问人 + @ 负责人（10-24 Encone @bot 报 henry 的他人主页）', async () => {
-    register()
-    const hooks = []
-    const deps = {
+    // 归属别人（other_owner）且写了群回复：群里 @ 提问人 + @ 负责人（10-24 Encone @bot 报 henry 的他人主页）
+    const ooHooks = []
+    const ooDeps = {
       sendMarkdown: async () => ({ ok: true, messageId: 'om_note' }),
-      sendWebhookMessage: async (args) => { hooks.push(args); return { ok: true } },
+      sendWebhookMessage: async (args) => { ooHooks.push(args); return { ok: true } },
       materializeDoc: () => null,
       webhookFor: () => ({ url: 'https://hook', secret: 's' }),
     }
-    const task = { id: 't-oo', chatId: 'oc_falive', repo: 'falive', operator: 'ou_encone', addressedToBot: true, summary: 's', noChangeReason: 'other_owner', owner: 'ache', groupReply: '看过了，这条要改的在前端 ache 负责的部分，麻烦 ache 看下，我这边不动。' }
-    await deliverRepoOutcome({ task, status: 'no_change_needed', result: 'x', deps })
-    assert.equal(hooks.length, 1)
-    assert.match(hooks[0].card.elements[0].content, /^<at id=ou_encone><\/at> <at id=ou_ache><\/at> 看过了/)
-    hooks.length = 0
-    await deliverRepoOutcome({ task: { ...task, owner: '不在表里的人' }, status: 'no_change_needed', result: 'x', deps })
-    assert.match(hooks[0].card.elements[0].content, /^<at id=ou_encone><\/at> (✅ )?看过了/, '人名表对不上就不 @')
+    const ooTask = { id: 't-oo', chatId: 'oc_falive', repo: 'falive', operator: 'ou_encone', addressedToBot: true, summary: 's', noChangeReason: 'other_owner', owner: 'ache', groupReply: '看过了，这条要改的在前端 ache 负责的部分，麻烦 ache 看下，我这边不动。' }
+    await deliverRepoOutcome({ task: ooTask, status: 'no_change_needed', result: 'x', deps: ooDeps })
+    assert.equal(ooHooks.length, 1)
+    assert.match(ooHooks[0].card.elements[0].content, /^<at id=ou_encone><\/at> <at id=ou_ache><\/at> 看过了/)
+    ooHooks.length = 0
+    await deliverRepoOutcome({ task: { ...ooTask, owner: '不在表里的人' }, status: 'no_change_needed', result: 'x', deps: ooDeps })
+    assert.match(ooHooks[0].card.elements[0].content, /^<at id=ou_encone><\/at> (✅ )?看过了/, '人名表对不上就不 @')
   })
 
   it('deliverRepoOutcome：有 webhook 发群 + 私聊；没 webhook 只私聊并附要发的话；非仓库任务跳过', async () => {

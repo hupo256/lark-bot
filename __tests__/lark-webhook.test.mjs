@@ -15,6 +15,13 @@ describe('webhook 重试只对确定没送达的失败', () => {
   it('连接没建立（ECONNREFUSED / ENOTFOUND / 连接超时）→ 重试，后一次成功就算成功', async () => {
     assert.equal(isConnectError(fetchFailed('ECONNREFUSED')), true)
     assert.equal(isConnectError(fetchFailed('ECONNRESET')), false, '连接中途断开：可能已送达，不算')
+    // TLS 握手失败（ERR_SSL_*）：请求没发出去，同样重试（10-24 真机「收到」丢失）
+    assert.equal(isConnectError(fetchFailed('ERR_SSL_TLSV1_ALERT_INTERNAL_ERROR')), true)
+    const tls = await run(async (n) => {
+      if (n === 1) throw fetchFailed('ERR_SSL_TLSV1_ALERT_INTERNAL_ERROR')
+      return { ok: true, status: 200, text: async () => '{"code":0}' }
+    })
+    assert.deepEqual([tls.out.ok, tls.attempts], [true, 2])
     const { out, attempts } = await run(async (n) => {
       if (n === 1) throw fetchFailed('ENOTFOUND')
       if (n === 2) throw fetchFailed('UND_ERR_CONNECT_TIMEOUT')
@@ -22,16 +29,6 @@ describe('webhook 重试只对确定没送达的失败', () => {
     })
     assert.equal(out.ok, true)
     assert.equal(attempts, 3)
-  })
-
-  it('TLS 握手失败（ERR_SSL_*）→ 请求没发出去，重试（10-24 真机「收到」丢失）', async () => {
-    assert.equal(isConnectError(fetchFailed('ERR_SSL_TLSV1_ALERT_INTERNAL_ERROR')), true)
-    const { out, attempts } = await run(async (n) => {
-      if (n === 1) throw fetchFailed('ERR_SSL_TLSV1_ALERT_INTERNAL_ERROR')
-      return { ok: true, status: 200, text: async () => '{"code":0}' }
-    })
-    assert.equal(out.ok, true)
-    assert.equal(attempts, 2)
   })
 
   it('请求超时 / 连接中途断开 → 不重试（可能已送达）', async () => {
