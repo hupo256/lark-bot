@@ -372,5 +372,7 @@ case "${1:-}" in
   receipt-retry) receipt_retry "${2:-}" ;;
   clean)    clean "${2:-}" "${3:-}" ;;
   claude-auth) claude_auth "${2:-}" ;;
-  *) echo "usage: lark-bot {start|stop|restart|status|logs|poll-on|poll-off|failed|retry <id>|close <id> [reason] [\"<说明>\"]|resume <id> \"<补充>\"|receipt-retry <id>|clean [hours]|clean --failed [hours]|claude-auth [local|proxy]}"; exit 1 ;;
+  # 自修工单（lib/lark-self-fix*.mjs）：list / apply <id>（合进运行分支）/ discard <id>
+  self-fix) node "$LARK_BOT_ROOT/scripts/lark-self-fix.mjs" "${@:2}" ;;
+  *) echo "usage: lark-bot {start|stop|restart|status|logs|poll-on|poll-off|failed|retry <id>|close <id> [reason] [\"<说明>\"]|resume <id> \"<补充>\"|receipt-retry <id>|clean [hours]|clean --failed [hours]|claude-auth [local|proxy]|self-fix {list|apply <id>|discard <id>}}"; exit 1 ;;
 esac
