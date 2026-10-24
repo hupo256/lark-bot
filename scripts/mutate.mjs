@@ -7,6 +7,7 @@
  *   node scripts/mutate.mjs --diff <基线>          只扫相对基线改动 / 新增的 lib 行（合并前必跑；有未豁免的存活就退出 1）
  *   node scripts/mutate.mjs --files lib/a.mjs,...  扫指定模块的全部变异点
  *   node scripts/mutate.mjs --sample 80 [--seed 7] 全 lib 随机抽样摸底
+ *   node scripts/mutate.mjs --only <清单.json>       只复跑清单里的变异点（--json 的输出或其子集），补测后验证用
  *   通用：--lanes N（并行路数，默认按核数最多 3，每路测试并发 2）  --json <文件>（存完整结果）  --list（只列变异点不跑）  --strict（非 diff 模式有存活也退出 1）
  *   排查：MUTATE_DEBUG=1 显示测试输出（基线红时看原因）
  *
@@ -137,6 +138,7 @@ const parseArgs = (argv) => {
     seed: value('--seed') ? Number(value('--seed')) : 7,
     lanes: value('--lanes') ? Number(value('--lanes')) : Math.max(1, Math.min(3, Math.floor(availableParallelism() / 2) - 1)),
     json: value('--json'),
+    only: value('--only'),
     list: argv.includes('--list'),
     strict: argv.includes('--strict'),
   }
@@ -146,6 +148,13 @@ const git = (args) => spawnSync('git', ['-C', root, ...args], { encoding: 'utf8'
 const libFiles = () => git(['ls-files', '-co', '--exclude-standard', 'lib']).split('\n').filter((file) => /^lib\/.*\.mjs$/.test(file))
 
 const collectSites = (opts) => {
+  if (opts.only) {
+    // 只复跑清单里的变异点（--json 的输出或其子集）；按文件 + 代码行文本 + 列 + 算子重新定位，行号漂移不影响。
+    const wanted = JSON.parse(readFileSync(resolve(opts.only), 'utf8'))
+    const key = (site) => `${site.file}｜${site.code}｜${site.col}｜${site.from}｜${site.to}`
+    const keys = new Set(wanted.map(key))
+    return [...new Set(wanted.map((site) => site.file))].flatMap((file) => findSites(file, readFileSync(join(root, file), 'utf8')).filter((site) => keys.has(key(site))))
+  }
   if (opts.diff) {
     const changed = changedLinesFromDiff(git(['diff', '-U0', opts.diff, '--', 'lib']))
     for (const file of git(['ls-files', '-o', '--exclude-standard', 'lib']).split('\n').filter((name) => name.endsWith('.mjs'))) {
