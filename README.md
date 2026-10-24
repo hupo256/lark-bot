@@ -50,6 +50,8 @@ launchd 直接运行本仓代码。**改完代码不会自动生效**，要执�
 | `lark-bot poll-on` / `poll-off` | 开关 bug 表轮询 |
 | `lark-bot failed` | 列出 failed / blocked 任务 |
 | `lark-bot retry <taskId>` | 把 failed / blocked 任务重置为 queued |
+| `lark-bot close <taskId> [reason] ["说明"]` | 终端结单（与群里回复卡片「结单」同一方法，只改状态不发卡；卡片找不到时用） |
+| `lark-bot resume <taskId> "<补充>"` | 终端续跑挂起 / 阻塞任务（等价于回复卡片「继续任务 <id> <补充>」） |
 | `lark-bot receipt-retry <taskId>` | 重发回执卡片 |
 | `lark-bot clean [hours]` / `clean --failed [hours]` | 清理陈旧终态任务（默认只清 done） |
 | `lark-bot claude-auth [local\|proxy]` | 切换 claude 执行器鉴权（本机钥匙串 / `claude.env` 网关 key），切换后自动重启 |
@@ -63,7 +65,7 @@ launchd 直接运行本仓代码。**改完代码不会自动生效**，要执�
 | `rules/` | docs_tdd 冻结规则快照（只读，见 `rules/README.md`） |
 | `schemas/` | AI 结构化输出的 JSON Schema（分析 / 结果 / triage / 意图分类） |
 | `runtime/` | launchd 薄包装、plist、`launchd-node.sh`；本机配置与运行态（gitignore）也放在这里 |
-| `scripts/` | `lark-bot` CLI、`lark-bot-shim`、`code-rules.mjs`（代码规则扫描器副本）、`figma-spec.mjs` |
+| `scripts/` | `lark-bot` CLI、`lark-bot-shim`、`code-rules.mjs`（代码规则扫描器副本）、`figma-spec.mjs`、`test-affected.mjs` / `test-all.mjs`（按 import 关系挑相关测试 / 合并前全量） |
 | `docs/` | 运维手册，入口 [docs/README.md](./docs/README.md) |
 | `__tests__/` | `node --test` 单测 |
 
@@ -77,6 +79,8 @@ launchd 直接运行本仓代码。**改完代码不会自动生效**，要执�
 | PRD 缓存 `prdCacheRoot` | `LARK_BOT_PRD_CACHE` | — | `~/.prd-cache`（只读） |
 
 `runtime/lark-bot.local.json` 的常用键：`project` / `title`、`botOpenId`、`taskMentionOpenIds`、`allowedChatIds` / `allowedOpenIds`、`aiExecutor`、各执行器的模型键（`codexModel`、`piModel` 等）、`scopeBudgets`、`bugTable`。字段含义见 [docs/gateway-and-worker.md](./docs/gateway-and-worker.md) §6。
+2026-10-24 从 falive 实践移植回来的可选键（都可不配，见 [docs/port-from-falive-2026-10-24.md](./docs/port-from-falive-2026-10-24.md)）：`claudeModel` / `claudeEffort`（实施模型与强度）、`claudeAnalysisModel` / `claudeAnalysisEffort`（只读分析 / 分诊阶段单独指定）、`finalChecks`（worker 独立终检：`{ typecheck: [cmd, ...args], tests: [cmd, ...args], timeoutMs }`）、`claudeMemoryDir`（bot 的 worktree 与主仓共用的 Claude 项目记忆目录，缺省按业务主仓推导）。
+对应的环境开关：`LARK_KEEP_AWAKE=0`（关掉开盖防空闲睡眠）、`LARK_WAKE_CATCHUP=0`（关掉开盖补拉）、`LARK_TASK_BUDGET_MS`（单任务总预算，默认 150 分钟）。
 
 执行器的选择优先级：任务里的 `[claude]` / `[codex]` / `[pi]` / `[cursor]` 标签 > 配置 `aiExecutor` > 内置默认 `claude`。执行器在入队时锁定。
 
@@ -99,14 +103,17 @@ launchd 直接运行本仓代码。**改完代码不会自动生效**，要执�
 | [docs/gateway-and-worker.md](./docs/gateway-and-worker.md) | 长连接接入、命令与 Job、执行器与审计 |
 | [docs/task-boundaries-and-reply.md](./docs/task-boundaries-and-reply.md) | 生命周期、自动执行 / 确认边界、范围契约、任务控制通道与回复策略 |
 | [docs/runtime-and-scheduling.md](./docs/runtime-and-scheduling.md) | 长连接健壮性、附件保留期、bug 表路由、并行调度 |
+| [docs/port-from-falive-2026-10-24.md](./docs/port-from-falive-2026-10-24.md) | 从 falive 实践移植回来的通用能力台账：每项的来源教训、配置键、真机验法；以及刻意没搬的 |
 | [AGENTS.md](./AGENTS.md) | 在本仓改代码的 agent 规则 |
 
 ## 开发与测试
 
-测试只能逐文件运行，不支持目录参数：
+三层，别每改一处就跑全量：
 
 ```sh
-for f in __tests__/*.test.mjs; do node --test "$f"; done
+node --check lib/<file>.mjs            # 改动的文件
+node scripts/test-affected.mjs         # 改的过程中：按 import 关系反查，只跑相关测试（--list 只看挑了哪些）
+node scripts/test-all.mjs              # 合并进运行分支前：全量 + 运行时间预算（18 秒）
 ```
 
-改了 `.mjs` 先跑 `node --check <file>`。本仓没有 Biome / tsc。`rules/` 是只读快照；`scripts/code-rules.mjs` 不要直接改，要从权威版本同步（见 `AGENTS.md`）。
+本仓没有 Biome / tsc。`rules/` 是只读快照；`scripts/code-rules.mjs` 不要直接改，要从权威版本同步（见 `AGENTS.md`）。

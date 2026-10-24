@@ -36,6 +36,8 @@ import { sweepAttachments } from './lib/lark-retention.mjs'
 import { larkAttachmentsRoot } from './lib/lark-paths.mjs'
 import { createRequestHandler } from './lib/lark-routes.mjs'
 import { createRuntimeVersion } from './lib/lark-runtime-version.mjs'
+import { startKeepAwake } from './lib/lark-keep-awake.mjs'
+import { startWakeCatchup } from './lib/lark-wake-catchup.mjs'
 import { GATEWAY_HOST, defaultGatewayPort, defaultTaskLeaseMs } from './lib/lark-constants.mjs'
 
 // 任务领取租约：worker 领走后置 running；超过此时长仍 running 视为孤儿，下次 claim 时自动重入队。
@@ -110,6 +112,11 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
     console.log(`[lark-gateway] code=${runtimeVersion.codeHash} startedAt=${runtimeVersion.startedAt}（health.version 会在磁盘代码变更后报 codeStale）`)
   })
 
+  // 开盖不空闲睡眠（caffeinate -i -w <gateway pid>，LARK_KEEP_AWAKE=0 关）；睡过 / 合过盖 → 开盖后补拉 bot 所在群
+  // 睡眠期间的消息送进同一条 ingest（LARK_WAKE_CATCHUP=0 关；应用没有读群消息权限时会放弃并告警一次）。
+  const keepAwake = startKeepAwake()
+  const wakeCatchup = process.env.LARK_WAKE_CATCHUP === '0' ? { stop: () => {} } : startWakeCatchup({ config, store, ingest: ingestLarkEvent })
+
   // 定期清理陈旧终态任务，防止 /lark/health 计数单调增长（failed 保留待人工 retry/clear）。
   // no_change_needed / done_with_warnings 同属「已了结」终态，一并纳入（否则会永久残留、催办残影）。
   const pruneDoneAfterMs = Number(config.pruneDoneAfterHours ?? 24) * 3600000
@@ -180,6 +187,8 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
     clearInterval(receiptTimer)
     clearInterval(parkedTimer)
     if (logTimer) clearInterval(logTimer)
+    wakeCatchup.stop()
+    keepAwake.stop()
     consumer.stop()
     server.close()
     process.exit(0)

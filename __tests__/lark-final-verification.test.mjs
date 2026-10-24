@@ -130,3 +130,33 @@ describe('runFinalVerification', () => {
     }
   })
 })
+
+describe('finalChecks（本机配置的独立终检，falive #8）', () => {
+  it('改了 .ts 跑 typecheck、改了 *.test.ts 对该文件跑 tests，任一失败整体不通过；只改 markdown 两项都不跑且不做 diff --check', () => {
+    const cwd = makeRepo()
+    try {
+      writeFileSync(join(cwd, 'source.ts'), 'export const value = 2\n')
+      writeFileSync(join(cwd, 'source.test.ts'), 'export const t = 1\n')
+      const tsc = join(cwd, 'node_modules', '.bin', 'tsc')
+      writeFileSync(tsc, '#!/bin/sh\necho "$@" > tsc.args\nexit 0\n'); chmodSync(tsc, 0o755)
+      const vitest = join(cwd, 'node_modules', '.bin', 'vitest')
+      writeFileSync(vitest, '#!/bin/sh\necho "$@" > vitest.args\nexit 1\n'); chmodSync(vitest, 0o755)
+      const finalChecks = { typecheck: ['node_modules/.bin/tsc', '--noEmit'], tests: ['node_modules/.bin/vitest', 'run'], timeoutMs: 60_000 }
+      const receipt = runFinalVerification({ cwd, changedFiles: ['source.ts', 'source.test.ts', 'tsc.args', 'vitest.args'], now: fixedNow, finalChecks })
+      const byId = Object.fromEntries(receipt.checks.map((check) => [check.id, check]))
+      assert.equal(byId.typecheck.ok, true)
+      assert.equal(byId.tests.ok, false, 'vitest 退出 1 → 终检失败')
+      assert.equal(receipt.ok, false)
+      assert.match(formatWorkerVerificationLine(receipt), /typecheck ✓ · tests ✗/)
+      writeFileSync(join(cwd, 'note.md'), '# note  \n')
+      const mdOnly = runFinalVerification({ cwd, changedFiles: ['note.md'], now: fixedNow, finalChecks })
+      assert.ok(!mdOnly.checks.some((check) => check.id === 'typecheck' || check.id === 'tests'))
+      assert.equal(mdOnly.checks.find((check) => check.id === 'git-diff-check').status, 'not-required')
+      // 不合法的配置当没配
+      const none = runFinalVerification({ cwd, changedFiles: ['source.ts'], now: fixedNow, finalChecks: { typecheck: 'tsc' } })
+      assert.ok(!none.checks.some((check) => check.id === 'typecheck'))
+    } finally {
+      rmSync(cwd, { recursive: true, force: true })
+    }
+  })
+})

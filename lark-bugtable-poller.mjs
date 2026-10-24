@@ -10,7 +10,8 @@
  * 规则来源：本仓 docs/README.md。
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync } from 'node:fs'
+import { writeJsonAtomic } from './lib/lark-fs.mjs'
 import { join, dirname } from 'node:path'
 
 import { larkRuntimeDir } from './lib/lark-repo.mjs'
@@ -46,7 +47,8 @@ const createSeenStore = (statePath) => {
   mkdirSync(dirname(statePath), { recursive: true })
   const seen = existsSync(statePath) ? new Set(JSON.parse(readFileSync(statePath, 'utf8')).seen || []) : new Set()
   // mode 0o600 仅在首次创建时生效；已存在的历史 0644 文件由 gateway 启动时的 hardenRuntimeFiles 收紧。
-  const persist = () => writeFileSync(statePath, JSON.stringify({ seen: [...seen] }, null, 2), { mode: 0o600 })
+  // 原子写：写一半被 kill 会留下半截 JSON，下次启动读失败 → 已处理集清零 → 全部 bug 当新的重投。
+  const persist = () => writeJsonAtomic(statePath, { seen: [...seen] })
   return {
     has: (id) => seen.has(id),
     add(id) {

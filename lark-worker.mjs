@@ -115,9 +115,13 @@ export async function runLarkWorker({
 
   // 版本心跳 + 自检告警：每分钟落一次盘（供 gateway health 汇总），同时把落后状态打进 worker.log。
   // 只告警不自杀——正在跑的长任务比"跑最新代码"更值得保住，重启时机由人或 launchd 决定。
+  let lastVersionWarning = ''
   const heartbeatTimer = setInterval(() => {
     heartbeat({ inFlight: inFlight.size })
-    for (const warning of versionWarnings(runtimeVersion.observe())) console.warn(`[lark-worker] ⚠ ${warning}`)
+    // 版本落后只在内容变化时打一行（原每分钟一行，worker.log 里一天几千行同样的话）。
+    const warningText = versionWarnings(runtimeVersion.observe()).join('\n')
+    if (warningText && warningText !== lastVersionWarning) console.warn(`[lark-worker] ⚠ ${warningText}`)
+    lastVersionWarning = warningText
   }, 60_000)
   heartbeatTimer.unref?.()
   const gracefulShutdown = async (signal) => {
@@ -139,6 +143,8 @@ export async function runLarkWorker({
     await Promise.race([Promise.allSettled(entries.map(({ promise }) => promise)), sleep(3000)])
     process.exit(0)
   }
+  // 任何漏网的 rejection 只记日志不退出：进程退出 = 在飞任务全部成孤儿、要等租约回收。
+  process.on('unhandledRejection', (reason) => console.error(`[lark-worker] unhandledRejection（忽略，不退出）：${String(reason?.stack || reason).slice(0, 400)}`))
   process.on('SIGTERM', () => void gracefulShutdown('SIGTERM'))
   process.on('SIGINT', () => void gracefulShutdown('SIGINT'))
 
@@ -149,7 +155,15 @@ export async function runLarkWorker({
     // 把内层 while 变成不带退避的紧循环、满速打 gateway。每轮重新开始，不会永久屏蔽任务。
     const skipThisRound = new Set()
     while (!shuttingDown && inFlight.size < defaultConcurrency) {
-      const candidates = await client.listClaimable()
+      // gateway 重启 / 抖动时不裸崩：listClaimable 的 reliableRequest 只重试 3×150ms，超过就抛；
+      // 原来这里没 try，一次 ECONNREFUSED 就让整个 worker 进程退出、在飞任务成孤儿。
+      let candidates
+      try {
+        candidates = await client.listClaimable()
+      } catch (error) {
+        console.warn(`[lark-worker] 拉取可领取任务失败（${String(error?.cause?.code || error?.message || error).slice(0, 120)}），${Math.round(pollMs / 1000)}s 后再试`)
+        break
+      }
       // 挑第一个「目标 cwd 未在飞」的任务；其余留到下一轮（保证同 worktree 串行）
       let picked = null
       let pickedCtx = null
@@ -188,6 +202,7 @@ export async function runLarkWorker({
 
       const key = pickedCtx.cwd
       const running = runTask(claimed, pickedCtx, { signal: shutdownController.signal })
+        .catch((error) => console.error(`[lark-worker] ${claimed.id} runTask 未捕获异常（任务交给租约回收）：${String(error?.stack || error).slice(0, 400)}`))
         .finally(() => inFlight.delete(key))
       inFlight.set(key, { promise: running, taskId: claimed.id })
     }

@@ -107,8 +107,16 @@ wait_until() {
   return 1
 }
 
+# 先停 worker 并等它退出（它要通过 gateway 把在飞任务交还队列），再停 gateway；
+# 反过来会让任务卡在 running 直到租约过期（falive 教训 #7）。
+_wait_gone() {
+  local script="$1" i
+  for i in $(seq 1 40); do _running "$script" || return 0; sleep 0.25; done
+  return 1
+}
 stop_core() {
   launchctl bootout "$DOMAIN/$WK_LABEL" 2>/dev/null || true
+  _wait_gone "$WK" || echo "• worker 10s 内未退出，强制停止（在飞任务靠租约回收）"
   launchctl bootout "$DOMAIN/$GW_LABEL" 2>/dev/null || true
   launchctl bootout "$DOMAIN/$LEGACY_WK_LABEL" 2>/dev/null || true
   launchctl bootout "$DOMAIN/$LEGACY_GW_LABEL" 2>/dev/null || true
@@ -346,8 +354,20 @@ case "${1:-}" in
   poll-off) poll_off ;;
   failed)   failed ;;
   retry)    retry "${2:-}" ;;
+  # 终端结单：与群里回复卡片「结单」同一个 store 方法，只改状态不发卡（卡片找不到时用）。
+  close)
+    [ -n "${2:-}" ] || { echo "usage: lark-bot close <taskId> [cancelled|no_longer_needed|completed_elsewhere] [\"<说明>\"]"; exit 1; }
+    curl -s -m 5 -X POST ${SECRET_HDR[@]+"${SECRET_HDR[@]}"} -H 'Content-Type: application/json' \
+      -d "$(node -e 'process.stdout.write(JSON.stringify({ closureReason: process.argv[1] || "completed_elsewhere", note: process.argv[2] || "", operator: "cli" }))' "${3:-}" "${4:-}")" \
+      "$TASKS/$2/close"; echo ;;
+  # 终端续跑：挂起 / 阻塞任务补料后复用原任务重跑（等价于群里回复卡片「继续任务 <id> <补充>」）。
+  resume)
+    [ -n "${2:-}" ] && [ -n "${3:-}" ] || { echo "usage: lark-bot resume <taskId> \"<补充说明>\""; exit 1; }
+    curl -s -m 5 -X POST ${SECRET_HDR[@]+"${SECRET_HDR[@]}"} -H 'Content-Type: application/json' \
+      -d "$(node -e 'process.stdout.write(JSON.stringify({ supplementText: process.argv[1], operator: "cli" }))' "$3")" \
+      "$TASKS/$2/resume"; echo ;;
   receipt-retry) receipt_retry "${2:-}" ;;
   clean)    clean "${2:-}" "${3:-}" ;;
   claude-auth) claude_auth "${2:-}" ;;
-  *) echo "usage: lark-bot {start|stop|restart|status|logs|poll-on|poll-off|failed|retry <id>|receipt-retry <id>|clean [hours]|clean --failed [hours]|claude-auth [local|proxy]}"; exit 1 ;;
+  *) echo "usage: lark-bot {start|stop|restart|status|logs|poll-on|poll-off|failed|retry <id>|close <id> [reason] [\"<说明>\"]|resume <id> \"<补充>\"|receipt-retry <id>|clean [hours]|clean --failed [hours]|claude-auth [local|proxy]}"; exit 1 ;;
 esac
