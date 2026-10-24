@@ -111,7 +111,16 @@ describe('lark-runtime-version', () => {
         assert.notEqual(observed.diskCodeHash, observed.codeHash)
         const warnings = versionWarnings(observed)
         assert.equal(warnings.length, 1)
-        assert.match(warnings[0], /lark-bot restart/)
+        const mode = process.env.LARK_INSTANCE_MODE
+        try {
+          delete process.env.LARK_INSTANCE_MODE
+          assert.match(versionWarnings(observed)[0], /`lark-bot restart`/, 'fameex 那套提示 lark-bot')
+          process.env.LARK_INSTANCE_MODE = 'repo-only'
+          assert.match(versionWarnings(observed)[0], /`falive-bot restart`/, 'falive 独立实例提示 falive-bot（10-24）')
+        } finally {
+          if (mode === undefined) delete process.env.LARK_INSTANCE_MODE
+          else process.env.LARK_INSTANCE_MODE = mode
+        }
       } finally {
         rmSync(root, { recursive: true, force: true })
       }
