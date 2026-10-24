@@ -52,6 +52,15 @@ const E2E = {
       { id: 'created-only', chatId: 'oc', status: 'queued', createdAgo: 3 * 60 * 60_000 },
     ],
   },
+  // 17 条近期候选：13 条有 updatedAt（10–22 小时前），4 条只有 createdAt 且更新（1–4 分钟前），排在列表开头。
+  intakeTop15: {
+    task: { intake: { required: true } },
+    intent: { decision: 'ignore', confidence: 'high', summary: '闲聊', reason: '与项目无关' },
+    listTasks: [
+      ...Array.from({ length: 4 }, (_, i) => ({ id: `c${i + 1}`, chatId: 'oc', status: 'queued', createdAgo: (i + 1) * 60_000 })),
+      ...Array.from({ length: 13 }, (_, i) => ({ id: `u${i + 1}`, chatId: 'oc', status: 'done', updatedAgo: (10 + i) * 60 * 60_000, createdAgo: 20 * DAY })),
+    ],
+  },
   // ── 完成态提交
   rootDone: {
     memoryDir: true,
@@ -381,6 +390,11 @@ describe('任务截止时间与续租心跳（第 0 批）', () => {
       assert.deepEqual([...audit.intakeCandidates].sort(), ['created-only', 'revived', 'same-recent'])
       assert.equal(intakes.length, 1, '分类结论交给网关结算一次')
       assert.equal(intakes[0].classification?.decision, 'ignore')
+    }],
+    ['前置意图分类的主题候选超过 15 条：按「updatedAt，缺了用 createdAt」降序取最近的 15 条，只有 createdAt 的新任务不被旧任务挤掉（bug 修复 10-24）', async () => {
+      const { audit } = await e2e('intakeTop15')
+      const expected = ['c1', 'c2', 'c3', 'c4', ...Array.from({ length: 11 }, (_, i) => `u${i + 1}`)]
+      assert.deepEqual([...audit.intakeCandidates].sort(), expected.sort(), '最旧的 u12、u13 落选')
     }],
     ['命中人类 worktree 的完成任务：只提交本任务实测改动、默认前缀 lark task、running 回写带当前分支；只加注释的接口文件不触发实测闸；外部群结论不附系统实测栏；AI 运行中不高频回查网关（变异补测 10-24）', async () => {
       const r = await e2e('rootDone')
