@@ -70,5 +70,29 @@
     "code": "if (minLeaseRemainingMs === null || remaining < minLeaseRemainingMs) minLeaseRemainingMs = remaining",
     "op": "< → <=",
     "reason": "等价：remaining 与当前最小值相等时赋同一个值，结果不变"
+  },
+  {
+    "file": "lib/lark-status.mjs",
+    "code": "if (sweep.taskId || sweep.ok === false) console.log(`[lark-gateway] 日报清扫：${task.repo} ${sweep.taskId || ''}${sweep.skipped ? `（${sweep.skipped}）` : ''}`)",
+    "op": "|| → &&",
+    "reason": "纯日志：这一行只有 console.log（日报清扫建单结果的运行日志），条件和插值只决定打不打印、打印什么；清扫任务本身由上一行 enqueueDailySweep 建，没有任何代码或人依赖这行日志的内容。"
+  },
+  {
+    "file": "lib/lark-status.mjs",
+    "code": "if (sweep.taskId || sweep.ok === false) console.log(`[lark-gateway] 日报清扫：${task.repo} ${sweep.taskId || ''}${sweep.skipped ? `（${sweep.skipped}）` : ''}`)",
+    "op": "=== → !==",
+    "reason": "纯日志：这一行只有 console.log（日报清扫建单结果的运行日志），条件和插值只决定打不打印、打印什么；清扫任务本身由上一行 enqueueDailySweep 建，没有任何代码或人依赖这行日志的内容。"
+  },
+  {
+    "file": "lib/lark-status.mjs",
+    "code": "else if (!delivered.ok && !delivered.skipped) console.error(`[lark-gateway] ${task.id} ${status} 人话消息发送失败：${delivered.reason}`)",
+    "op": "&& → ||",
+    "reason": "纯日志：else 分支只有 console.error（人话消息发送失败的运行日志），条件只决定 skipped 的投递要不要多打一行错误日志；任务落态与返回值（delivered.ok）都不受影响。"
+  },
+  {
+    "file": "lib/lark-status.mjs",
+    "code": "(status === 'done' && task.status === 'done_pending_writeback')",
+    "op": "&& → ||",
+    "reason": "等价：status !== done 时 task.status 不可能是 done_pending_writeback——该状态只由 status=done 的 bug 表回写失败（本函数 L302）产生，回写重试（lark-bugtable-writeback retryPendingWriteback）只处理已在 done_pending_writeback 的任务、出口是 done / done_pending_writeback / result_pending_receipt；status=done 时 task.status 在同一代内只可能是 done / done_pending_writeback / result_pending_receipt（换代、结单都会 epoch+1，被 L135 先拦下），这三种前两个子句与原式结果相同。"
   }
 ]
