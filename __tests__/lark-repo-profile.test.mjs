@@ -229,6 +229,7 @@ describe('归属闸', () => {
     assert.equal(resolveOwnershipOutcome({ profile, task: { operator: 'ou_aven' }, analysis: { ownership: { mine: false, owner: 'henry', featureIds: [] } } }).proceed, true)
     assert.equal(resolveOwnershipOutcome({ profile, task: {}, analysis: { ownership: { mine: true, owner: null, featureIds: [] } } }).proceed, true)
     assert.equal(resolveOwnershipOutcome({ profile, task: {}, analysis: { ownership: null } }).proceed, true)
+    assert.equal(resolveOwnershipOutcome({ profile, task: { contract: { expectsCode: false } }, analysis: { ownership: { mine: false, owner: 'henry', featureIds: [] } } }).proceed, true, '复测 / 查找不改代码：不按归属跳过（10-24）')
     assert.equal(resolveOwnershipOutcome({ profile: repoProfile(DEFAULT_REPO_KEY), task: {}, analysis: { ownership: { mine: false, owner: 'x', featureIds: [] } } }).proceed, true)
   })
 })

@@ -4,7 +4,7 @@ import { describe, it } from 'node:test'
 import { assessDoneResult, allowsDocsOnlyDone } from '../lib/lark-quality-gate.mjs'
 import { applyIntakeClassification, intakeActionable } from '../lib/lark-intake-resolve.mjs'
 import { isReadOnlyTask } from '../lib/lark-message.mjs'
-import { deriveContract, refreshContract, taskContract } from '../lib/lark-task-contract.mjs'
+import { deriveContract, isReadOnlyAsk, refreshContract, taskContract } from '../lib/lark-task-contract.mjs'
 import { WORK_KINDS, expectsCodeChange, requirementGate, resolveWorkKind } from '../lib/lark-work-policy.mjs'
 import { isDefectCandidate } from '../lib/lark-defect-rules.mjs'
 
@@ -79,5 +79,26 @@ describe('任务契约', () => {
     assert.equal(applyIntakeClassification(brought, { classification: brought.intake.classification }).actionable, true)
     const unsure = t({ decision: 'api_reply', forMe: null, deliverable: 'change' })
     assert.equal(applyIntakeClassification(unsure, { classification: unsure.intake.classification }).suspected, true)
+  })
+})
+
+// aven 2026-10-24：@bot 让测试 / 复测 / 确认 / 查找的，只要不改代码就直接做，不看归属，结论回群。
+describe('@bot 交办的只读活不看归属', () => {
+  const t = (extra = {}) => ({ id: 't', repo: 'falive', addressedToBot: true, attachments: [], text: '【本条 @】@Aven.Bot Bug-4942 再复测下！', ...extra })
+  it('复测（verification）/ 回答：forMe=false、medium 也开跑', () => {
+    assert.equal(intakeActionable(t(), { decision: 'bug', confidence: 'medium', forMe: false, deliverable: 'verification' }), true)
+    assert.equal(intakeActionable(t(), { decision: 'question', confidence: 'medium', forMe: false, deliverable: 'answer' }), true)
+    assert.equal(isReadOnlyAsk(t(), { decision: 'bug', confidence: 'medium', deliverable: 'verification' }), true)
+    // 归别人时分类器判 ignore，但照填了 deliverable：照样放行（10-24 William 让测 fameEx/market/symbol/list）
+    assert.equal(intakeActionable(t(), { decision: 'ignore', confidence: 'medium', forMe: false, deliverable: 'verification' }), true)
+    assert.equal(intakeActionable(t(), { decision: 'ignore', confidence: 'medium', forMe: false, deliverable: null }), false)
+    const william = t()
+    applyIntakeClassification(william, { classification: { decision: 'ignore', confidence: 'medium', forMe: false, deliverable: 'verification', reply: '这个接口找 Broker 联调' } })
+    assert.deepEqual([william.intake.classification.reply, william.contract.deliverable], [null, 'verification'], '推托的 reply 不当收到发')
+    assert.equal(intakeActionable(t({ privateOrigin: { anchorHead: 'x' } }), { decision: 'ignore', confidence: 'high', forMe: false, deliverable: 'verification' }), false, '负责人私聊说不做')
+  })
+  it('要改代码的、没 @ bot 的：照旧按归属', () => {
+    assert.equal(intakeActionable(t(), { decision: 'bug', confidence: 'high', forMe: false, deliverable: 'change' }), false)
+    assert.equal(isReadOnlyAsk(t({ addressedToBot: false }), { decision: 'bug', confidence: 'high', deliverable: 'verification' }), false)
   })
 })
