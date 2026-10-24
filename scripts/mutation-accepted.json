@@ -134,15 +134,9 @@
   },
   {
     "file": "lib/lark-task-runner.mjs",
-    "code": "Date.now() - Date.parse(item.updatedAt || item.createdAt || 0) < 7 * 24 * 60 * 60_000)",
+    "code": "Date.now() - touchedAt(item) < 7 * 24 * 60 * 60_000)",
     "op": "< → <=",
     "reason": "等价：只在「当前时间 - 更新时间」恰好等于 7 天整（毫秒级相等）时有区别，主题候选窗口的边界毫秒不影响分类"
-  },
-  {
-    "file": "lib/lark-task-runner.mjs",
-    "code": ".sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1)).slice(0, 15)",
-    "op": "< → <=",
-    "reason": "等价：排序比较器里只影响 updatedAt 完全相同的并列候选的先后，分类器拿到的是候选集合，并列项先后无业务含义"
   },
   {
     "file": "lib/lark-task-runner.mjs",

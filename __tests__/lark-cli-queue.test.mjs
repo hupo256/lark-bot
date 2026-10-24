@@ -16,7 +16,7 @@ process.env.LARK_CLI_BIN = bin
 process.env.LARK_CLI_CONCURRENCY = '1'
 // 运行态（审计目录等）也在模块加载时定根：指到临时目录，测试不往仓库 runtime/ 落文件。
 process.env.LARK_RUNTIME_DIR = join(dir, 'runtime')
-const { larkCliQueueStats, resolveChatName, runLarkCli } = await import('../lib/lark-cli.mjs')
+const { larkCliQueueStats, parseSentMessageId, resolveChatName, runLarkCli } = await import('../lib/lark-cli.mjs')
 const { handleStatusUpdate } = await import('../lib/lark-status.mjs')
 const { createTaskStore } = await import('../lib/lark-task-store.mjs')
 const { createTaskAudit } = await import('../lib/lark-worker-audit.mjs')
@@ -60,6 +60,14 @@ describe('lark-cli 子进程限流（第 1 批）', () => {
       await Promise.all([first, ...rest])
       assert.deepEqual(order, ['r1', 's1', 'r2', 'r3'], '排队的 send 先于排队的 read')
       assert.deepEqual(larkCliQueueStats().user, { running: 0, queued: 0 })
+    }],
+    ['子进程退出早于 stdout 读完时，等 stdout 关闭再结算，拿到完整输出（发消息才有 message_id、+chat-list 不读成空）（bug 修复 10-24）', async () => {
+      // 先吐半截 JSON，剩下的交给后台子进程 0.3s 后写完：sh 先退出（'exit'），stdout 管道要等后台进程写完才关（'close'）。
+      writeFileSync(bin, `#!/bin/sh\nprintf '{"ok":true,'\n(sleep 0.3; printf '"data":{"message_id":"om_late"}}\\n') &\nexit 0\n`)
+      const result = await runLarkCli(['im', '+messages-send'], { priority: 'send' })
+      assert.equal(result.code, 0)
+      assert.equal(result.stdout, '{"ok":true,"data":{"message_id":"om_late"}}\n', 'exit 早于 stdout 关闭时不能截断输出')
+      assert.equal(parseSentMessageId(result.stdout), 'om_late')
     }],
     ['群名缓存：TTL 内命中不重拉；新群首次 miss 即刷新拿到群名（bot 刚进的群不能等满 TTL）；不在群里的负缓存不反复拉（变异补测 10-24）', async () => {
       const caseDir = mkdtempSync(join(dir, 'chat-names-'))

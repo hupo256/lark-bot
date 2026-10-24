@@ -247,6 +247,15 @@ describe('分类回写：被动闸先于并单、疑似单不并单、幂等重�
       assert.match(capped.body.error, /上限/, '达上限要告诉人为什么')
       assert.equal((await post('/lark/tasks/nope/retry')).body.error, 'task not found or not retryable (must be failed/blocked)')
     })],
+    ['人工 retry：下载失败的文件附件（对接文档，只有 fileKey）和图片一起重下，各自按下载键回填 localPath（bug 修复 10-24）', () => withServer(async ({ store: own, post }) => {
+      own.upsert({ id: 'rt_file', status: 'failed', project: 'PR-78', messageId: 'om_doc', chatId: 'oc_plain', text: 'x', createdAt: at,
+        attachments: [{ type: 'file', fileKey: 'file_bad', fileName: '对接.md', downloadError: 'boom' }, { type: 'image', imageKey: 'img_bad2', downloadError: 'boom' }] })
+      assert.equal((await post('/lark/tasks/rt_file/retry')).status, 200)
+      const [file, image] = own.get('rt_file').attachments
+      const dirOf = join(runtimeRoot, 'lark-attachments', 'PR-78', 'om_doc')
+      assert.equal(file.localPath, join(dirOf, '1-对接.md'), '文件附件也重下，按 fileKey 回填、保留原文件名')
+      assert.equal(image.localPath, join(dirOf, '2-img_bad2.img'), '同一轮的图片照常重下回填')
+    })],
     ['清理终态：statuses 给空数组按默认只清 done；显式给 failed 才清 failed（变异补测 10-24）', () => withServer(async ({ store: own, post }) => {
       own.upsert({ id: 'pr_done', status: 'done', text: 'x', createdAt: at })
       own.upsert({ id: 'pr_failed', status: 'failed', text: 'x', createdAt: at })
