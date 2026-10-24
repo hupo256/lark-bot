@@ -148,6 +148,7 @@
     "file": "lib/lark-task-runner.mjs",
     "code": "if (outcome.ok && outcome.committed && workContext.hotfixBranch) removeTempWorktreeIfClean({ path: workContext.cwd, repoRoot: workContext.repoRoot })",
     "op": "&& → ||",
+    "col": 44,
     "reason": "等价（本行第二个 && → ||）：scoped 提交分支只在 commitScopedPaths 非空时进，而它来自 planDocIntakeCommit 的 git 实测有改动的文档；进来后要么提交成功（ok && committed），要么提交失败、改动仍在工作区（dirty）。变异后多出的 removeTempWorktreeIfClean 调用自带「工作区干净才删」守卫，dirty 时什么都不做；「改动在收尾前消失」那条会先被提交前的工作树指纹校验拦下。本行第一个 && 由「人的项目 worktree 入库后原样保留」一段钉住"
   },
   {
