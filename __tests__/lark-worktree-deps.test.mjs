@@ -5,22 +5,43 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { prepareRootTools } from '../lib/lark-worktree-deps.mjs'
+import { runSteps } from './support/steps.mjs'
 
-test('no hook needs no install; linked node_modules fails before pnpm runs', () => {
-  const cwd = mkdtempSync(join(tmpdir(), 'lark-deps-'))
-  try {
-    prepareRootTools(cwd)
-    mkdirSync(join(cwd, '.husky'))
-    writeFileSync(join(cwd, '.husky', 'pre-commit'), '#!/bin/sh\n')
-    writeFileSync(join(cwd, 'pnpm-lock.yaml'), 'lockfileVersion: "9.0"\n')
-    writeFileSync(join(cwd, 'package.json'), '{"name":"test-root","packageManager":"pnpm@10.8.0"}\n')
-    symlinkSync(cwd, join(cwd, 'node_modules'), 'dir')
-    assert.throws(() => prepareRootTools(cwd), /外部软链/)
-    assert.equal(existsSync(join(cwd, 'node_modules')), true)
-  } finally {
-    rmSync(cwd, { recursive: true, force: true })
-  }
-})
+test('no hook needs no install; linked node_modules fails before pnpm runs', () => runSteps([
+  ['no hook needs no install; linked node_modules fails before pnpm runs', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'lark-deps-'))
+    try {
+      prepareRootTools(cwd)
+      mkdirSync(join(cwd, '.husky'))
+      writeFileSync(join(cwd, '.husky', 'pre-commit'), '#!/bin/sh\n')
+      writeFileSync(join(cwd, 'pnpm-lock.yaml'), 'lockfileVersion: "9.0"\n')
+      writeFileSync(join(cwd, 'package.json'), '{"name":"test-root","packageManager":"pnpm@10.8.0"}\n')
+      symlinkSync(cwd, join(cwd, 'node_modules'), 'dir')
+      assert.throws(() => prepareRootTools(cwd), /外部软链/)
+      assert.equal(existsSync(join(cwd, 'node_modules')), true)
+    } finally {
+      rmSync(cwd, { recursive: true, force: true })
+    }
+  }],
+  ['缺 pnpm 版本、或没给 installArgs 又缺包名：pnpm 跑之前就报错，不拿 undefined 去 --filter（变异补测 10-24）', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'lark-deps-manifest-'))
+    try {
+      mkdirSync(join(cwd, '.husky'))
+      writeFileSync(join(cwd, '.husky', 'pre-commit'), '#!/bin/sh\n')
+      writeFileSync(join(cwd, 'pnpm-lock.yaml'), 'lockfileVersion: "9.0"\n')
+      const manifest = (json) => writeFileSync(join(cwd, 'package.json'), `${JSON.stringify(json)}\n`)
+      manifest({ name: 'test-root' })
+      assert.throws(() => prepareRootTools(cwd), /缺少明确的 pnpm 包名或版本/, '没有 packageManager')
+      manifest({ name: 'test-root', packageManager: 'yarn@4.0.0' })
+      assert.throws(() => prepareRootTools(cwd, { installArgs: ['install'] }), /缺少明确的 pnpm 包名或版本/, '不是 pnpm，给了 installArgs 也不装')
+      manifest({ packageManager: 'pnpm@10.8.0' })
+      assert.throws(() => prepareRootTools(cwd), /缺少明确的 pnpm 包名或版本/, '没给 installArgs 时必须有包名')
+      assert.equal(existsSync(join(cwd, 'node_modules')), false, '报错前没跑安装')
+    } finally {
+      rmSync(cwd, { recursive: true, force: true })
+    }
+  }],
+]))
 
 test('filtered install prepares root hooks and binaries without installing unrelated packages', {
   skip: spawnSync('pnpm', ['--version'], { encoding: 'utf8' }).status !== 0,
