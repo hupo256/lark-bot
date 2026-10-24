@@ -14,6 +14,7 @@ import { describe, it } from 'node:test'
 
 import {
   DEDUPE_MS,
+  DRAIN_PICKUP_GRACE_MS,
   STALE_PARKED_MS,
   WAKE_GRACE_MS,
   buildDoctorReport,
@@ -103,6 +104,11 @@ describe('buildDoctorReport（纯判定）', () => {
       [{ configStale: true }, {}, 'warn', '配置落后磁盘，排空重启没接手'],
       [{ codeStale: true, configStale: true }, {}, 'warn', '代码和配置落后磁盘，排空重启没接手'],
       [{ codeStale: true }, { draining: true }, 'info', '代码落后磁盘，worker 正在排空，在飞任务跑完、自检绿会自动重启'],
+      // 磁盘刚改、worker 还没轮到排空 tick 的空档：只算 info（10-24 沙箱试跑：原来这里 warn 私信，并被 24h 去重压住后面真没接手的那次）
+      [{ codeStale: true, diskChangedAt: iso(DRAIN_PICKUP_GRACE_MS - 1000) }, {}, 'info', '代码落后磁盘（磁盘 2 分钟前刚改），等排空重启接手（2 分钟内接手属正常）'],
+      [{ configStale: true, diskChangedAt: iso(0) }, {}, 'info', '配置落后磁盘（磁盘 0 分钟前刚改），等排空重启接手（2 分钟内接手属正常）'],
+      [{ codeStale: true, diskChangedAt: iso(DRAIN_PICKUP_GRACE_MS) }, {}, 'warn', '代码落后磁盘，排空重启没接手'],
+      [{ codeStale: true, diskChangedAt: 'garbage' }, {}, 'warn', '代码落后磁盘，排空重启没接手'],
     ]
     for (const [version, workerExtra, level, text] of cases) {
       const result = report({ health: { ...healthy, version, worker: { ...healthy.worker, ...workerExtra } } })
@@ -112,6 +118,8 @@ describe('buildDoctorReport（纯判定）', () => {
       assert.equal(result.level, level)
     }
     assert.match(check({ health: { ...healthy, version: { codeStale: true } } }, 'version').action, /selfHeal\.drainRestart=false/)
+    // 默认 settleMs 60s + 2 个轮询周期（5s）+ 版本观测缓存 10s，留余量取 2 分钟
+    assert.equal(DRAIN_PICKUP_GRACE_MS, 2 * 60_000)
   })
 
   it('gateway warnings：已归并的跳过，夜间静默 / 正在重试只算 info，其余 warn', () => {
@@ -180,9 +188,11 @@ describe('buildDoctorReport（纯判定）', () => {
     const failures = { total: 5, byClass: { timeout: 2, result_missing: 3 }, recurring: [{ fingerprint: 'result_missing:abc', count: 3 }], healed: 2 }
     const recurring = check({ failures }, 'failures')
     assert.equal(recurring.level, 'warn')
-    assert.equal(recurring.text, '7 天失败 5（result_missing 3、timeout 2），自动重跑 2 次，复发指纹 1 个：result_missing:abc×3')
+    assert.equal(recurring.text, '7 天失败 5（result_missing 3、timeout 2），自动重跑 2 次，复发指纹 1 个：result_missing:abc（3 个任务）')
     const once = check({ failures: { ...failures, recurring: [] } }, 'failures')
     assert.deepEqual([once.level, once.text], ['info', '7 天失败 5（result_missing 3、timeout 2），自动重跑 2 次，没有复发'])
+    // 只有自动重跑、没有失败：ok，带上重跑次数
+    assert.deepEqual([check({ failures: { ...noFailures, healed: 2 } }, 'failures').level, check({ failures: { ...noFailures, healed: 2 } }, 'failures').text], ['ok', '7 天内没有 worker 层失败（自动重跑 2 次）'])
     assert.equal(check({ failures: null }, 'failures'), undefined)
 
     assert.equal(check({ selfFix: null }, 'self-fix'), undefined)

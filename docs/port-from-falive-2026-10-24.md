@@ -184,3 +184,15 @@ aven 10-24 下午定：「刻意没搬的」里的排空重启和自愈环 2 这
 上线：合进运行分支后由排空重启自动生效（或手动 `lark-bot restart`）；不用改配置，想关定时私信加 `"selfHeal": { "doctor": false }`。`scripts/lark-bot` 的 usage 行没加 `doctor`（避免和自修工单分支同一行冲突），合并两条分支时一起补。
 
 测试：`__tests__/lark-doctor.test.mjs`（各检查项表格化判定、轮询 / 自修工单状态文件读写、去重 24 小时与数字归一、发送失败不记已报、合盖 / 刚醒跳过、定时装配与私信出口、取数兜底、真走 `scripts/lark-bot doctor` 起假 health 服务验退出码）。`node scripts/mutate.mjs --diff a2f4fbc` 59 个变异点全抓到。
+
+### 沙箱试跑（10-24）
+
+编号沿用试跑报告；本节两个修复分支各写各的行。
+
+- 分支 `lark/sh-fix-ledger`（问题 1、2、3、4，10 的两项）：
+  - 1 复发误算：`countRecentFingerprint` 加 `taskId`，排除本任务自己的行，并按不同任务计数；任务自己第一次 requeue 后第二次失败不再写「同一种错 7 天内第 2 次」、台账 recurring 不再为 true，自修开单原因 / 提示词随之正确（`lib/lark-failure-ledger.mjs`、`lib/lark-failure-playbook.mjs`）。
+  - 2 体检汇总：`summarizeFailures` 只数 fail（requeue 单列「自动重跑 N 次」，self_fix / ignore 不算），复发 = 不同任务 ≥2，count 是任务数；体检文案改成「指纹（N 个任务）」，只有自动重跑没有失败时 ok 行带重跑次数（`lib/lark-doctor.mjs`）。
+  - 3 `spawn claude ENOENT / EACCES`（异步 spawn）归 tool_missing（原来只认 `spawnSync`，落成 unknown 去开「未归类」自修工单）；自修执行器起不来 AI（`isSpawnFailure`）直接 failed，写明不重试，即便恰好赶上退出也不退回待执行（`lib/lark-failure-fingerprint.mjs`、`lib/lark-self-fix-run.mjs` 的 catch）。
+  - 4 体检空档误报：`diskChangedAt` 之后 2 分钟（`DRAIN_PICKUP_GRACE_MS`：settleMs 60s + 2 个轮询周期 + 版本观测缓存，留余量）内 worker 还没排空只算 info，超过才 warn；info 不私信、不进 24h 去重，后面真没接手照报。
+  - 10（部分）：自愈重排队那次的「执行异常」只打一行 info（类别 + 报错首行），不带堆栈（`logTaskException`，`lib/lark-task-runner.mjs` 调）；不开自修工单时打一行原因（同指纹已开过 / 预算满 / 取不到 HEAD 等，`lib/lark-self-fix.mjs`）。
+  - 测试：`__tests__/lark-failure-playbook.test.mjs`、`__tests__/lark-doctor.test.mjs`、`__tests__/lark-self-fix.test.mjs` 各在已有 it 里加断言（真实异步 spawn 造 ENOENT / EACCES，不调真 claude）；修复前均红。

@@ -7,7 +7,7 @@
  */
 
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -88,6 +88,8 @@ const fakeExec = ({ files = {}, summary = '[harness] 结果文件路径拼错', 
   }
   return { result: { status, summary, checks: ['node scripts/test-all.mjs 绿'], changedFiles: Object.keys(files), warnings: [], blockers: status === 'blocked' ? ['装 lark-cli'] : null } }
 }
+// 真实的异步 spawn 报错（不存在的路径 → ENOENT；没有执行权限的文件 → EACCES），与 claude 不在 PATH 时 execAiExecutor 抛的同形。
+const spawnError = (cmd) => new Promise((resolve) => spawn(cmd, [], { stdio: 'ignore' }).on('error', resolve))
 const ok = (summary) => async () => ({ ok: true, summary })
 const red = (summary) => async () => ({ ok: false, summary })
 
@@ -106,6 +108,7 @@ describe('开单决策与预算', () => {
       [{ ...base, playbook: undefined }, false, /剧本是 \?/],
       [{ ...base, fingerprint: undefined }, false, /不是失败/],
       [{ ...base, fingerprint: fp('cursor-agent CLI 不可用：spawnSync cursor-agent ENOENT') }, false, /不是 bot 代码能修的/],
+      [{ ...base, fingerprint: fp('spawn claude ENOENT') }, false, /执行器 CLI 不在本机：不是 bot 代码能修的/],
       [{ ...base, fingerprint: fp('Claude 未登录 login required') }, false, /不是 bot 代码能修的/],
       [{ task, fingerprint: timeout, playbook: fail }, false, /单次不查/],
       [{ task, fingerprint: timeout, playbook: fail, priorAttempts: 1 }, false, /单次不查/],
@@ -150,9 +153,12 @@ describe('开单决策与预算', () => {
       assert.deepEqual(ticket.task, { id: 'om_1', epoch: 1, project: 'PR-01947', text: '修一下资料页金额' })
       assert.deepEqual(listFailures({ dir: repo.ledgerDir }).map((entry) => [entry.action, entry.taskId]), [[SELF_FIX_ACTION, 'om_1']])
 
-      const again = open(repo, { now: NOON + 3600_000, taskOverride: { id: 'om_2' } })
+      const logs = []
+      const again = maybeOpenSelfFix({ task: { ...task, id: 'om_2' }, error: new Error('boom'), fingerprint: unknown, playbook: fail, ledgerDir: repo.ledgerDir, dir: repo.dir, root: repo.root, workerLogPath: null, now: NOON + 3600_000, log: (line) => logs.push(line) })
       assert.equal(again.opened, false)
       assert.match(again.reason, /已开过/)
+      // 不开也打一行说明为什么（10-24 沙箱试跑：同指纹不开单时 worker.log 里什么都没有）
+      assert.deepEqual(logs, ['[lark-worker] om_2 不开自修工单：同指纹 7 天内已开过自修工单'])
       assert.deepEqual(selfFixBudget({ dir: repo.ledgerDir, fingerprint: unknown.fingerprint, now: NOON }), { openedToday: 1, openedForFingerprint: 1 })
       // 第二天不算「今天」，但同指纹仍在 7 天窗口里；8 天后同指纹可再开
       assert.deepEqual(selfFixBudget({ dir: repo.ledgerDir, fingerprint: unknown.fingerprint, now: NOON + 24 * 3600_000 }), { openedToday: 0, openedForFingerprint: 1 })
@@ -332,6 +338,9 @@ describe('执行器（临时 git 仓 + 假执行器）', () => {
       ['没标层没改', { summary: '看不出来', status: 'blocked' }, {}, 'reported', /根因层 未标/, null],
       ['执行器出错', { throws: new Error('claude exec exited with code 1') }, {}, 'failed', /执行器出错：claude exec exited with code 1/, null],
     ]
+    // 起不来 AI（claude 不在 PATH / 没有执行权限）：直接 failed，写明不重试
+    const missing = await spawnError(join(tmpdir(), 'lark-no-such-dir', 'claude'))
+    cases.push(['起不来 AI', { throws: missing }, {}, 'failed', /^起不来 AI 执行器（spawn \S+claude ENOENT），不重试/, null])
     for (const [name, execOptions, extra, status, reason, stage] of cases) {
       const repo = makeRepo()
       try {
@@ -389,6 +398,18 @@ describe('执行器（临时 git 仓 + 假执行器）', () => {
       assert.equal(second.status, 'failed')
       assert.match(second.reason, new RegExp(`已中断 ${SELF_FIX_MAX_ATTEMPTS} 次`))
       assert.equal(notes.length, 1)
+
+      // 起不来 AI 时恰好在退出：也不当「被中断」退回 pending（重跑同样起不来），直接 failed
+      const noExec = join(repo.base, 'claude-no-x')
+      writeFileSync(noExec, '#!/bin/sh\n', { mode: 0o644 })
+      const denied = await spawnError(noExec)
+      assert.equal(denied.code, 'EACCES')
+      const { id: id3 } = open(repo, { fingerprint: fp('odd failure no ai') })
+      const c3 = new AbortController()
+      const cannotStart = await runner(repo, { exec: fakeExec({ before: () => c3.abort(), throws: denied }), signal: c3.signal }).runTicket(readTicket({ dir: repo.dir, id: id3 }))
+      assert.equal(cannotStart?.status, 'failed')
+      assert.match(cannotStart.reason, /^起不来 AI 执行器（spawn \S+claude-no-x EACCES），不重试/)
+      assert.equal(readTicket({ dir: repo.dir, id: id3 }).attempts, 1)
 
       // 验收阶段被中断
       const { id: id2 } = open(repo, { fingerprint: fp('odd failure during verify') })

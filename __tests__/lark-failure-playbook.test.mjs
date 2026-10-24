@@ -24,7 +24,7 @@ import {
 } from '../lib/lark-failure-fingerprint.mjs'
 import { FAILURE_LEDGER_KEY, countRecentFingerprint, listFailures, recordFailure, selfHealAttemptsForTask, summarizeFailures } from '../lib/lark-failure-ledger.mjs'
 import { collectFailureEvidence, formatFailureEvidence, readFailureEvidence } from '../lib/lark-failure-evidence.mjs'
-import { failurePlaybookEnabled, handleTaskFailure, selfHealHintFor } from '../lib/lark-failure-playbook.mjs'
+import { failurePlaybookEnabled, handleTaskFailure, logTaskException, selfHealHintFor } from '../lib/lark-failure-playbook.mjs'
 import { buildFailureResult } from '../lib/lark-worker-results.mjs'
 import { runAI } from '../lib/lark-worker-run.mjs'
 
@@ -38,6 +38,9 @@ const REAL = {
   staleEpoch: 'POST /lark/tasks/om_x100b62/status failed: 409 {"ok":false,"code":409,"error":"stale epoch: got 2"}',
   resultInvalid: 'Cursor 根因在 cross-boundary（后端/跨层），不能标 taskState=completed 关单：请改用 awaiting_owner_fix，并在 blockers 列出已转交后端的缺陷项',
   toolMissing: 'cursor-agent CLI 不可用：spawnSync cursor-agent ENOENT',
+  // 异步 spawn 的报错（10-24 沙箱试跑：claude 不在 PATH / 没有执行权限），原来落成 unknown 去开「未归类」自修工单
+  spawnMissing: 'spawn claude ENOENT',
+  spawnDenied: 'spawn /Users/aven/.local/bin/claude EACCES',
   readonly: 'claude 分析阶段违反只读约束：git status/diff 在分析前后发生变化，已停止实施',
   // fameex 本仓的报错形状
   worktreeIdentity: 'worktree 身份校验失败：当前分支 main 与期望 hotfix/PR-1-x 不一致',
@@ -52,6 +55,7 @@ describe('失败指纹', () => {
     const expected = {
       resultMissing: 'result_missing', ruleContext: 'rule_context', exit1: 'exec_exit', aborted: 'aborted', timeout: 'timeout',
       cursorTransient: 'transient_api', staleEpoch: 'stale_epoch', resultInvalid: 'result_invalid', toolMissing: 'tool_missing', readonly: 'readonly_violation',
+      spawnMissing: 'tool_missing', spawnDenied: 'tool_missing',
       worktreeIdentity: 'git', qualityGate: 'quality_gate', login: 'permission',
     }
     for (const [key, cls] of Object.entries(expected)) {
@@ -131,7 +135,7 @@ describe('失败剧本与失败卡', () => {
 })
 
 describe('失败台账', () => {
-  it('默认一本 fameex.jsonl：本任务重排队次数 / 同指纹 7 天复发计数（只数 fail / requeue）/ 汇总；坏行跳过', () => {
+  it('默认一本 fameex.jsonl：本任务重排队次数 / 同指纹 7 天复发计数（只数别的任务的 fail / requeue）/ 汇总（只数 fail）；坏行跳过', () => {
     const dir = tempDir('lark-failures-')
     try {
       const fp = fingerprintFailure(REAL.resultMissing)
@@ -153,18 +157,26 @@ describe('失败台账', () => {
       assert.equal(selfHealAttemptsForTask({ dir, taskId: 'om_1', now: now + 200_000 }).length, 1)
       assert.equal(selfHealAttemptsForTask({ dir, taskId: 'om_2', now: now + 200_000 }).length, 0)
       assert.equal(selfHealAttemptsForTask({ dir, taskId: 'om_1', now: now + 31 * 24 * 60 * 60_000 }).length, 0)
-      assert.equal(countRecentFingerprint({ dir, repo: 'fameex', fingerprint: fp.fingerprint, now: now + 200_000 }), 2)
-      assert.equal(countRecentFingerprint({ dir, fingerprint: fp.fingerprint, now: now + 200_000 }), 3)
+      // 复发按不同任务数：om_1 的 requeue + fail 只算 1 个；传 taskId 时本任务自己的行不算（10-24 沙箱试跑）
+      assert.equal(countRecentFingerprint({ dir, repo: 'fameex', fingerprint: fp.fingerprint, now: now + 200_000 }), 1)
+      assert.equal(countRecentFingerprint({ dir, repo: 'fameex', fingerprint: fp.fingerprint, taskId: 'om_1', now: now + 200_000 }), 0)
+      assert.equal(countRecentFingerprint({ dir, fingerprint: fp.fingerprint, now: now + 200_000 }), 2)
+      assert.equal(countRecentFingerprint({ dir, fingerprint: fp.fingerprint, taskId: 'om_1', now: now + 200_000 }), 1)
       assert.equal(listFailures({ dir, repo: 'fameex' }).length, 6)
       assert.deepEqual(listFailures({ dir }).map((item) => item.taskId), ['om_4', 'om_1', 'om_9', 'om_1', 'om_2', 'om_3', 'om_5'])
       assert.equal(listFailures({ dir, sinceMs: now + 100_000 }).length, 3)
       assert.equal(listFailures({ dir, sinceMs: now + 120_000 }).length, 3)
       const summary = summarizeFailures({ dir, repo: 'fameex', now: now + 200_000 })
-      assert.deepEqual(summary, { total: 4, byClass: { result_missing: 3, unknown: 1 }, recurring: [{ fingerprint: fp.fingerprint, count: 3 }], healed: 1 })
-      // 同指纹恰好 2 次就算复发
+      // 汇总只数 fail：requeue 单列 healed、self_fix / ignore 不算失败；复发按不同任务计（10-24 沙箱试跑：原来一条任务
+      // requeue + fail + self_fix 就报「复发指纹 ×3」）
+      assert.deepEqual(summary, { total: 2, byClass: { result_missing: 1, unknown: 1 }, recurring: [], healed: 1 })
+      // 两条不同任务同指纹失败就算复发，count = 任务数（同一任务失败两次不多算）
       const rc = fingerprintFailure(REAL.ruleContext)
       recordFailure({ dir, repo: 'pair', taskId: 'p1', fingerprint: rc, action: 'fail', now })
+      recordFailure({ dir, repo: 'pair', taskId: 'p1', fingerprint: rc, action: 'fail', now })
+      assert.deepEqual(summarizeFailures({ dir, repo: 'pair', now: now + 1000 }), { total: 2, byClass: { rule_context: 2 }, recurring: [], healed: 0 })
       recordFailure({ dir, repo: 'pair', taskId: 'p2', fingerprint: rc, action: 'fail', now })
+      recordFailure({ dir, repo: 'pair', taskId: 'p3', fingerprint: rc, action: 'requeue', now })
       assert.deepEqual(summarizeFailures({ dir, repo: 'pair', now: now + 1000 }).recurring, [{ fingerprint: rc.fingerprint, count: 2 }])
       assert.deepEqual(listFailures({ dir: join(dir, 'nope') }), [])
       assert.deepEqual(summarizeFailures({ dir: join(dir, 'nope') }), { total: 0, byClass: {}, recurring: [], healed: 0 })
@@ -263,15 +275,32 @@ describe('接入：handleTaskFailure（task-runner 失败分支）', () => {
       assert.equal(h.reports.length, 1)
       assert.equal(h.reports[0].status, 'failed')
       const lines = h.reports[0].result.split('\n')
-      assert.equal(lines[3], `3. 失败归类：模型没写结果文件，已自动重跑 1 次仍失败，同一种错 7 天内第 2 次，指纹 ${second.fingerprint.fingerprint}；`)
+      // 自己那行 requeue 不算复发（10-24 沙箱试跑：原来卡上写「同一种错 7 天内第 2 次」、台账 recurring:true）
+      assert.equal(lines[3], `3. 失败归类：模型没写结果文件，已自动重跑 1 次仍失败，指纹 ${second.fingerprint.fingerprint}；`)
+      assert.equal(second.playbook.recurring, false)
       assert.equal(lines[4], '4. 旁证：失败时已在实施阶段（分析已跑完）；')
       assert.deepEqual(auditContext.record.failureEvidence, { lines: ['失败时已在实施阶段（分析已跑完）'] })
-      assert.deepEqual(listFailures({ dir }).map((item) => [item.action, item.epoch, item.recurring]), [['requeue', 1, false], ['fail', 2, true]])
+      assert.deepEqual(listFailures({ dir }).map((item) => [item.action, item.epoch, item.recurring]), [['requeue', 1, false], ['fail', 2, false]])
 
       // 另一条任务撞上同一指纹：它自己还没重跑过，照样先重排队一次，但台账记为复发
       const other = await handleTaskFailure({ ...h, task: { id: 'om_task2', epoch: 0 }, error, dir })
       assert.equal(other.action, 'requeue')
       assert.equal(listFailures({ dir }).at(-1).recurring, true)
+      // 它重跑后又失败：复发按「别的任务」数，om_task1 的 requeue + fail 只算 1 个、自己的 requeue 不算 → 第 2 次
+      const otherAgain = await handleTaskFailure({ ...h, task: { id: 'om_task2', epoch: 1 }, error, dir })
+      assert.equal(otherAgain.action, 'fail')
+      assert.match(h.reports.at(-1).result, /\n3\. 失败归类：模型没写结果文件，已自动重跑 1 次仍失败，同一种错 7 天内第 2 次，指纹 /)
+
+      // task-runner 的异常日志：自愈重排队那次只打一行 info，不带堆栈；其余照旧 console.error 带完整 error
+      const infos = []
+      const errors = []
+      const sinks = { log: (...args) => infos.push(args), logError: (...args) => errors.push(args) }
+      logTaskException({ task, error: new Error(`${REAL.resultMissing}\n    at runAI (lib/x.mjs:1:1)`), outcome: first, ...sinks })
+      assert.deepEqual(infos, [[`[lark-worker] task om_task1 执行异常，已自愈重排队（模型没写结果文件）：${REAL.resultMissing.slice(0, 160)}`]])
+      assert.deepEqual(errors, [])
+      for (const outcome of [second, undefined]) logTaskException({ task, error, outcome, ...sinks })
+      assert.deepEqual(errors, [['[lark-worker] task om_task1 执行异常：', error], ['[lark-worker] task om_task1 执行异常：', error]])
+      assert.equal(infos.length, 1)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
