@@ -29,6 +29,7 @@ import {
   classifyBugPollAction,
   parseColumnarRecords,
   readBugCommandType,
+  readBugScreenshots,
   readProjectId,
   readStatusText,
 } from './lib/lark-bugtable-parse.mjs'
@@ -84,6 +85,7 @@ const fetchPendingRecords = async ({ bug }) => {
     bug.envField || BUGTABLE_FIELD_DEFAULTS.envField,
     bug.portField || BUGTABLE_FIELD_DEFAULTS.portField,
     bug.createdField || BUGTABLE_FIELD_DEFAULTS.createdField,
+    bug.screenshotField || BUGTABLE_FIELD_DEFAULTS.screenshotField,
   ].filter(Boolean)
 
   const all = []
@@ -145,6 +147,8 @@ const enqueueTask = async ({ client, record, bug, fallbackChatId, operator, reop
     operator,
     commandType: readBugCommandType({ fields: record.fields || {}, bug }),
     text: buildBugText({ record, bug }),
+    // 问题截图：只传 file_token，gateway 入队时下载到附件目录（下载要 base token，留在 gateway 一处做）。
+    screenshots: readBugScreenshots({ fields: record.fields || {}, bug }),
   }
   if (reopen) await client.reopenTask(record.record_id, body)
   else await client.enqueueTask(body)

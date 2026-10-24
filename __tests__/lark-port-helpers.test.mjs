@@ -74,3 +74,42 @@ describe('规则去重：Claude Code 自动加载的章节不再注入提示', (
     assert.equal(stripAutoLoadedRules({ text: 'x' }).text, 'x')
   })
 })
+
+describe('依赖安装的锁文件漂移（2026-10-24 试跑：pnpm install --frozen-lockfile 仍改了 pnpm-lock.yaml，范围契约误拦）', () => {
+  it('没有 package.json 改动、只有锁文件改动才算漂移；改了 manifest 就是真依赖变更，不还原', async () => {
+    const { lockfileDriftToRevert } = await import('../lib/lark-worker-git.mjs')
+    assert.deepEqual(lockfileDriftToRevert(['apps/admin/a.tsx', 'pnpm-lock.yaml', '']), ['pnpm-lock.yaml'])
+    assert.deepEqual(lockfileDriftToRevert(['apps/web/package.json', 'pnpm-lock.yaml']), [])
+    assert.deepEqual(lockfileDriftToRevert(['a.tsx']), [])
+  })
+  it('真实 git 仓：还原锁文件、保留业务改动', async () => {
+    const { spawnSync } = await import('node:child_process')
+    const { writeFileSync } = await import('node:fs')
+    const { revertLockfileDrift } = await import('../lib/lark-worker-git.mjs')
+    const cwd = mkdtempSync(join(tmpdir(), 'lark-lock-'))
+    const git = (...args) => spawnSync('git', ['-C', cwd, ...args], { encoding: 'utf8' })
+    try {
+      git('init', '-q', '-b', 'main'); git('config', 'user.email', 't@e.x'); git('config', 'user.name', 't')
+      writeFileSync(join(cwd, 'pnpm-lock.yaml'), 'lock: 1\n'); writeFileSync(join(cwd, 'a.ts'), 'export const a = 1\n')
+      git('add', '-A'); git('commit', '-qm', 'base')
+      writeFileSync(join(cwd, 'pnpm-lock.yaml'), 'lock: 2\n'); writeFileSync(join(cwd, 'a.ts'), 'export const a = 2\n')
+      assert.deepEqual(revertLockfileDrift(cwd), ['pnpm-lock.yaml'])
+      assert.equal(readFileSync(join(cwd, 'pnpm-lock.yaml'), 'utf8'), 'lock: 1\n')
+      assert.equal(readFileSync(join(cwd, 'a.ts'), 'utf8'), 'export const a = 2\n')
+      assert.deepEqual(revertLockfileDrift(cwd), [])
+    } finally {
+      rmSync(cwd, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('bug 表「问题截图」（2026-10-24 试跑：BUG-6754 有截图，bot 却回「请补截图」）', () => {
+  it('附件列 → 最多 4 张带 file_token 的截图；没有这一列 / 空 → 空数组；列名可配', async () => {
+    const { readBugScreenshots } = await import('../lib/lark-bugtable-parse.mjs')
+    const shot = (n) => ({ file_token: `tok${n}`, name: `${n}.png`, size: 1 })
+    assert.deepEqual(readBugScreenshots({ fields: { 问题截图: [shot(1), { name: 'x' }, shot(2)] } }), [{ fileToken: 'tok1', name: '1.png' }, { fileToken: 'tok2', name: '2.png' }])
+    assert.equal(readBugScreenshots({ fields: { 问题截图: [1, 2, 3, 4, 5].map(shot) } }).length, 4)
+    assert.deepEqual(readBugScreenshots({ fields: {} }), [])
+    assert.deepEqual(readBugScreenshots({ fields: { 截图: [shot(9)] }, bug: { screenshotField: '截图' } }), [{ fileToken: 'tok9', name: '9.png' }])
+  })
+})

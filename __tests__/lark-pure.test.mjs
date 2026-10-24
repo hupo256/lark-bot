@@ -257,6 +257,11 @@ describe('isForBot', () => {
   it('群里 mention 未命中 → false', () => {
     assert.equal(isForBot({ msg: { chatType: 'group', mentions: [{ id: 'ou_other' }] }, config }), false)
   })
+  it('拉消息接口里 @bot 的 mention id 是应用 id（cli_…）：配了 botAppId 也算直呼（开盖补拉，2026-10-24 试跑）', () => {
+    const msg = { chatType: 'group', mentions: [{ id: 'cli_bot' }] }
+    assert.equal(resolveMessageTrigger({ msg, config: { botOpenId: BOT, botAppId: 'cli_bot' } }), 'direct')
+    assert.equal(resolveMessageTrigger({ msg, config }), null)
+  })
   it('群里只 @ 配置的负责人 → 进入 task_mention 前置分类', () => {
     const personConfig = { botOpenId: BOT, taskMentionOpenIds: [ME] }
     const msg = { chatType: 'group', mentions: [{ id: ME }] }
@@ -1504,13 +1509,16 @@ describe('validateConfig（启动期配置结构校验）', () => {
   const base = {
     project: 'PR-02306',
     botOpenId: 'ou_bot',
+    botAppId: 'cli_bot',
     allowedChatIds: 'auto',
     bugTable: { appToken: 'app', tableId: 'tbl', statusField: '状态', assigneeField: '负责人', doneValue: '已处理' },
   }
-  it('合法配置：无 error 无 warning', () => {
+  it('合法配置：无 error 无 warning；没配 botAppId 告警（开盖补拉认不出 @bot），类型错是 error', () => {
     const { errors, warnings } = validateConfig(base)
     assert.deepEqual(errors, [])
     assert.deepEqual(warnings, [])
+    assert.ok(validateConfig({ ...base, botAppId: undefined }).warnings.some((w) => w.includes('botAppId')))
+    assert.ok(validateConfig({ ...base, botAppId: 1 }).errors.some((e) => e.includes('botAppId')))
   })
   it('project 缺失 / 空串 → error', () => {
     assert.ok(validateConfig({ ...base, project: undefined }).errors.some((e) => e.includes('project')))

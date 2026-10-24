@@ -44,12 +44,41 @@
 - 多仓 profile：fameex 仍是单仓；下一个项目真来了再把它接成 profile。
 - 挂起现场自动 rebase 到新基线：#51 明确说过它波及过 fameex 的 hotfix 现场，不要。
 
+## 历史数据试跑（2026-10-24）
+
+隔离方式：沙箱 gateway / worker 跑在 3015 端口，`LARK_RUNTIME_DIR=/tmp/lark-sandbox/runtime`（生产配置副本），`LARK_CLI_BIN` 指向一个包装脚本：
+读操作透传真实 lark-cli，发消息 / 回写 bug 表 / 建文档一律拦下记账，`event consume` 改成读本地事件文件。AI 真跑（claude-opus-5-5），代码在 fameex-web 的临时 worktree 里改。falive 实例全程未受影响。
+
+输入：10 条真实历史群消息（PR-01930 / PR-02172 / PR-02273，`+messages-mget` 取原文，转成长连接事件格式注入）、1 条直接 @bot、1 条只读状态查询、1 条历史 bug 表记录（BUG-6754，带截图），外加对真实 bug 表轮询一次、对 11 个群模拟一次 3 天 / 40 天的开盖补拉。
+
+| 结果 | 条数 | 说明 |
+|---|---|---|
+| 判为不用处理 | 2 | 群通知（发版通知 / bug 汇总转发），没开工 |
+| 有证据地挂起要材料 | 4 | PR-01930 的 4 条：指出 56 已在 online 落码、截图里的状态码 YAPI 没登记、定位不唯一等，没硬改 |
+| 完成并本地提交 | 3 | PR-02273 两条（增强体验金「使用规则」显示 --）、PR-02172 一条（首页 Google 覆盖层缺 clip-path，正好是 page-migration.md 里没勾的待办） |
+| 只读回答 | 2 | 测试链接、项目进度；只读工具面只有 Read/Grep/Glob/Bash |
+| 判非前端 | 1 | BUG-6754：读截图后判定是后端返回场景码，给出接口和修法 |
+
+移植能力实测生效：实施续上分析会话（3/3，无回退）、无头任务工具面无 ScheduleWakeup / Workflow、规则去重、图片按文件头改名、坏 body 400、按 id 取 / 心跳 / 结单 / 续跑路由、bug 表回写被拦、开盖补拉 3 天 45 条 / 40 天 289 条（识别出 @bot 7 条、@你 27 条）。
+
+试跑当场发现并修掉的问题（都已加测试）：
+
+| # | 问题 | 修法 |
+|---|---|---|
+| 23 | 路径基座不认 `LARK_RUNTIME_DIR`，运行态没法和生产隔离 | `lib/lark-paths.mjs` 认这个变量；运行态在仓库外时也加进 `--add-dir` |
+| 24 | 拉消息接口里 @bot 的 mention id 是应用 id（`cli_…`），开盖补拉会漏掉 @bot | 新配置键 `botAppId`，`resolveMessageTrigger` 两种 id 都认；没配启动告警 |
+| 25 | AI 为跑 biome / tsc 执行 `pnpm install --frozen-lockfile`，pnpm 12 仍改 `pnpm-lock.yaml`，范围契约把 3 条实施任务里的 2 条整条拦下 | 只在 bot 自己的临时 worktree 里：没有 package.json 改动、只有锁文件改动 → 判为安装漂移，核对前还原（人的现有 worktree 不碰） |
+| 26 | bug 表轮询不投影「问题截图」列，bot 看不到 QA 截图、回「请补截图」 | 轮询器投影截图列（`screenshotField`，缺省「问题截图」），gateway 入队 / 验退重开时下载最多 4 张进附件目录 |
+
+配置发现：生产配置的 `taskMentionOpenIds` 是空数组（10-20 拆实例那天改的），群里 @你 不会触发 bot，只有 @bot 才会。试跑时补成你的 open_id 才跑出上面的结果。
+
 ## 怎么上线
 
-1. 代码在分支 `lark/port-falive-generic`（基于 `fameex-stable`，worktree `~/github/lark-bot-port`），全量单测 536 条通过。
+1. 代码在分支 `lark/port-falive-generic`（基于 `fameex-stable`，worktree `~/github/lark-bot-port`），全量单测 540 条通过。
 2. 合进运行分支：`git -C ~/github/lark-bot merge --ff-only lark/port-falive-generic`。
-3. `lark-bot restart`，看 `lark-bot status` 的 `codeStale` 消失、worker 日志出现 `keep-awake` 一行。
-4. 想开独立终检就在 `runtime/lark-bot.local.json` 加 `finalChecks`；想钉模型加 `claudeModel`。
+3. 配置 `runtime/lark-bot.local.json` 补两个键：`taskMentionOpenIds: ["<你的 open_id>"]`（@你 才会触发）、`botAppId: "cli_aabf9468b1789ed4"`（开盖补拉认 @bot）。
+4. `lark-bot start`（或 `restart`），看 `lark-bot status` 的 `codeStale` 消失、worker 日志出现 `keep-awake` 一行。
+5. 想开独立终检就在配置里加 `finalChecks`；想钉模型加 `claudeModel`。
 
 ## 下一次移植时看什么
 
