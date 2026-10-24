@@ -192,5 +192,12 @@
     "code": "if (!outcome.ok && finalTask?.status === 'done') {",
     "op": "=== → !==",
     "reason": "纯日志：同上，只影响一行 console.error，提交结果已记进审计 commit"
+  },
+  {
+    "file": "lib/lark-repo-profile.mjs",
+    "code": "fastLaneMs: Number.isFinite(fastLaneMs) && fastLaneMs >= 0 ? fastLaneMs : 0,",
+    "op": ">= → >",
+    "col": 58,
+    "reason": "等价：fastLaneMs 恰为 0 时，>= 走真分支得 fastLaneMs（即 0），> 走假分支得 0，结果相同；其它值两种写法一致"
   }
 ]

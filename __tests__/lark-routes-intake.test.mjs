@@ -265,6 +265,21 @@ describe('分类回写：被动闸先于并单、疑似单不并单、幂等重�
       const unknown = await post('/lark/nope')
       assert.deepEqual([unknown.status, unknown.body.error], [404, 'not found'])
     })],
+    ['建任务的 id 取 id / recordId / messageId 任一；状态回写失败按业务码返回（过期代次 409、任务不存在 404）；POST 回执重试有 pending 才重置（变异补测 10-24）', () => withServer(async ({ store: own, post }) => {
+      assert.equal((await post('/lark/tasks', { recordId: 'rec_only', text: '只给 recordId' })).status, 200)
+      assert.equal((await post('/lark/tasks', { messageId: 'om_only', text: '只给 messageId' })).status, 200)
+      assert.deepEqual([own.has('rec_only'), own.has('om_only')], [true, true], '只给 recordId 或 messageId 也能建任务')
+      own.upsert({ id: 't-stale', status: 'running', epoch: 2, text: 'x', createdAt: '2026-01-01T00:00:00Z' })
+      const stale = await post('/lark/tasks/t-stale/status', { status: 'done', result: '迟到的回写', epoch: 1 })
+      assert.equal(stale.status, 409, '过期代次按业务码 409 拒绝，不是 404')
+      assert.match(stale.body.error, /stale epoch/)
+      assert.equal((await post('/lark/tasks/no-such/status', { status: 'done' })).status, 404, '任务不存在（无业务码）回落 404')
+      own.upsert({ id: 't-rcpt', status: 'result_pending_receipt', epoch: 0, text: 'x', createdAt: '2026-01-01T00:00:00Z', pendingReceipt: { status: 'done', epoch: 0, idempotencyKey: 't-rcpt-e0-done', attempts: 12, gaveUp: true } })
+      const retried = await post('/lark/tasks/t-rcpt/receipt/retry')
+      assert.equal(retried.status, 200)
+      assert.deepEqual([own.get('t-rcpt').pendingReceipt.attempts, own.get('t-rcpt').pendingReceipt.gaveUp], [0, false], '人工重试清零次数、取消放弃')
+      assert.equal((await post('/lark/tasks/t-stale/receipt/retry')).status, 409, '没有 pending 回执 409')
+    })],
     ['手工建任务：不认识的仓 400；仓任务没给 chatId 投控制台、来源默认 lark-bugtable；显式给的群 / 项目号 / 来源 / 操作人 / 附件原样落（变异补测 10-24）', () => withServer(async ({ store: own, post }) => {
       const unknown = await post('/lark/tasks', { id: 'mk_unknown', repo: 'nosuch', text: 'x' })
       assert.equal(unknown.status, 400)
