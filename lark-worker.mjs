@@ -20,6 +20,7 @@ import { createTaskRunner } from './lib/lark-task-runner.mjs'
 import { startLogRotation } from './lib/lark-log-rotate.mjs'
 import { createRuntimeVersion, versionWarnings, writeWorkerHeartbeat } from './lib/lark-runtime-version.mjs'
 import { createDrainRestart, drainRestartSwitch } from './lib/lark-drain-restart.mjs'
+import { startDoctorSchedule } from './lib/lark-doctor.mjs'
 import { sendChatMessage } from './lib/lark-cli.mjs'
 import { larkRuntimeDir } from './lib/lark-repo.mjs'
 import { defaultTaskLeaseMs } from './lib/lark-constants.mjs'
@@ -121,6 +122,10 @@ export async function runLarkWorker({
       : async () => {},
   })
   console.log(`[lark-worker] 排空重启：${drainSwitch.enabled ? `开（磁盘改动 → 排空 → 自检绿 → 自动 restart；自检红${notifyOpenId ? '私信 notifyOpenId' : '只写日志：未配 notifyOpenId'}）` : `关（${drainSwitch.reason}）`}`)
+
+  // 运行态体检（自愈环 3，从 falive 移植）：启动 3 分钟后一次、之后每小时；warn / bad 私信 notifyOpenId（没配只写日志），
+  // 同一条 24h 只报一次。开关 selfHeal.doctor=false / LARK_DOCTOR=0（只关定时，`lark-bot doctor` 照常可用）。
+  startDoctorSchedule({ selfHeal, notifyOpenId, send: sendChatMessage, gatewayUrl, listTasks: () => client.listTasks() })
 
   // 优雅退出：SIGTERM/SIGINT（launchd bootout 与 lark-bot stop 都发 SIGTERM）时，先把在飞任务
   // 交还队列（releaseTask → queued + epoch++），再中断在跑的 AI 子进程，让重启后的 worker 立刻重领，

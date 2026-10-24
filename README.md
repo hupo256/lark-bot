@@ -46,6 +46,7 @@ launchd 直接运行本仓代码。**改完代码不会自动生效**，要执�
 |---|---|
 | `lark-bot start` / `stop` / `restart` | 启停 gateway + worker（`stop` 同时停 poller；`restart` 会恢复 poller 原来的状态） |
 | `lark-bot status` | 进程健康、执行器 / 模型就绪、任务积压、挂起任务明细、代码 / 配置是否过期；异常时退出码非零 |
+| `lark-bot doctor [--json]` | 运行态体检：gateway / worker / 版本 / bug 表轮询 / 挂起超 24h / failed 积压 / 7 天失败与复发指纹 / 待处理自修工单，每项给等级、一句话和建议动作；有 warn / bad 退出码非零。worker 里每小时自动跑一次，异常私信 `notifyOpenId`（`selfHeal.doctor=false` / `LARK_DOCTOR=0` 只关定时） |
 | `lark-bot logs` | tail gateway / worker 日志（`~/Library/Logs/fameex-lark/`） |
 | `lark-bot poll-on` / `poll-off` | 开关 bug 表轮询 |
 | `lark-bot failed` | 列出 failed / blocked 任务 |

@@ -352,6 +352,8 @@ case "${1:-}" in
   stop)     stop ;;
   restart)  restart ;;
   status)   status ;;
+  # 运行态体检（lib/lark-doctor.mjs）：有 warn / bad 非零退出。worker 里每小时也跑一次（selfHeal.doctor=false 只关那个）。
+  doctor)   ( cd "$LARK_BOT_ROOT" && LARK_GATEWAY_SECRET="${LARK_GATEWAY_SECRET:-$(cat "$SECRET_FILE" 2>/dev/null || true)}" node scripts/lark-doctor.mjs "${@:2}" ) ;;
   logs)     tail -n 40 -f "$LOGDIR"/gateway.log "$LOGDIR"/worker.log ;;
   poll-on)  poll_on ;;
   poll-off) poll_off ;;

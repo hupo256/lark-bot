@@ -132,3 +132,25 @@ aven 10-24 下午定：「刻意没搬的」里的排空重启和自愈环 2 这
 后续步骤（自修工单 / 体检）读这里：`listFailures({ sinceMs })`、`summarizeFailures({ days })` → `{ total, byClass, recurring: [{ fingerprint, count }], healed }`、`countRecentFingerprint({ fingerprint })`；`recordFailure` 的 `action` 除 `requeue / fail / ignore` 外可自定义（如 `self_fix`），复发计数只数 `fail / requeue`。
 
 测试：`__tests__/lark-failure-playbook.test.mjs`（真实错误形状回归分类、台账、真实 git 旁证、接入层：可重排队类重领一次 → 第二次直接失败且卡上第 3 行归类第 4 行旁证、交还失败改报失败、预算到点、开关关掉回原格式、runAI 追加提示）。`node scripts/mutate.mjs --diff 66ae872` 61 个变异点全抓到。
+
+### 体检（分支 `lark/port-doctor`）
+
+| # | 能力 | 来源（falive） | 落在哪 | 配置 | 怎么验（真机） |
+|---|---|---|---|---|---|
+| 45 | 体检判定（纯函数）：gateway 在线 / 长连接；worker 心跳新鲜 / 就绪 / 排空中；代码 / 配置落后磁盘（排空中只算 info，否则 warn 提示看排空重启）；gateway 自己的 warnings（已归并的跳过，夜间静默 / 「正在重试」info，意图分类失败 / 回写放弃 / 回执放弃 / 死信 warn）；bug 表轮询；挂起（waiting_confirmation / blocked）超 24 小时；failed 积压（取不到任务列表看 health.counts）；失败台账 7 天汇总与复发指纹（`summarizeFailures`）；有 `runtime/lark-self-fix/` 时数 ready 的自修工单（超 24 小时 warn）。每项 ok / info / warn / bad + 一句话 + 建议动作 | 自愈 §4，`lib/lark-doctor.mjs` | `lib/lark-doctor.mjs`（`buildDoctorReport` / `formatDoctorReport` / `collectDoctorInputs`） | 无 | `lark-bot doctor` |
+| 46 | `lark-bot doctor [--json]`：取 health（503 也解析，区分「不可达」和「长连接掉线」）+ 带密钥的任务列表 + 心跳兜底 + 台账 + 轮询状态，有 warn / bad 退出 1 | 自愈 §4 | `scripts/lark-doctor.mjs`、`scripts/lark-bot` 新子命令 `doctor`（shim 透传，不用重装） | 无 | `lark-bot doctor; echo $?` |
+| 47 | 定时体检：worker 启动 3 分钟后一次、之后每小时；warn / bad 私信 `notifyOpenId`（没配只写 worker.log），同一条（检查项 + 去掉数字后的内容指纹）24 小时只报一次，发送失败不记已报、下轮照报；消息带幂等键。合盖不跑，刚醒 10 分钟内不跑（睡眠期间心跳 / 事件 / 轮询本就停着） | 自愈 §4 | `startDoctorSchedule` / `createDoctorMonitor`；`lark-worker.mjs` 一行装配；状态 `runtime/lark-doctor-state.json`（原子写，只留 24 小时内的记录） | `selfHeal.doctor=false` 或 `LARK_DOCTOR=0` 关（只关定时）；`LARK_DOCTOR_FIRST_MS` / `LARK_DOCTOR_EVERY_MS` 调间隔 | worker.log 有「体检：开（3 分钟后首次…）」；人为停掉 gateway 几分钟后收到「lark-bot 体检（HH:MM）发现 N 条异常」私信，一小时后同样的异常不再重复 |
+| 48 | bug 表轮询状态落盘：poller 每轮写 `runtime/lark-bugtable-poller-state.json`（pid / pollMs / lastRoundAt / lastOkAt / consecutiveErrors / lastError），空闲收工写 stoppedAt。体检判定：没在跑 = info（QA 期才 poll-on，空闲 4h 自动收工是常态）；连续失败 ≥3 次 warn（与 poller 自己的群告警同阈值）；进程在但超过 max(3×pollMs, 10 分钟) 没跑完一轮 warn（卡住） | fameex 补（falive 没有 bug 表 poller，原状态文件只有 seen） | `lark-bugtable-poller.mjs`（`--once` 不写）；读写在 `lib/lark-doctor.mjs` `writePollerStatus` / `readPollerStatus`（pid 探活，EPERM 也算活） | 无 | `lark-bot poll-on` 后 `cat runtime/lark-bugtable-poller-state.json`；`lark-bot doctor` 出现「bug 表轮询在跑（上一轮 N 分钟前）」 |
+
+按 fameex 改掉的 falive 专属依赖（体检部分）：
+
+- 删掉日报到点 / 合盖推迟日报、发件簿、外部群轮询、repo profile 的检查与 `buildDailySelfCheckLine`（fameex 没有日报）；`lark-bot doctor` 不收 `[repo]` 参数。
+- 通知不走 `notifyChatId` / webhook，走 `notifyOpenId` 私信（`sendChatMessage` 由 worker 注入，体检模块不直接依赖 lark-cli）；falive 「没配通知群就整个关掉」改成没配也跑、只写日志。
+- 去重指纹去掉数字（falive 按原文哈希，「心跳已停 10 分钟」→「70 分钟」会每小时重报）；状态文件改用 `lib/lark-fs.mjs` 原子写，并修剪 24 小时外的记录。
+- 合盖跳过之外加了「刚醒 10 分钟内跳过」（`lastSystemSleepAt`），避免开盖第一轮把睡眠期间的停摆报成故障。
+- 每项加「建议动作」（falive 只有一句现象），命令都是 fameex 现有的：`lark-bot restart / poll-on / failed / retry / resume / close / clean --failed / claude-auth / self-fix`。
+- 自修工单只按目录约定读 `runtime/lark-self-fix/<id>.json` 的 `status=ready`（就绪时间取 `readyAt || updatedAt || createdAt`），不 import `lib/lark-self-fix.mjs`。
+
+上线：合进运行分支后由排空重启自动生效（或手动 `lark-bot restart`）；不用改配置，想关定时私信加 `"selfHeal": { "doctor": false }`。`scripts/lark-bot` 的 usage 行没加 `doctor`（避免和自修工单分支同一行冲突），合并两条分支时一起补。
+
+测试：`__tests__/lark-doctor.test.mjs`（各检查项表格化判定、轮询 / 自修工单状态文件读写、去重 24 小时与数字归一、发送失败不记已报、合盖 / 刚醒跳过、定时装配与私信出口、取数兜底、真走 `scripts/lark-bot doctor` 起假 health 服务验退出码）。`node scripts/mutate.mjs --diff a2f4fbc` 59 个变异点全抓到。

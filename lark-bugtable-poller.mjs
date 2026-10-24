@@ -21,6 +21,7 @@ import { buildCardContent } from './lib/lark-cards.mjs'
 import { runLarkCli, sendChatMessage, resolveChatIdByProject, larkCallFailed, formatLarkCliError, isTransientLarkError } from './lib/lark-cli.mjs'
 import { createGatewayClient, sleep } from './lib/lark-gateway-client.mjs'
 import { defaultGatewayUrl } from './lib/lark-constants.mjs'
+import { writePollerStatus } from './lib/lark-doctor.mjs'
 import {
   assigneeHasOpenId,
   buildBugText,
@@ -260,18 +261,26 @@ export async function runLarkBugtablePoller({
   let idleMs = 0
   let consecutiveErrors = 0
   let alerted = false
+  // 轮询状态落盘给 `lark-bot doctor` / worker 体检看（在不在跑、连续失败、卡住）；--once 是一次性调试，不写。
+  const status = { pid: process.pid, startedAt: new Date().toISOString(), pollMs, lastRoundAt: null, lastOkAt: null, consecutiveErrors: 0, lastError: null, stoppedAt: null, stopReason: null }
+  const saveStatus = (patch) => {
+    if (!once) writePollerStatus(Object.assign(status, patch))
+  }
+  saveStatus({})
   do {
     try {
       const enqueued = await runOnce({ config, seen, client })
       idleMs = enqueued > 0 ? 0 : idleMs
       consecutiveErrors = 0
       alerted = false
+      saveStatus({ lastRoundAt: new Date().toISOString(), lastOkAt: new Date().toISOString(), consecutiveErrors: 0, lastError: null })
     } catch (error) {
       // 出错的这一轮**不计入空闲**：它根本没读到表，无从判断有没有新 bug。
       // 曾经错误轮次照样 idleMs += pollMs，于是「表一直读不通」会伪装成「一直没新 bug」，
       // 4h 后 poller 静默收工，bug 表入口整条链路无声消失。
       consecutiveErrors += 1
       console.error(`[bugtable-poller] 第 ${consecutiveErrors} 次连续失败：${error.message}`)
+      saveStatus({ lastRoundAt: new Date().toISOString(), consecutiveErrors, lastError: String(error.message).slice(0, 200) })
       if (consecutiveErrors >= errorAlertRounds && !alerted) {
         alerted = true // 只在跨过阈值时告警一次，恢复后重置，避免持续失败刷群
         await notify({
@@ -293,6 +302,7 @@ export async function runLarkBugtablePoller({
       if (idleOffMs > 0 && idleMs >= idleOffMs) {
         const hours = Math.round(idleOffMs / 3600000)
         console.log(`[bugtable-poller] 空闲 ${hours}h 无新 bug，poller 自动收工`)
+        saveStatus({ stoppedAt: new Date().toISOString(), stopReason: 'idle' })
         // 收工必须说一声：poller 是手动常驻的（无 launchd 守护），不通知的话下一个新 bug
         // 到了没人捞、群里也没有任何动静，只能靠人想起来查进程。
         await notify({
