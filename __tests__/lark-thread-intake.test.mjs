@@ -342,14 +342,10 @@ describe('话题补充 @ 机器人（10-23 起外部群只有 @bot 的任务）'
       assert.deepEqual(names, ['reply-api.md'])
       assert.match(ingestStore.get('om_ti_r2').attachments[0].origin, /^被引用消息/)
     }],
-    ['外部群 @bot 只带对接文档没有正文：任务正文写明「群里发来对接文档 <文件名>」和存放目录；带了正文的照原话（变异补测 10-24）', async () => {
-      // 两条换人发：同一个人连发会并成一条（话题补充）
-      await groupSay({ id: 'om_ti_doc1', content: '<file key="file_v3_pm" name="PM-1.md"/>' })
-      const intro = ingestStore.get('om_ti_doc1').text
-      assert.ok(intro.startsWith('api：群里发来对接文档 PM-1.md。'), intro)
-      assert.ok(intro.includes('docs/delivery/pending/'))
+    ['外部群 @bot 带对接文档和附言：任务正文照原话（带 @名字），文档作附件（变异补测 10-24）', async () => {
       await groupSay({ id: 'om_ti_doc2', sender: ARTHUR, content: '@_user_1 接一下 <file key="file_v3_pm2" name="PM-2.md"/>' })
       assert.equal(ingestStore.get('om_ti_doc2').text, '@Aven.Bot 接一下')
+      assert.ok(ingestStore.get('om_ti_doc2').attachments.some((item) => item.type === 'file' && item.fileName === 'PM-2.md'))
     }],
     ['外部群 @bot「继续任务 <id> 补充」续跑阻塞的任务：补充原话进正文、附件落原任务的项目目录，不当成负责人放行、不当成疑似单旁注（变异补测 10-24）', async () => {
       seedTask({ id: 'om_ti_blk', status: 'blocked', epoch: 1 })

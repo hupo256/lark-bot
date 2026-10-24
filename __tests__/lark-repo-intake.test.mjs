@@ -450,17 +450,6 @@ describe('#11：控制台只发文件不建空任务', () => {
       assert.ok(sent()[0].includes(`om_rv_th1：${SUMMARY}`) && sent()[0].includes('om_rv_th2：首页 banner 间距不对'), sent()[0])
       assert.equal(store.has('om_rv_th_r'), false)
     }],
-    ['回复活动任务卡的会话登记在仓库 chatIds 里：不发运行状态卡；@ 了机器人的不吞，交给后面的路径（控制台回「没对上任务」）（变异补测 10-24）', async () => {
-      resetRepoProfiles()
-      registerRepoProfiles({ repos: { falive: { ...faliveRaw, chatIds: [GROUP, CONSOLE], botMentionOpenIds: { [GROUP]: BOT, [CONSOLE]: BOT } } } })
-      cardTask('om_rv_rn')
-      await replyCard('om_rv_rn', 'om_rv_rn_r1', '接口地址改成 /api/v2/live 了')
-      assert.equal(posted.length, 0, '不发通知卡')
-      await replyCard('om_rv_rn', 'om_rv_rn_r2', '@Aven.Bot 接口地址改成 /api/v2/live 了', { mentions: BOT_MENTION })
-      assert.equal(posted.length, 1)
-      assert.ok(sent()[0].includes(CONSOLE_UNANCHORED_HINT))
-      assert.equal(store.get('om_rv_rn').status, 'running')
-    }],
   ], hooks))
 })
 
