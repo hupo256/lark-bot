@@ -30,7 +30,7 @@ import { createTaskStore } from '../lib/lark-task-store.mjs'
 import { parkedReminderRound } from '../lib/lark-parked-reminder.mjs'
 import { rotateLogIfLarge } from '../lib/lark-log-rotate.mjs'
 import { sweepAttachments } from '../lib/lark-retention.mjs'
-import { buildResultCard, buildWaitingCard } from '../lib/lark-cards.mjs'
+import { buildCardContent, buildResultCard, buildWaitingCard } from '../lib/lark-cards.mjs'
 import { messageSendRecipientArgs, parseSentMessageId, pickChatIdByProject, resolveDeliveryChatId, formatLarkCliError, isTransientLarkError } from '../lib/lark-cli.mjs'
 import {
   classifyClosureIntent,
@@ -482,6 +482,12 @@ describe('tempWorktreeContextFor', () => {
     }],
     ['无项目号 → adhoc 隔离分支', () => {
       assert.ok(tempWorktreeContextFor({ id: 'om_xxxxxxxx87654321' }).hotfixBranch.startsWith('hotfix/adhoc-'))
+    }],
+    ['无项目号的 adhoc 落点：projectId 记 (adhoc)，项目名有任务标题用标题、没有显示「临时修复」（变异补测 10-24）', () => {
+      const adhoc = tempWorktreeContextFor({ id: 'om_xxxxxxxx87654321' })
+      assert.equal(adhoc.projectId, '(adhoc)')
+      assert.equal(adhoc.projectName, '临时修复')
+      assert.equal(tempWorktreeContextFor({ id: 'om_xxxxxxxx87654321', projectTitle: '活动页文案' }).projectName, '活动页文案')
     }],
   ]))
 })
@@ -1487,6 +1493,13 @@ describe('configTitleFor（项目名只属于 config.project）', () => {
       assert.equal(configTitleFor(null, config), undefined)
       assert.equal(configTitleFor('', config), undefined)
     }],
+    ['卡片标题：不传项目的 gateway 级告警挂 config 项目名；传了别的项目号且没给项目名时不串挂 config.title（变异补测 10-24）', () => {
+      const titleOf = (card) => JSON.parse(card).header.title.content
+      assert.equal(titleOf(buildCardContent({ config, kind: 'alert', lines: ['**详情**：x'] })), '[PR-01947] CopyTrading 跟单设置')
+      assert.equal(titleOf(buildCardContent({ config, kind: 'alert', lines: ['**详情**：x'], project: 'PR-01947' })), '[PR-01947] CopyTrading 跟单设置')
+      assert.equal(titleOf(buildCardContent({ config, kind: 'alert', lines: ['**详情**：x'], project: 'PR-02233' })), '[PR-02233]')
+      assert.equal(titleOf(buildCardContent({ config: { project: 'PR-01947' }, kind: 'alert', lines: [] })), '[PR-01947] PR-01947', '没配 title 回落项目号')
+    }],
   ]))
 })
 
@@ -1983,6 +1996,30 @@ describe('任务回执持久化重试', () => {
       assert.equal(sends, 0)
       assert.equal(store.get('t').status, 'done')
       assert.equal(store.get('t').pendingReceipt, undefined)
+    }],
+    ['重试仍失败且未投递：pending 保留并累加次数，任务不落终态、不登记回执（变异补测 10-24）', async () => {
+      const store = freshStore()
+      store.upsert({
+        id: 't',
+        status: 'result_pending_receipt',
+        epoch: 2,
+        project: 'PR-99999',
+        summary: 'fix',
+        chatId: 'oc_x',
+        pendingReceipt: { status: 'done', result: '完成', epoch: 2, idempotencyKey: 't-e2-done', attempts: 1, gaveUp: false },
+        createdAt: '2026-01-01T00:00:00Z',
+      })
+      await retryPendingReceipts({
+        config: { project: 'PR-99999' },
+        store,
+        sendMessage: async () => ({ ok: false, reason: 'network down' }),
+      })
+      assert.equal(store.get('t').status, 'result_pending_receipt')
+      assert.equal(store.get('t').pendingReceipt?.idempotencyKey, 't-e2-done')
+      assert.equal(store.get('t').pendingReceipt.attempts, 2)
+      assert.equal(store.get('t').pendingReceipt.gaveUp, false)
+      assert.equal(store.get('t').pendingReceipt.lastError, 'network down')
+      assert.equal(store.get('t').lastDeliveredReceipt, undefined)
     }],
   ]))
 })
