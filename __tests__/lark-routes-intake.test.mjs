@@ -65,37 +65,36 @@ describe('分类回写：被动闸先于并单、疑似单不并单、幂等重�
     assert.ok(store.claimById(id))
   }
 
-  it('被动消息（没 @ 机器人）判成高置信 bug：只记台账落 ignored，不并进同条目在排队的工单；重放不补发「开始做」', async () => {
+  it('分类回写：被动高置信 bug 只记台账、疑似单不并单单独挂起、手工建任务不默认投外部群', async () => {
+    const t1 = '被动消息（没 @ 机器人）判成高置信 bug：只记台账落 ignored，不并进同条目在排队的工单；重放不补发「开始做」'
     store.upsert({ id: 'om_rvw_q', source: 'lark', repo: 'rvwfix', chatId: GROUP, text: 'queued-body', topic: 'T-rvw', status: 'queued', createdAt: at })
     received('om_rvw_p', { passiveLedgerOnly: true })
     const classification = { decision: 'bug', confidence: 'high', forMe: true, summary: 's', reason: 'r', continues: 'om_rvw_q', items: [] }
     const first = await intake('om_rvw_p', classification)
-    assert.equal(first.ledgerOnly, true)
-    assert.equal(first.mergedInto, undefined)
-    assert.equal(store.get('om_rvw_p').status, 'ignored')
+    assert.equal(first.ledgerOnly, true, t1)
+    assert.equal(first.mergedInto, undefined, t1)
+    assert.equal(store.get('om_rvw_p').status, 'ignored', t1)
     assert.equal(store.get('om_rvw_q').text, 'queued-body', '没被并进去')
     const replay = await intake('om_rvw_p', classification)
-    assert.equal(replay.alreadyResolved, true)
-    assert.equal(replay.replayed, true)
+    assert.equal(replay.alreadyResolved, true, t1)
+    assert.equal(replay.replayed, true, t1)
     assert.equal(posted.length, 0, '重放没发「开始做」')
-  })
 
-  // 10-23 #74 起 forMe=true 的 medium 直接开跑，疑似只剩「归属拿不准（forMe 未给）+ medium」
-  it('疑似单（归属拿不准、medium）不并进同条目在排队的工单，单独挂待确认', async () => {
+    // 10-23 #74 起 forMe=true 的 medium 直接开跑，疑似只剩「归属拿不准（forMe 未给）+ medium」
+    const t2 = '疑似单（归属拿不准、medium）不并进同条目在排队的工单，单独挂待确认'
     received('om_rvw_s')
     const out = await intake('om_rvw_s', { decision: 'bug', confidence: 'medium', summary: 's', reason: 'r', continues: 'om_rvw_q', items: [] })
-    assert.equal(out.suspected, true)
-    assert.equal(out.mergedInto, undefined)
-    assert.equal(store.get('om_rvw_s').status, 'waiting_confirmation')
-    assert.equal(store.get('om_rvw_q').text, 'queued-body')
+    assert.equal(out.suspected, true, t2)
+    assert.equal(out.mergedInto, undefined, t2)
+    assert.equal(store.get('om_rvw_s').status, 'waiting_confirmation', t2)
+    assert.equal(store.get('om_rvw_q').text, 'queued-body', t2)
     assert.deepEqual(posted.map((item) => item.url), ['https://hook/console'], '只私聊负责人一句疑似')
-  })
 
-  it('手工建任务：非默认仓没给 chatId 时不默认投外部群；连 notifyChatId 都没有就 400', async () => {
+    const t3 = '手工建任务：非默认仓没给 chatId 时不默认投外部群；连 notifyChatId 都没有就 400'
     const res = await fetch(`${base}/lark/tasks`, { method: 'POST', headers, body: JSON.stringify({ id: 'rvw_manual', repo: 'rvwnonotify', text: 'x' }) })
-    assert.equal(res.status, 400)
-    assert.match((await res.json()).error, /notifyChatId/)
-    assert.equal(store.has('rvw_manual'), false)
+    assert.equal(res.status, 400, t3)
+    assert.match((await res.json()).error, /notifyChatId/, t3)
+    assert.equal(store.has('rvw_manual'), false, t3)
   })
 })
 

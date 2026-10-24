@@ -12,174 +12,190 @@ const script = join(here, '../scripts/lark-bot')
 const runBash = (body) => spawnSync('bash', ['-c', body], { encoding: 'utf8' })
 
 describe('lark-bot control script', () => {
-  it('脚本语法合法', () => {
-    const result = spawnSync('bash', ['-n', script], { encoding: 'utf8' })
-    assert.equal(result.status, 0, result.stderr)
+  it('脚本语法合法，wait_until 超时返回非零', () => {
+    {
+      // 脚本语法合法
+      const result = spawnSync('bash', ['-n', script], { encoding: 'utf8' })
+      assert.equal(result.status, 0, result.stderr)
+    }
+
+    {
+      const t2 = 'wait_until 超时必须返回非零，不能假成功'
+      const result = runBash(`
+        export LARK_BOT_SOURCE_ONLY=1
+        source ${JSON.stringify(script)}
+        START_TIMEOUT_SECONDS=1
+        never_ready() { return 1; }
+        wait_until test-service never_ready
+      `)
+      assert.notEqual(result.status, 0, t2)
+      assert.match(result.stderr, /test-service.*未在 1s 内就绪/, t2)
+    }
   })
 
-  it('wait_until 超时必须返回非零，不能假成功', () => {
-    const result = runBash(`
-      export LARK_BOT_SOURCE_ONLY=1
-      source ${JSON.stringify(script)}
-      START_TIMEOUT_SECONDS=1
-      never_ready() { return 1; }
-      wait_until test-service never_ready
-    `)
-    assert.notEqual(result.status, 0)
-    assert.match(result.stderr, /test-service.*未在 1s 内就绪/)
+  it('restart：按原 poller 状态恢复并以严格 status 收尾', () => {
+    {
+      const t1 = 'restart 仅在原 poller 运行时恢复，并且恢复发生在 core 启动之后'
+      const result = runBash(`
+        export LARK_BOT_SOURCE_ONLY=1
+        source ${JSON.stringify(script)}
+        _running() { return 0; }
+        stop() { echo stop; }
+        sleep() { :; }
+        start() { echo start; }
+        poll_on() { echo poll-on; }
+        status() { echo status; }
+        restart
+      `)
+      assert.equal(result.status, 0, result.stderr)
+      assert.match(result.stdout, /stop\nstart\npoll-on\n.*restored poller.*\nstatus/s, t1)
+    }
+
+    {
+      const t2 = '原 poller 未运行时也执行最终严格 status'
+      const result = runBash(`
+        export LARK_BOT_SOURCE_ONLY=1
+        source ${JSON.stringify(script)}
+        _running() { return 1; }
+        stop() { echo stop; }
+        sleep() { :; }
+        start() { echo start; }
+        poll_on() { echo unexpected-poll-on; }
+        status() { echo status; }
+        restart
+      `)
+      assert.equal(result.status, 0, result.stderr)
+      assert.match(result.stdout, /stop\nstart\nstatus/s, t2)
+      assert.doesNotMatch(result.stdout, /unexpected-poll-on/, t2)
+    }
+
+    {
+      const t3 = 'restart 最终 status 不健康时返回非零'
+      const result = runBash(`
+        export LARK_BOT_SOURCE_ONLY=1
+        source ${JSON.stringify(script)}
+        _running() { return 1; }
+        stop() { :; }
+        sleep() { :; }
+        start() { :; }
+        status() { return 1; }
+        restart
+      `)
+      assert.notEqual(result.status, 0, t3)
+    }
   })
 
-  it('restart 仅在原 poller 运行时恢复，并且恢复发生在 core 启动之后', () => {
-    const result = runBash(`
-      export LARK_BOT_SOURCE_ONLY=1
-      source ${JSON.stringify(script)}
-      _running() { return 0; }
-      stop() { echo stop; }
-      sleep() { :; }
-      start() { echo start; }
-      poll_on() { echo poll-on; }
-      status() { echo status; }
-      restart
-    `)
-    assert.equal(result.status, 0, result.stderr)
-    assert.match(result.stdout, /stop\nstart\npoll-on\n.*restored poller.*\nstatus/s)
-  })
+  it('status：进程 / executor / 挂起任务明细与降级', () => {
+    {
+      // status 先列进程，空行后再列 executor 与任务
+      const result = runBash(`
+        export LARK_BOT_SOURCE_ONLY=1
+        source ${JSON.stringify(script)}
+        _pid() {
+          case "$1" in
+            "$GW") echo 101 ;;
+            "$WK") echo 202 ;;
+            "$POLLER") echo 303 ;;
+          esac
+        }
+        curl() {
+          printf '%s' '{"ok":true,"worker":{"pid":202,"heartbeatStale":false,"codeStale":false,"readiness":{"ok":true,"executor":"codex","model":"gpt-5.6-sol","reasoningEffort":"high","modelProbe":"passed"}},"version":{"startedAt":"2026-08-26T07:39:48.923Z"},"counts":{},"pendingReceipts":{"total":0}}'
+        }
+        status
+      `)
+      assert.equal(result.status, 0, result.stderr)
+      assert.match(
+        result.stdout,
+        /lark-worker:  running  pid=202\npoller:       running  pid=303\n\nexecutor:     codex  model=gpt-5\.6-sol  reasoning=high  probe=passed\ntasks:/,
+      )
+    }
 
-  it('原 poller 未运行时也执行最终严格 status', () => {
-    const result = runBash(`
-      export LARK_BOT_SOURCE_ONLY=1
-      source ${JSON.stringify(script)}
-      _running() { return 1; }
-      stop() { echo stop; }
-      sleep() { :; }
-      start() { echo start; }
-      poll_on() { echo unexpected-poll-on; }
-      status() { echo status; }
-      restart
-    `)
-    assert.equal(result.status, 0, result.stderr)
-    assert.match(result.stdout, /stop\nstart\nstatus/s)
-    assert.doesNotMatch(result.stdout, /unexpected-poll-on/)
-  })
+      // 挂起任务催办满 N 轮后 gateway 就闭嘴了，此后只有 status 能盘点到它们；计数与明细必须都在。
+    {
+      const t2 = 'status 列出 waiting_confirmation 计数与明细（含续跑/结单指令）'
+      const result = runBash(`
+        export LARK_BOT_SOURCE_ONLY=1
+        source ${JSON.stringify(script)}
+        _pid() { echo 101 ; }
+        curl() {
+          if printf '%s' "$*" | grep -q '/lark/tasks'; then
+            printf '%s' '{"tasks":[{"id":"recAAA","status":"waiting_confirmation","project":"PR-02172","summary":"修复：埋点没上报","result":"需人工确认 / 补充材料后才能继续。","parkedAt":"2020-01-01T00:00:00.000Z","parkedRemindedRound":2},{"id":"recBBB","status":"done","summary":"不该出现"}]}'
+          else
+            printf '%s' '{"ok":true,"worker":{"pid":101,"readiness":{"ok":true,"executor":"claude"}},"counts":{"waiting_confirmation":1},"pendingReceipts":{"total":0}}'
+          fi
+        }
+        status
+      `)
+      assert.match(result.stdout, /tasks:.*waiting=1/, t2)
+      assert.match(result.stdout, /waiting-confirmation（等人补料\/确认/, t2)
+      assert.match(result.stdout, /recAAA\s+\[PR-02172\]\s+已挂起 \d+h\s+已催 2\/3 轮/, t2)
+      assert.match(result.stdout, /修复：埋点没上报/, t2)
+      assert.match(result.stdout, /→ 需人工确认 \/ 补充材料后才能继续。/, t2)
+      assert.match(result.stdout, /继续任务 recAAA <补充内容>.*结单 recAAA/, t2)
+      // 非挂起态不得混进明细
+      assert.doesNotMatch(result.stdout, /不该出现/, t2)
+    }
 
-  it('restart 最终 status 不健康时返回非零', () => {
-    const result = runBash(`
-      export LARK_BOT_SOURCE_ONLY=1
-      source ${JSON.stringify(script)}
-      _running() { return 1; }
-      stop() { :; }
-      sleep() { :; }
-      start() { :; }
-      status() { return 1; }
-      restart
-    `)
-    assert.notEqual(result.status, 0)
-  })
+      // 疑似单不进催办，task-store 用 parkedRemindedRound=99 作哨兵；status 不能把哨兵当轮次显示成「已催 99/3 轮」。
+    {
+      const t3 = 'status 对疑似单显示「不催办」而不是哨兵轮次'
+      const result = runBash(`
+        export LARK_BOT_SOURCE_ONLY=1
+        source ${JSON.stringify(script)}
+        _pid() { echo 101 ; }
+        curl() {
+          if printf '%s' "$*" | grep -q '/lark/tasks'; then
+            printf '%s' '{"tasks":[{"id":"omSUS","status":"waiting_confirmation","project":"FALIVE","summary":"疑似对接答复","suspected":true,"parkedAt":"2020-01-01T00:00:00.000Z","parkedRemindedRound":99}]}'
+          else
+            printf '%s' '{"ok":true,"worker":{"pid":101,"readiness":{"ok":true,"executor":"claude"}},"counts":{"waiting_confirmation":1},"pendingReceipts":{"total":0}}'
+          fi
+        }
+        status
+      `)
+      assert.match(result.stdout, /omSUS\s+\[FALIVE\]\s+已挂起 \d+h\s+疑似单，不催办/, t3)
+      assert.doesNotMatch(result.stdout, /已催 99/, t3)
+    }
 
-  it('status 先列进程，空行后再列 executor 与任务', () => {
-    const result = runBash(`
-      export LARK_BOT_SOURCE_ONLY=1
-      source ${JSON.stringify(script)}
-      _pid() {
-        case "$1" in
-          "$GW") echo 101 ;;
-          "$WK") echo 202 ;;
-          "$POLLER") echo 303 ;;
-        esac
-      }
-      curl() {
-        printf '%s' '{"ok":true,"worker":{"pid":202,"heartbeatStale":false,"codeStale":false,"readiness":{"ok":true,"executor":"codex","model":"gpt-5.6-sol","reasoningEffort":"high","modelProbe":"passed"}},"version":{"startedAt":"2026-08-26T07:39:48.923Z"},"counts":{},"pendingReceipts":{"total":0}}'
-      }
-      status
-    `)
-    assert.equal(result.status, 0, result.stderr)
-    assert.match(
-      result.stdout,
-      /lark-worker:  running  pid=202\npoller:       running  pid=303\n\nexecutor:     codex  model=gpt-5\.6-sol  reasoning=high  probe=passed\ntasks:/,
-    )
-  })
+    {
+      const t4 = '挂起明细取不到时降级为提示，不吞掉其余状态'
+      const result = runBash(`
+        export LARK_BOT_SOURCE_ONLY=1
+        source ${JSON.stringify(script)}
+        _pid() { echo 101 ; }
+        curl() {
+          if printf '%s' "$*" | grep -q '/lark/tasks'; then
+            printf '%s' 'unauthorized-not-json'
+          else
+            printf '%s' '{"ok":true,"worker":{"pid":101,"readiness":{"ok":true,"executor":"claude"}},"counts":{"waiting_confirmation":2},"pendingReceipts":{"total":0}}'
+          fi
+        }
+        status
+      `)
+      assert.match(result.stdout, /tasks:.*waiting=2/, t4)
+      assert.match(result.stdout, /⚠ 有 2 个挂起任务但取不到明细/, t4)
+      // 发布层 stale 检测已下线：status 不再输出 `rules:` 行（2026-09-10）。
+      assert.doesNotMatch(result.stdout, /rules:/, t4)
+    }
 
-  // 挂起任务催办满 N 轮后 gateway 就闭嘴了，此后只有 status 能盘点到它们；计数与明细必须都在。
-  it('status 列出 waiting_confirmation 计数与明细（含续跑/结单指令）', () => {
-    const result = runBash(`
-      export LARK_BOT_SOURCE_ONLY=1
-      source ${JSON.stringify(script)}
-      _pid() { echo 101 ; }
-      curl() {
-        if printf '%s' "$*" | grep -q '/lark/tasks'; then
-          printf '%s' '{"tasks":[{"id":"recAAA","status":"waiting_confirmation","project":"PR-02172","summary":"修复：埋点没上报","result":"需人工确认 / 补充材料后才能继续。","parkedAt":"2020-01-01T00:00:00.000Z","parkedRemindedRound":2},{"id":"recBBB","status":"done","summary":"不该出现"}]}'
-        else
-          printf '%s' '{"ok":true,"worker":{"pid":101,"readiness":{"ok":true,"executor":"claude"}},"counts":{"waiting_confirmation":1},"pendingReceipts":{"total":0}}'
-        fi
-      }
-      status
-    `)
-    assert.match(result.stdout, /tasks:.*waiting=1/)
-    assert.match(result.stdout, /waiting-confirmation（等人补料\/确认/)
-    assert.match(result.stdout, /recAAA\s+\[PR-02172\]\s+已挂起 \d+h\s+已催 2\/3 轮/)
-    assert.match(result.stdout, /修复：埋点没上报/)
-    assert.match(result.stdout, /→ 需人工确认 \/ 补充材料后才能继续。/)
-    assert.match(result.stdout, /继续任务 recAAA <补充内容>.*结单 recAAA/)
-    // 非挂起态不得混进明细
-    assert.doesNotMatch(result.stdout, /不该出现/)
-  })
-
-  // 疑似单不进催办，task-store 用 parkedRemindedRound=99 作哨兵；status 不能把哨兵当轮次显示成「已催 99/3 轮」。
-  it('status 对疑似单显示「不催办」而不是哨兵轮次', () => {
-    const result = runBash(`
-      export LARK_BOT_SOURCE_ONLY=1
-      source ${JSON.stringify(script)}
-      _pid() { echo 101 ; }
-      curl() {
-        if printf '%s' "$*" | grep -q '/lark/tasks'; then
-          printf '%s' '{"tasks":[{"id":"omSUS","status":"waiting_confirmation","project":"FALIVE","summary":"疑似对接答复","suspected":true,"parkedAt":"2020-01-01T00:00:00.000Z","parkedRemindedRound":99}]}'
-        else
-          printf '%s' '{"ok":true,"worker":{"pid":101,"readiness":{"ok":true,"executor":"claude"}},"counts":{"waiting_confirmation":1},"pendingReceipts":{"total":0}}'
-        fi
-      }
-      status
-    `)
-    assert.match(result.stdout, /omSUS\s+\[FALIVE\]\s+已挂起 \d+h\s+疑似单，不催办/)
-    assert.doesNotMatch(result.stdout, /已催 99/)
-  })
-
-  it('挂起明细取不到时降级为提示，不吞掉其余状态', () => {
-    const result = runBash(`
-      export LARK_BOT_SOURCE_ONLY=1
-      source ${JSON.stringify(script)}
-      _pid() { echo 101 ; }
-      curl() {
-        if printf '%s' "$*" | grep -q '/lark/tasks'; then
-          printf '%s' 'unauthorized-not-json'
-        else
-          printf '%s' '{"ok":true,"worker":{"pid":101,"readiness":{"ok":true,"executor":"claude"}},"counts":{"waiting_confirmation":2},"pendingReceipts":{"total":0}}'
-        fi
-      }
-      status
-    `)
-    assert.match(result.stdout, /tasks:.*waiting=2/)
-    assert.match(result.stdout, /⚠ 有 2 个挂起任务但取不到明细/)
-    // 发布层 stale 检测已下线：status 不再输出 `rules:` 行（2026-09-10）。
-    assert.doesNotMatch(result.stdout, /rules:/)
-  })
-
-  it('无挂起任务时不输出挂起区块', () => {
-    const result = runBash(`
-      export LARK_BOT_SOURCE_ONLY=1
-      source ${JSON.stringify(script)}
-      _pid() { echo 101 ; }
-      curl() {
-        if printf '%s' "$*" | grep -q '/lark/tasks'; then
-          printf '%s' '{"tasks":[]}'
-        else
-          printf '%s' '{"ok":true,"worker":{"pid":101,"readiness":{"ok":true,"executor":"claude"}},"counts":{},"pendingReceipts":{"total":0}}'
-        fi
-      }
-      status
-    `)
-    assert.equal(result.status, 0, result.stderr)
-    assert.match(result.stdout, /tasks:.*waiting=0/)
-    assert.doesNotMatch(result.stdout, /waiting-confirmation（/)
-    assert.doesNotMatch(result.stdout, /取不到明细/)
+    {
+      const t5 = '无挂起任务时不输出挂起区块'
+      const result = runBash(`
+        export LARK_BOT_SOURCE_ONLY=1
+        source ${JSON.stringify(script)}
+        _pid() { echo 101 ; }
+        curl() {
+          if printf '%s' "$*" | grep -q '/lark/tasks'; then
+            printf '%s' '{"tasks":[]}'
+          else
+            printf '%s' '{"ok":true,"worker":{"pid":101,"readiness":{"ok":true,"executor":"claude"}},"counts":{},"pendingReceipts":{"total":0}}'
+          fi
+        }
+        status
+      `)
+      assert.equal(result.status, 0, result.stderr)
+      assert.match(result.stdout, /tasks:.*waiting=0/, t5)
+      assert.doesNotMatch(result.stdout, /waiting-confirmation（/, t5)
+      assert.doesNotMatch(result.stdout, /取不到明细/, t5)
+    }
   })
 })

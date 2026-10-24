@@ -9,19 +9,23 @@ describe('开盖不空闲睡眠（caffeinate -i 跟着 gateway pid 走）', () =
     return { on() {}, unref() {}, kill() { calls.push(['kill']) } }
   }
 
-  it('macOS 挂 caffeinate -i -w <pid>，stop 时 kill', () => {
-    const calls = []
-    const handle = startKeepAwake({ env: {}, platform: 'darwin', pid: 4242, spawnFn: fakeSpawn(calls) })
-    assert.deepEqual(calls, [['/usr/bin/caffeinate', '-i', '-w', '4242']])
-    handle.stop()
-    assert.deepEqual(calls.at(-1), ['kill'])
-  })
+  it('macOS 挂 caffeinate 并在 stop 时 kill，关闭开关或非 macOS 不启动', () => {
+    {
+      const t1 = 'macOS 挂 caffeinate -i -w <pid>，stop 时 kill'
+      const calls = []
+      const handle = startKeepAwake({ env: {}, platform: 'darwin', pid: 4242, spawnFn: fakeSpawn(calls) })
+      assert.deepEqual(calls, [['/usr/bin/caffeinate', '-i', '-w', '4242']], t1)
+      handle.stop()
+      assert.deepEqual(calls.at(-1), ['kill'], t1)
+    }
 
-  it('LARK_KEEP_AWAKE=0 或非 macOS 不启动', () => {
-    const calls = []
-    startKeepAwake({ env: { LARK_KEEP_AWAKE: '0' }, platform: 'darwin', spawnFn: fakeSpawn(calls) }).stop()
-    startKeepAwake({ env: {}, platform: 'linux', spawnFn: fakeSpawn(calls) }).stop()
-    assert.deepEqual(calls, [])
+    {
+      const t2 = 'LARK_KEEP_AWAKE=0 或非 macOS 不启动'
+      const calls = []
+      startKeepAwake({ env: { LARK_KEEP_AWAKE: '0' }, platform: 'darwin', spawnFn: fakeSpawn(calls) }).stop()
+      startKeepAwake({ env: {}, platform: 'linux', spawnFn: fakeSpawn(calls) }).stop()
+      assert.deepEqual(calls, [], t2)
+    }
   })
 
   it('ioreg 合盖状态解析', () => {

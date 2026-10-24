@@ -31,7 +31,7 @@ let savedFetch
 let posted
 let dir
 let store
-beforeEach(() => {
+const setup = () => {
   savedMode = process.env.LARK_INSTANCE_MODE
   savedFetch = globalThis.fetch
   process.env.LARK_INSTANCE_MODE = 'repo-only'
@@ -43,14 +43,21 @@ beforeEach(() => {
   registerRepoProfiles({ repos: { falive: faliveRaw } })
   dir = mkdtempSync(join(tmpdir(), 'lark-repo-intake-'))
   store = createTaskStore({ tasksDir: join(dir, 'tasks'), leaseMs: 60_000 })
-})
-afterEach(() => {
+}
+const teardown = () => {
   if (savedMode === undefined) delete process.env.LARK_INSTANCE_MODE
   else process.env.LARK_INSTANCE_MODE = savedMode
   globalThis.fetch = savedFetch
   resetRepoProfiles()
   rmSync(dir, { recursive: true, force: true })
-})
+}
+beforeEach(setup)
+afterEach(teardown)
+// 合并后的 it 里每段之间调一次，恢复到 beforeEach 刚跑完的干净状态（新 store / 新目录 / 清空 posted）
+const reset = () => {
+  teardown()
+  setup()
+}
 
 const groupEvent = ({ id, text, sender = ENCONE, mentions = [], root = null, parent = null, createTime = null }) => ({
   message_id: id, chat_id: GROUP, chat_type: 'group', message_type: 'text', content: text,
@@ -88,7 +95,8 @@ describe('A2：ingest 失败回滚「已见」，轮询器下轮重喂能落成�
 describe('C3：疑似单只有负责人能放行', () => {
   const suspected = () => store.upsert({ id: 'om_rv_sus', source: 'lark', repo: 'falive', chatId: GROUP, threadRootId: 'om_rv_sus', operator: ENCONE, text: '原消息', status: 'waiting_confirmation', suspected: true, epoch: 1, createdAt: now() })
 
-  it('别人在话题里不 @ 机器人回一句：不处理（10-23 起外部群只响应 @bot），疑似单原样等负责人，不发卡', async () => {
+  it('疑似单：别人不 @ 回话 / 同话题归并都拦，放行权只给负责人', async () => {
+    // 别人在话题里不 @ 机器人回一句：不处理（10-23 起外部群只响应 @bot），疑似单原样等负责人，不发卡
     suspected()
     await ingestLarkEvent({ raw: groupEvent({ id: 'om_rv_sus_r1', text: '接口已经部署好了，可以联调', root: 'om_rv_sus', parent: 'om_rv_sus' }), config, store })
     const task = store.get('om_rv_sus')
@@ -96,30 +104,30 @@ describe('C3：疑似单只有负责人能放行', () => {
     assert.equal(task.epoch, 1)
     assert.equal(task.text, '原消息')
     assert.equal(task.suspectedSupplements, undefined)
-    assert.equal(posted.length, 0)
-  })
+    assert.equal(posted.length, 0, '别人不 @ 机器人回一句：不发卡')
 
-  it('同话题归并分支同样拦（listParkedByThread → handleResume）', async () => {
+    // 同话题归并分支同样拦（listParkedByThread → handleResume）
+    reset()
     store.upsert({ id: 'om_rv_sus2', source: 'lark', repo: 'falive', chatId: GROUP, threadRootId: 'omt_rv_x', operator: ENCONE, text: 'x', status: 'waiting_confirmation', suspected: true, epoch: 0, createdAt: now() })
     // 话题根不是任务本身、话题里还有一条已了结的任务（控制通道锚不到），走同话题归并
     store.upsert({ id: 'omt_rv_x', source: 'lark', repo: 'falive', chatId: GROUP, threadRootId: 'omt_rv_x', text: 'old', status: 'done', createdAt: now() })
     await ingestLarkEvent({ raw: groupEvent({ id: 'om_rv_sus2_r', text: '@Aven.Bot 这个也看下', mentions: [{ id: BOT, key: '@_user_1', name: 'Aven.Bot' }], root: 'omt_rv_x' }), config, store })
     assert.equal(store.get('om_rv_sus2').status, 'waiting_confirmation')
-    assert.match(store.get('om_rv_sus2').text, /待负责人放行/)
-  })
+    assert.match(store.get('om_rv_sus2').text, /待负责人放行/, '同话题归并分支同样拦')
 
-  it('放行权判定：负责人放行，别人不放行；非疑似 / 非待确认不拦', () => {
-    const task = { repo: 'falive', status: 'waiting_confirmation', suspected: true }
-    assert.equal(holdsSuspectedForPrincipal({ task, operator: AVEN }), false)
-    assert.equal(holdsSuspectedForPrincipal({ task, operator: ENCONE }), true)
-    assert.equal(holdsSuspectedForPrincipal({ task: { ...task, suspected: false }, operator: ENCONE }), false)
-    assert.equal(holdsSuspectedForPrincipal({ task: { ...task, status: 'blocked', suspected: false }, operator: ENCONE }), false)
+    // 放行权判定：负责人放行，别人不放行；非疑似 / 非待确认不拦
+    const held = { repo: 'falive', status: 'waiting_confirmation', suspected: true }
+    assert.equal(holdsSuspectedForPrincipal({ task: held, operator: AVEN }), false, '负责人放行')
+    assert.equal(holdsSuspectedForPrincipal({ task: held, operator: ENCONE }), true, '别人不放行')
+    assert.equal(holdsSuspectedForPrincipal({ task: { ...held, suspected: false }, operator: ENCONE }), false, '非疑似不拦')
+    assert.equal(holdsSuspectedForPrincipal({ task: { ...held, status: 'blocked', suspected: false }, operator: ENCONE }), false, '非待确认不拦')
   })
 })
 
 describe('C10：外部群保留 @名字 后，判实质内容与指令解析先剥掉 @', () => {
   const botMention = [{ id: BOT, key: '@_user_1', name: 'Aven.Bot' }]
-  it('纯函数：剥 @ 后 ^ 锚定的解析都能命中；没 @ 机器人的「@Encone 👍」不触发', () => {
+  it('剥 @ 后 ^ 锚定的解析都能命中、没 @ 机器人不触发；真实 ingest 下「@Aven.Bot 取消任务」能结单', async () => {
+    // 纯函数：剥 @ 后 ^ 锚定的解析都能命中；没 @ 机器人的「@Encone 👍」不触发
     const msg = normalizeMessage(groupEvent({ id: 'om_rv_p', text: '@Aven.Bot 取消任务 om_rv_abc', mentions: botMention }), { keepMentions: true })
     assert.equal(msg.text, '@Aven.Bot 取消任务 om_rv_abc', '正文仍保留 @名字')
     assert.equal(parseControlDirective(textForParse(msg))?.taskId, 'om_rv_abc')
@@ -129,13 +137,12 @@ describe('C10：外部群保留 @名字 后，判实质内容与指令解析先�
     assert.equal(isNonSupplementalReply({ text: at('@Aven.Bot 收到') }), true)
     assert.equal(parseCommandType(at('@Aven.Bot 状态：做到哪了')), 'status')
     const thumbs = { text: '@Encone 👍', mentions: [{ id: 'ou_e', name: 'Encone' }], attachments: [] }
-    assert.equal(resolveMessageTrigger({ msg: { ...thumbs, chatType: 'group', senderOpenId: 'ou_x' }, config: { contextTrigger: true, botOpenId: 'ou_b' } }), null)
-  })
+    assert.equal(resolveMessageTrigger({ msg: { ...thumbs, chatType: 'group', senderOpenId: 'ou_x' }, config: { contextTrigger: true, botOpenId: 'ou_b' } }), null, '没 @ 机器人的「@Encone 👍」不触发')
 
-  it('真实 ingest：外部群「@Aven.Bot 取消任务 <id>」能结单', async () => {
+    // 真实 ingest：外部群「@Aven.Bot 取消任务 <id>」能结单
     store.upsert({ id: 'om_rv_t1', source: 'lark', repo: 'falive', chatId: GROUP, text: 'x', status: 'queued', createdAt: now() })
     await ingestLarkEvent({ raw: groupEvent({ id: 'om_rv_c10', text: '@Aven.Bot 取消任务 om_rv_t1', mentions: botMention }), config, store })
-    assert.equal(store.get('om_rv_t1').status, 'superseded')
+    assert.equal(store.get('om_rv_t1').status, 'superseded', '真实 ingest：外部群「@Aven.Bot 取消任务 <id>」能结单')
     assert.equal(store.get('om_rv_t1').closureReason, 'cancelled')
     assert.equal(store.has('om_rv_c10'), false, '没另建任务')
   })
@@ -156,16 +163,17 @@ describe('#6：同人连发去抖不跨话题', () => {
 })
 
 describe('#7：私聊「推 pre」只认负责人', () => {
-  it('纯函数：开了清扫的仓的 meOpenIds 才算', () => {
+  it('开了清扫的仓的 meOpenIds 才算；真实 ingest 下非负责人私聊「推 pre」不处理、不回消息', async () => {
+    // 纯函数：开了清扫的仓的 meOpenIds 才算
     const profiles = [{ key: 'falive', dailyReport: { sweep: {} }, ownership: { meOpenIds: [AVEN] } }, { key: 'x', ownership: { meOpenIds: [ENCONE] } }]
     assert.equal(isPushPrePrincipal({ senderOpenId: AVEN, profiles }), true)
     assert.equal(isPushPrePrincipal({ senderOpenId: ENCONE, profiles }), false, '没开清扫的仓的负责人不算')
     assert.equal(isPushPrePrincipal({ senderOpenId: AVEN, profiles: [{ ...profiles[0], isDefault: true }] }), false)
-  })
-  it('真实 ingest：非负责人私聊「推 pre」不处理、不回消息', async () => {
+
+    // 真实 ingest：非负责人私聊「推 pre」不处理、不回消息
     await ingestLarkEvent({ raw: { message_id: 'om_rv_push', chat_id: CONSOLE, chat_type: 'p2p', message_type: 'text', content: '推 pre', sender_type: 'user', sender_id: ENCONE }, config, store })
-    assert.equal(posted.length, 0)
-    assert.equal(store.list().length, 0)
+    assert.equal(posted.length, 0, '非负责人私聊「推 pre」不回消息')
+    assert.equal(store.list().length, 0, '非负责人私聊「推 pre」不处理')
   })
 })
 
@@ -217,7 +225,8 @@ describe('#9：分类中的任务回队落回 received', () => {
 
 describe('#57：「收到」等分类结果，用分类器按上下文写的那句回（真实 ingest）', () => {
   const groupCards = () => posted.filter((p) => p.url === 'https://hook/group').map((p) => JSON.stringify(p.body))
-  it('@bot 进来先不回固定句；分类回来用 reply 回一句；判不处理只撤不发', async () => {
+  it('@bot 进来先不回固定句、分类回来用 reply 回、判不处理只撤不发；分类迟迟不回时截止落盘、重启后巡检照发固定句', async () => {
+    // @bot 进来先不回固定句；分类回来用 reply 回一句；判不处理只撤不发
     await ingestLarkEvent({ raw: groupEvent({ id: 'om_rv_ack', text: '@Aven.Bot 你自己在 pre 环境看，看完报告结果', sender: AVEN, mentions: [{ id: BOT, key: '@_user_1', name: 'Aven.Bot' }] }), config, store })
     const task = store.get('om_rv_ack')
     assert.ok(task.ackPending, '挂着等分类')
@@ -232,12 +241,13 @@ describe('#57：「收到」等分类结果，用分类器按上下文写的那�
     const before = posted.length
     assert.deepEqual(await flushPendingAck({ store, task: ignored, reply: '收到，记下了', send: false }), { sent: false, usedReply: false })
     assert.equal(posted.length, before)
-    assert.equal(store.get('om_rv_ack2').ackPending, null)
-  })
-  it('分类迟迟不回：截止时间落盘，网关重启后巡检照发固定句；没到点不发', async () => {
+    assert.equal(store.get('om_rv_ack2').ackPending, null, '判不处理只撤不发')
+
+    // 分类迟迟不回：截止时间落盘，网关重启后巡检照发固定句；没到点不发
+    reset()
     const t0 = Date.parse('2026-10-21T08:00:00Z')
-    const task = store.upsert({ id: 'om_rv_ack3', chatId: GROUP, repo: 'falive', operator: ENCONE, text: 'x' })
-    await ackInGroup({ store, task, now: t0 })
+    const slowTask = store.upsert({ id: 'om_rv_ack3', chatId: GROUP, repo: 'falive', operator: ENCONE, text: 'x' })
+    await ackInGroup({ store, task: slowTask, now: t0 })
     assert.ok(store.get('om_rv_ack3').ackPending.deadline)
     // 模拟网关重启：换一个读同一目录的 store
     const restarted = createTaskStore({ tasksDir: join(dir, 'tasks'), leaseMs: 60_000 })

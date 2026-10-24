@@ -34,41 +34,50 @@ describe('开盖补拉内部群（长连接睡着时收不到，飞书重推只�
   }
   const user = (id) => ({ message_id: id, msg_type: 'text', create_time: '1', sender: { id: 'ou_k', sender_type: 'user' }, content: '@kingstar 看下', mentions: [{ id: 'ou_aven', key: '@_user_1', name: 'kingstar' }] })
 
-  it('没睡过、没合盖：不补拉', async () => {
-    const { env, catchup } = setup()
-    env.now += 60_000
-    assert.equal(await catchup.tick(), null)
-    assert.deepEqual(env.calls, [])
-  })
+  it('开盖补拉：没睡过不拉，合盖不拉、开盖从合盖前起补拉内部群，首轮失败保留窗口重试', async () => {
+    {
+      const t1 = '没睡过、没合盖：不补拉'
+      const { env, catchup } = setup()
+      env.now += 60_000
+      assert.equal(await catchup.tick(), null, t1)
+      assert.deepEqual(env.calls, [], t1)
+    }
 
-  it('合盖期间不拉；开盖后从合盖前最后醒着的时刻（减 2 分钟）起，bot 身份补拉内部群、跳过外部群与已成任务的', async () => {
-    const { env, catchup } = setup({ messages: [user('om_1'), user('om_task'), { ...user('om_bot'), sender: { id: 'cli_x', sender_type: 'app' } }] })
-    const beforeSleep = env.now
-    env.now = Date.parse('2026-10-16T20:21:30+04:00') // 20:21:21 合盖入睡后的第一次半醒
-    env.sleptAt = Date.parse('2026-10-16T20:21:21+04:00')
-    env.closed = true
-    assert.equal(await catchup.tick(), null)
-    env.now = Date.parse('2026-10-17T05:28:52+04:00')
-    assert.equal(await catchup.tick(), null)
-    assert.deepEqual(env.calls, [])
-    env.closed = false
-    env.now = Date.parse('2026-10-17T06:44:02+04:00')
-    const outcome = await catchup.tick()
-    assert.deepEqual(outcome, { chats: 1, fed: 1 })
-    assert.deepEqual(env.calls, [{ chatId: 'oc_in', start: new Date(beforeSleep - 120_000).toISOString(), identity: 'bot' }])
-    assert.deepEqual(env.ingested, ['om_1'])
-    env.now += 60_000
-    assert.equal(await catchup.tick(), null, '补完一次就清掉窗口')
-  })
+    // 每段独立 profile 注册，等同原 afterEach
+    resetRepoProfiles()
+    {
+      const t2 = '合盖期间不拉；开盖后从合盖前最后醒着的时刻（减 2 分钟）起，bot 身份补拉内部群、跳过外部群与已成任务的'
+      const { env, catchup } = setup({ messages: [user('om_1'), user('om_task'), { ...user('om_bot'), sender: { id: 'cli_x', sender_type: 'app' } }] })
+      const beforeSleep = env.now
+      env.now = Date.parse('2026-10-16T20:21:30+04:00') // 20:21:21 合盖入睡后的第一次半醒
+      env.sleptAt = Date.parse('2026-10-16T20:21:21+04:00')
+      env.closed = true
+      assert.equal(await catchup.tick(), null, t2)
+      env.now = Date.parse('2026-10-17T05:28:52+04:00')
+      assert.equal(await catchup.tick(), null, t2)
+      assert.deepEqual(env.calls, [], t2)
+      env.closed = false
+      env.now = Date.parse('2026-10-17T06:44:02+04:00')
+      const outcome = await catchup.tick()
+      assert.deepEqual(outcome, { chats: 1, fed: 1 }, t2)
+      assert.deepEqual(env.calls, [{ chatId: 'oc_in', start: new Date(beforeSleep - 120_000).toISOString(), identity: 'bot' }], t2)
+      assert.deepEqual(env.ingested, ['om_1'], t2)
+      env.now += 60_000
+      assert.equal(await catchup.tick(), null, '补完一次就清掉窗口')
+    }
 
-  it('开盖首轮拉失败（网络没就绪）：保留窗口，下分钟重试', async () => {
-    const { env, catchup } = setup({ messages: [user('om_1')], failFirst: true })
-    const beforeSleep = env.now
-    env.sleptAt = env.now + 10_000
-    env.now += 9 * 3600_000
-    assert.equal(await catchup.tick(), null)
-    env.now += 60_000
-    assert.deepEqual(await catchup.tick(), { chats: 1, fed: 1 })
-    assert.equal(env.calls.at(-1).start, new Date(beforeSleep - 120_000).toISOString())
+    // 每段独立 profile 注册，等同原 afterEach
+    resetRepoProfiles()
+    {
+      const t3 = '开盖首轮拉失败（网络没就绪）：保留窗口，下分钟重试'
+      const { env, catchup } = setup({ messages: [user('om_1')], failFirst: true })
+      const beforeSleep = env.now
+      env.sleptAt = env.now + 10_000
+      env.now += 9 * 3600_000
+      assert.equal(await catchup.tick(), null, t3)
+      env.now += 60_000
+      assert.deepEqual(await catchup.tick(), { chats: 1, fed: 1 }, t3)
+      assert.equal(env.calls.at(-1).start, new Date(beforeSleep - 120_000).toISOString(), t3)
+    }
   })
 })

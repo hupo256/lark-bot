@@ -43,7 +43,8 @@ const fakeGit = ({ heads = {}, ancestor = true, log = 'abc1234 fix: x\n' } = {})
 
 describe('等部署的原话', () => {
   // 用例表（测试棘轮：一类判据一条 it）：[原话, 期望]——期望为字符串 = 认出的那句，true = 认得出，null = 不算承诺。
-  it('只认 bot 自己答应的「部署完再测 / 告诉你」；做完的汇报、状态汇报、让对方做的都不算', () => {
+  it('等部署的原话：只认 bot 自己的承诺，发件簿只取窗口内真发出的、同源只留一句', () => {
+    // 只认 bot 自己答应的「部署完再测 / 告诉你」；做完的汇报、状态汇报、让对方做的都不算
     const cases = [
       [PROMISE_1023, '修复已经在开发分支上，合进 pre 部署后就好，部署完我再测一遍告诉你'],
       ['前端已修好，发布后我复测一下再回你', true],
@@ -61,8 +62,8 @@ describe('等部署的原话', () => {
       if (expected === true) assert.ok(hit, text)
       else assert.equal(hit, expected, text)
     }
-  })
-  it('发件簿：只取窗口内真发到群里的（gated 没发出去不算），同一源任务只留一句', () => {
+
+    const t2 = '发件簿：只取窗口内真发到群里的（gated 没发出去不算），同一源任务只留一句'
     const dir = mkdtempSync(join(tmpdir(), 'lark-deploy-outbox-'))
     try {
       mkdirSync(dir, { recursive: true })
@@ -71,7 +72,7 @@ describe('等部署的原话', () => {
       line('2026-10-23T06:30:00.000Z', 'om_b', '部署完我再测一遍告诉你', { gated: '只私聊不发群' })
       line('2026-10-23T02:00:00.000Z', 'om_c', '部署完我再测一遍告诉你')
       const out = findDeployPromises({ chatIds: [GROUP], sinceMs: Date.parse('2026-10-23T05:00:00Z'), untilMs: Date.parse('2026-10-23T10:37:00Z'), dir })
-      assert.deepEqual(out.map((item) => [item.taskId, item.to]), [['om_a', ENCONE]])
+      assert.deepEqual(out.map((item) => [item.taskId, item.to]), [['om_a', ENCONE]], t2)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -107,56 +108,69 @@ describe('盯所有部署', () => {
   let runtimeDir
   let outboxDir
   let store
-  beforeEach(() => {
+  const setup = () => {
     register()
     runtimeDir = mkdtempSync(join(tmpdir(), 'lark-deploy-watch-'))
     outboxDir = join(runtimeDir, 'outbox')
     mkdirSync(outboxDir, { recursive: true })
     store = createTaskStore({ tasksDir: join(runtimeDir, 'tasks'), leaseMs: 1000 })
-  })
-  afterEach(() => {
+  }
+  const teardown = () => {
     resetRepoProfiles()
     rmSync(runtimeDir, { recursive: true, force: true })
-  })
+  }
+  beforeEach(setup)
+  afterEach(teardown)
   const check = ({ buildTime, now, git = fakeGit({ heads: { 0: 'h1', [buildTime - 1]: 'h2' } }).git }) =>
     checkDeployAndRetest({ store, profile: repoProfile('falive'), now: new Date(now), deps: { runtimeDir, outboxDir, git, probePreBuildTime: async () => buildTime } })
 
-  it('今天的形状：state 只有旧 lastPush、发件簿有 10:28 的承诺 → 合入后首次只记基线，14:37 这次不补建；之后的部署也不再捡这句', async () => {
-    saveSweepState('falive', { lastPush: { head: 'e3374a43', pushedAt: '2026-10-19T17:29:37.487Z', commits: [], deployedAt: null, retestTaskId: null } }, { runtimeDir })
-    appendFileSync(join(outboxDir, `${GROUP}.jsonl`), `${JSON.stringify({ at: '2026-10-23T06:28:36.870Z', chatId: GROUP, taskId: 'om_x100b628755fb14a4ed5b0e078f6c6cc', phase: 'done', to: ENCONE, text: PROMISE_1023 })}\n`)
-    const deployed1437 = Date.parse('2026-10-23T10:37:00Z')
-    const first = await check({ buildTime: deployed1437, now: '2026-10-23T12:00:00Z' })
-    assert.equal(first.baseline, true)
-    assert.equal(store.list().length, 0)
-    const state = loadSweepState('falive', { runtimeDir })
-    assert.equal(state.lastPush, undefined, '旧 lastPush 记录清掉')
-    assert.equal(state.lastDeploy.buildTime, deployed1437)
-    const next = await check({ buildTime: Date.parse('2026-10-24T08:00:00Z'), now: '2026-10-24T08:10:00Z' })
-    assert.equal(next.deployed, true)
-    assert.deepEqual(next.promiseTaskIds, [])
-  })
+  it('盯部署：首次只记基线不补建，构建变新按提交建复测与承诺单，无新提交只记部署点', async () => {
+    {
+      const t1 = '今天的形状：state 只有旧 lastPush、发件簿有 10:28 的承诺 → 合入后首次只记基线，14:37 这次不补建；之后的部署也不再捡这句'
+      saveSweepState('falive', { lastPush: { head: 'e3374a43', pushedAt: '2026-10-19T17:29:37.487Z', commits: [], deployedAt: null, retestTaskId: null } }, { runtimeDir })
+      appendFileSync(join(outboxDir, `${GROUP}.jsonl`), `${JSON.stringify({ at: '2026-10-23T06:28:36.870Z', chatId: GROUP, taskId: 'om_x100b628755fb14a4ed5b0e078f6c6cc', phase: 'done', to: ENCONE, text: PROMISE_1023 })}\n`)
+      const deployed1437 = Date.parse('2026-10-23T10:37:00Z')
+      const first = await check({ buildTime: deployed1437, now: '2026-10-23T12:00:00Z' })
+      assert.equal(first.baseline, true, t1)
+      assert.equal(store.list().length, 0, t1)
+      const state = loadSweepState('falive', { runtimeDir })
+      assert.equal(state.lastPush, undefined, '旧 lastPush 记录清掉')
+      assert.equal(state.lastDeploy.buildTime, deployed1437, t1)
+      const next = await check({ buildTime: Date.parse('2026-10-24T08:00:00Z'), now: '2026-10-24T08:10:00Z' })
+      assert.equal(next.deployed, true, t1)
+      assert.deepEqual(next.promiseTaskIds, [], t1)
+    }
 
-  it('构建时间变新 = 一次部署（不管谁发的）：按提交建整体复测只私信负责人；承诺各建一条挂原群；同一构建只建一次', async () => {
-    saveSweepState('falive', { lastDeploy: { buildTime: Date.parse('2026-10-23T02:00:00Z'), head: 'h1' } }, { runtimeDir })
-    appendFileSync(join(outboxDir, `${GROUP}.jsonl`), `${JSON.stringify({ at: '2026-10-23T06:28:36.870Z', chatId: GROUP, taskId: 'om_src', phase: 'done', to: ENCONE, text: PROMISE_1023 })}\n`)
-    const buildTime = Date.parse('2026-10-23T10:37:00Z')
-    const out = await check({ buildTime, now: '2026-10-23T10:45:00Z' })
-    const whole = store.get(out.taskId)
-    assert.equal(whole.chatId, 'oc_console')
-    assert.match(whole.text, /abc1234 fix: x/)
-    assert.match(whole.text, /只复测 aven 负责的功能，别人的只记录/)
-    assert.match(whole.text, /已各建复测任务、结论回原群/)
-    const promise = store.get(out.promiseTaskIds[0])
-    assert.deepEqual([promise.chatId, promise.operator, promise.ackedInGroup, promise.contract.deliverable, promise.source], [GROUP, ENCONE, true, 'verification', 'daily-sweep'])
-    assert.match(promise.text, /对 Encone 说过[\s\S]*源任务 om_src）：「[^」]*部署完我再测一遍告诉你」/)
-    assert.equal((await check({ buildTime, now: '2026-10-23T10:55:00Z' })).deployed, false)
-    assert.equal(store.list().length, 2)
-  })
+    // 每段独立状态，等同原 beforeEach / afterEach
+    teardown()
+    setup()
+    {
+      const t2 = '构建时间变新 = 一次部署（不管谁发的）：按提交建整体复测只私信负责人；承诺各建一条挂原群；同一构建只建一次'
+      saveSweepState('falive', { lastDeploy: { buildTime: Date.parse('2026-10-23T02:00:00Z'), head: 'h1' } }, { runtimeDir })
+      appendFileSync(join(outboxDir, `${GROUP}.jsonl`), `${JSON.stringify({ at: '2026-10-23T06:28:36.870Z', chatId: GROUP, taskId: 'om_src', phase: 'done', to: ENCONE, text: PROMISE_1023 })}\n`)
+      const buildTime = Date.parse('2026-10-23T10:37:00Z')
+      const out = await check({ buildTime, now: '2026-10-23T10:45:00Z' })
+      const whole = store.get(out.taskId)
+      assert.equal(whole.chatId, 'oc_console', t2)
+      assert.match(whole.text, /abc1234 fix: x/, t2)
+      assert.match(whole.text, /只复测 aven 负责的功能，别人的只记录/, t2)
+      assert.match(whole.text, /已各建复测任务、结论回原群/, t2)
+      const promise = store.get(out.promiseTaskIds[0])
+      assert.deepEqual([promise.chatId, promise.operator, promise.ackedInGroup, promise.contract.deliverable, promise.source], [GROUP, ENCONE, true, 'verification', 'daily-sweep'], t2)
+      assert.match(promise.text, /对 Encone 说过[\s\S]*源任务 om_src）：「[^」]*部署完我再测一遍告诉你」/, t2)
+      assert.equal((await check({ buildTime, now: '2026-10-23T10:55:00Z' })).deployed, false, t2)
+      assert.equal(store.list().length, 2, t2)
+    }
 
-  it('没有新提交（同一份代码重新构建）：不建整体复测，只记部署点', async () => {
-    saveSweepState('falive', { lastDeploy: { buildTime: 1000, head: 'h2' } }, { runtimeDir })
-    const out = await check({ buildTime: 5000, now: 6000, git: fakeGit({ heads: { 0: 'h2' } }).git })
-    assert.deepEqual([out.deployed, out.taskId, out.promiseTaskIds], [true, null, []])
-    assert.equal(loadSweepState('falive', { runtimeDir }).lastDeploy.buildTime, 5000)
+    // 每段独立状态，等同原 beforeEach / afterEach
+    teardown()
+    setup()
+    {
+      const t3 = '没有新提交（同一份代码重新构建）：不建整体复测，只记部署点'
+      saveSweepState('falive', { lastDeploy: { buildTime: 1000, head: 'h2' } }, { runtimeDir })
+      const out = await check({ buildTime: 5000, now: 6000, git: fakeGit({ heads: { 0: 'h2' } }).git })
+      assert.deepEqual([out.deployed, out.taskId, out.promiseTaskIds], [true, null, []], t3)
+      assert.equal(loadSweepState('falive', { runtimeDir }).lastDeploy.buildTime, 5000, t3)
+    }
   })
 })

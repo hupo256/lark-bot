@@ -27,19 +27,26 @@ const WORKER_ONLY = /lib\/lark-(daily-report|ai-executor|doc|worker-run|worker-g
 
 describe('gateway 纯度闸', () => {
   const closure = closureOf('lark-gateway.mjs')
-  it('闭包里没有同步子进程、没有模型调用', () => {
-    const offenders = closure.filter((file) => {
-      const source = stripComments(readFileSync(join(root, file), 'utf8'))
-      return /\b(spawnSync|execSync|execFileSync)\b/.test(source) || /spawn\(['"](claude|codex|pi|cursor-agent)['"]/.test(source)
-    })
-    assert.deepEqual(offenders, [], `gateway 闭包里出现同步子进程 / 模型调用：${offenders.join('、')}`)
-  })
-  it('node:child_process 只允许在固定几个模块里出现', () => {
-    const offenders = closure.filter((file) => /node:child_process/.test(stripComments(readFileSync(join(root, file), 'utf8'))) && !CHILD_PROCESS_ALLOWED.has(file))
-    assert.deepEqual(offenders, [], `child_process 越界：${offenders.join('、')}`)
-  })
-  it('worker 专属模块不进 gateway 闭包', () => {
-    const offenders = closure.filter((file) => WORKER_ONLY.test(file))
-    assert.deepEqual(offenders, [], `worker 模块进了 gateway：${offenders.join('、')}`)
+  it('gateway 闭包无同步子进程与模型调用，child_process 只在固定模块，worker 专属模块不进闭包', () => {
+    {
+      // 闭包里没有同步子进程、没有模型调用
+      const offenders = closure.filter((file) => {
+        const source = stripComments(readFileSync(join(root, file), 'utf8'))
+        return /\b(spawnSync|execSync|execFileSync)\b/.test(source) || /spawn\(['"](claude|codex|pi|cursor-agent)['"]/.test(source)
+      })
+      assert.deepEqual(offenders, [], `gateway 闭包里出现同步子进程 / 模型调用：${offenders.join('、')}`)
+    }
+
+    {
+      // node:child_process 只允许在固定几个模块里出现
+      const offenders = closure.filter((file) => /node:child_process/.test(stripComments(readFileSync(join(root, file), 'utf8'))) && !CHILD_PROCESS_ALLOWED.has(file))
+      assert.deepEqual(offenders, [], `child_process 越界：${offenders.join('、')}`)
+    }
+
+    {
+      // worker 专属模块不进 gateway 闭包
+      const offenders = closure.filter((file) => WORKER_ONLY.test(file))
+      assert.deepEqual(offenders, [], `worker 模块进了 gateway：${offenders.join('、')}`)
+    }
   })
 })

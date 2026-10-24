@@ -8,7 +8,8 @@ import { fetchRecentChatContext } from '../lib/lark-cli.mjs'
 
 // 10-23 起外部群只响应 @bot：没 @ 的讨论只能靠 @bot 时读上下文带进来，要读全。
 describe('@bot 时的上下文读取', () => {
-  it('之前群消息里的附件：从新到旧挑，图片 / 文件各有上限，按消息分组', () => {
+  it('前文附件挑选、时间格式化、附件列表标明来源', () => {
+    const t1 = '之前群消息里的附件：从新到旧挑，图片 / 文件各有上限，按消息分组'
     const img = (key) => ({ type: 'image', imageKey: key })
     const file = (name) => ({ type: 'file', fileKey: `fk_${name}`, fileName: name })
     const recent = [
@@ -19,22 +20,20 @@ describe('@bot 时的上下文读取', () => {
     ]
     const out = pickRecentAttachments(recent, { maxImages: 4, maxFiles: 1 })
     assert.deepEqual(out.map((group) => group.item.messageId), ['m4', 'm3', 'm1'], '离 @bot 越近越先')
-    assert.deepEqual(out.find((group) => group.item.messageId === 'm3').attachments.map((item) => item.imageKey), ['c', 'd', 'e'])
+    assert.deepEqual(out.find((group) => group.item.messageId === 'm3').attachments.map((item) => item.imageKey), ['c', 'd', 'e'], t1)
     assert.deepEqual(out.find((group) => group.item.messageId === 'm1').attachments, [img('a')], '图片只剩一张名额，文件名额被新的占了')
-  })
 
-  it('时间：lark-cli 的本地时间字符串直接截成「月-日 时:分」，时间戳按本地时间换，拿不到给空', () => {
-    assert.equal(shortTime('2026-10-23 13:28'), '10-23 13:28')
+    const t2 = '时间：lark-cli 的本地时间字符串直接截成「月-日 时:分」，时间戳按本地时间换，拿不到给空'
+    assert.equal(shortTime('2026-10-23 13:28'), '10-23 13:28', t2)
     const ms = new Date(2026, 9, 22, 21, 4).getTime()
-    assert.equal(shortTime(ms), '10-22 21:04')
-    assert.equal(shortTime(String(ms)), '10-22 21:04')
-    assert.equal(shortTime(''), '')
-  })
+    assert.equal(shortTime(ms), '10-22 21:04', t2)
+    assert.equal(shortTime(String(ms)), '10-22 21:04', t2)
+    assert.equal(shortTime(''), '', t2)
 
-  it('附件列表带文件名和来源，模型分得清哪张图是本条的、哪张是前文的', () => {
+    const t3 = '附件列表带文件名和来源，模型分得清哪张图是本条的、哪张是前文的'
     const text = formatTaskAttachments({ attachments: [{ type: 'file', fileName: 'a.md', origin: '本条', localPath: '/x/a.md' }, { type: 'image', origin: '群里之前的消息 · Encone 10-23 13:28', localPath: '/x/b.png' }] })
-    assert.match(text, /1\. file「a\.md」；来源：本条；本地路径：\/x\/a\.md/)
-    assert.match(text, /2\. image；来源：群里之前的消息 · Encone 10-23 13:28/)
+    assert.match(text, /1\. file「a\.md」；来源：本条；本地路径：\/x\/a\.md/, t3)
+    assert.match(text, /2\. image；来源：群里之前的消息 · Encone 10-23 13:28/, t3)
   })
 })
 
@@ -43,26 +42,26 @@ describe('设计稿 / 文档预取口径', () => {
   const task = (text) => ({ id: 't', text })
   const LINK = 'https://x.larksuite.com/docx/AAAAAAAAAAAAAAAAAAAAAAAAAAA'
 
-  it('实施任务：主消息里的读不到 → 停在实施前；只读任务（代答）读不到也不拦，记进 skipped 照常答', () => {
+  it('预取口径：实施任务读不到就停、只读任务照常答，没引用不预取，Figma 同口径', () => {
+    const t1 = '实施任务：主消息里的读不到 → 停在实施前；只读任务（代答）读不到也不拦，记进 skipped 照常答'
     const failing = docs({ ok: false, failures: [{ url: LINK, reason: '403' }], error: `Lark 文档读取失败：${LINK} → 403` })
     const run = prefetchTaskReferences({ task: task(`按这个做 ${LINK}`), readOnly: false, outDir: '/tmp', deps: { prefetchLarkDocs: failing } })
-    assert.match(run.block.summary, /Lark 文档/)
-    assert.deepEqual(run.block.blockers, [`Lark 文档读取失败：${LINK} → 403`])
+    assert.match(run.block.summary, /Lark 文档/, t1)
+    assert.deepEqual(run.block.blockers, [`Lark 文档读取失败：${LINK} → 403`], t1)
     const ask = task(`PRD 里怎么定的？${LINK}`)
     const answer = prefetchTaskReferences({ task: ask, readOnly: true, outDir: '/tmp', deps: { prefetchLarkDocs: failing } })
-    assert.equal(answer.block, null)
-    assert.equal(ask.larkDocs.ok, true)
-    assert.deepEqual(ask.larkDocs.skipped, [{ url: LINK, reason: '403' }])
-    assert.match(answer.notes[0], /1 份没读到（不拦）/)
-  })
+    assert.equal(answer.block, null, t1)
+    assert.equal(ask.larkDocs.ok, true, t1)
+    assert.deepEqual(ask.larkDocs.skipped, [{ url: LINK, reason: '403' }], t1)
+    assert.match(answer.notes[0], /1 份没读到（不拦）/, t1)
 
-  it('没引用就不预取；Figma 读不到同样按主消息 / 只读口径', () => {
+    const t2 = '没引用就不预取；Figma 读不到同样按主消息 / 只读口径'
     const none = prefetchTaskReferences({ task: task('改个按钮颜色'), readOnly: false, outDir: '/tmp', deps: { prefetchLarkDocs: () => { throw new Error('不该调') } } })
-    assert.deepEqual(none, { audit: {}, notes: [], block: null })
+    assert.deepEqual(none, { audit: {}, notes: [], block: null }, t2)
     const figmaFail = () => ({ referencesFigma: true, urls: ['f'], specs: [], skipped: [], failures: [{ url: 'f', reason: 'x' }], ok: false, error: 'Figma 设计稿读取失败：f → x' })
     const figmaLink = 'https://www.figma.com/design/AbCd1234/Falive?node-id=1-2'
-    assert.match(prefetchTaskReferences({ task: task(`照这个稿 ${figmaLink}`), readOnly: false, outDir: '/tmp', deps: { prefetchFigmaSpec: figmaFail } }).block.summary, /Figma/)
-    assert.equal(prefetchTaskReferences({ task: task(`照这个稿 ${figmaLink}`), readOnly: true, outDir: '/tmp', deps: { prefetchFigmaSpec: figmaFail } }).block, null)
+    assert.match(prefetchTaskReferences({ task: task(`照这个稿 ${figmaLink}`), readOnly: false, outDir: '/tmp', deps: { prefetchFigmaSpec: figmaFail } }).block.summary, /Figma/, t2)
+    assert.equal(prefetchTaskReferences({ task: task(`照这个稿 ${figmaLink}`), readOnly: true, outDir: '/tmp', deps: { prefetchFigmaSpec: figmaFail } }).block, null, t2)
   })
 })
 
@@ -82,31 +81,35 @@ describe('群里这条之前的消息：取紧挨着的最近 N 条，不按时�
   const bot = (id, iso, text) => ({ message_id: id, msg_type: 'text', create_time: at(iso), sender: { sender_type: 'app', open_bot_id: 'ou_bot', name: 'Aven.Bot' }, content: JSON.stringify({ text }) })
   const beforeMs = Date.parse('2026-10-23T02:36:00Z')
 
-  it('12 小时前 bot 向他要东西的卡、中间没人说话：照样带上', async () => {
-    const calls = []
-    const list = async (args) => {
-      calls.push(args)
-      return { ok: true, messages: [bot('om_card', '2026-10-22T14:46:00Z', '@Encone 给一个 pre 主播测试号，用来实测开播写入')], hasMore: false, pageToken: null }
+  it('前文取紧挨的最近 N 条：12 小时前的 bot 卡照带，不够就翻页、最多 maxPages', async () => {
+    {
+      const t1 = '12 小时前 bot 向他要东西的卡、中间没人说话：照样带上'
+      const calls = []
+      const list = async (args) => {
+        calls.push(args)
+        return { ok: true, messages: [bot('om_card', '2026-10-22T14:46:00Z', '@Encone 给一个 pre 主播测试号，用来实测开播写入')], hasMore: false, pageToken: null }
+      }
+      const out = await fetchRecentChatContext({ chatId: 'oc', beforeMs, botOpenIds: ['ou_bot'], list })
+      assert.deepEqual(out.map((item) => item.messageId), ['om_card'], t1)
+      assert.match(out[0].sender, /bot，我们自己/, t1)
+      assert.equal(calls[0].order, 'desc', t1)
+      assert.ok(beforeMs / 1000 - Number(calls[0].start) >= 7 * 24 * 3600 - 1, '兜底拉取范围 7 天')
     }
-    const out = await fetchRecentChatContext({ chatId: 'oc', beforeMs, botOpenIds: ['ou_bot'], list })
-    assert.deepEqual(out.map((item) => item.messageId), ['om_card'])
-    assert.match(out[0].sender, /bot，我们自己/)
-    assert.equal(calls[0].order, 'desc')
-    assert.ok(beforeMs / 1000 - Number(calls[0].start) >= 7 * 24 * 3600 - 1, '兜底拉取范围 7 天')
-  })
 
-  it('一页凑不够 N 条就往前翻页；凑够了就停；最多翻 maxPages 页', async () => {
-    const pages = [
-      { ok: true, messages: [human('m3', '2026-10-23T02:00:00Z', '三'), { message_id: 'sys', msg_type: 'system', create_time: at('2026-10-23T01:00:00Z'), sender: {} }], hasMore: true, pageToken: 'p2' },
-      { ok: true, messages: [human('m2', '2026-10-22T20:00:00Z', '二'), human('m1', '2026-10-21T20:00:00Z', '一')], hasMore: true, pageToken: 'p3' },
-      { ok: true, messages: [human('m0', '2026-10-20T20:00:00Z', '零')], hasMore: false, pageToken: null },
-    ]
-    let index = 0
-    const out = await fetchRecentChatContext({ chatId: 'oc', beforeMs, limit: 3, list: async () => pages[index++] })
-    assert.deepEqual(out.map((item) => item.messageId), ['m1', 'm2', 'm3'], '按时间正序、最新的在后')
-    assert.equal(index, 2, '凑够 3 条就不再翻')
-    index = 0
-    assert.equal((await fetchRecentChatContext({ chatId: 'oc', beforeMs, limit: 10, maxPages: 2, list: async () => pages[index++] })).length, 3)
-    assert.deepEqual(await fetchRecentChatContext({ chatId: 'oc', beforeMs, list: async () => ({ ok: false }) }), [])
+    {
+      const t2 = '一页凑不够 N 条就往前翻页；凑够了就停；最多翻 maxPages 页'
+      const pages = [
+        { ok: true, messages: [human('m3', '2026-10-23T02:00:00Z', '三'), { message_id: 'sys', msg_type: 'system', create_time: at('2026-10-23T01:00:00Z'), sender: {} }], hasMore: true, pageToken: 'p2' },
+        { ok: true, messages: [human('m2', '2026-10-22T20:00:00Z', '二'), human('m1', '2026-10-21T20:00:00Z', '一')], hasMore: true, pageToken: 'p3' },
+        { ok: true, messages: [human('m0', '2026-10-20T20:00:00Z', '零')], hasMore: false, pageToken: null },
+      ]
+      let index = 0
+      const out = await fetchRecentChatContext({ chatId: 'oc', beforeMs, limit: 3, list: async () => pages[index++] })
+      assert.deepEqual(out.map((item) => item.messageId), ['m1', 'm2', 'm3'], '按时间正序、最新的在后')
+      assert.equal(index, 2, '凑够 3 条就不再翻')
+      index = 0
+      assert.equal((await fetchRecentChatContext({ chatId: 'oc', beforeMs, limit: 10, maxPages: 2, list: async () => pages[index++] })).length, 3, t2)
+      assert.deepEqual(await fetchRecentChatContext({ chatId: 'oc', beforeMs, list: async () => ({ ok: false }) }), [], t2)
+    }
   })
 })

@@ -34,30 +34,28 @@ const TABLE = `## 总表（3 项）
 | 28 | 直播 | 直播存档 🆕 | h有 | broker | chat | ❌ | — | spec |
 `
 
-describe('功能总表解析与 diff', () => {
-  it('只认首列为数字的行，状态取 emoji，按负责人统计', () => {
+describe('功能总表解析与 diff、提交按人归并', () => {
+  it('总表只认首列为数字的行并按负责人统计；提交按作者 / 邮箱别名归并到人', () => {
+    const t1 = '只认首列为数字的行，状态取 emoji，按负责人统计'
     const rows = parseFeatureTable(TABLE)
-    assert.equal(rows.length, 3)
-    assert.deepEqual(rows[1], { no: 2, module: '直播预告', feature: '节目表-全部', owner: 'aven', server: 'live', status: '✅', location: '`modules/upcoming`', note: '备注 b' })
-    assert.deepEqual(summarizeFeatureTable(rows), { total: 3, byStatus: { '🟠': 1, '✅': 1, '❌': 1 }, byOwner: { henry: { total: 1, done: 0 }, aven: { total: 1, done: 1 }, broker: { total: 1, done: 0 } } })
+    assert.equal(rows.length, 3, t1)
+    assert.deepEqual(rows[1], { no: 2, module: '直播预告', feature: '节目表-全部', owner: 'aven', server: 'live', status: '✅', location: '`modules/upcoming`', note: '备注 b' }, t1)
+    assert.deepEqual(summarizeFeatureTable(rows), { total: 3, byStatus: { '🟠': 1, '✅': 1, '❌': 1 }, byOwner: { henry: { total: 1, done: 0 }, aven: { total: 1, done: 1 }, broker: { total: 1, done: 0 } } }, t1)
     const changed = diffFeatureTables(rows, rows.map((row) => (row.no === 1 ? { ...row, status: '✅' } : row)))
-    assert.deepEqual(changed, [{ no: 1, feature: '用户资料', owner: 'henry', from: '🟠', to: '✅' }])
-  })
-})
+    assert.deepEqual(changed, [{ no: 1, feature: '用户资料', owner: 'henry', from: '🟠', to: '✅' }], t1)
 
-describe('提交按人归并', () => {
-  it('作者 / 邮箱别名匹配到人名，Merge 提交只计次数', () => {
+    const t2 = '作者 / 邮箱别名匹配到人名，Merge 提交只计次数'
     const people = { aven: ['aven.tong'], henry: ['henry'] }
-    assert.equal(resolvePerson(people, { author: 'aven.tong', email: 'aven.tong@globaldev.info' }), 'aven')
-    assert.equal(resolvePerson(people, { author: 'Henry Li', email: 'henry@x.com' }), 'henry')
-    assert.equal(resolvePerson(people, { author: 'someone', email: 's@x.com' }), 'someone')
+    assert.equal(resolvePerson(people, { author: 'aven.tong', email: 'aven.tong@globaldev.info' }), 'aven', t2)
+    assert.equal(resolvePerson(people, { author: 'Henry Li', email: 'henry@x.com' }), 'henry', t2)
+    assert.equal(resolvePerson(people, { author: 'someone', email: 's@x.com' }), 'someone', t2)
     const groups = groupCommitsByPerson([
       { sha: 'a', author: 'aven', email: 'aven@x', subject: "Merge branch 'feature/x' into 'pre'" },
       { sha: 'b', author: 'henry', email: 'h@x', subject: 'feat: 群组聊天接真实接口' },
     ], people)
-    assert.equal(groups.aven.merges, 1)
-    assert.equal(groups.aven.commits.length, 0)
-    assert.equal(groups.henry.commits[0].sha, 'b')
+    assert.equal(groups.aven.merges, 1, t2)
+    assert.equal(groups.aven.commits.length, 0, t2)
+    assert.equal(groups.henry.commits[0].sha, 'b', t2)
   })
 })
 
@@ -161,7 +159,8 @@ describe('事实采集与日报生成（IO 注入）', () => {
 })
 
 describe('全项目接口缺口线索', () => {
-  it('mock 引用按文件计数，排除测试与 mock.ts 本身', () => {
+  it('mock 引用按文件计数；未打 ✅ 的功能、未 ready 的 MSW 登记、mock 文件三路汇总', () => {
+    const t1 = 'mock 引用按文件计数，排除测试与 mock.ts 本身'
     const out = parseMockUsages([
       "src/modules/download/data/queries.ts:3:import { mockChannels } from './mock'",
       'src/modules/download/data/queries.ts:9:  queryFn: () => mockChannels,',
@@ -169,16 +168,16 @@ describe('全项目接口缺口线索', () => {
       "src/modules/news/data/seo.test.ts:2:mock",
       "src/modules/help/data/mutations.ts:8: * Phase 1：mock",
     ].join('\n'))
-    assert.deepEqual(out, [{ file: 'src/modules/download/data/queries.ts', hits: 2 }, { file: 'src/modules/help/data/mutations.ts', hits: 1 }])
-  })
-  it('未打 ✅ 的功能、未 ready 的 MSW 登记、mock 文件三路汇总；grep 无命中不报错', () => {
+    assert.deepEqual(out, [{ file: 'src/modules/download/data/queries.ts', hits: 2 }, { file: 'src/modules/help/data/mutations.ts', hits: 1 }], t1)
+
+    const t2 = '未打 ✅ 的功能、未 ready 的 MSW 登记、mock 文件三路汇总；grep 无命中不报错'
     const rows = [{ no: 1, feature: '用户资料', owner: 'henry', status: '🟠', location: 'user', note: 'mock' }, { no: 2, feature: '登录', owner: 'aven', status: '✅' }]
     const files = { '/r/src/mocks/pending-endpoints.json': JSON.stringify({ pending: [{ path: '*/api/a', owner: 'henry', reason: 'r', ready: false }, { path: '*/api/b', ready: true }] }) }
     const sources = collectApiGapSources({ dir: '/r', rows, git: () => ({ ok: false, stdout: '' }), readFile: (path) => files[path] })
-    assert.deepEqual(sources.unfinished.map((row) => row.no), [1])
-    assert.deepEqual(sources.msw.map((item) => item.path), ['*/api/a'])
-    assert.deepEqual(sources.mockUsages, [])
-    assert.deepEqual(collectApiGapSources({ dir: '/none', rows: [], git: () => ({ ok: false }), readFile: () => { throw new Error('x') } }).msw, [])
+    assert.deepEqual(sources.unfinished.map((row) => row.no), [1], t2)
+    assert.deepEqual(sources.msw.map((item) => item.path), ['*/api/a'], t2)
+    assert.deepEqual(sources.mockUsages, [], t2)
+    assert.deepEqual(collectApiGapSources({ dir: '/none', rows: [], git: () => ({ ok: false }), readFile: () => { throw new Error('x') } }).msw, [], t2)
   })
 })
 
@@ -285,41 +284,40 @@ describe('待对接文档最新视图', () => {
     return dir
   }
 
-  it('三分支合并：各改的行都保留，只在一边有的文件也带上；真冲突回落取较新并标 conflict', () => {
-    const dir = realRepo()
+  it('合并三分支的待对接文档视图：真 git 合并 / 集成分支缺失 / 注入 git 取较新', () => {
+    const t1 = '三分支合并：各改的行都保留，只在一边有的文件也带上；真冲突回落取较新并标 conflict'
+    let dir = realRepo()
     try {
       const out = buildDocsView({ root: dir, refs: ['pre', 'work', 'integ'], relDir: 'docs/p', outDir: join(dir, 'view') })
-      assert.equal(out.merged, true)
-      assert.equal(readFileSync(join(dir, 'view', 'a.md'), 'utf8'), 'E1 已答复\n-\nE2 已实测\n-\nE3 已复测\n')
-      assert.equal(readFileSync(join(dir, 'view', 'sweep.md'), 'utf8'), '清扫结论\n')
+      assert.equal(out.merged, true, t1)
+      assert.equal(readFileSync(join(dir, 'view', 'a.md'), 'utf8'), 'E1 已答复\n-\nE2 已实测\n-\nE3 已复测\n', t1)
+      assert.equal(readFileSync(join(dir, 'view', 'sweep.md'), 'utf8'), '清扫结论\n', t1)
       // c.md 在 pre 与工作分支同一行冲突 → 取最后提交较新的工作分支版，不写冲突标记
-      assert.equal(readFileSync(join(dir, 'view', 'c.md'), 'utf8'), 'X 工作分支版\n')
+      assert.equal(readFileSync(join(dir, 'view', 'c.md'), 'utf8'), 'X 工作分支版\n', t1)
       assert.deepEqual(out.picked, [
         { file: 'docs/p/a.md', ref: 'merged' },
         { file: 'docs/p/c.md', ref: 'work', conflict: true },
         { file: 'docs/p/sweep.md', ref: 'merged' },
-      ])
+      ], t1)
       // 不动分支、不动工作区
-      assert.equal(execFileSync('git', ['-C', dir, 'branch', '--show-current'], { encoding: 'utf8' }).trim(), 'integ')
-      assert.equal(execFileSync('git', ['-C', dir, 'status', '--porcelain', '--', 'docs'], { encoding: 'utf8' }).trim(), '')
+      assert.equal(execFileSync('git', ['-C', dir, 'branch', '--show-current'], { encoding: 'utf8' }).trim(), 'integ', t1)
+      assert.equal(execFileSync('git', ['-C', dir, 'status', '--porcelain', '--', 'docs'], { encoding: 'utf8' }).trim(), '', t1)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
-  })
 
-  it('集成分支不存在：照样合并其余分支', () => {
-    const dir = realRepo()
+    const t2 = '集成分支不存在：照样合并其余分支'
+    dir = realRepo()
     try {
       const out = buildDocsView({ root: dir, refs: ['pre', 'work', 'no-such-branch'], relDir: 'docs/p', outDir: join(dir, 'view') })
-      assert.equal(out.merged, true)
-      assert.equal(readFileSync(join(dir, 'view', 'a.md'), 'utf8'), 'E1 待答复\n-\nE2 已实测\n-\nE3 已复测\n')
+      assert.equal(out.merged, true, t2)
+      assert.equal(readFileSync(join(dir, 'view', 'a.md'), 'utf8'), 'E1 待答复\n-\nE2 已实测\n-\nE3 已复测\n', t2)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
-  })
 
-  it('同一份文件取 pre 与工作分支里提交较新的那版，只在一边有的也带上', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'lark-docs-view-'))
+    const t3 = '同一份文件取 pre 与工作分支里提交较新的那版，只在一边有的也带上'
+    dir = mkdtempSync(join(tmpdir(), 'lark-docs-view-'))
     try {
       const tree = { 'origin/pre': ['docs/p/a.md', 'docs/p/sweep.md'], 'feature/x': ['docs/p/a.md', 'docs/p/b.md'] }
       const times = { 'origin/pre:docs/p/a.md': 200, 'feature/x:docs/p/a.md': 100, 'origin/pre:docs/p/sweep.md': 300, 'feature/x:docs/p/b.md': 50 }
@@ -329,9 +327,9 @@ describe('待对接文档最新视图', () => {
         return { ok: false, stdout: '' }
       }
       const out = buildDocsView({ root: dir, refs: ['origin/pre', 'feature/x'], relDir: 'docs/p', outDir: join(dir, 'view'), git, readBlob: (ref, path) => Buffer.from(`${ref}|${path}`) })
-      assert.deepEqual(out.picked, [{ file: 'docs/p/a.md', ref: 'origin/pre' }, { file: 'docs/p/b.md', ref: 'feature/x' }, { file: 'docs/p/sweep.md', ref: 'origin/pre' }])
-      assert.equal(readFileSync(join(dir, 'view', 'a.md'), 'utf8'), 'origin/pre|docs/p/a.md')
-      assert.equal(readFileSync(join(dir, 'view', 'b.md'), 'utf8'), 'feature/x|docs/p/b.md')
+      assert.deepEqual(out.picked, [{ file: 'docs/p/a.md', ref: 'origin/pre' }, { file: 'docs/p/b.md', ref: 'feature/x' }, { file: 'docs/p/sweep.md', ref: 'origin/pre' }], t3)
+      assert.equal(readFileSync(join(dir, 'view', 'a.md'), 'utf8'), 'origin/pre|docs/p/a.md', t3)
+      assert.equal(readFileSync(join(dir, 'view', 'b.md'), 'utf8'), 'feature/x|docs/p/b.md', t3)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -347,24 +345,25 @@ describe('完整版：没测的先测完（aven 2026-10-21）', () => {
     setImmediate(() => setImmediate(() => listeners.exit?.(0)))
     return child
   }
-  it('给了 probeCommand：开 Bash 但只放行这一条探针命令，不再是 plan 模式；env 原样传入', async () => {
-    const calls = []
+  it('完整版带探针命令 / 短版 plan 模式；私信核对单列出三节新加的行', async () => {
+    const t1 = '给了 probeCommand：开 Bash 但只放行这一条探针命令，不再是 plan 模式；env 原样传入'
+    let calls = []
     const text = await generateDailyReportText({ prompt: 'p', profile: { root: '/r' }, spawnImpl: fakeSpawn(calls), probeCommand: 'node scripts/pre-probe.mjs', env: { PROBE_ALLOW_WRITE: '0', PROBE_MAIL: 'a@probe.test' } })
-    assert.equal(text, '正文')
+    assert.equal(text, '正文', t1)
     const { args, opts } = calls[0]
-    assert.deepEqual(args.slice(args.indexOf('--tools'), args.indexOf('--tools') + 4), ['--tools', 'Read,Grep,Glob,Bash', '--allowedTools', 'Bash(node scripts/pre-probe.mjs:*)'])
-    assert.ok(!args.includes('plan'))
-    assert.equal(opts.env.PROBE_ALLOW_WRITE, '0')
-  })
-  it('没给 probeCommand（短版）：仍是 plan 模式、只读三件套', async () => {
-    const calls = []
+    assert.deepEqual(args.slice(args.indexOf('--tools'), args.indexOf('--tools') + 4), ['--tools', 'Read,Grep,Glob,Bash', '--allowedTools', 'Bash(node scripts/pre-probe.mjs:*)'], t1)
+    assert.ok(!args.includes('plan'), t1)
+    assert.equal(opts.env.PROBE_ALLOW_WRITE, '0', t1)
+
+    const t2 = '没给 probeCommand（短版）：仍是 plan 模式、只读三件套'
+    calls = []
     await generateDailyReportText({ prompt: 'p', profile: { root: '/r' }, spawnImpl: fakeSpawn(calls) })
-    assert.deepEqual(calls[0].args.slice(1, 5), ['--permission-mode', 'plan', '--tools', 'Read,Grep,Glob'])
-    assert.equal(calls[0].opts.env, undefined)
-  })
-  it('私信核对单列出三节今天新加的行', () => {
+    assert.deepEqual(calls[0].args.slice(1, 5), ['--permission-mode', 'plan', '--tools', 'Read,Grep,Glob'], t2)
+    assert.equal(calls[0].opts.env, undefined, t2)
+
+    const t3 = '私信核对单列出三节今天新加的行'
     const note = buildReviewNote({ date: '2026-10-21', ledger: [{ name: '二', added: ['#9 x'], unexplained: [], resolved: [] }, { name: '三', added: ['新事项'], unexplained: [], resolved: [] }] })
-    assert.match(note, /\*\*三节今天新加的行\*\*.*\n- 新事项/)
-    assert.doesNotMatch(note, /#9 x/)
+    assert.match(note, /\*\*三节今天新加的行\*\*.*\n- 新事项/, t3)
+    assert.doesNotMatch(note, /#9 x/, t3)
   })
 })

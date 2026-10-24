@@ -20,7 +20,7 @@ describe('repo-only 实例', () => {
   let savedMode
   let savedFetch
   let posted
-  beforeEach(() => {
+  const setup = () => {
     savedMode = process.env.LARK_INSTANCE_MODE
     savedFetch = globalThis.fetch
     posted = []
@@ -29,79 +29,91 @@ describe('repo-only 实例', () => {
       return { ok: true, status: 200, text: async () => JSON.stringify({ code: 0, msg: 'success' }), json: async () => ({ code: 0, msg: 'success' }) }
     }
     registerRepoProfiles({ repos: { falive: { root: '/tmp/falive', baseRef: 'main', chatIds: [GROUP], notifyChatId: CONSOLE, webhooksByChat: { [CONSOLE]: { url: 'https://hook/console' }, [GROUP]: { url: 'https://hook/group' } } } } })
-  })
-  afterEach(() => {
+  }
+  const teardown = () => {
     if (savedMode === undefined) delete process.env.LARK_INSTANCE_MODE
     else process.env.LARK_INSTANCE_MODE = savedMode
     globalThis.fetch = savedFetch
     resetRepoProfiles()
-  })
+  }
+  beforeEach(setup)
+  afterEach(teardown)
 
-  it('按群找登记的 webhook（含不在 chatIds 里的控制台群）', () => {
-    assert.equal(resolveWebhookForChat(CONSOLE)?.url, 'https://hook/console')
-    assert.equal(resolveWebhookForChat(GROUP)?.url, 'https://hook/group')
-    assert.equal(resolveWebhookForChat('oc_internal'), null)
-  })
+  it('webhook 直发：按群找 webhook、未登记拒发，非仓库群忽略、控制台按 p2p、锚不到只回提示', async () => {
+    const t1 = '按群找登记的 webhook（含不在 chatIds 里的控制台群）'
+    assert.equal(resolveWebhookForChat(CONSOLE)?.url, 'https://hook/console', t1)
+    assert.equal(resolveWebhookForChat(GROUP)?.url, 'https://hook/group', t1)
+    assert.equal(resolveWebhookForChat('oc_internal'), null, t1)
 
-  it('私聊通知与群卡片都直走 webhook；没登记 webhook 的收件人拒发，不回落 bot 身份', async () => {
+    // 每段独立状态，等同原 beforeEach / afterEach
+    teardown()
+    setup()
+    const t2 = '私聊通知与群卡片都直走 webhook；没登记 webhook 的收件人拒发，不回落 bot 身份'
     process.env.LARK_INSTANCE_MODE = 'repo-only'
     const note = await sendBotMarkdown({ chatId: CONSOLE, markdown: '**完成**', retries: 1 })
-    assert.equal(note.ok, true)
-    assert.equal(posted[0].url, 'https://hook/console')
-    assert.equal(posted[0].body.msg_type, 'interactive')
-    assert.equal(posted[0].body.card.elements[0].content, '**完成**')
+    assert.equal(note.ok, true, t2)
+    assert.equal(posted[0].url, 'https://hook/console', t2)
+    assert.equal(posted[0].body.msg_type, 'interactive', t2)
+    assert.equal(posted[0].body.card.elements[0].content, '**完成**', t2)
     // 旧卡片通道发往外部群：一律改发控制台（10-21，外部群只收 sendGroupCard 出口的话）
     const card = await sendChatMessage({ chatId: GROUP, text: 'hi', logPrefix: 't', retries: 1 })
-    assert.equal(card.ok, true)
-    assert.equal(posted[1].url, 'https://hook/console')
+    assert.equal(card.ok, true, t2)
+    assert.equal(posted[1].url, 'https://hook/console', t2)
     const refused = await sendBotMarkdown({ chatId: 'ou_someone', markdown: 'x', retries: 1 })
-    assert.equal(refused.ok, false)
-    assert.match(refused.reason, /repo-only/)
-    assert.equal(posted.length, 2)
-  })
+    assert.equal(refused.ok, false, t2)
+    assert.match(refused.reason, /repo-only/, t2)
+    assert.equal(posted.length, 2, t2)
 
-  it('非仓库群忽略；控制台按 p2p 处理；锚不到任务只回提示', async () => {
+    // 每段独立状态，等同原 beforeEach / afterEach
+    teardown()
+    setup()
+    const t3 = '非仓库群忽略；控制台按 p2p 处理；锚不到任务只回提示'
     process.env.LARK_INSTANCE_MODE = 'repo-only'
-    assert.equal(isForeignChat({ msg: { chatId: 'oc_internal', chatType: 'group', messageId: 'm1' }, repo: null }), true)
-    assert.equal(isForeignChat({ msg: { chatId: GROUP, chatType: 'group' }, repo: { key: 'falive' } }), false)
-    assert.equal(isConsoleMessage({ chatType: 'p2p' }), true)
+    assert.equal(isForeignChat({ msg: { chatId: 'oc_internal', chatType: 'group', messageId: 'm1' }, repo: null }), true, t3)
+    assert.equal(isForeignChat({ msg: { chatId: GROUP, chatType: 'group' }, repo: { key: 'falive' } }), false, t3)
+    assert.equal(isConsoleMessage({ chatType: 'p2p' }), true, t3)
     const sent = []
     await replyUnanchoredConsole({ msg: { chatId: CONSOLE, messageId: 'm2', text: '在吗' }, send: async (args) => sent.push(args) })
-    assert.deepEqual(sent.map((item) => [item.chatId, item.markdown]), [[CONSOLE, CONSOLE_UNANCHORED_HINT]])
-    assert.equal(chatListMessageToEvent({ message_id: 'm3' }, { chatId: CONSOLE, chatType: 'p2p' }).chat_type, 'p2p')
-    assert.equal(chatListMessageToEvent({ message_id: 'm4' }, { chatId: GROUP }).chat_type, 'group')
+    assert.deepEqual(sent.map((item) => [item.chatId, item.markdown]), [[CONSOLE, CONSOLE_UNANCHORED_HINT]], t3)
+    assert.equal(chatListMessageToEvent({ message_id: 'm3' }, { chatId: CONSOLE, chatType: 'p2p' }).chat_type, 'p2p', t3)
+    assert.equal(chatListMessageToEvent({ message_id: 'm4' }, { chatId: GROUP }).chat_type, 'group', t3)
   })
 
-  it('点名的任务 id 锚不到 → 说找不到哪个 id；只差一两位的任务给出改好的整句（10-22 #65：6bfcc 抄成 6fbcc）', () => {
+  it('点名 id 锚不到给纠错整句，非 repo-only 守卫不生效，无 message_id 也登记回执', () => {
+    const t1 = '点名的任务 id 锚不到 → 说找不到哪个 id；只差一两位的任务给出改好的整句（10-22 #65：6bfcc 抄成 6fbcc）'
     const tasks = [{ id: 'om_x100b62aec0488ca4ffbbaf6bfcc5e77' }, { id: 'om_x100b62ae1294cca0fe08427680cd575' }]
     const store = { list: () => tasks, get: (id) => tasks.find((task) => task.id === id) || null }
     const hint = (text) => consoleUnanchoredHint({ msg: { text }, store })
-    assert.equal(hint('在吗'), CONSOLE_UNANCHORED_HINT)
+    assert.equal(hint('在吗'), CONSOLE_UNANCHORED_HINT, t1)
     assert.equal(hint('继续任务 om_x100b62aec0488ca4ffbbaf6fbcc5e77 确认扩大范围'),
       '找不到任务 om_x100b62aec0488ca4ffbbaf6fbcc5e77，没续跑。是不是 om_x100b62aec0488ca4ffbbaf6bfcc5e77？是的话发「继续任务 om_x100b62aec0488ca4ffbbaf6bfcc5e77 确认扩大范围」。')
-    assert.match(hint('继续任务 om_nothing_like_it'), /^找不到任务 om_nothing_like_it，没续跑。请从通知里整行复制/)
-    assert.match(hint('继续任务 om_x100b62ae1294cca0fe08427680cd575 做'), /在，但这里接不上/)
-  })
+    assert.match(hint('继续任务 om_nothing_like_it'), /^找不到任务 om_nothing_like_it，没续跑。请从通知里整行复制/, t1)
+    assert.match(hint('继续任务 om_x100b62ae1294cca0fe08427680cd575 做'), /在，但这里接不上/, t1)
 
-  it('非 repo-only（fameex 那套）守卫全部不生效', () => {
+    // 每段独立状态，等同原 beforeEach / afterEach
+    teardown()
+    setup()
+    const t2 = '非 repo-only（fameex 那套）守卫全部不生效'
     delete process.env.LARK_INSTANCE_MODE
-    assert.equal(isForeignChat({ msg: { chatId: 'oc_internal', chatType: 'group' }, repo: null }), false)
-    assert.equal(isConsoleMessage({ chatType: 'p2p' }), false)
-  })
+    assert.equal(isForeignChat({ msg: { chatId: 'oc_internal', chatType: 'group' }, repo: null }), false, t2)
+    assert.equal(isConsoleMessage({ chatType: 'p2p' }), false, t2)
 
-  it('webhook 通知没有 message_id 也登记回执：控制台随口回一句能接上最近的任务，回复锚定不受合成 id 影响', () => {
+    // 每段独立状态，等同原 beforeEach / afterEach
+    teardown()
+    setup()
+    const t3 = 'webhook 通知没有 message_id 也登记回执：控制台随口回一句能接上最近的任务，回复锚定不受合成 id 影响'
     const dir = mkdtempSync(join(tmpdir(), 'repo-only-receipt-'))
     try {
       const store = createTaskStore({ tasksDir: join(dir, 'tasks'), leaseMs: 60_000 })
       store.upsert({ id: 'om_task1', repo: 'falive', chatId: GROUP, status: 'done', text: 't', summary: '直播预告复测' })
       store.recordReceipt('om_task1', { messageId: undefined, kind: 'done', epoch: 0 })
       const [receipt] = store.get('om_task1').receipts
-      assert.match(receipt.messageId, /^webhook:done:/)
+      assert.match(receipt.messageId, /^webhook:done:/, t3)
       const profile = { key: 'falive' }
       const anchor = resolvePrincipalAnchor({ msg: { chatId: CONSOLE, text: '这条再测一下', replyTo: null, replyToDirect: null }, store, profile })
-      assert.equal(anchor?.task.id, 'om_task1')
-      assert.equal(anchor?.via, 'recent')
-      assert.equal(store.findTaskByAnyReceipt('om_real_reply_target'), null)
+      assert.equal(anchor?.task.id, 'om_task1', t3)
+      assert.equal(anchor?.via, 'recent', t3)
+      assert.equal(store.findTaskByAnyReceipt('om_real_reply_target'), null, t3)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
