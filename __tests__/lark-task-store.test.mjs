@@ -8,7 +8,7 @@ import assert from 'node:assert/strict'
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, it } from 'node:test'
+import { describe, it } from 'node:test'
 
 import { isTransientIntakeError } from '../lib/lark-intake-retry.mjs'
 import { createTaskStore, isReopenableClosedTask } from '../lib/lark-task-store.mjs'
@@ -83,6 +83,37 @@ describe('createTaskStore', () => {
       assert.equal(task.status, 'failed')
       assert.ok(task.deadLetterReason)
       assert.deepEqual(dead, ['poison'])
+    }],
+
+    ['任务自带 leaseMs 非正（null / 0）回落默认租约：刚领取的不算孤儿、不被回收（变异补测 10-24）', () => {
+      const store = createTaskStore({ tasksDir: dir, leaseMs: 60_000 })
+      const claimedAt = new Date(Date.now() - 1000).toISOString()
+      store.upsert({ id: 'null-lease', status: 'running', leaseMs: null, claimedAt, createdAt: '2026-01-01T00:00:00Z' })
+      store.upsert({ id: 'zero-lease', status: 'running', leaseMs: 0, claimedAt, createdAt: '2026-01-01T00:00:00Z' })
+      store.reclaimOrphans()
+      assert.equal(store.get('null-lease').status, 'running')
+      assert.equal(store.get('zero-lease').status, 'running')
+      assert.deepEqual(store.stats().stuck, [])
+    }],
+
+    ['claimById 只领 queued / received：缺失与已了结返回 null 且不改状态；保留已有 epoch，未设过的基线为 0（变异补测 10-24）', () => {
+      const store = createTaskStore({ tasksDir: dir, leaseMs: 60_000 })
+      store.upsert({ id: 'done', status: 'done', createdAt: '2026-01-01T00:00:00Z' })
+      assert.equal(store.claimById('missing'), null)
+      assert.equal(store.claimById('done'), null)
+      assert.equal(store.get('done').status, 'done')
+      store.upsert({ id: 'gen2', status: 'queued', epoch: 2, createdAt: '2026-01-01T00:00:00Z' })
+      assert.equal(store.claimById('gen2').epoch, 2, 'fencing token 不能在领取时被清零')
+      store.upsert({ id: 'fresh', status: 'queued', createdAt: '2026-01-01T00:00:00Z' })
+      assert.equal(store.claimById('fresh').epoch, 0)
+    }],
+
+    ['claimNext 领取去抖窗口（notBefore）已过的 received，未到的不领（变异补测 10-24）', () => {
+      const store = createTaskStore({ tasksDir: dir, leaseMs: 60_000 })
+      store.upsert({ id: 'later', status: 'received', intake: { required: true, notBefore: new Date(Date.now() + 60_000).toISOString() }, createdAt: '2026-01-01T00:00:00Z' })
+      store.upsert({ id: 'due', status: 'received', intake: { required: true, notBefore: new Date(Date.now() - 1000).toISOString() }, createdAt: '2026-01-02T00:00:00Z' })
+      assert.equal(store.claimNext()?.id, 'due')
+      assert.equal(store.claimNext(), null)
     }],
   ], hooks))
 
@@ -196,6 +227,36 @@ describe('createTaskStore', () => {
         409,
       )
       assert.equal(store.resolveIntake({ id: claimed.id, epoch: claimedEpoch - 1, classification }).code, 409)
+    }],
+
+    ['已成功落态的分类不被迟到的异常回报当幂等（409）；同一异常重放在非零代次下幂等成功、换个异常 409（变异补测 10-24）', () => {
+      const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+      const classification = { decision: 'bug', confidence: 'high', summary: '修复登录报错', reason: '正文明确报错' }
+      const error = 'Claude 未返回合法结构化结果'
+      store.upsert({ id: 'ok', status: 'received', intake: { required: true }, createdAt: new Date().toISOString() })
+      const claimed = store.claimById('ok')
+      assert.equal(store.resolveIntake({ id: 'ok', epoch: claimed.epoch, classification }).actionable, true)
+      assert.equal(store.resolveIntake({ id: 'ok', epoch: claimed.epoch, error }).code, 409, '分类已成功，迟到的异常回报不能当幂等重放')
+      assert.equal(store.get('ok').status, 'queued')
+
+      store.upsert({ id: 'bad', status: 'received', epoch: 2, intake: { required: true }, createdAt: new Date().toISOString() })
+      const badClaim = store.claimById('bad')
+      assert.equal(store.resolveIntake({ id: 'bad', epoch: badClaim.epoch, error }).task.status, 'intake_failed')
+      const replay = store.resolveIntake({ id: 'bad', epoch: 2, error })
+      assert.equal(replay.ok, true, '同一异常重放（非 actionable 不换代，按当前代次核对）幂等成功')
+      assert.equal(replay.alreadyResolved, true)
+      assert.equal(replay.actionable, false)
+      assert.equal(store.resolveIntake({ id: 'bad', epoch: 2, error: '另一个异常' }).code, 409)
+    }],
+
+    ['resolveIntake 对缺失任务、尚未领取的 received 任务一律 409 不抛不改；stale epoch 报错带当前代次（变异补测 10-24）', () => {
+      const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+      assert.equal(store.resolveIntake({ id: 'missing', classification: {} }).code, 409)
+      store.upsert({ id: 'unclaimed', status: 'received', intake: { required: true }, createdAt: '2026-01-01T00:00:00Z' })
+      assert.equal(store.resolveIntake({ id: 'unclaimed', epoch: 0, classification: { decision: 'bug', confidence: 'high', summary: 's' } }).code, 409)
+      assert.equal(store.get('unclaimed').status, 'received')
+      store.upsert({ id: 'stale', status: 'running', epoch: 3, intake: { required: true }, createdAt: '2026-01-01T00:00:00Z' })
+      assert.equal(store.resolveIntake({ id: 'stale', epoch: 2, classification: {} }).error, 'stale epoch: got 2, current 3')
     }],
   ], hooks))
 
@@ -338,6 +399,26 @@ describe('createTaskStore', () => {
       assert.equal(store.reopenFromQaReturn({ id: 'running', text: 'x' }), null)
       assert.equal(store.reopenFromQaReturn({ id: 'waiting', text: 'x' }), null)
     }],
+
+    ['QA 验退只认 bug 表任务（群任务 / 缺失 → null）；新一轮正文以最新表格正文开头；摘要 / project 有新值才覆盖；历史记上一轮了结时间（变异补测 10-24）', () => {
+      const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+      store.upsert({ id: 'chat-task', source: 'lark', status: 'done', createdAt: '2026-01-01T00:00:00Z' })
+      assert.equal(store.reopenFromQaReturn({ id: 'chat-task', text: 'x' }), null)
+      assert.equal(store.get('chat-task').status, 'done')
+      assert.equal(store.reopenFromQaReturn({ id: 'missing', text: 'x' }), null)
+
+      const finishedAt = store.upsert({ id: 'rec', source: 'lark-bugtable', status: 'done', summary: '旧摘要', project: 'PR-1', result: '旧结论', createdAt: '2026-01-01T00:00:00Z' }).updatedAt
+      const first = store.reopenFromQaReturn({ id: 'rec', text: '  修复：按钮仍错位  ' })
+      assert.ok(first.text.startsWith('修复：按钮仍错位\n\n【验退轮次】'), first.text)
+      assert.equal(first.summary, '旧摘要')
+      assert.equal(first.project, 'PR-1')
+      assert.equal(first.executionHistory[0].finishedAt, finishedAt)
+
+      store.upsert({ ...store.get('rec'), status: 'done' })
+      const second = store.reopenFromQaReturn({ id: 'rec', text: 'y', summary: '新摘要', project: 'PR-2' })
+      assert.equal(second.summary, '新摘要')
+      assert.equal(second.project, 'PR-2')
+    }],
   ], hooks))
 
   it('resumeWithSupplement 续 waiting_confirmation：append 补料、复用同 id、回 queued、bump epoch；空回复不续跑；非 waiting/blocked 返回 null', () => runSteps([
@@ -381,6 +462,14 @@ describe('createTaskStore', () => {
       assert.equal(store.resumeWithSupplement({ id: 'missing', supplementText: 'y' }), null)
       assert.equal(store.get('done').status, 'done')
     }],
+
+    ['补料续跑保留已有摘要；无摘要时取补料开头 80 字（变异补测 10-24）', () => {
+      const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+      store.upsert({ id: 'has', status: 'blocked', summary: '原摘要', createdAt: '2026-01-01T00:00:00Z' })
+      assert.equal(store.resumeWithSupplement({ id: 'has', supplementText: '补料内容' }).summary, '原摘要')
+      store.upsert({ id: 'none', status: 'waiting_confirmation', createdAt: '2026-01-01T00:00:00Z' })
+      assert.equal(store.resumeWithSupplement({ id: 'none', supplementText: 'x'.repeat(100) }).summary, 'x'.repeat(80))
+    }],
   ], hooks))
 
   it('落盘恢复与回执关联：重建 store 从磁盘恢复、损坏 JSON 改名 .corrupt 不丢单、回执 message_id 重启后可反查、旧 epoch 回执不关联换代任务', () => runSteps([
@@ -414,6 +503,37 @@ describe('createTaskStore', () => {
       store.recordReceipt('receipt-epoch', { messageId: 'om_old', kind: 'waiting_confirmation', epoch: 1 })
       assert.equal(store.get('receipt-epoch').receipts[0].epoch, 1)
       assert.equal(store.findByReceiptMessageId('om_old'), null)
+    }],
+
+    ['recordReceipt 同一 message_id 只留最新一条、不同卡并存；无 message_id 记 webhook 合成 id 且不互相去重，kind 缺省 receipt（变异补测 10-24）', () => {
+      const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+      store.upsert({ id: 't', status: 'waiting_confirmation', epoch: 1, createdAt: '2026-01-01T00:00:00Z' })
+      store.recordReceipt('t', { messageId: 'om_a', kind: 'queued' })
+      store.recordReceipt('t', { messageId: 'om_b', kind: 'waiting_confirmation' })
+      store.recordReceipt('t', { messageId: 'om_a', kind: 'done' })
+      assert.deepEqual(store.get('t').receipts.map((r) => [r.messageId, r.kind, r.epoch]), [['om_b', 'waiting_confirmation', 1], ['om_a', 'done', 1]])
+      store.recordReceipt('t', {})
+      store.recordReceipt('t', { kind: 'blocked' })
+      const receipts = store.get('t').receipts
+      assert.equal(receipts.length, 4)
+      assert.equal(receipts[2].kind, 'receipt')
+      assert.match(receipts[2].messageId, /^webhook:receipt:\d+$/)
+      assert.equal(receipts[3].kind, 'blocked')
+      assert.match(receipts[3].messageId, /^webhook:blocked:\d+$/)
+    }],
+
+    ['变更流条目带任务的 epoch 与 updatedAt；无 epoch 记 0、无 updatedAt 记当前时刻（变异补测 10-24）', () => {
+      writeFileSync(join(dir, 'legacy.json'), JSON.stringify({ id: 'legacy', status: 'waiting_confirmation', epoch: 2, updatedAt: '2026-01-01T00:00:00.000Z', createdAt: '2026-01-01T00:00:00Z' }))
+      writeFileSync(join(dir, 'bare.json'), JSON.stringify({ id: 'bare', status: 'queued', createdAt: '2026-01-01T00:00:00Z' }))
+      const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+      store.recordReceipt('legacy', { messageId: 'om_1', kind: 'waiting_confirmation' })
+      store.recordReceipt('bare', { messageId: 'om_2', kind: 'queued' })
+      const [legacy, bare] = store.changesSince(0).changes
+      assert.equal(legacy.id, 'legacy')
+      assert.equal(legacy.epoch, 2)
+      assert.equal(legacy.at, '2026-01-01T00:00:00.000Z')
+      assert.equal(bare.epoch, 0)
+      assert.ok(Number.isFinite(Date.parse(bare.at)), String(bare.at))
     }],
   ], hooks))
 
@@ -453,6 +573,22 @@ describe('createTaskStore', () => {
       assert.equal(stats.topRequeued[0].id, 'hot')
       assert.ok(stats.minLeaseRemainingMs > 0 && stats.minLeaseRemainingMs <= 60_000) // busy 未超租约
     }],
+
+    ['stats 按状态计数；只列有 requeue / retry 的任务且缺项记 0；排队年龄只看 queued / received 并取最老；租约余量只看在跑任务（变异补测 10-24）', () => {
+      const store = createTaskStore({ tasksDir: dir, leaseMs: 60_000 })
+      const hoursAgo = (hours) => new Date(Date.now() - hours * 3600_000).toISOString()
+      // 插入顺序有意让最老的排在前面：取最大值而不是「最后一个」
+      store.upsert({ id: 'q-old', status: 'queued', createdAt: hoursAgo(10) })
+      store.upsert({ id: 'recv', status: 'received', createdAt: hoursAgo(5) })
+      store.upsert({ id: 'q-new', status: 'queued', createdAt: hoursAgo(1) })
+      store.upsert({ id: 'done-ancient', status: 'done', claimedAt: hoursAgo(100), createdAt: hoursAgo(100) })
+      store.upsert({ id: 'only-retry', status: 'failed', retryCount: 2, createdAt: hoursAgo(1) })
+      const stats = store.stats()
+      assert.deepEqual(stats.counts, { queued: 2, received: 1, done: 1, failed: 1 })
+      assert.deepEqual(stats.topRequeued, [{ id: 'only-retry', requeueCount: 0, retryCount: 2 }])
+      assert.ok(stats.oldestQueuedAgeMs >= 10 * 3600_000 && stats.oldestQueuedAgeMs < 10 * 3600_000 + 60_000, String(stats.oldestQueuedAgeMs))
+      assert.equal(stats.minLeaseRemainingMs, null, '已了结任务残留的 claimedAt 不算租约')
+    }],
   ], hooks))
 
   describe('同话题归并 / 收尾（listParkedByThread + supersede）', () => {
@@ -490,6 +626,137 @@ describe('createTaskStore', () => {
         store.upsert({ id: 'd', status: 'done', threadRootId: 'T', createdAt: '2026-01-01T00:00:00Z' })
         assert.equal(store.supersede({ id: 'd', bySiblingId: 'b' }), null)
         assert.equal(store.supersede({ id: 'missing', bySiblingId: 'b' }), null)
+      }],
+
+      ['requeueForSupplement 只对标了 rerunAfterDone 的任务换代回队（epoch++、rerunCount 计数），最多续跑 3 次（变异补测 10-24）', () => {
+        const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+        store.upsert({ id: 'plain', status: 'done', epoch: 1, createdAt: '2026-01-01T00:00:00Z' })
+        assert.equal(store.requeueForSupplement('plain'), null)
+        assert.equal(store.get('plain').status, 'done')
+        assert.equal(store.requeueForSupplement('missing'), null)
+        store.upsert({ id: 'r', status: 'done', epoch: 2, rerunAfterDone: true, claimedAt: '2026-01-01T00:00:00Z', createdAt: '2026-01-01T00:00:00Z' })
+        const first = store.requeueForSupplement('r')
+        assert.equal(first.status, 'queued')
+        assert.equal(first.epoch, 3)
+        assert.equal(first.rerunCount, 1)
+        assert.equal(first.claimedAt, null)
+        assert.equal(first.rerunAfterDone, undefined)
+        for (const round of [2, 3]) {
+          store.upsert({ ...store.get('r'), status: 'done', rerunAfterDone: true })
+          assert.equal(store.requeueForSupplement('r')?.rerunCount, round, `第 ${round} 次补充仍续跑`)
+        }
+        store.upsert({ ...store.get('r'), status: 'done', rerunAfterDone: true })
+        assert.equal(store.requeueForSupplement('r'), null, '第 4 次不再续跑')
+        assert.equal(store.get('r').status, 'done')
+        assert.equal(store.get('r').rerunAfterDone, undefined)
+      }],
+
+      ['mergeIntoTask：目标缺失 / 并入自身返回 null 不动；目标原正文与附件保留、来源附件追加；来源换代落 superseded（变异补测 10-24）', () => {
+        const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+        store.upsert({ id: 'into', status: 'queued', text: '目标正文', attachments: [{ path: '/a.png' }], createdAt: '2026-01-01T00:00:00Z' })
+        store.upsert({ id: 'from', status: 'received', epoch: 2, text: '来源正文', attachments: [{ path: '/b.png' }], createdAt: '2026-01-01T00:00:00Z' })
+        assert.equal(store.mergeIntoTask({ fromId: 'from', intoId: 'missing' }), null)
+        assert.equal(store.mergeIntoTask({ fromId: 'into', intoId: 'into' }), null)
+        assert.equal(store.get('into').mergedFrom, undefined, '并入自身不改任务')
+        const out = store.mergeIntoTask({ fromId: 'from', intoId: 'into' })
+        assert.equal(out.mode, 'appended')
+        assert.match(out.into.text, /^目标正文\n\n【同主题补充 .*】来源正文$/)
+        assert.deepEqual(out.into.attachments.map((a) => a.path), ['/a.png', '/b.png'])
+        assert.equal(out.from.status, 'superseded')
+        assert.equal(out.from.supersededBy, 'into')
+        assert.equal(out.from.epoch, 3)
+        store.upsert({ id: 'into2', status: 'queued', createdAt: '2026-01-01T00:00:00Z' })
+        store.upsert({ id: 'from2', status: 'received', attachments: [{ path: '/c.png' }], createdAt: '2026-01-01T00:00:00Z' })
+        assert.deepEqual(store.mergeIntoTask({ fromId: 'from2', intoId: 'into2' }).into.attachments.map((a) => a.path), ['/c.png'])
+      }],
+
+      ['mergeIntoTask 命令类型：目标没有才继承来源的（来源无标记记 explicit）；目标已有不覆盖；来源没有不动目标（变异补测 10-24）', () => {
+        const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+        const pair = (name, into, from) => {
+          store.upsert({ id: `into-${name}`, status: 'queued', createdAt: '2026-01-01T00:00:00Z', ...into })
+          store.upsert({ id: `from-${name}`, status: 'received', createdAt: '2026-01-01T00:00:00Z', ...from })
+          const merged = store.mergeIntoTask({ fromId: `from-${name}`, intoId: `into-${name}` }).into
+          return [merged.commandType, merged.commandTypeSource]
+        }
+        assert.deepEqual(pair('a', {}, { commandType: 'api' }), ['api', 'explicit'])
+        assert.deepEqual(pair('b', { commandType: 'bug', commandTypeSource: 'explicit' }, { commandType: 'api', commandTypeSource: 'inferred' }), ['bug', 'explicit'])
+        assert.deepEqual(pair('c', {}, {}), [undefined, undefined])
+        assert.deepEqual(pair('d', {}, { commandType: 'api', commandTypeSource: 'inferred' }), ['api', 'inferred'])
+      }],
+
+      ['mergeIntoTask 并入挂起任务：waitingHistory 记本轮轮次与换代前 epoch、resumeCount 累加（变异补测 10-24）', () => {
+        const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+        store.upsert({ id: 'w', status: 'blocked', epoch: 2, waitRound: 3, resumeCount: 1, result: '缺文案', createdAt: '2026-01-01T00:00:00Z' })
+        store.upsert({ id: 'f', status: 'received', text: '文案是 x', createdAt: '2026-01-01T00:00:00Z' })
+        const out = store.mergeIntoTask({ fromId: 'f', intoId: 'w' })
+        assert.equal(out.mode, 'resumed')
+        assert.equal(out.into.epoch, 3)
+        assert.equal(out.into.resumeCount, 2)
+        const [entry] = out.into.waitingHistory
+        assert.deepEqual([entry.round, entry.epoch, entry.status, entry.result], [3, 2, 'blocked', '缺文案'])
+        store.upsert({ id: 'w0', status: 'waiting_confirmation', createdAt: '2026-01-01T00:00:00Z' })
+        store.upsert({ id: 'f0', status: 'received', text: 'y', createdAt: '2026-01-01T00:00:00Z' })
+        const fresh = store.mergeIntoTask({ fromId: 'f0', intoId: 'w0' }).into
+        assert.deepEqual([fresh.waitingHistory[0].round, fresh.waitingHistory[0].epoch, fresh.resumeCount], [1, 0, 1])
+      }],
+
+      ['mergeIntoTask 并入已了结任务：threadHistory 记旧状态、旧结论与了结时间，无结论记 null（变异补测 10-24）', () => {
+        const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+        const closedAt = store.upsert({ id: 'd', status: 'done', result: 'old', epoch: 4, createdAt: '2026-01-01T00:00:00Z' }).updatedAt
+        store.upsert({ id: 'f', status: 'received', text: 'again', createdAt: '2026-01-01T00:00:00Z' })
+        const out = store.mergeIntoTask({ fromId: 'f', intoId: 'd' })
+        assert.equal(out.mode, 'reopened')
+        assert.deepEqual(out.into.threadHistory, [{ status: 'done', result: 'old', closedAt }])
+        store.upsert({ id: 'i', status: 'ignored', createdAt: '2026-01-01T00:00:00Z' })
+        store.upsert({ id: 'f2', status: 'received', text: 'again', createdAt: '2026-01-01T00:00:00Z' })
+        assert.equal(store.mergeIntoTask({ fromId: 'f2', intoId: 'i' }).into.threadHistory[0].result, null)
+      }],
+
+      ['listRecentForChat 只取本群、排除已忽略与 days 之外的；按最近更新时间算（旧任务近期有更新仍算），无 updatedAt 的旧数据按 createdAt（变异补测 10-24）', () => {
+        const hoursAgo = (hours) => new Date(Date.now() - hours * 3600_000).toISOString()
+        const seed = (task) => writeFileSync(join(dir, `${task.id}.json`), JSON.stringify(task))
+        seed({ id: 'mine', chatId: 'oc_a', status: 'done', createdAt: hoursAgo(30 * 24), updatedAt: hoursAgo(1) })
+        seed({ id: 'legacy', chatId: 'oc_a', status: 'done', createdAt: hoursAgo(1) })
+        seed({ id: 'other-chat', chatId: 'oc_b', status: 'done', createdAt: hoursAgo(1), updatedAt: hoursAgo(1) })
+        seed({ id: 'ignored', chatId: 'oc_a', status: 'ignored', createdAt: hoursAgo(1), updatedAt: hoursAgo(1) })
+        seed({ id: 'stale', chatId: 'oc_a', status: 'done', createdAt: hoursAgo(30 * 24), updatedAt: hoursAgo(30 * 24) })
+        const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+        assert.deepEqual(store.listRecentForChat('oc_a').map((t) => t.id).sort(), ['legacy', 'mine'])
+      }],
+
+      ['expireSuspected 只收疑似且待确认的；缺 parkedAt 用 updatedAt，无时刻 / 时刻非法不收；恰好满 maxAgeMs 即收；保留原结论再追加说明；listSuspected 只列疑似待确认（变异补测 10-24）', () => {
+        const now = Date.parse('2026-10-24T12:00:00.000Z')
+        const maxAgeMs = 48 * 3600_000
+        const due = new Date(now - maxAgeMs).toISOString()
+        const seed = (task) => writeFileSync(join(dir, `${task.id}.json`), JSON.stringify({ status: 'waiting_confirmation', suspected: true, createdAt: '2026-01-01T00:00:00Z', ...task }))
+        seed({ id: 'exact', parkedAt: due, result: '疑似：录播接口' })
+        seed({ id: 'by-updated', updatedAt: due })
+        seed({ id: 'not-suspected', suspected: false, parkedAt: due })
+        seed({ id: 'blocked', status: 'blocked', parkedAt: due })
+        seed({ id: 'no-time' })
+        seed({ id: 'bad-time', parkedAt: 'garbage' })
+        seed({ id: 'young', parkedAt: new Date(now - maxAgeMs + 1).toISOString() })
+        const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+        assert.deepEqual(store.listSuspected().map((t) => t.id).sort(), ['bad-time', 'by-updated', 'exact', 'no-time', 'young'])
+        assert.deepEqual(store.expireSuspected({ now, maxAgeMs }).map((t) => t.id).sort(), ['by-updated', 'exact'])
+        assert.equal(store.get('exact').result, '疑似：录播接口\n（疑似任务 48 小时无人放行，自动关闭）')
+        assert.equal(store.get('not-suspected').status, 'waiting_confirmation')
+        assert.equal(store.get('blocked').status, 'blocked')
+      }],
+
+      ['reopenForThread 保留原正文与附件、追加新消息与附件；threadHistory 记旧结论与了结时间；notBefore 透传、缺省 null（变异补测 10-24）', () => {
+        const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+        const closedAt = store.upsert({ id: 't', status: 'done', text: '原始问题', result: '已修复', attachments: [{ path: '/a.png' }], epoch: 1, createdAt: '2026-01-01T00:00:00Z' }).updatedAt
+        const notBefore = new Date(Date.now() + 60_000).toISOString()
+        const task = store.reopenForThread({ id: 't', supplementText: '又坏了', supplementAttachments: [{ path: '/b.png' }], notBefore })
+        assert.match(task.text, /^原始问题\n\n【话题新消息 .*】又坏了$/)
+        assert.deepEqual(task.attachments.map((a) => a.path), ['/a.png', '/b.png'])
+        assert.deepEqual(task.threadHistory, [{ status: 'done', result: '已修复', closedAt }])
+        assert.equal(task.intake.notBefore, notBefore)
+        store.upsert({ id: 'u', status: 'ignored', createdAt: '2026-01-01T00:00:00Z' })
+        const bare = store.reopenForThread({ id: 'u', supplementText: 'x' })
+        assert.equal(bare.intake.notBefore, null)
+        assert.equal(bare.threadHistory[0].result, null)
       }],
     ], hooks))
 
@@ -599,6 +866,27 @@ describe('createTaskStore', () => {
         assert.equal(store.reopenClosed({ id: 's3' }), null)
         assert.equal(store.reopenClosed({ id: 'missing' }), null)
       }],
+
+      ['reopenClosed 保留原正文与摘要、补充接在后面，无摘要时取补充开头；重开留痕记操作人 / 来源消息 / 补充原文，缺省记 null（变异补测 10-24）', () => {
+        const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+        store.upsert({ id: 'k', status: 'queued', text: '原始需求正文', summary: '原摘要', createdAt: '2026-09-01T08:00:00Z' })
+        store.closeAsExternallyResolved({ id: 'k', closureReason: 'cancelled' })
+        const reopened = store.reopenClosed({ id: 'k', operator: 'ou_b', messageId: 'om_re', supplementText: '按钮仍然是空的' })
+        assert.equal(reopened.text, '原始需求正文\n\n【重开补充】\n按钮仍然是空的')
+        assert.equal(reopened.summary, '原摘要')
+        assert.equal(reopened.closureHistory[0].reopenedFromMessageId, 'om_re')
+        const [entry] = reopened.reopenHistory
+        assert.deepEqual([entry.operator, entry.messageId, entry.supplementText], ['ou_b', 'om_re', '按钮仍然是空的'])
+
+        store.upsert({ id: 'n', status: 'queued', createdAt: '2026-09-01T08:00:00Z' })
+        store.closeAsExternallyResolved({ id: 'n' })
+        const bare = store.reopenClosed({ id: 'n', supplementText: '补充说明' })
+        assert.equal(bare.summary, '补充说明')
+        assert.equal(bare.closureHistory[0].reopenedFromMessageId, null)
+        assert.equal(bare.reopenHistory[0].operator, null)
+        store.closeAsExternallyResolved({ id: 'n' })
+        assert.equal(store.reopenClosed({ id: 'n' }).reopenHistory[1].supplementText, null)
+      }],
     ], hooks))
   })
 
@@ -641,52 +929,77 @@ describe('createTaskStore', () => {
 
 describe('续租 touchLease（第 0 批：长任务不再被当孤儿回收）', () => {
   let dir
-  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'lark-store-lease-')) })
-  afterEach(() => rmSync(dir, { recursive: true, force: true }))
+  const hooks = {
+    before: () => { dir = mkdtempSync(join(tmpdir(), 'lark-store-lease-')) },
+    after: () => rmSync(dir, { recursive: true, force: true }),
+  }
 
-  it('running 任务续租后 claimedAt 前移；epoch 不符 / 非 running 回 409；不存在 404', () => {
-    const store = createTaskStore({ tasksDir: dir, leaseMs: 60_000 })
-    store.upsert({ id: 'a', status: 'queued', createdAt: '2026-01-01T00:00:00Z' })
-    const claimed = store.claimNext()
-    // 不靠真实 sleep（机器负载高时毫秒级等待不可靠）：把领取时刻拨到 50s 前，离租约到期只剩 10s
-    const stale = new Date(Date.now() - 50_000).toISOString()
-    store.upsert({ ...claimed, claimedAt: stale })
-    const touched = store.touchLease('a', 0)
-    assert.equal(touched.ok, true)
-    assert.ok(touched.claimedAt > stale)
-    // 若没续租，再过 10s 就是孤儿；续租后 claimedAt = 现在，claimNext 不会把它当孤儿重入队
-    assert.equal(store.claimNext(), null)
-    assert.equal(store.get('a').status, 'running')
-    assert.deepEqual(store.touchLease('a', 1).code, 409)
-    assert.deepEqual(store.touchLease('zzz', 0).code, 404)
-    store.upsert({ id: 'b', status: 'queued', createdAt: '2026-01-01T00:00:00Z' })
-    assert.deepEqual(store.touchLease('b', 0).code, 409)
-  })
+  it('running 任务续租后 claimedAt 前移；epoch 不符 / 非 running 回 409；不存在 404', () => runSteps([
+    ['running 任务续租后 claimedAt 前移；epoch 不符 / 非 running 回 409；不存在 404', () => {
+      const store = createTaskStore({ tasksDir: dir, leaseMs: 60_000 })
+      store.upsert({ id: 'a', status: 'queued', createdAt: '2026-01-01T00:00:00Z' })
+      const claimed = store.claimNext()
+      // 不靠真实 sleep（机器负载高时毫秒级等待不可靠）：把领取时刻拨到 50s 前，离租约到期只剩 10s
+      const stale = new Date(Date.now() - 50_000).toISOString()
+      store.upsert({ ...claimed, claimedAt: stale })
+      const touched = store.touchLease('a', 0)
+      assert.equal(touched.ok, true)
+      assert.ok(touched.claimedAt > stale)
+      // 若没续租，再过 10s 就是孤儿；续租后 claimedAt = 现在，claimNext 不会把它当孤儿重入队
+      assert.equal(store.claimNext(), null)
+      assert.equal(store.get('a').status, 'running')
+      assert.deepEqual(store.touchLease('a', 1).code, 409)
+      assert.deepEqual(store.touchLease('zzz', 0).code, 404)
+      store.upsert({ id: 'b', status: 'queued', createdAt: '2026-01-01T00:00:00Z' })
+      assert.deepEqual(store.touchLease('b', 0).code, 409)
+    }],
+
+    ['续租按任务当前代次核对：非 0 代次相符可续，不符 409 并报当前代次（变异补测 10-24）', () => {
+      const store = createTaskStore({ tasksDir: dir, leaseMs: 60_000 })
+      store.upsert({ id: 'g', status: 'running', epoch: 2, claimedAt: new Date().toISOString(), createdAt: '2026-01-01T00:00:00Z' })
+      assert.equal(store.touchLease('g', 2).ok, true)
+      const stale = store.touchLease('g', 1)
+      assert.equal(stale.code, 409)
+      assert.equal(stale.error, 'stale epoch: got 1, current 2')
+    }],
+  ], hooks))
 })
 
 describe('变更流与按状态查（第 2 批）', () => {
   let dir
-  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'lark-store-changes-')) })
-  afterEach(() => rmSync(dir, { recursive: true, force: true }))
+  const hooks = {
+    before: () => { dir = mkdtempSync(join(tmpdir(), 'lark-store-changes-')) },
+    after: () => rmSync(dir, { recursive: true, force: true }),
+  }
 
-  it('每次落盘发一条变更；changesSince 按 seq 过滤；list 按状态 / repo 过滤；updateIfEpoch 做 CAS', async () => {
-    const store = createTaskStore({ tasksDir: dir, leaseMs: 60_000 })
-    assert.deepEqual(store.changesSince(-1), { seq: 0, changes: [] })
-    store.upsert({ id: 'a', status: 'queued', repo: 'falive', createdAt: '2026-01-01T00:00:00Z' })
-    store.upsert({ id: 'b', status: 'done', repo: 'x', createdAt: '2026-01-01T00:00:00Z' })
-    const page = store.changesSince(0)
-    assert.equal(page.seq, 2)
-    assert.deepEqual(page.changes.map((item) => [item.id, item.status]), [['a', 'queued'], ['b', 'done']])
-    assert.deepEqual(store.list({ statuses: ['queued'] }).map((task) => task.id), ['a'])
-    assert.deepEqual(store.list({ repo: 'x' }).map((task) => task.id), ['b'])
-    assert.equal(store.list().length, 2)
-    const waiting = store.waitForChange(1000)
-    store.claimById('a')
-    assert.equal(await waiting, true)
-    assert.equal(await store.waitForChange(10), false)
-    assert.equal(store.updateIfEpoch('a', 5, (task) => { task.note = 'x' }), null, 'epoch 不符不写')
-    assert.equal(store.updateIfEpoch('a', 0, (task) => { task.note = 'x' }, { expectStatus: 'queued' }), null, 'status 不符不写')
-    assert.equal(store.updateIfEpoch('a', 0, (task) => { task.note = 'ok' }).note, 'ok')
-    assert.equal(store.get('a').note, 'ok')
-  })
+  it('每次落盘发一条变更；changesSince 按 seq 过滤；list 按状态 / repo 过滤；updateIfEpoch 做 CAS', () => runSteps([
+    ['每次落盘发一条变更；changesSince 按 seq 过滤；list 按状态 / repo 过滤；updateIfEpoch 做 CAS', async () => {
+      const store = createTaskStore({ tasksDir: dir, leaseMs: 60_000 })
+      assert.deepEqual(store.changesSince(-1), { seq: 0, changes: [] })
+      store.upsert({ id: 'a', status: 'queued', repo: 'falive', createdAt: '2026-01-01T00:00:00Z' })
+      store.upsert({ id: 'b', status: 'done', repo: 'x', createdAt: '2026-01-01T00:00:00Z' })
+      const page = store.changesSince(0)
+      assert.equal(page.seq, 2)
+      assert.deepEqual(page.changes.map((item) => [item.id, item.status]), [['a', 'queued'], ['b', 'done']])
+      assert.deepEqual(store.list({ statuses: ['queued'] }).map((task) => task.id), ['a'])
+      assert.deepEqual(store.list({ repo: 'x' }).map((task) => task.id), ['b'])
+      assert.equal(store.list().length, 2)
+      const waiting = store.waitForChange(1000)
+      store.claimById('a')
+      assert.equal(await waiting, true)
+      assert.equal(await store.waitForChange(10), false)
+      assert.equal(store.updateIfEpoch('a', 5, (task) => { task.note = 'x' }), null, 'epoch 不符不写')
+      assert.equal(store.updateIfEpoch('a', 0, (task) => { task.note = 'x' }, { expectStatus: 'queued' }), null, 'status 不符不写')
+      assert.equal(store.updateIfEpoch('a', 0, (task) => { task.note = 'ok' }).note, 'ok')
+      assert.equal(store.get('a').note, 'ok')
+    }],
+
+    ['updateIfEpoch 按任务当前代次核对：非 0 代次相符照写、不符不写（变异补测 10-24）', () => {
+      const store = createTaskStore({ tasksDir: dir, leaseMs: 60_000 })
+      store.upsert({ id: 'g', status: 'queued', epoch: 3, createdAt: '2026-01-01T00:00:00Z' })
+      assert.equal(store.updateIfEpoch('g', 3, (task) => { task.note = 'ok' })?.note, 'ok')
+      assert.equal(store.updateIfEpoch('g', 2, (task) => { task.note = 'stale' }), null)
+      assert.equal(store.get('g').note, 'ok')
+    }],
+  ], hooks))
 })
