@@ -1,12 +1,53 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, it } from 'node:test'
+import { after, describe, it } from 'node:test'
 import { runSteps } from './support/steps.mjs'
 
-import { applySupplementAddressing, isCompleteMessage, resolveIntakeLane, resolveIntakeNotBefore, resolveRepoAddressing } from '../lib/lark-ingest.mjs'
-import { createTaskStore } from '../lib/lark-task-store.mjs'
+// 真实 ingest 段（变异补测 10-24）：lark-cli 换成 sh 小脚本（按子命令回桩 JSON、记下每次调用的参数），运行态（附件 / 回复义务）
+// 指到临时目录。这两个变量在 lib 加载时读，必须先设好再动态 import。
+// 脚本放固定路径、内容不变（桩目录走 LARK_FAKE_CLI_DIR）：macOS 第一次执行一个新路径的可执行文件要先扫一遍（约 300–450ms），
+// 每次放进新的临时目录就每次都慢；固定路径只有本机第一次慢，之后每次起进程几毫秒。先写临时文件再改名，并行的测试进程不会读到半截。
+const ingestRoot = mkdtempSync(join(tmpdir(), 'lark-thread-ingest-'))
+const fakeDir = join(ingestRoot, 'fake-cli')
+mkdirSync(fakeDir)
+const FAKE_CLI_SCRIPT = `#!/bin/sh
+dir="$LARK_FAKE_CLI_DIR"
+{ for a in "$@"; do printf '%s\\037' "$a"; done; printf '\\036'; } >> "$dir/calls.log"
+case "$4" in
+  +messages-mget) f="$dir/mget.json" ;;
+  +threads-messages-list) f="$dir/thread.json" ;;
+  +chat-messages-list) f="$dir/chat.json" ;;
+  *) f="" ;;
+esac
+if [ -n "$f" ] && [ -f "$f" ]; then cat "$f"; else printf '{"code":0,"data":{}}'; fi
+`
+const fakeBinDir = join(tmpdir(), 'lark-bot-test-fake-cli')
+const fakeBin = join(fakeBinDir, 'lark-cli-recorder.sh')
+if (!existsSync(fakeBin) || readFileSync(fakeBin, 'utf8') !== FAKE_CLI_SCRIPT) {
+  mkdirSync(fakeBinDir, { recursive: true })
+  const staging = join(fakeBinDir, `.lark-cli-recorder.${process.pid}`)
+  writeFileSync(staging, FAKE_CLI_SCRIPT, { mode: 0o755 })
+  renameSync(staging, fakeBin)
+}
+const savedEnv = Object.fromEntries(['LARK_CLI_BIN', 'LARK_FAKE_CLI_DIR', 'LARK_RUNTIME_DIR', 'LARK_INSTANCE_MODE'].map((key) => [key, process.env[key]]))
+const restoreEnv = (key) => {
+  if (savedEnv[key] === undefined) delete process.env[key]
+  else process.env[key] = savedEnv[key]
+}
+process.env.LARK_CLI_BIN = fakeBin
+process.env.LARK_FAKE_CLI_DIR = fakeDir
+process.env.LARK_RUNTIME_DIR = join(ingestRoot, 'runtime')
+after(() => {
+  for (const key of Object.keys(savedEnv)) restoreEnv(key)
+  rmSync(ingestRoot, { recursive: true, force: true })
+})
+
+const { applySupplementAddressing, ingestLarkEvent, isCompleteMessage, resolveIntakeLane, resolveIntakeNotBefore, resolveRepoAddressing } = await import('../lib/lark-ingest.mjs')
+const { createTaskStore } = await import('../lib/lark-task-store.mjs')
+const { registerRepoProfiles, resetRepoProfiles } = await import('../lib/lark-repo-profile.mjs')
+const { noteHeld } = await import('../lib/lark-reply-obligation.mjs')
 
 const withStore = (fn) => {
   const dir = mkdtempSync(join(tmpdir(), 'lark-thread-intake-'))
@@ -190,17 +231,209 @@ describe('外部群任务入口：准确优先', () => {
   ]))
 })
 
+// ── 真实 ingest 段的桩（变异补测 10-24）──────────────────────────────────────
+const GROUP = 'oc_ti_group'
+const CONSOLE = 'oc_ti_console'
+const FGROUP = 'oc_ti_fameex'
+const AVEN = 'ou_ti_aven'
+const ENCONE = 'ou_ti_encone'
+const ARTHUR = 'ou_ti_arthur'
+const BOT = 'ou_ti_bot'
+const APP_BOT = 'ou_ti_appbot'
+const ingestConfig = { allowedChatIds: [GROUP, FGROUP], allowedOpenIds: [AVEN, ENCONE], botOpenId: APP_BOT, project: 'PR-1' }
+const faliveRaw = {
+  root: '/tmp/falive-ti', baseRef: 'main', chatIds: [GROUP], notifyChatId: CONSOLE, docIntakeDir: 'docs/delivery/pending',
+  ownership: { me: 'Aven', meOpenIds: [AVEN] }, ownerMap: { Encone: ENCONE, Arthur: ARTHUR }, botMentionOpenIds: { [GROUP]: BOT },
+  webhooksByChat: { [GROUP]: { url: 'https://hook/group' }, [CONSOLE]: { url: 'https://hook/console' } },
+}
+const atBot = [{ id: BOT, key: '@_user_1', name: 'Aven.Bot' }]
+let posted
+let ingestStore
+let ingestDir
+let savedFetch
+const ingestHooks = {
+  before: () => {
+    process.env.LARK_INSTANCE_MODE = 'repo-only'
+    savedFetch = globalThis.fetch
+    posted = []
+    globalThis.fetch = async (url, init) => {
+      posted.push({ url: String(url), body: String(init?.body || '') })
+      return { ok: true, status: 200, text: async () => '{"code":0}', json: async () => ({ code: 0 }) }
+    }
+    registerRepoProfiles({ repos: { falive: faliveRaw } })
+    ingestDir = mkdtempSync(join(ingestRoot, 'case-'))
+    ingestStore = createTaskStore({ tasksDir: join(ingestDir, 'tasks'), leaseMs: 60_000 })
+  },
+  after: () => {
+    restoreEnv('LARK_INSTANCE_MODE')
+    globalThis.fetch = savedFetch
+    resetRepoProfiles()
+    for (const name of ['calls.log', 'mget.json', 'thread.json', 'chat.json']) rmSync(join(fakeDir, name), { force: true })
+    rmSync(ingestDir, { recursive: true, force: true })
+    rmSync(process.env.LARK_RUNTIME_DIR, { recursive: true, force: true })
+  },
+}
+// 假 lark-cli 的回包：mget = 被引用消息，thread = 话题回复（新的在前），chat = 群里之前的消息（新的在前）
+const fakeLarkCli = (replies) => {
+  for (const [name, messages] of Object.entries(replies)) writeFileSync(join(fakeDir, `${name}.json`), JSON.stringify({ code: 0, data: { messages, has_more: false } }))
+}
+const cliCalls = () => (existsSync(join(fakeDir, 'calls.log')) ? readFileSync(join(fakeDir, 'calls.log'), 'utf8').split('\x1e').filter(Boolean).map((call) => call.split('\x1f').filter(Boolean)) : [])
+const ingestRaw = (raw) => ingestLarkEvent({ raw: { sender_type: 'user', message_type: 'text', ...raw }, config: ingestConfig, store: ingestStore })
+const groupSay = ({ id, content, sender = ENCONE, mentions = atBot, replyTo = null, root = null, createTime = null, chat = GROUP }) =>
+  ingestRaw({ message_id: id, chat_id: chat, chat_type: 'group', content, sender_id: sender, mentions, ...(replyTo ? { reply_to: replyTo } : {}), ...(root ? { root_id: root } : {}), ...(createTime ? { create_time: String(createTime) } : {}) })
+const dmSay = ({ id, content, chat = CONSOLE, replyTo = null }) =>
+  ingestRaw({ message_id: id, chat_id: chat, chat_type: 'p2p', content, sender_id: AVEN, ...(replyTo ? { reply_to: replyTo } : {}) })
+const postedTo = (hook) => posted.filter((item) => item.url === `https://hook/${hook}`).map((item) => item.body)
+const seedTask = (task) => ingestStore.upsert({ source: 'lark', repo: 'falive', project: 'FALIVE', chatId: GROUP, operator: ENCONE, text: '原任务', createdAt: new Date().toISOString(), ...task })
+
 describe('话题补充 @ 机器人（10-23 起外部群只有 @bot 的任务）', () => {
-  it('补充 @ 机器人：标显式通道；10-23 前的存量被动任务被接手，去掉只记台账；补充没 @ 不改通道', () => {
-    const target = { id: 'omt_reserve', passiveLedgerOnly: true }
-    assert.equal(applySupplementAddressing({ target, addressing: { toBot: true, fromPrincipal: true } }), true)
-    assert.equal(target.passiveLedgerOnly, undefined)
-    assert.equal(target.addressedToBot, true)
-    assert.equal(target.fromPrincipal, true)
-    assert.equal(applySupplementAddressing({ target, addressing: { toBot: true } }), false, '已经是显式通道，不重复回收到')
-    const other = { id: 'omt_p', addressedToBot: true }
-    assert.equal(applySupplementAddressing({ target: other, addressing: { toBot: false } }), false)
-  })
+  it('补充 @ 机器人：标显式通道；10-23 前的存量被动任务被接手，去掉只记台账；补充没 @ 不改通道；真实 ingest：@bot 建任务带全上下文 / 续跑 / 私聊放行 / 日报', () => runSteps([
+    ['补充 @ 机器人：标显式通道；10-23 前的存量被动任务被接手，去掉只记台账；补充没 @ 不改通道', () => {
+      const target = { id: 'omt_reserve', passiveLedgerOnly: true }
+      assert.equal(applySupplementAddressing({ target, addressing: { toBot: true, fromPrincipal: true } }), true)
+      assert.equal(target.passiveLedgerOnly, undefined)
+      assert.equal(target.addressedToBot, true)
+      assert.equal(target.fromPrincipal, true)
+      assert.equal(applySupplementAddressing({ target, addressing: { toBot: true } }), false, '已经是显式通道，不重复回收到')
+      const other = { id: 'omt_p', addressedToBot: true }
+      assert.equal(applySupplementAddressing({ target: other, addressing: { toBot: false } }), false)
+    }],
+    ['外部群 @bot 回复一条消息：任务带上被引用原文与本条原话、话题回复 / 群里之前的图（标明来源）、他提到的那份文档（负责人自己发的不算）、他正在进行的事；话题身份 = 被回复的消息，项目 = 仓的项目号，附件落仓的项目目录（变异补测 10-24）', async () => {
+      const now = Date.now()
+      const min = 60_000
+      seedTask({ id: 'om_ti_prev', summary: '开播 500', status: 'done', createdAt: new Date(now - 10 * min).toISOString() })
+      fakeLarkCli({
+        mget: [{ message_id: 'om_ti_parent', msg_type: 'text', content: '直播列表 cover 字段为空', sender: { id: 'ou_ti_qa', name: 'QA小王' }, create_time: String(now - 30 * min) }],
+        thread: [{ message_id: 'om_ti_th1', msg_type: 'image', content: '{"image_key":"img_thread"}', sender: { id: ARTHUR, sender_type: 'user', name: 'Arthur' } }],
+        chat: [
+          { message_id: 'om_ti_c4', msg_type: 'text', content: '没人署名的那句', sender: { id: 'ou_ti_anon', sender_type: 'user' }, create_time: String(now - 1 * min) },
+          { message_id: 'om_ti_c3', msg_type: 'image', content: '{"image_key":"img_recent"}', sender: { id: ENCONE, sender_type: 'user', name: 'Encone' }, create_time: String(now - 2 * min) },
+          { message_id: 'om_ti_c2', msg_type: 'file', content: '<file key="file_v3_mine" name="mine-notes.md"/>', sender: { id: AVEN, sender_type: 'user', name: 'Aven' }, create_time: String(now - 3 * min) },
+          { message_id: 'om_ti_c1', msg_type: 'file', content: '<file key="file_v3_api" name="live-api.md"/>', sender: { id: ARTHUR, sender_type: 'user', name: 'Arthur' }, create_time: String(now - 4 * min) },
+        ],
+      })
+      await groupSay({ id: 'om_ti_r1', content: '@_user_1 看下这个文档里的报错 [Image: img_own]', replyTo: 'om_ti_parent', createTime: now })
+      const task = ingestStore.get('om_ti_r1')
+      assert.ok(task, '建了任务')
+      assert.equal(task.threadRootId, 'om_ti_parent', '只回复没进话题：话题身份 = 被回复的消息')
+      assert.equal(task.project, 'FALIVE', '项目 = 仓的项目号')
+      assert.ok(task.text.includes('【被引用消息】') && task.text.includes('直播列表 cover 字段为空'), '带被引用原文')
+      assert.ok(task.text.includes('【本条 @】@Aven.Bot 看下这个文档里的报错'), '带本条原话，不是「无附言」')
+      assert.ok(!task.text.includes('群里发来对接文档'), '普通 @bot 不当成「接文档」')
+      assert.ok(task.text.includes('【Encone 正在进行的事'), '对话包标明是谁（不是「发送人」）')
+      assert.match(task.text, /\n（\d{2}-\d{2} \d{2}:\d{2}）：没人署名的那句/, '群里之前的消息：没署名也用「：」隔开正文')
+      const byKey = (key) => task.attachments.find((item) => item.imageKey === key || item.fileKey === key)
+      assert.equal(byKey('img_own')?.origin, '本条', '本条的图带上并标来源')
+      assert.ok(byKey('img_own').localPath.includes(join('FALIVE', 'om_ti_r1')), '附件落仓的项目目录')
+      assert.equal(byKey('img_thread')?.origin, '话题回复 · Arthur', '话题回复的图标明是谁发的')
+      assert.match(byKey('img_recent')?.origin || '', /^群里之前的消息 · Encone \d{2}-\d{2} \d{2}:\d{2}$/, '群里之前的图标明谁、什么时候')
+      assert.equal(byKey('file_v3_api')?.fileName, 'live-api.md', '他提到文档：并入之前别人发的那份')
+      assert.match(byKey('file_v3_api').origin, /^群里之前的消息 · Arthur \d{2}-\d{2} \d{2}:\d{2}$/)
+      assert.equal(byKey('file_v3_mine'), undefined, '负责人自己发的文档不算要接的')
+    }],
+    ['外部群 @bot 回复一条带文档的消息：被引用的文档就是要接的，不再并群里更早别人发的文档（变异补测 10-24）', async () => {
+      const now = Date.now()
+      fakeLarkCli({
+        mget: [{ message_id: 'om_ti_docmsg', msg_type: 'file', content: '<file key="file_v3_reply" name="reply-api.md"/>', sender: { id: ARTHUR, name: 'Arthur' } }],
+        chat: [{ message_id: 'om_ti_old', msg_type: 'file', content: '<file key="file_v3_old" name="old-api.md"/>', sender: { id: ARTHUR, sender_type: 'user', name: 'Arthur' }, create_time: String(now - 60_000) }],
+      })
+      await groupSay({ id: 'om_ti_r2', content: '@_user_1 按这个文档接一下', replyTo: 'om_ti_docmsg', createTime: now })
+      const names = ingestStore.get('om_ti_r2').attachments.map((item) => item.fileName)
+      assert.deepEqual(names, ['reply-api.md'])
+      assert.match(ingestStore.get('om_ti_r2').attachments[0].origin, /^被引用消息/)
+    }],
+    ['外部群 @bot 只带对接文档没有正文：任务正文写明「群里发来对接文档 <文件名>」和存放目录；带了正文的照原话（变异补测 10-24）', async () => {
+      // 两条换人发：同一个人连发会并成一条（话题补充）
+      await groupSay({ id: 'om_ti_doc1', content: '<file key="file_v3_pm" name="PM-1.md"/>' })
+      const intro = ingestStore.get('om_ti_doc1').text
+      assert.ok(intro.startsWith('api：群里发来对接文档 PM-1.md。'), intro)
+      assert.ok(intro.includes('docs/delivery/pending/'))
+      await groupSay({ id: 'om_ti_doc2', sender: ARTHUR, content: '@_user_1 接一下 <file key="file_v3_pm2" name="PM-2.md"/>' })
+      assert.equal(ingestStore.get('om_ti_doc2').text, '@Aven.Bot 接一下')
+    }],
+    ['外部群 @bot「继续任务 <id> 补充」续跑阻塞的任务：补充原话进正文、附件落原任务的项目目录，不当成负责人放行、不当成疑似单旁注（变异补测 10-24）', async () => {
+      seedTask({ id: 'om_ti_blk', status: 'blocked', epoch: 1 })
+      await groupSay({ id: 'om_ti_res1', content: '@_user_1 继续任务 om_ti_blk 接口改成 v2 [Image: img_sup]' })
+      const task = ingestStore.get('om_ti_blk')
+      assert.equal(task.status, 'queued', '阻塞的任务也能续跑')
+      assert.equal(task.resumeCount, 1)
+      assert.ok(task.text.includes('【补料】\n接口改成 v2'), task.text)
+      assert.ok(!task.text.includes('负责人放行'), '不是负责人，不当放行')
+      assert.equal(ingestStore.has('om_ti_res1'), false, '不另建任务')
+      assert.ok(task.attachments.find((item) => item.imageKey === 'img_sup').localPath.includes(join('FALIVE', 'om_ti_res1')), '附件落原任务的项目目录')
+    }],
+    ['外部群 @bot 在话题里回复某条（不是话题根）：按话题归并到唯一挂起的任务续跑，不另建任务（变异补测 10-24）', async () => {
+      seedTask({ id: 'om_ti_sib', threadRootId: 'om_ti_root', status: 'waiting_confirmation', epoch: 1 })
+      await groupSay({ id: 'om_ti_tm', content: '@_user_1 补一句：只在安卓上出现', root: 'om_ti_root', replyTo: 'om_ti_mid' })
+      assert.equal(ingestStore.get('om_ti_sib').status, 'queued')
+      assert.ok(ingestStore.get('om_ti_sib').text.includes('只在安卓上出现'))
+      assert.equal(ingestStore.has('om_ti_tm'), false)
+    }],
+    ['负责人私聊「继续任务 <id> 补充」：只把补充原话（不含指令）续进原任务，不当成放行，也不再建私聊指示任务（变异补测 10-24）', async () => {
+      seedTask({ id: 'om_ti_wc', status: 'waiting_confirmation', epoch: 1 })
+      await dmSay({ id: 'om_ti_dm1', content: '继续任务 om_ti_wc 改成 v2 接口' })
+      const task = ingestStore.get('om_ti_wc')
+      assert.equal(task.status, 'queued')
+      assert.ok(task.text.endsWith('【补料】\n改成 v2 接口'), task.text)
+      assert.ok(!task.text.includes('负责人放行'))
+      assert.equal(ingestStore.has('om_ti_dm1'), false, '续跑了就不再建指示任务')
+      assert.equal(postedTo('console').length, 1, `控制台只收到开工那一句，不再补「没对上任务」：${postedTo('console').join('\n')}`)
+    }],
+    ['负责人回「就这样回」：扣下的草稿发群，控制台只收到一句结果（含锚定那条的标题）；在别的私聊会话回、发不出去时，原因也发到控制台（变异补测 10-24）', async () => {
+      const held = (id) => {
+        const task = seedTask({ id, summary: '直播列表 cover 为空', status: 'done', receipts: [{ messageId: `${id}_card`, epoch: 0, createdAt: new Date().toISOString() }] })
+        noteHeld({ task, text: '已修好，可以再测' })
+      }
+      held('om_ti_held')
+      await dmSay({ id: 'om_ti_dm2', content: '就这样回', replyTo: 'om_ti_held_card' })
+      assert.ok(postedTo('group').some((body) => body.includes('已修好，可以再测')), '草稿发群')
+      assert.deepEqual(postedTo('console').map((body) => body.includes('已按原文回群（直播列表 cover 为空）。')), [true], '控制台只收到一句结果，带锚定那条的标题')
+      assert.equal(ingestStore.has('om_ti_dm2'), false, '不建指示任务')
+      registerRepoProfiles({ repos: { falive: { ...faliveRaw, webhooksByChat: { [CONSOLE]: { url: 'https://hook/console' } } } } })
+      posted.length = 0
+      held('om_ti_held2')
+      await dmSay({ id: 'om_ti_dm3', content: '就这样回', chat: 'oc_ti_aven_dm', replyTo: 'om_ti_held2_card' })
+      const [note] = postedTo('console')
+      assert.ok(note?.includes('没发出去：') && note.includes('还没配 webhook'), note)
+      assert.ok(!note.includes('找不到要发的群'))
+    }],
+    ['负责人私聊回一条已了结任务的通知、说新要求：建私聊指示任务、控制台只回一句「收到」，不再补「没对上任务」（变异补测 10-24）', async () => {
+      seedTask({ id: 'om_ti_ins', summary: '开播 500', status: 'done', receipts: [{ messageId: 'om_ti_ins_card', epoch: 0, createdAt: new Date().toISOString() }] })
+      await dmSay({ id: 'om_ti_dm4', content: '顺便把封面也换成默认图', replyTo: 'om_ti_ins_card' })
+      assert.ok(ingestStore.has('om_ti_dm4'), '建了指示任务')
+      const replies = postedTo('console')
+      assert.equal(replies.length, 1, replies.join('\n'))
+      assert.ok(replies[0].includes('当作对「开播 500」'))
+    }],
+    ['群里 @bot「补发日报」：开了日报的仓走日报链路、不建普通任务；没开日报的仓当普通任务（变异补测 10-24）', async () => {
+      await groupSay({ id: 'om_ti_daily1', content: '@_user_1 补发日报' })
+      assert.ok(ingestStore.has('om_ti_daily1'), '没开日报：普通任务')
+      registerRepoProfiles({ repos: { falive: { ...faliveRaw, dailyReport: { at: '19:00' } } } })
+      await groupSay({ id: 'om_ti_daily2', sender: ARTHUR, content: '@_user_1 补发日报' })
+      assert.equal(ingestStore.has('om_ti_daily2'), false, '开了日报：不建普通任务')
+      assert.equal(ingestStore.list().filter((task) => task.id !== 'om_ti_daily1').length, 1, '建了日报任务')
+    }],
+    ['fameex 群只 @bot 回复一条消息：摘要取被引用原文，不拉群里之前的消息（那是外部群的）（变异补测 10-24）', async () => {
+      delete process.env.LARK_INSTANCE_MODE
+      fakeLarkCli({
+        mget: [{ message_id: 'om_ti_fparent', msg_type: 'text', content: '直播列表 cover 为空', sender: { id: 'ou_ti_qa', name: 'QA小王' } }],
+        chat: [{ message_id: 'om_ti_fc1', msg_type: 'text', content: 'pre 上也一样', sender: { id: ENCONE, sender_type: 'user', name: 'Encone' }, create_time: String(Date.now() - 60_000) }],
+      })
+      await groupSay({ id: 'om_ti_f1', chat: FGROUP, content: '@_user_1', mentions: [{ id: APP_BOT, key: '@_user_1', name: '应用' }], replyTo: 'om_ti_fparent', createTime: Date.now() })
+      const task = ingestStore.get('om_ti_f1')
+      assert.equal(task.summary, '直播列表 cover 为空')
+      assert.ok(!task.text.includes('【群里这条之前的消息】'))
+      assert.equal(cliCalls().some((args) => args.includes('+chat-messages-list')), false, '不拉群消息')
+    }],
+    ['fameex 群回复待确认卡「确认扩大范围」：续跑回执点名并入的文件（变异补测 10-24）', async () => {
+      delete process.env.LARK_INSTANCE_MODE
+      seedTask({ id: 'om_ti_scope', repo: undefined, project: null, chatId: FGROUP, status: 'waiting_confirmation', epoch: 1, scopeRequest: { paths: ['src/modules/live/LivePage.tsx'] }, receipts: [{ messageId: 'om_ti_scope_card', epoch: 1, createdAt: new Date().toISOString() }] })
+      await groupSay({ id: 'om_ti_f2', chat: FGROUP, content: '确认扩大范围，按申请的一起改', mentions: [], replyTo: 'om_ti_scope_card' })
+      assert.equal(ingestStore.get('om_ti_scope').status, 'queued')
+      const cards = cliCalls().filter((args) => args.includes('+messages-send')).map((args) => args.join(' '))
+      assert.ok(cards.some((card) => card.includes('已确认扩大修改范围（并入 src/modules/live/LivePage.tsx）')), cards.join('\n'))
+    }],
+  ], ingestHooks))
 })
 
 describe('分类去抖分道（阶段 2）', () => {
