@@ -55,6 +55,16 @@ describe('任务契约', () => {
       assert.equal(api.contract.docsOnlyOk, true)
       assert.equal(api.contract.api, true)
     }],
+    ['api / defect 两个字段：对接文档入库算对接；缺陷只认「改代码 + 分类 bug」，bug 类的复测不算缺陷（变异补测 10-24）', () => {
+      const doc = deriveContract(task({ own: '看下', attachments: [{ type: 'file', fileName: '对接-直播.md' }] }))
+      assert.deepEqual([doc.deliverable, doc.api, doc.docsOnlyOk], ['doc_intake', true, true], '分类是 requirement 也按对接文档算 api')
+      assert.equal(deriveContract(task({ own: '预约按钮颜色改成红色' })).api, false, '普通需求不是对接')
+      const bug = deriveContract(task({ own: '这个接口字段不对', decision: 'bug' }))
+      assert.deepEqual([bug.deliverable, bug.defect], ['change', true])
+      assert.equal(deriveContract(task({ own: '预约按钮颜色改成红色', decision: 'requirement' })).defect, false, '需求不是缺陷')
+      const recheck = deriveContract(task({ own: '你自己在 pre 环境看，看完报告结果', decision: 'bug' }))
+      assert.deepEqual([recheck.deliverable, recheck.defect], ['verification', false], 'bug 的复测交付实测结论，不走缺陷规则')
+    }],
   ]))
 
   it('契约落盘与按版本读取；forMe 的 medium 直接开跑，对接答复不算改代码', () => runSteps([
@@ -72,6 +82,37 @@ describe('任务契约', () => {
       assert.equal(out.actionable, false)
       assert.equal(t.status, 'intake_failed')
       assert.equal(t.contract, undefined, '正文像复测也不凭失败的分类落契约')
+    }],
+    ['分类结果为空且没报错：静默 ignored、不落契约；台账条目只收带字符串 id 的、最多 20 条（变异补测 10-24）', () => {
+      const empty = { ...task({ own: '你自己在 pre 环境看，看完报告结果' }), status: 'running', intake: { required: true } }
+      const out = applyIntakeClassification(empty, { classification: null })
+      assert.deepEqual([out.actionable, out.suspected, out.recordOnly, empty.status], [false, false, false, 'ignored'])
+      assert.equal(empty.contract, undefined, '没有分类结果不凭正文正则落契约')
+      const t = { ...task({ own: 'x' }), status: 'running', intake: { required: true } }
+      const items = [{ id: 'a' }, null, { name: 'no-id' }, { id: 3 }, ...Array.from({ length: 25 }, (_, i) => ({ id: `n${i}` }))]
+      applyIntakeClassification(t, { classification: { decision: 'ignore', confidence: 'high', items } })
+      assert.deepEqual(t.ledgerItems.slice(0, 2), [{ id: 'a' }, { id: 'n0' }], '空条目 / 没 id / id 非字符串的丢掉')
+      assert.equal(t.ledgerItems.length, 20)
+    }],
+    ['疑似挂起与只记一笔的结果文案：写明类别 / 置信度 / 摘要 / 理由，缺字段写空不写 undefined；疑似轮次逐次 +1（变异补测 10-24）', () => {
+      // 没 @ bot、归属拿不准、medium 的 bug → 疑似挂起
+      const suspect = (cls, extra = {}) => ({ id: 't', repo: 'falive', addressedToBot: false, attachments: [], text: '【本条 @】@Aven x', status: 'running', intake: { required: true }, ...extra, _cls: { decision: 'bug', confidence: 'medium', forMe: null, ...cls } })
+      const run = (t) => applyIntakeClassification(t, { classification: t._cls })
+      const first = suspect({ summary: '头像不显示', reason: '可能是前端' })
+      assert.equal(run(first).suspected, true)
+      assert.deepEqual([first.status, first.waitRound], ['waiting_confirmation', 1])
+      assert.equal(first.result, '疑似需要处理但没把握（bug / medium）：头像不显示\n理由：可能是前端', '归属未定不写「判定不归本人」')
+      const again = suspect({}, { waitRound: 2 })
+      run(again)
+      assert.equal(again.waitRound, 3, '再挂一次轮次累加')
+      assert.equal(again.result, '疑似需要处理但没把握（bug / medium）：\n理由：')
+      const notice = (cls) => ({ id: 't', repo: 'falive', addressedToBot: true, attachments: [], text: '@Aven.Bot x', status: 'running', intake: { required: true }, _cls: { decision: 'api_reply', confidence: 'medium', forMe: true, deliverable: null, ...cls } })
+      const withSummary = notice({ summary: 'pre 已放开发帖' })
+      assert.equal(run(withSummary).recordOnly, true)
+      assert.equal(withSummary.result, '只记台账（api_reply / medium，前端不用动）：pre 已放开发帖')
+      const bare = notice({})
+      run(bare)
+      assert.equal(bare.result, '只记台账（api_reply / medium，前端不用动）：')
     }],
     ['10-23 #74：forMe=true 的 medium 直接开跑，归属拿不准才挂疑似；对接答复前端不用做 → 只记一笔，契约不算改代码', () => {
       const t = (cls, extra = {}) => ({ id: 't', repo: 'falive', addressedToBot: true, attachments: [], text: '@Aven.Bot x', ...extra, intake: { classification: { confidence: 'medium', summary: 's', ...cls } } })
