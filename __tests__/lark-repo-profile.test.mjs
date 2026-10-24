@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
-import { runSteps } from './support/steps.mjs'
+import { eachCase, runSteps } from './support/steps.mjs'
 
 import {
+  DEFAULT_POLL,
   DEFAULT_REPO_KEY,
+  addRepoChatIds,
   buildRepoRegistry,
   normalizeRepoProfile,
   registerRepoProfiles,
@@ -16,7 +18,9 @@ import {
   resetRepoProfiles,
   resolveRepoDelivery,
   resolveWebhookCredentials,
+  resolveWebhookForChat,
   tempBranchNameFor,
+  validateRepoProfiles,
 } from '../lib/lark-repo-profile.mjs'
 import { resolveWorkContext, safeProject, tempWorktreeContextFor, validateWorkContextRoute } from '../lib/lark-work-context.mjs'
 import { buildWebhookBody, isWebhookSuccess, sendWebhookMessage, signWebhook } from '../lib/lark-webhook.mjs'
@@ -82,6 +86,115 @@ describe('repo profile 归一与注册', () => {
       assert.equal(normalizeRepoProfile('falive', faliveRaw).quietQueuedCards, true, '缺省排队卡只发负责人私聊')
       assert.equal(normalizeRepoProfile('falive', { ...faliveRaw, quietQueuedCards: false }).quietQueuedCards, false, '显式 false 才发回群')
     }],
+    ['仓配置字段归一：配了照读（trim）、缺省 / 空串 / 非法类型回落缺省值，null 不让启动崩（变异补测 10-24）', () => eachCase([
+      { name: '默认仓允许覆盖标题 / 人员表 / 模型 / 超时', actual: () => {
+        const p = normalizeRepoProfile('fameex', { title: ' FameEX ', ownerMap: { henry: 'ou_henry' }, claudeModel: 'm1', claudeEffort: 'e1', claudeAnalysisModel: 'm2', claudeAnalysisEffort: 'e2', claudeIntentModel: 'm3', claudeIntentEffort: 'e3', aiTimeoutMs: 1000 })
+        return [p.title, p.ownerMap, p.claudeModel, p.claudeEffort, p.claudeAnalysisModel, p.claudeAnalysisEffort, p.claudeIntentModel, p.claudeIntentEffort, p.aiTimeoutMs]
+      }, expect: ['FameEX', { henry: 'ou_henry' }, 'm1', 'e1', 'm2', 'e2', 'm3', 'e3', 1000] },
+      { name: '默认仓：空标题 / ownerMap null / ownerMap 非对象 / 超时 0 回落缺省', actual: () => {
+        const p = normalizeRepoProfile('fameex', { title: '  ', ownerMap: null, aiTimeoutMs: 0 })
+        return [p.title, p.ownerMap, normalizeRepoProfile('fameex', { ownerMap: 'x' }).ownerMap, p.aiTimeoutMs, p.claudeModel]
+      }, expect: [null, {}, {}, null, null] },
+      { name: 'root 写 ~ / ~/x 展开到 home 目录', actual: () => [normalizeRepoProfile('falive', { ...faliveRaw, root: '~/falive-react' }).root, normalizeRepoProfile('falive', { ...faliveRaw, root: '~' }).root], expect: [join(homedir(), 'falive-react'), homedir()] },
+      { name: 'memberRoles 只留键值都非空的字符串并 trim；字符串 / null 视为没配', actual: () => [
+        normalizeRepoProfile('falive', { ...faliveRaw, memberRoles: { henry: ' 后端 ', blank: '  ', num: 3 } }).memberRoles,
+        normalizeRepoProfile('falive', { ...faliveRaw, memberRoles: 'abc' }).memberRoles,
+        normalizeRepoProfile('falive', { ...faliveRaw, memberRoles: null }).memberRoles,
+      ], expect: [{ henry: '后端' }, {}, {}] },
+      { name: 'intake null → 缺省；fastLaneMs 负数 / 无穷大 → 0', actual: () => [
+        normalizeRepoProfile('falive', { ...faliveRaw, intake: null }).intake,
+        normalizeRepoProfile('falive', { ...faliveRaw, intake: { fastLaneMs: -5 } }).intake.fastLaneMs,
+        normalizeRepoProfile('falive', { ...faliveRaw, intake: { fastLaneMs: Infinity } }).intake.fastLaneMs,
+      ], expect: [{ fastLaneMs: 0, quietGapMs: 60_000, maxWaitMs: 180_000 }, 0, 0] },
+      { name: '非默认仓字符串字段配了照读', actual: () => {
+        const p = normalizeRepoProfile('falive', { ...faliveRaw, ledgerDocPattern: '^待', checksHint: 'pnpm check', commitPrefix: 'feat(bot)', docReplyDir: 'docs/answers' })
+        return [p.ledgerDocPattern, p.checksHint, p.commitPrefix, p.docReplyDir]
+      }, expect: ['^待', 'pnpm check', 'feat(bot)', 'docs/answers'] },
+      { name: '非默认仓：超时 0 → null、ownerMap null → {}、并发 1 照读 / 缺省 3', actual: () => {
+        const p = normalizeRepoProfile('falive', { ...faliveRaw, aiTimeoutMs: 0, ownerMap: null, concurrency: 1 })
+        return [p.aiTimeoutMs, p.ownerMap, p.concurrency, normalizeRepoProfile('falive', faliveRaw).concurrency]
+      }, expect: [null, {}, 1, 3] },
+      { name: 'docReplyDir 缺省 = 收件目录的兄弟 reply；收件目录只有一层 → ./reply；都没配 → null', actual: () => [
+        normalizeRepoProfile('falive', { ...faliveRaw, docIntakeDir: 'docs/delivery/pending/' }).docReplyDir,
+        normalizeRepoProfile('falive', { ...faliveRaw, docIntakeDir: 'pending' }).docReplyDir,
+        normalizeRepoProfile('falive', faliveRaw).docReplyDir,
+      ], expect: ['docs/delivery/reply', './reply', null] },
+      { name: 'botMentionOpenIds / chatLabels：null → {}，值为空或非字符串的项丢掉', actual: () => {
+        const map = { oc_a: 'ou_bot', oc_b: '', oc_c: 5 }
+        const p = normalizeRepoProfile('falive', { ...faliveRaw, botMentionOpenIds: map, chatLabels: map })
+        const empty = normalizeRepoProfile('falive', { ...faliveRaw, botMentionOpenIds: null, chatLabels: null })
+        return [p.botMentionOpenIds, p.chatNameById, empty.botMentionOpenIds, empty.chatNameById]
+      }, expect: [{ oc_a: 'ou_bot' }, { oc_a: 'ou_bot' }, {}, {}] },
+      { name: 'webhooksByChat：null → {}，配置无效的群丢掉；webhook 只写 webhookUrl 也认、secret 照读、null → null', actual: () => {
+        const p = normalizeRepoProfile('falive', { ...faliveRaw, webhooksByChat: { G1: { url: 'https://g1' }, G2: {} }, webhook: { webhookUrl: 'https://w', secret: 's' } })
+        const empty = normalizeRepoProfile('falive', { ...faliveRaw, webhooksByChat: null, webhook: null })
+        return [p.webhooksByChat, p.webhook, empty.webhooksByChat, empty.webhook]
+      }, expect: [{ G1: { file: null, url: 'https://g1', secret: null } }, { file: null, url: 'https://w', secret: 's' }, {}, null] },
+      { name: 'ownership null → null；principalReplyWindowMs 0 → 缺省 12 小时', actual: () => {
+        const p = normalizeRepoProfile('falive', { ...faliveRaw, ownership: null, principalReplyWindowMs: 0 })
+        return [p.ownership, p.principalReplyWindowMs]
+      }, expect: [null, 12 * 60 * 60 * 1000] },
+      { name: 'finalChecks：null → null；配了照读，timeoutMs 缺省 10 分钟', actual: () => [
+        normalizeRepoProfile('falive', { ...faliveRaw, finalChecks: null }).finalChecks,
+        normalizeRepoProfile('falive', { ...faliveRaw, finalChecks: { typecheck: ['pnpm', 'typecheck'], timeoutMs: 5000 } }).finalChecks,
+        normalizeRepoProfile('falive', { ...faliveRaw, finalChecks: {} }).finalChecks,
+      ], expect: [null, { typecheck: ['pnpm', 'typecheck'], tests: null, timeoutMs: 5000 }, { typecheck: null, tests: null, timeoutMs: 10 * 60_000 }] },
+      { name: 'verify：配齐照读；只配 probeCommand → env pre、localDev 随 env、其余空串 / 缺省正则', actual: () => {
+        const full = { probeCommand: ' probe ', env: 'uat', usage: 'u', schemaCheck: 'sc', schemaFiles: 'sf', requestMarker: 'rm', writeMail: 'wm', localDev: 'ld', siteUrl: 'https://s', pageTool: 'pt' }
+        return [
+          normalizeRepoProfile('falive', { ...faliveRaw, verify: full }).verify,
+          normalizeRepoProfile('falive', { ...faliveRaw, verify: { probeCommand: 'probe' } }).verify,
+          normalizeRepoProfile('falive', { ...faliveRaw, verify: { probeCommand: 'probe', env: 'uat' } }).verify.localDev,
+        ]
+      }, expect: [
+        { probeCommand: 'probe', env: 'uat', usage: 'u', schemaCheck: 'sc', schemaFiles: 'sf', requestMarker: 'rm', writeMail: 'wm', localDev: 'ld', siteUrl: 'https://s', pageTool: 'pt' },
+        { probeCommand: 'probe', env: 'pre', usage: '', schemaCheck: '', schemaFiles: '/data/(schema|queries)\\.ts$', requestMarker: '', writeMail: '', localDev: 'pnpm dev:pre', siteUrl: '', pageTool: '' },
+        'pnpm dev:uat',
+      ] },
+    ], ({ actual, expect }) => assert.deepEqual(actual(), expect))],
+    ['轮询参数归一：null / false / 非法工作时段回落缺省，0 与 24 是合法边界（变异补测 10-24）', () => eachCase([
+      { name: 'poll null → 全缺省', poll: null, pick: (p) => p, expect: { ...DEFAULT_POLL } },
+      { name: '缺 enabled 即启用', poll: {}, pick: (p) => p.enabled, expect: true },
+      { name: 'enabled:false 只配不跑', poll: { enabled: false }, pick: (p) => p.enabled, expect: false },
+      { name: '配了间隔照读', poll: { activeMs: 5000 }, pick: (p) => p.activeMs, expect: 5000 },
+      { name: '间隔 0 回落缺省', poll: { activeMs: 0 }, pick: (p) => p.activeMs, expect: DEFAULT_POLL.activeMs },
+      { name: '工作时段两项合法照读', poll: { workHours: [9, 18] }, pick: (p) => p.workHours, expect: [9, 18] },
+      { name: '工作时段 0 与 24 是合法边界', poll: { workHours: [0, 24] }, pick: (p) => p.workHours, expect: [0, 24] },
+      { name: '工作时段不是两项 → 缺省', poll: { workHours: [9, 18, 20] }, pick: (p) => p.workHours, expect: [8, 19] },
+      { name: '工作时段非整数 → 缺省', poll: { workHours: [8.5, 18] }, pick: (p) => p.workHours, expect: [8, 19] },
+      { name: '工作时段负数 → 缺省', poll: { workHours: [-1, 18] }, pick: (p) => p.workHours, expect: [8, 19] },
+      { name: '工作时段超过 24 → 缺省', poll: { workHours: [8, 30] }, pick: (p) => p.workHours, expect: [8, 19] },
+    ], ({ poll, pick, expect }) => assert.deepEqual(pick(normalizeRepoProfile('falive', { ...faliveRaw, poll }).poll), expect))],
+    ['日报配置归一：缺 at 报错带「(空)」、字段照读或回落缺省、清扫超时非正回落 90 分钟、检查项过滤不完整的（变异补测 10-24）', () => {
+      const report = (dailyReport) => normalizeRepoProfile('falive', { ...faliveRaw, dailyReport }).dailyReport
+      assert.equal(report(null), null)
+      assert.throws(() => report({ at: '' }), /实际：\(空\)/)
+      const minimal = report({ at: '19:00' })
+      assert.deepEqual([minimal.to, minimal.othersRef, minimal.fetch, minimal.people, minimal.model, minimal.effort, minimal.docEffort, minimal.siteUrl, minimal.schemaCheckCommand, minimal.probeMail, minimal.sweep, minimal.featureChecks, minimal.schemaChecks, minimal.streamCheck],
+        [null, 'origin/pre', true, {}, null, null, null, null, null, null, null, [], [], null])
+      const full = report({ at: '19:00', to: 'ou_aven', othersRef: 'origin/main', fetch: false, people: { aven: ['aven'] }, model: 'm', effort: 'e', docEffort: 'de', siteUrl: 'https://pre', schemaCheckCommand: 'pnpm sc', probeMail: 'a@b.c' })
+      assert.deepEqual([full.to, full.othersRef, full.fetch, full.people, full.model, full.effort, full.docEffort, full.siteUrl, full.schemaCheckCommand, full.probeMail],
+        ['ou_aven', 'origin/main', false, { aven: ['aven'] }, 'm', 'e', 'de', 'https://pre', 'pnpm sc', 'a@b.c'])
+      assert.deepEqual(report({ at: '19:00', people: null }).people, {})
+      const sweep = (value) => report({ at: '19:00', sweep: value }).sweep
+      assert.equal(sweep(null), null)
+      assert.deepEqual(sweep({}), { preSiteUrl: null, timeoutMs: 90 * 60_000, effort: 'high' })
+      assert.equal(sweep({ timeoutMinutes: -5 }).timeoutMs, 90 * 60_000, '负数回落 90 分钟')
+      assert.equal(sweep({ timeoutMinutes: 0 }).timeoutMs, 90 * 60_000, '0 回落 90 分钟')
+      assert.equal(sweep({ timeoutMinutes: 30 }).timeoutMs, 30 * 60_000)
+      const checks = report({ at: '19:00',
+        featureChecks: [{ path: ' /api/a ', label: 'A', params: { x: 1 }, pick: 'list', expect: 'ok', host: 'go', features: [36, 'x'] }, { path: '/api/b' }, { label: '没 path' }, { path: '/api/c', params: null }],
+        streamCheck: { path: '/s', params: { id: 1 }, features: [1] },
+        schemaChecks: [{ module: 'm', export: 'e', path: 'p' }, { module: 'm' }, { export: 'e', path: 'p' }, { path: 'p' }, { module: 'm', export: 'e' }] })
+      assert.deepEqual(checks.featureChecks, [
+        { features: [36], label: 'A', path: '/api/a', params: { x: 1 }, pick: 'list', expect: 'ok', host: 'go' },
+        { features: [], label: '/api/b', path: '/api/b', params: {}, pick: null, expect: 'nonEmpty', host: null },
+        { features: [], label: '/api/c', path: '/api/c', params: {}, pick: null, expect: 'nonEmpty', host: null },
+      ])
+      assert.deepEqual(checks.streamCheck, { features: [1], path: '/s', params: { id: 1 } })
+      assert.deepEqual(report({ at: '19:00', streamCheck: { path: '/s', params: null } }).streamCheck.params, {})
+      assert.deepEqual(checks.schemaChecks, [{ module: 'm', export: 'e', path: 'p' }], 'module / export / path 缺一不收')
+    }],
   ], hooks))
 
   it('注册前 FALIVE 不是合法项目号、validateConfig 校验 root 存在；注册后群 / 任务 → 仓、safeProject、标题取 profile.title', () => runSteps([
@@ -104,6 +217,24 @@ describe('repo profile 归一与注册', () => {
     ['validateConfig 对 repos 做存在性校验（root 不存在即 error）', () => {
       const { errors } = validateConfig({ project: 'PR-00001', botOpenId: 'ou_bot', allowedChatIds: 'auto', repos: { falive: faliveRaw } })
       assert.ok(errors.some((line) => /repos\.falive\.root 不存在/.test(line)), errors.join('\n'))
+    }],
+    ['注册表：repos 为 null 只有默认仓、repos.fameex 的覆盖生效；运行期并入群 id 不丢已有群名；归属表存在 / 未配不报错（变异补测 10-24）', () => {
+      assert.deepEqual([...buildRepoRegistry({ repos: null }).keys()], [DEFAULT_REPO_KEY])
+      assert.equal(buildRepoRegistry({ repos: { fameex: { claudeModel: 'm' } } }).get(DEFAULT_REPO_KEY).claudeModel, 'm')
+      registerRepoProfiles({ repos: { falive: { ...faliveRaw, chatLabels: { oc_falive_1: 'Falive 群' } } } })
+      assert.deepEqual(addRepoChatIds('falive', ['oc_2', 'oc_falive_1'], { oc_2: 'G2' }), ['oc_falive_1', 'oc_2'])
+      assert.deepEqual(repoProfile('falive').chatNameById, { oc_falive_1: 'Falive 群', oc_2: 'G2' })
+      const root = mkdtempSync(join(tmpdir(), 'lark-repo-root-'))
+      try {
+        mkdirSync(join(root, '.git'))
+        mkdirSync(join(root, 'docs'))
+        writeFileSync(join(root, 'docs', 'table.md'), '')
+        assert.deepEqual(validateRepoProfiles({ repos: { falive: { ...faliveRaw, root } } }), [], '归属表存在不报错')
+        assert.deepEqual(validateRepoProfiles({ repos: { falive: { ...faliveRaw, root, ownership: null } } }), [], '没配归属不报错')
+        assert.ok(validateRepoProfiles({ repos: { falive: { ...faliveRaw, root, ownership: { me: 'aven', table: 'docs/none.md' } } } }).some((line) => /ownership\.table 不存在/.test(line)))
+      } finally {
+        rmSync(root, { recursive: true, force: true })
+      }
     }],
   ], hooks))
 })
@@ -223,6 +354,21 @@ describe('webhook 发卡', () => {
       } finally {
         resetRepoProfiles()
         rmSync(dir, { recursive: true, force: true })
+      }
+    }],
+    ['按群名配的 webhook：chat_id 经 chatLabels 反查群名命中，没配的群回落 profile.webhook；notifyChatId 就是本群时不改投（变异补测 10-24）', () => {
+      const raw = { ...faliveRaw, chatIds: ['oc_falive_1', 'oc_9'], chatLabels: { oc_9: 'G9' }, webhooksByChat: { G9: { url: 'https://g9', secret: 's9' } } }
+      const profile = normalizeRepoProfile('falive', { ...raw, webhook: { url: 'https://fallback' } })
+      assert.deepEqual(resolveWebhookCredentials(profile, 'oc_9'), { url: 'https://g9', secret: 's9' })
+      assert.deepEqual(resolveWebhookCredentials(profile, 'oc_unknown'), { url: 'https://fallback', secret: null })
+      try {
+        registerRepoProfiles({ repos: { falive: raw } })
+        assert.deepEqual(resolveWebhookForChat('oc_9'), { url: 'https://g9', secret: 's9' })
+        assert.equal(resolveWebhookForChat('oc_falive_1'), null)
+        registerRepoProfiles({ repos: { falive: { ...faliveRaw, notifyChatId: 'oc_falive_1' } } })
+        assert.equal(resolveRepoDelivery('oc_falive_1'), null, '不改投回同一个群')
+      } finally {
+        resetRepoProfiles()
       }
     }],
   ]))
