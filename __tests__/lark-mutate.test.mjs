@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
-import { applyMutation, changedLinesFromDiff, codeMask, findSites, isAccepted, sampleSites } from '../scripts/mutate.mjs'
+import { ACCEPTED_FILE, applyMutation, changedLinesFromDiff, codeMask, findSites, isAccepted, sampleSites } from '../scripts/mutate.mjs'
 import { runSteps } from './support/steps.mjs'
 
 const ops = (sites) => sites.map((site) => `${site.line}:${site.from.trim()}→${site.to.trim()}`)
@@ -67,6 +68,13 @@ describe('变异测试工具（scripts/mutate.mjs）', () => {
       const first = sampleSites(pool, 10, 3)
       assert.deepEqual(first, sampleSites(pool, 10, 3))
       assert.equal(new Set(first.map((item) => item.id)).size, 10)
+    }],
+    ['豁免清单每条都对得上现存代码、写了原因、算子合法：代码改了留下的过期条目当场报出来（10-24）', () => {
+      const accepted = JSON.parse(readFileSync(new URL(`../${ACCEPTED_FILE}`, import.meta.url), 'utf8'))
+      const stale = accepted.filter((item) => !readFileSync(new URL(`../${item.file}`, import.meta.url), 'utf8').split('\n').some((line) => line.trim() === item.code))
+      assert.deepEqual(stale.map((item) => `${item.file}｜${item.code}`), [], '过期豁免：代码行已不存在，删掉或按新代码重新判断')
+      const ops = new Set(['=== → !==', '!== → ===', '&& → ||', '|| → &&', '>= → >', '<= → <', '> → >=', '< → <=', 'return true → return false', 'return false → return true'])
+      assert.deepEqual(accepted.filter((item) => !ops.has(item.op) || String(item.reason || '').trim().length < 10).map((item) => item.code), [], '算子要合法、原因要写清')
     }],
   ]))
 })
