@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
 import { parseClamshellState, startKeepAwake } from '../lib/lark-keep-awake.mjs'
+import { runSteps } from './support/steps.mjs'
 
 describe('开盖不空闲睡眠（caffeinate -i 跟着 gateway pid 走）', () => {
   const fakeSpawn = (calls) => (cmd, args) => {
@@ -9,24 +10,21 @@ describe('开盖不空闲睡眠（caffeinate -i 跟着 gateway pid 走）', () =
     return { on() {}, unref() {}, kill() { calls.push(['kill']) } }
   }
 
-  it('macOS 挂 caffeinate 并在 stop 时 kill，关闭开关或非 macOS 不启动', () => {
-    {
-      const t1 = 'macOS 挂 caffeinate -i -w <pid>，stop 时 kill'
+  it('macOS 挂 caffeinate 并在 stop 时 kill，关闭开关或非 macOS 不启动', () => runSteps([
+    ['macOS 挂 caffeinate -i -w <pid>，stop 时 kill', () => {
       const calls = []
       const handle = startKeepAwake({ env: {}, platform: 'darwin', pid: 4242, spawnFn: fakeSpawn(calls) })
-      assert.deepEqual(calls, [['/usr/bin/caffeinate', '-i', '-w', '4242']], t1)
+      assert.deepEqual(calls, [['/usr/bin/caffeinate', '-i', '-w', '4242']])
       handle.stop()
-      assert.deepEqual(calls.at(-1), ['kill'], t1)
-    }
-
-    {
-      const t2 = 'LARK_KEEP_AWAKE=0 或非 macOS 不启动'
+      assert.deepEqual(calls.at(-1), ['kill'])
+    }],
+    ['LARK_KEEP_AWAKE=0 或非 macOS 不启动', () => {
       const calls = []
       startKeepAwake({ env: { LARK_KEEP_AWAKE: '0' }, platform: 'darwin', spawnFn: fakeSpawn(calls) }).stop()
       startKeepAwake({ env: {}, platform: 'linux', spawnFn: fakeSpawn(calls) }).stop()
-      assert.deepEqual(calls, [], t2)
-    }
-  })
+      assert.deepEqual(calls, [])
+    }],
+  ]))
 
   it('ioreg 合盖状态解析', () => {
     assert.equal(parseClamshellState('      "AppleClamshellState" = Yes\n'), true)

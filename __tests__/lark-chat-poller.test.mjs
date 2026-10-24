@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, it } from 'node:test'
+import { runSteps } from './support/steps.mjs'
 
 import { chatListMessageToEvent, flattenThreadReplies, isPollableMessage, nextDelayMs, parseKernSleepTime, startChatPoller, toEpochMs } from '../lib/lark-chat-poller.mjs'
 import { extractInlineFileAttachments, hasDocAttachment, normalizeMessage, parseTextAndAttachments, resolveMessageTrigger } from '../lib/lark-message.mjs'
@@ -10,47 +11,34 @@ import { DEFAULT_POLL, registerRepoProfiles, resetRepoProfiles } from '../lib/la
 import { pickEarlierDoc, pickRecentContext, pickThreadContext } from '../lib/lark-chat-context.mjs'
 import { imageExtFromBytes } from '../lib/lark-cli.mjs'
 
-// 合并后的 it 里每段用 step 包住：段内作用域独立，失败时报错信息带上原用例标题
-const step = async (name, fn) => {
-  try {
-    await fn()
-  } catch (error) {
-    error.message = `【${name}】${error.message}`
-    error.stack = `【${name}】${error.stack}`
-    throw error
-  }
-}
-
 const at = (hour, minute = 0) => new Date(2026, 9, 13, hour, minute, 0)
 
 describe('轮询间隔（aven 定：08–19 活跃 30s / 空闲 120s，夜间 15min，出错退避到 15min）', () => {
-  it('工作时段分活跃 / 空闲、19:00–08:00 夜间、出错 2 倍退避封顶 15min', async () => {
-    await step('工作时段按最近是否有新消息分活跃 / 空闲', async () => {
+  it('工作时段分活跃 / 空闲、19:00–08:00 夜间、出错 2 倍退避封顶 15min', () => runSteps([
+    ['工作时段按最近是否有新消息分活跃 / 空闲', () => {
       const now = at(10)
       assert.equal(nextDelayMs({ poll: DEFAULT_POLL, now, lastNewMessageAt: now.getTime() - 5 * 60_000 }), 30_000)
       assert.equal(nextDelayMs({ poll: DEFAULT_POLL, now, lastNewMessageAt: now.getTime() - 31 * 60_000 }), 120_000)
       assert.equal(nextDelayMs({ poll: DEFAULT_POLL, now, lastNewMessageAt: 0 }), 120_000)
-    })
-
-    await step('19:00 起算夜间；08:00 前也是夜间', async () => {
+    }],
+    ['19:00 起算夜间；08:00 前也是夜间', () => {
       assert.equal(nextDelayMs({ poll: DEFAULT_POLL, now: at(19), lastNewMessageAt: at(19).getTime() }), 15 * 60_000)
       assert.equal(nextDelayMs({ poll: DEFAULT_POLL, now: at(7, 59), lastNewMessageAt: at(7, 59).getTime() }), 15 * 60_000)
       assert.equal(nextDelayMs({ poll: DEFAULT_POLL, now: at(8), lastNewMessageAt: at(8).getTime() }), 30_000)
-    })
-
-    await step('出错按 2 倍退避并封顶 15min', async () => {
+    }],
+    ['出错按 2 倍退避并封顶 15min', () => {
       const now = at(10)
       assert.equal(nextDelayMs({ poll: DEFAULT_POLL, now, consecutiveFailures: 1 }), 30_000)
       assert.equal(nextDelayMs({ poll: DEFAULT_POLL, now, consecutiveFailures: 3 }), 120_000)
       assert.equal(nextDelayMs({ poll: DEFAULT_POLL, now, consecutiveFailures: 6 }), 15 * 60_000)
       assert.equal(nextDelayMs({ poll: DEFAULT_POLL, now, consecutiveFailures: 40 }), 15 * 60_000)
-    })
-  })
+    }],
+  ]))
 })
 
 describe('列消息 → 事件归一；图片附件按文件头定扩展名（Read 按扩展名判类型，.img 读成乱码）', () => {
-  it('列消息归一（文本 / @ / 文件占位）、文件附件解析与对接文档判定、只喂真人消息、不 @ 不触发、图片扩展名识别', async () => {
-    await step('lark-cli 列消息形态能被 normalizeMessage 吃下：文本 + @ + 文件占位', async () => {
+  it('列消息归一（文本 / @ / 文件占位）、文件附件解析与对接文档判定、只喂真人消息、不 @ 不触发、图片扩展名识别', () => runSteps([
+    ['lark-cli 列消息形态能被 normalizeMessage 吃下：文本 + @ + 文件占位', () => {
       const event = chatListMessageToEvent({
         message_id: 'om_1',
         msg_type: 'text',
@@ -69,17 +57,15 @@ describe('列消息 → 事件归一；图片附件按文件头定扩展名（Re
       assert.deepEqual(msg.attachments, [{ type: 'file', fileKey: 'file_v3_abc', fileName: 'B2B-04-anchor-record-list-对接.md' }])
       assert.deepEqual(msg.mentions, [{ id: 'ou_aven', key: '@_user_1', name: 'Aven' }])
       assert.equal(msg.threadRootId, 'omt_9')
-    })
-
-    await step('文件消息的 JSON content 与行内占位都解析成 file 附件；文档类扩展名才算对接文档', async () => {
+    }],
+    ['文件消息的 JSON content 与行内占位都解析成 file 附件；文档类扩展名才算对接文档', () => {
       assert.deepEqual(parseTextAndAttachments({ messageType: 'file', rawContent: '{"file_key":"file_v3_x","file_name":"api.pdf"}', mentions: [] }), { text: '', attachments: [{ type: 'file', fileKey: 'file_v3_x', fileName: 'api.pdf' }] })
       assert.deepEqual(extractInlineFileAttachments('a <file key="file_1" name="x.md"/> b <file key="file_1" name="x.md"/>'), [{ type: 'file', fileKey: 'file_1', fileName: 'x.md' }])
       assert.equal(hasDocAttachment([{ type: 'file', fileName: '对接.md' }]), true)
       assert.equal(hasDocAttachment([{ type: 'file', fileName: 'demo.mp4' }]), false)
       assert.equal(hasDocAttachment([{ type: 'image', imageKey: 'img_1' }]), false)
-    })
-
-    await step('只喂真人消息：bot / app / system / 已撤回一律丢', async () => {
+    }],
+    ['只喂真人消息：bot / app / system / 已撤回一律丢', () => {
       assert.equal(isPollableMessage({ message_id: 'om_1', msg_type: 'text', sender: { sender_type: 'user' } }), true)
       assert.equal(isPollableMessage({ message_id: 'om_2', msg_type: 'interactive', sender: { sender_type: 'app' } }), false)
       assert.equal(isPollableMessage({ message_id: 'om_3', msg_type: 'system', sender: { sender_type: 'user' } }), false)
@@ -88,14 +74,12 @@ describe('列消息 → 事件归一；图片附件按文件头定扩展名（Re
       assert.equal(toEpochMs('1760342400'), 1760342400000)
       assert.equal(toEpochMs('2026-10-13T10:00:00+04:00'), Date.parse('2026-10-13T10:00:00+04:00'))
       assert.equal(toEpochMs(''), 0)
-    })
-
-    await step('对接文档消息不 @ 机器人不触发（10-23 起外部群只认 @bot，原 docAttachmentsTrigger 已删）', async () => {
+    }],
+    ['对接文档消息不 @ 机器人不触发（10-23 起外部群只认 @bot，原 docAttachmentsTrigger 已删）', () => {
       const msg = { chatType: 'group', senderType: 'user', mentions: [], attachments: [{ type: 'file', fileName: 'api.md' }] }
       assert.equal(resolveMessageTrigger({ msg, config: { botOpenId: 'ou_bot', docAttachmentsTrigger: true } }), null)
-    })
-
-    await step('JPEG / PNG / GIF / WebP 识别，其它为 null', async () => {
+    }],
+    ['JPEG / PNG / GIF / WebP 识别，其它为 null', () => {
       const pad = (arr) => Buffer.from([...arr, ...new Array(12 - arr.length).fill(0)])
       assert.equal(imageExtFromBytes(pad([0xff, 0xd8, 0xff, 0xe0])), 'jpg')
       assert.equal(imageExtFromBytes(pad([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a])), 'png')
@@ -103,8 +87,8 @@ describe('列消息 → 事件归一；图片附件按文件头定扩展名（Re
       assert.equal(imageExtFromBytes(Buffer.from([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50])), 'webp')
       assert.equal(imageExtFromBytes(pad([0x00, 0x01])), null)
       assert.equal(imageExtFromBytes(Buffer.from([0xff])), null)
-    })
-  })
+    }],
+  ]))
 })
 
 describe('轮询一轮（IO 全注入）', () => {
@@ -204,8 +188,8 @@ describe('群里之前的消息：真人 + 本群 Aven.Bot 自己的卡（2026-1
     { message_id: 'om_4', create_time: '2026-10-15 13:49', msg_type: 'text', sender: { id: 'ou_arthur', sender_type: 'user', name: 'Arthur.a' }, content: '@Aven.Bot 重跑一次' },
     { message_id: 'om_5', create_time: '2026-10-15 13:50', msg_type: 'text', sender: { id: 'ou_x', sender_type: 'user', name: '后来的人' }, content: '晚于本条，不该出现' },
   ]
-  it('群里之前的消息保留真人与机器人并带时间、长消息与图片；话题上下文只留最近 limit 条、自家 bot 卡剥署名', async () => {
-    await step('保留真人、自家 bot 的卡（剥 <card> 与署名、标「bot，我们自己」）和别家机器人（标「机器人」，10-23 起也要读）；排除本条与晚于本条的；带发送时间', async () => {
+  it('群里之前的消息保留真人与机器人并带时间、长消息与图片；话题上下文只留最近 limit 条、自家 bot 卡剥署名', () => runSteps([
+    ['保留真人、自家 bot 的卡（剥 <card> 与署名、标「bot，我们自己」）和别家机器人（标「机器人」，10-23 起也要读）；排除本条与晚于本条的；带发送时间', () => {
       const beforeMs = Date.parse('2026-10-15 13:49') + 46_000
       const out = pickRecentContext(messages, { beforeMs, excludeIds: ['om_4'], botOpenIds: [BOT] })
       assert.deepEqual(out.map((item) => item.messageId), ['om_1', 'om_2', 'om_3'])
@@ -216,16 +200,14 @@ describe('群里之前的消息：真人 + 本群 Aven.Bot 自己的卡（2026-1
       assert.equal(out[2].text, '广告')
       assert.equal(out[0].bot, undefined)
       assert.equal(out[0].time, '10-15 13:44')
-    })
-
-    await step('没配 botOpenIds 时机器人消息都标「机器人」，不冒充我们自己；系统消息（没有发送人）不要', async () => {
+    }],
+    ['没配 botOpenIds 时机器人消息都标「机器人」，不冒充我们自己；系统消息（没有发送人）不要', () => {
       const system = { message_id: 'om_sys', create_time: '2026-10-15 13:45', msg_type: 'system', sender: { id: '', sender_type: '' }, content: 'Aven.tong invited Aven.Bot to the group.' }
       const out = pickRecentContext([...messages, system], { beforeMs: Date.parse('2026-10-15 13:49') + 46_000, excludeIds: ['om_4'] })
       assert.deepEqual(out.map((item) => item.messageId), ['om_1', 'om_2', 'om_3'])
       assert.equal(out[1].sender, 'Aven.Bot（机器人）')
-    })
-
-    await step('真人长消息不再截到 300 字（上限 2000，截断不切链接）；纯图片消息也留下，附件交调用方下载', async () => {
+    }],
+    ['真人长消息不再截到 300 字（上限 2000，截断不切链接）；纯图片消息也留下，附件交调用方下载', () => {
       const long = '很'.repeat(1500)
       const image = { message_id: 'om_img', create_time: '2026-10-15 13:46', msg_type: 'image', sender: { id: 'ou_e', sender_type: 'user', name: 'Encone' }, content: '[Image: img_v3_abc]' }
       const text = { message_id: 'om_long', create_time: '2026-10-15 13:47', msg_type: 'text', sender: { id: 'ou_e', sender_type: 'user', name: 'Encone' }, content: long }
@@ -233,17 +215,15 @@ describe('群里之前的消息：真人 + 本群 Aven.Bot 自己的卡（2026-1
       assert.equal(out[0].text, '（发了 1 张图）')
       assert.deepEqual(out[0].attachments, [{ type: 'image', imageKey: 'img_v3_abc' }])
       assert.equal(out[1].text, long)
-    })
-
-    await step('超过 limit 时保留最新的，顺序仍是从早到晚', async () => {
+    }],
+    ['超过 limit 时保留最新的，顺序仍是从早到晚', () => {
       const messages = Array.from({ length: 50 }, (_, i) => human(i + 1))
       const out = pickThreadContext(messages, { limit: 40 })
       assert.equal(out.length, 40)
       assert.equal(out[0].messageId, 'om_11')
       assert.equal(out.at(-1).messageId, 'om_50')
-    })
-
-    await step('自家 bot 的卡剥署名、标「bot，我们自己」，不算发言人；别家机器人丢掉；排除本条', async () => {
+    }],
+    ['自家 bot 的卡剥署名、标「bot，我们自己」，不算发言人；别家机器人丢掉；排除本条', () => {
       const messages = [
         human(1),
         { message_id: 'om_b', msg_type: 'interactive', sender: { id: 'cli_x', sender_type: 'app', name: 'Aven.Bot', open_bot_id: THREAD_BOT }, content: '<card>\n需要的话我重跑一次\n📝 由 aven 的助手整理\n</card>' },
@@ -257,16 +237,16 @@ describe('群里之前的消息：真人 + 本群 Aven.Bot 自己的卡（2026-1
       assert.equal(out[1].text, '需要的话我重跑一次')
       assert.equal(out[1].senderOpenId, '')
       assert.deepEqual(pickThreadContext(messages, {}).map((item) => item.messageId), ['om_1', 'om_2', 'om_3'], '没配 botOpenIds 时机器人一律不要')
-    })
-  })
+    }],
+  ]))
 })
 
 describe('先发文档、后单独 @bot：从之前的群消息补上文档（教训 #54）', () => {
   const beforeMs = Date.parse('2026-10-20 16:00')
   const file = (id, name, time) => ({ message_id: id, create_time: time, msg_type: 'file', sender: { id: 'ou_adrian', sender_type: 'user', name: 'adrian' }, content: JSON.stringify({ file_key: `fk_${id}`, file_name: name }) })
   const text = (id, body, time) => ({ message_id: id, create_time: time, msg_type: 'text', sender: { id: 'ou_x', sender_type: 'user', name: '某人' }, content: body })
-  it('先发文档后 @bot：文件消息进上下文、只取最近一份文档、只并本条确实在接的那份（10-23 #80）', async () => {
-    await step('文件消息留在上下文里：文档进 docs（只取最近一份另下），非文档文件进 attachments（10-23 起也下载）', async () => {
+  it('先发文档后 @bot：文件消息进上下文、只取最近一份文档、只并本条确实在接的那份（10-23 #80）', () => runSteps([
+    ['文件消息留在上下文里：文档进 docs（只取最近一份另下），非文档文件进 attachments（10-23 起也下载）', () => {
       const out = pickRecentContext([
         file('om_old', '旧清单.md', '2026-10-20 15:00'),
         text('om_t', '看下这个', '2026-10-20 15:10'),
@@ -280,16 +260,14 @@ describe('先发文档、后单独 @bot：从之前的群消息补上文档（�
       assert.equal(out[3].senderOpenId, 'ou_adrian')
       assert.deepEqual(out[2].attachments, [{ type: 'file', fileKey: 'fk_om_zip', fileName: '包.zip' }])
       assert.equal(out[2].docs, undefined)
-    })
-
-    await step('只取最近一条发了文档的消息；没有就是 null', async () => {
+    }],
+    ['只取最近一条发了文档的消息；没有就是 null', () => {
       const out = pickRecentContext([file('om_old', '旧清单.md', '2026-10-20 15:00'), file('om_new', '新对接文档.md', '2026-10-20 15:30'), text('om_t', '@Aven.Bot 处理一下', '2026-10-20 15:40')], { beforeMs })
       assert.equal(pickEarlierDoc(out, { ownText: '把上面的文档接一下' }).messageId, 'om_new')
       assert.equal(pickEarlierDoc([{ messageId: 'om_t', text: 'x' }], { ownText: '文档' }), null)
       assert.equal(pickEarlierDoc(out, { excludeSenders: ['ou_adrian'], ownText: '文档' }), null, '负责人本人发的文档不算要接的')
-    })
-
-    await step('只并本条确实在接的那份：同一人紧接着 @、或原话提到文档；别人发的无关文档不并（10-23 #80）', async () => {
+    }],
+    ['只并本条确实在接的那份：同一人紧接着 @、或原话提到文档；别人发的无关文档不并（10-23 #80）', () => {
       const doc = { messageId: 'om_doc', sender: 'Arthur.a', senderOpenId: 'ou_arthur', text: '（发了文件：修改头像接口文档.md）', docs: [{ type: 'file', fileName: '修改头像接口文档.md' }] }
       const chat = { messageId: 'om_chat', sender: 'HTStone.z', senderOpenId: 'ou_stone', text: '你進的是機器人直播間' }
       const own = { messageId: 'om_own', sender: 'Arthur.a', senderOpenId: 'ou_arthur', text: '修改头像的接口文档' }
@@ -304,13 +282,13 @@ describe('先发文档、后单独 @bot：从之前的群消息补上文档（�
       assert.equal(pickEarlierDoc([doc, chat], { senderOpenId: 'ou_aven', ownText: '把 Arthur 的头像接口文档接一下' })?.messageId, 'om_doc')
       const named = { ...doc, docs: [{ type: 'file', fileName: 'PM-3217 头像.md' }] }
       assert.equal(pickEarlierDoc([named, chat], { senderOpenId: 'ou_aven', ownText: 'PM-3217 头像 按这个改' })?.messageId, 'om_doc')
-    })
-  })
+    }],
+  ]))
 })
 
 describe('老消息上新开的话题（2026-10-15 aven 在 Encone 15 分钟前的消息上建话题 @Aven.Bot）；跨系统睡眠的失败不计数（2026-10-16 夜合盖，Power Nap 半醒时轮询超时，体检连报「轮询连续失败」）', () => {
-  it('老消息上新开的话题靠长窗口回看捞到；解析 kern.sleeptime，入睡过的那轮失败只记 sleepInterrupted', async () => {
-    await step('增量窗口看不到 host；每 threadScanEveryMs 回看一次长窗口，捞到展开的话题回复', async () => {
+  it('老消息上新开的话题靠长窗口回看捞到；解析 kern.sleeptime，入睡过的那轮失败只记 sleepInterrupted', () => runSteps([
+    ['增量窗口看不到 host；每 threadScanEveryMs 回看一次长窗口，捞到展开的话题回复', async () => {
       registerRepoProfiles({ repos: { falive: { root: '/tmp/falive-react', baseRef: 'main', chatIds: ['oc_falive'], notifyChatId: 'ou_aven' } } })
       const dir = mkdtempSync(join(tmpdir(), 'lark-poller-thread-'))
       const ingested = []
@@ -350,15 +328,13 @@ describe('老消息上新开的话题（2026-10-15 aven 在 Encone 15 分钟前�
       } finally {
         rmSync(dir, { recursive: true, force: true })
       }
-    })
-
-    await step('解析 sysctl -n kern.sleeptime；没睡过（sec = 0）/ 乱码为 null', async () => {
+    }],
+    ['解析 sysctl -n kern.sleeptime；没睡过（sec = 0）/ 乱码为 null', () => {
       assert.equal(parseKernSleepTime('{ sec = 1792204239, usec = 128033 } Sat Oct 17 06:30:39 2026'), 1792204239000)
       assert.equal(parseKernSleepTime('{ sec = 0, usec = 0 }'), null)
       assert.equal(parseKernSleepTime(''), null)
-    })
-
-    await step('排程后系统入睡过的那轮失败只记 sleepInterrupted；没睡过的失败照常计数', async () => {
+    }],
+    ['排程后系统入睡过的那轮失败只记 sleepInterrupted；没睡过的失败照常计数', async () => {
       const profile = registerRepoProfiles({ repos: { falive: { root: '/tmp/falive-react', baseRef: 'main', chatIds: ['oc_falive'], notifyChatId: 'ou_aven' } } }).get('falive')
       const dir = mkdtempSync(join(tmpdir(), 'lark-poller-sleep-'))
       const since = Date.parse('2026-10-17T05:23:27+04:00')
@@ -397,13 +373,13 @@ describe('老消息上新开的话题（2026-10-15 aven 在 Encone 15 分钟前�
       } finally {
         rmSync(dir, { recursive: true, force: true })
       }
-    })
-  })
+    }],
+  ]))
 })
 
 describe('合盖暂停、开盖补拉（aven 10-17：合盖 bot 下班，开盖后批量处理合盖期间的 @）；ingest 失败的消息不记 seen、游标不越过它（第 0 批：以前打一行日志就永久丢）', () => {
-  it('合盖不拉、游标不动、开盖补拉；ingest 抛错的消息不记 seen、游标不越过、下一轮重喂', async () => {
-    await step('合盖不调列消息、游标不动；开盖一轮把游标之后的消息全部喂入', async () => {
+  it('合盖不拉、游标不动、开盖补拉；ingest 抛错的消息不记 seen、游标不越过、下一轮重喂', () => runSteps([
+    ['合盖不调列消息、游标不动；开盖一轮把游标之后的消息全部喂入', async () => {
       const profile = registerRepoProfiles({ repos: { falive: { root: '/tmp/falive-react', baseRef: 'main', chatIds: ['oc_falive'], notifyChatId: 'ou_aven' } } }).get('falive')
       const dir = mkdtempSync(join(tmpdir(), 'lark-poller-lid-'))
       const statePath = join(dir, 'state.json')
@@ -453,9 +429,8 @@ describe('合盖暂停、开盖补拉（aven 10-17：合盖 bot 下班，开盖�
       } finally {
         rmSync(dir, { recursive: true, force: true })
       }
-    })
-
-    await step('第一轮 ingest 抛错 → 下一轮重喂成功', async () => {
+    }],
+    ['第一轮 ingest 抛错 → 下一轮重喂成功', async () => {
       const profile = registerRepoProfiles({ repos: { falive: { root: '/tmp/falive-react', baseRef: 'main', chatIds: ['oc_falive'], notifyChatId: 'ou_aven' } } }).get('falive')
       const dir = mkdtempSync(join(tmpdir(), 'lark-poller-retry-'))
       const statePath = join(dir, 'state.json')
@@ -499,6 +474,6 @@ describe('合盖暂停、开盖补拉（aven 10-17：合盖 bot 下班，开盖�
       } finally {
         rmSync(dir, { recursive: true, force: true })
       }
-    })
-  })
+    }],
+  ]))
 })

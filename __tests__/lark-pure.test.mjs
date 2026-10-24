@@ -14,6 +14,8 @@ import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
+import { eachCase, runSteps } from './support/steps.mjs'
+
 import { handleStatusUpdate, resolveReceiptOutcome, retryPendingReceipts, sendQueuedReceipt } from '../lib/lark-status.mjs'
 import {
   buildBugStatusFilter,
@@ -68,15 +70,13 @@ const ME = 'ou_me'
 // normalizeMessage：两种信封（lark-cli 拍平 / 官方嵌套）归一
 // ---------------------------------------------------------------------------
 describe('normalizeMessage', () => {
-  it('信封归一：非法输入 / lark-cli 拍平 / create_time 三形态 / 官方嵌套 / post 富文本 / 引用图片占位', () => {
-    {
-      const m = '非对象 / 无 message_id → null'
-      assert.equal(normalizeMessage(null), null, m)
-      assert.equal(normalizeMessage('x'), null, m)
-      assert.equal(normalizeMessage({ chat_id: 'oc_1' }), null, m)
-    }
-    {
-      const m = 'lark-cli 拍平结构：顶层字段 + 字符串 mention.id + 去内联 @名字 + root_id 作 replyTo'
+  it('信封归一：非法输入 / lark-cli 拍平 / create_time 三形态 / 官方嵌套 / post 富文本 / 引用图片占位', () => runSteps([
+    ['非对象 / 无 message_id → null', () => {
+      assert.equal(normalizeMessage(null), null)
+      assert.equal(normalizeMessage('x'), null)
+      assert.equal(normalizeMessage({ chat_id: 'oc_1' }), null)
+    }],
+    ['lark-cli 拍平结构：顶层字段 + 字符串 mention.id + 去内联 @名字 + root_id 作 replyTo', () => {
       const msg = normalizeMessage({
         message_id: 'om_1',
         chat_id: 'oc_1',
@@ -87,22 +87,20 @@ describe('normalizeMessage', () => {
         mentions: [{ id: BOT, key: '@_user_1', name: '小助手' }],
         root_id: 'om_parent',
       })
-      assert.equal(msg.messageId, 'om_1', m)
-      assert.equal(msg.chatId, 'oc_1', m)
-      assert.equal(msg.senderOpenId, ME, m)
-      assert.equal(msg.mentions[0].id, BOT, m) // 字符串形态直接取
-      assert.equal(msg.text, '修复登录页', m) // @小助手 已剥除
-      assert.equal(msg.replyTo, 'om_parent', m)
-    }
-    {
-      const m = 'createTimeMs 吃三种 create_time：毫秒串 / 列消息的本机时间串 / 空（2026-10-15：时间串成 NaN 导致从没拉过群上下文）'
+      assert.equal(msg.messageId, 'om_1')
+      assert.equal(msg.chatId, 'oc_1')
+      assert.equal(msg.senderOpenId, ME)
+      assert.equal(msg.mentions[0].id, BOT) // 字符串形态直接取
+      assert.equal(msg.text, '修复登录页') // @小助手 已剥除
+      assert.equal(msg.replyTo, 'om_parent')
+    }],
+    ['createTimeMs 吃三种 create_time：毫秒串 / 列消息的本机时间串 / 空（2026-10-15：时间串成 NaN 导致从没拉过群上下文）', () => {
       const base = { message_id: 'om_t', chat_id: 'oc_1', chat_type: 'group', message_type: 'text', sender_id: ME, content: 'x', mentions: [] }
-      assert.equal(normalizeMessage({ ...base, create_time: '1760342400000' }).createTimeMs, 1760342400000, m)
-      assert.equal(normalizeMessage({ ...base, create_time: '2026-10-15 13:21' }).createTimeMs, Date.parse('2026-10-15 13:21'), m)
-      assert.equal(normalizeMessage({ ...base }).createTimeMs, null, m)
-    }
-    {
-      const m = '官方嵌套 webhook：event.message.* + content JSON 串 + mention.id.open_id'
+      assert.equal(normalizeMessage({ ...base, create_time: '1760342400000' }).createTimeMs, 1760342400000)
+      assert.equal(normalizeMessage({ ...base, create_time: '2026-10-15 13:21' }).createTimeMs, Date.parse('2026-10-15 13:21'))
+      assert.equal(normalizeMessage({ ...base }).createTimeMs, null)
+    }],
+    ['官方嵌套 webhook：event.message.* + content JSON 串 + mention.id.open_id', () => {
       const msg = normalizeMessage({
         event: {
           message: {
@@ -116,13 +114,12 @@ describe('normalizeMessage', () => {
           sender: { sender_id: { open_id: ME } },
         },
       })
-      assert.equal(msg.messageId, 'om_2', m)
-      assert.equal(msg.senderOpenId, ME, m)
-      assert.equal(msg.mentions[0].id, BOT, m) // { open_id } 形态取 open_id
-      assert.equal(msg.text, '看看这个', m)
-    }
-    {
-      const m = 'post 富文本：抽出文本 + 图片 image_key 进 attachments'
+      assert.equal(msg.messageId, 'om_2')
+      assert.equal(msg.senderOpenId, ME)
+      assert.equal(msg.mentions[0].id, BOT) // { open_id } 形态取 open_id
+      assert.equal(msg.text, '看看这个')
+    }],
+    ['post 富文本：抽出文本 + 图片 image_key 进 attachments', () => {
       const post = {
         zh_cn: {
           content: [
@@ -140,12 +137,11 @@ describe('normalizeMessage', () => {
         content: JSON.stringify(post),
         mentions: [],
       })
-      assert.equal(msg.text, '背景色不对', m)
-      assert.equal(msg.attachments.length, 1, m)
-      assert.deepEqual(msg.attachments[0], { type: 'image', imageKey: 'img_k1', width: 100, height: 200 }, m)
-    }
-    {
-      const m = '引用消息降级文本：恢复两种图片占位格式并按 image_key 去重'
+      assert.equal(msg.text, '背景色不对')
+      assert.equal(msg.attachments.length, 1)
+      assert.deepEqual(msg.attachments[0], { type: 'image', imageKey: 'img_k1', width: 100, height: 200 })
+    }],
+    ['引用消息降级文本：恢复两种图片占位格式并按 image_key 去重', () => {
       const msg = normalizeMessage({
         message_id: 'om_4',
         chat_id: 'oc_4',
@@ -156,38 +152,39 @@ describe('normalizeMessage', () => {
       assert.deepEqual(msg.attachments, [
         { type: 'image', imageKey: 'img_same' },
         { type: 'image', imageKey: 'img_other' },
-      ], m)
-    }
-  })
+      ])
+    }],
+  ]))
 })
 
 describe('bug table task status', () => {
-  it('任务状态分类与回写出口：等待 / no-change / in-flight / 回写重试三出口', () => {
-    {
-      const m = 'blocked/waiting_confirmation 保持等待，不会被 poller 当新任务重入队'
-      assert.equal(classifyBugTaskStatus('blocked'), 'waiting', m)
-      assert.equal(classifyBugTaskStatus('waiting_confirmation'), 'waiting', m)
-      assert.equal(classifyBugTaskStatus('verifying'), 'in-flight', m)
-      assert.equal(classifyBugTaskStatus(undefined), 'new', m)
-    }
-    assert.equal(classifyBugTaskStatus('no_change_needed'), 'no-change', 'no_change_needed → no-change 终局，不重入队也不落 seen（转后端待人工重派）')
-    assert.equal(classifyBugTaskStatus('result_pending_receipt'), 'in-flight', '结果回执 pending 属于 in-flight，不会被 poller 当成新任务重复入队')
-    {
-      const m = '回写重试的三个出口：成功落 done，未到上限继续重试，到上限停在 done_pending_writeback（不伪装成完成）'
-      assert.deepEqual(resolveWritebackOutcome({ ok: true, attempts: 5 }), { status: 'done', attempts: 0, gaveUp: false, retry: false }, m)
+  it('任务状态分类与回写出口：等待 / no-change / in-flight / 回写重试三出口', () => runSteps([
+    ['blocked/waiting_confirmation 保持等待，不会被 poller 当新任务重入队', () => {
+      assert.equal(classifyBugTaskStatus('blocked'), 'waiting')
+      assert.equal(classifyBugTaskStatus('waiting_confirmation'), 'waiting')
+      assert.equal(classifyBugTaskStatus('verifying'), 'in-flight')
+      assert.equal(classifyBugTaskStatus(undefined), 'new')
+    }],
+    ['no_change_needed → no-change 终局，不重入队也不落 seen（转后端待人工重派）', () => {
+      assert.equal(classifyBugTaskStatus('no_change_needed'), 'no-change')
+    }],
+    ['结果回执 pending 属于 in-flight，不会被 poller 当成新任务重复入队', () => {
+      assert.equal(classifyBugTaskStatus('result_pending_receipt'), 'in-flight')
+    }],
+    ['回写重试的三个出口：成功落 done，未到上限继续重试，到上限停在 done_pending_writeback（不伪装成完成）', () => {
+      assert.deepEqual(resolveWritebackOutcome({ ok: true, attempts: 5 }), { status: 'done', attempts: 0, gaveUp: false, retry: false })
       assert.deepEqual(resolveWritebackOutcome({ ok: false, attempts: 0, max: 3 }), {
         status: 'done_pending_writeback', attempts: 1, gaveUp: false, retry: true,
-      }, m)
+      })
       // 到上限：状态**仍是中间态**——落 done 会让「群里说完成、bug 表还挂着待处理」这条不一致被 prune 抹掉
       assert.deepEqual(resolveWritebackOutcome({ ok: false, attempts: 2, max: 3 }), {
         status: 'done_pending_writeback', attempts: 3, gaveUp: true, retry: false,
-      }, m)
-    }
-  })
+      })
+    }],
+  ]))
 
-  it('poll 过滤与动作：待处理 + 验退双状态查询、单选字段解析、验退 reopen / 待处理尊重 seen', () => {
-    {
-      const m = '同时查询待处理与验退；未配置验退值时保持单状态过滤'
+  it('poll 过滤与动作：待处理 + 验退双状态查询、单选字段解析、验退 reopen / 待处理尊重 seen', () => runSteps([
+    ['同时查询待处理与验退；未配置验退值时保持单状态过滤', () => {
       assert.deepEqual(
         buildBugStatusFilter({ statusField: '处理状态', pendingValue: '待处理', rejectedValue: '验退' }),
         {
@@ -197,39 +194,34 @@ describe('bug table task status', () => {
             ['处理状态', '==', '验退'],
           ],
         },
-        m,
       )
       assert.deepEqual(buildBugStatusFilter({ statusField: '处理状态', pendingValue: '待处理' }), {
         logic: 'and',
         conditions: [['处理状态', '==', '待处理']],
-      }, m)
-    }
-    {
-      const m = '解析 Base 单选字段返回的字符串数组'
-      assert.equal(readStatusText(['验退']), '验退', m)
-      assert.equal(readStatusText([{ name: '待处理' }]), '待处理', m)
-    }
-    {
-      const m = '验退是新的人工轮次：忽略 seen，并重开旧终态；活动/等待态仍去重'
+      })
+    }],
+    ['解析 Base 单选字段返回的字符串数组', () => {
+      assert.equal(readStatusText(['验退']), '验退')
+      assert.equal(readStatusText([{ name: '待处理' }]), '待处理')
+    }],
+    ['验退是新的人工轮次：忽略 seen，并重开旧终态；活动/等待态仍去重', () => {
       const base = { recordStatus: '验退', rejectedValue: '验退', seen: true }
       for (const taskStatus of ['done', 'done_pending_writeback', 'failed', 'no_change_needed']) {
-        assert.equal(classifyBugPollAction({ ...base, taskStatus }), 'reopen', `${m}：${taskStatus}`)
+        assert.equal(classifyBugPollAction({ ...base, taskStatus }), 'reopen', taskStatus)
       }
-      assert.equal(classifyBugPollAction({ ...base, taskStatus: 'queued' }), 'in-flight', m)
-      assert.equal(classifyBugPollAction({ ...base, taskStatus: 'waiting_confirmation' }), 'waiting', m)
-      assert.equal(classifyBugPollAction({ ...base, taskStatus: undefined }), 'enqueue', m)
-    }
-    {
-      const m = '普通待处理仍尊重 seen，failed 不自动重跑'
+      assert.equal(classifyBugPollAction({ ...base, taskStatus: 'queued' }), 'in-flight')
+      assert.equal(classifyBugPollAction({ ...base, taskStatus: 'waiting_confirmation' }), 'waiting')
+      assert.equal(classifyBugPollAction({ ...base, taskStatus: undefined }), 'enqueue')
+    }],
+    ['普通待处理仍尊重 seen，failed 不自动重跑', () => {
       const base = { recordStatus: '待处理', rejectedValue: '验退' }
-      assert.equal(classifyBugPollAction({ ...base, taskStatus: 'done', seen: true }), 'seen', m)
-      assert.equal(classifyBugPollAction({ ...base, taskStatus: 'failed', seen: false }), 'failed', m)
-    }
-  })
+      assert.equal(classifyBugPollAction({ ...base, taskStatus: 'done', seen: true }), 'seen')
+      assert.equal(classifyBugPollAction({ ...base, taskStatus: 'failed', seen: false }), 'failed')
+    }],
+  ]))
 
-  it('bug 正文与命令类型：验退要求分析根因；只认显式前缀、QA 验退始终按修复', () => {
-    {
-      const m = '验退任务正文要求先分析上一轮未解决根因'
+  it('bug 正文与命令类型：验退要求分析根因；只认显式前缀、QA 验退始终按修复', () => runSteps([
+    ['验退任务正文要求先分析上一轮未解决根因', () => {
       const text = buildBugText({
         bug: { statusField: '处理状态', rejectedValue: '验退', titleField: '问题标题', descField: '问题描述', projectField: '项目ID' },
         record: {
@@ -237,24 +229,23 @@ describe('bug table task status', () => {
           fields: { 处理状态: ['验退'], 问题标题: '按钮仍错位', 问题描述: 'test 环境复现', 项目ID: 'PR-12345' },
         },
       })
-      assert.match(text, /bug 表验退项/, m)
-      assert.match(text, /深入分析未解决的根因/, m)
-      assert.match(text, /不要原样重复上一轮方案/, m)
-    }
-    {
-      const m = 'bug 表命令类型只认显式前缀，不做自然语言兜底；QA 验退始终按修复处理'
+      assert.match(text, /bug 表验退项/)
+      assert.match(text, /深入分析未解决的根因/)
+      assert.match(text, /不要原样重复上一轮方案/)
+    }],
+    ['bug 表命令类型只认显式前缀，不做自然语言兜底；QA 验退始终按修复处理', () => {
       const bug = { statusField: '处理状态', rejectedValue: '验退', titleField: '问题标题', descField: '问题描述' }
       // 自然语言问法（无显式「状态：」前缀）不再当 status——否则真 bug 会被静默零改动关单（P0-1）。
       const nl = { 处理状态: '待处理', 问题标题: '这个项目现在的状态是？', 问题描述: '' }
-      assert.equal(readBugCommandType({ fields: nl, bug }), null, m)
-      assert.match(buildBugText({ record: { record_id: 'rec-nl', fields: nl }, bug }), /^修复：Lark bug 表待处理项/, m)
+      assert.equal(readBugCommandType({ fields: nl, bug }), null)
+      assert.match(buildBugText({ record: { record_id: 'rec-nl', fields: nl }, bug }), /^修复：Lark bug 表待处理项/)
       // 只有标题里显式写「状态：」前缀才当只读查询。
       const explicit = { 处理状态: '待处理', 问题标题: '状态：这个项目现在做到哪了', 问题描述: '' }
-      assert.equal(readBugCommandType({ fields: explicit, bug }), 'status', m)
-      assert.match(buildBugText({ record: { record_id: 'rec-status', fields: explicit }, bug }), /^状态：状态：这个项目现在做到哪了/, m)
-      assert.equal(readBugCommandType({ fields: { ...nl, 处理状态: '验退' }, bug }), 'fix', m)
-    }
-  })
+      assert.equal(readBugCommandType({ fields: explicit, bug }), 'status')
+      assert.match(buildBugText({ record: { record_id: 'rec-status', fields: explicit }, bug }), /^状态：状态：这个项目现在做到哪了/)
+      assert.equal(readBugCommandType({ fields: { ...nl, 处理状态: '验退' }, bug }), 'fix')
+    }],
+  ]))
 })
 
 // ---------------------------------------------------------------------------
@@ -262,95 +253,101 @@ describe('bug table task status', () => {
 // ---------------------------------------------------------------------------
 describe('isForBot', () => {
   const config = { botOpenId: BOT }
-  it('isForBot / resolveMessageTrigger 分流：p2p、@bot、@负责人、@所有人、Bot 回执回复、未配 botOpenId 兼容', () => {
-    assert.equal(isForBot({ msg: { chatType: 'p2p', mentions: [] }, config }), true, 'p2p 直发始终算给 bot')
-    assert.equal(isForBot({ msg: { chatType: 'group', mentions: [{ id: BOT }] }, config }), true, '群里 mention 命中 botOpenId → true')
-    assert.equal(isForBot({ msg: { chatType: 'group', mentions: [{ id: 'ou_other' }] }, config }), false, '群里 mention 未命中 → false')
-    {
-      const m = '群里只 @ 配置的负责人 → 进入 task_mention 前置分类'
+  it('isForBot / resolveMessageTrigger 分流：p2p、@bot、@负责人、@所有人、Bot 回执回复、未配 botOpenId 兼容', () => runSteps([
+    ['p2p 直发始终算给 bot', () => {
+      assert.equal(isForBot({ msg: { chatType: 'p2p', mentions: [] }, config }), true)
+    }],
+    ['群里 mention 命中 botOpenId → true', () => {
+      assert.equal(isForBot({ msg: { chatType: 'group', mentions: [{ id: BOT }] }, config }), true)
+    }],
+    ['群里 mention 未命中 → false', () => {
+      assert.equal(isForBot({ msg: { chatType: 'group', mentions: [{ id: 'ou_other' }] }, config }), false)
+    }],
+    ['群里只 @ 配置的负责人 → 进入 task_mention 前置分类', () => {
       const personConfig = { botOpenId: BOT, taskMentionOpenIds: [ME] }
       const msg = { chatType: 'group', mentions: [{ id: ME }] }
-      assert.equal(resolveMessageTrigger({ msg, config: personConfig }), 'task_mention', m)
-      assert.equal(isForBot({ msg, config: personConfig }), true, m)
-    }
-    {
+      assert.equal(resolveMessageTrigger({ msg, config: personConfig }), 'task_mention')
+      assert.equal(isForBot({ msg, config: personConfig }), true)
+    }],
+    ['同时 @bot 与负责人 → 仍是 direct，不重复做前置分类', () => {
       const personConfig = { botOpenId: BOT, taskMentionOpenIds: [ME] }
       const msg = { chatType: 'group', mentions: [{ id: ME }, { id: BOT }] }
-      assert.equal(resolveMessageTrigger({ msg, config: personConfig }), 'direct', '同时 @bot 与负责人 → 仍是 direct，不重复做前置分类')
-    }
-    assert.equal(resolveMessageTrigger({ msg: { chatType: 'group', mentions: [] }, config }), null, '普通群消息没有 mention → 不触发')
-    {
-      const m = '无 @ 的群回复仅在精确命中 Bot 回执时进入控制通道'
+      assert.equal(resolveMessageTrigger({ msg, config: personConfig }), 'direct')
+    }],
+    ['普通群消息没有 mention → 不触发', () => {
+      assert.equal(resolveMessageTrigger({ msg: { chatType: 'group', mentions: [] }, config }), null)
+    }],
+    ['无 @ 的群回复仅在精确命中 Bot 回执时进入控制通道', () => {
       const msg = { chatType: 'group', senderType: 'user', mentions: [], replyToDirect: 'om_receipt' }
-      assert.equal(resolveMessageTrigger({ msg, config, isBotReceiptReply: true }), 'bot_reply', m)
-      assert.equal(resolveMessageTrigger({ msg, config, isBotReceiptReply: false }), null, m)
-    }
-    {
+      assert.equal(resolveMessageTrigger({ msg, config, isBotReceiptReply: true }), 'bot_reply')
+      assert.equal(resolveMessageTrigger({ msg, config, isBotReceiptReply: false }), null)
+    }],
+    ['bot 自己发的含 @负责人消息 → 不回流成任务', () => {
       const personConfig = { botOpenId: BOT, taskMentionOpenIds: [ME] }
       const msg = { chatType: 'group', senderType: 'bot', mentions: [{ id: ME }] }
-      assert.equal(resolveMessageTrigger({ msg, config: personConfig }), null, 'bot 自己发的含 @负责人消息 → 不回流成任务')
-    }
-    assert.equal(isForBot({ msg: { chatType: 'group', mentions: [{ key: '@_all' }] }, config }), true, '群里 @所有人（key=@_all）→ true')
-    // 群里任何人喊一句「@所有人」不该等于「让机器人改代码」；仍进 task_mention 以便接住真实反馈。
-    assert.equal(resolveMessageTrigger({ msg: { chatType: 'group', mentions: [{ key: '@_all' }] }, config }), 'task_mention', '群里 @所有人 → 只读意图分类，不直接入队')
-    {
+      assert.equal(resolveMessageTrigger({ msg, config: personConfig }), null)
+    }],
+    ['群里 @所有人（key=@_all）→ true', () => {
+      assert.equal(isForBot({ msg: { chatType: 'group', mentions: [{ key: '@_all' }] }, config }), true)
+    }],
+    ['群里 @所有人 → 只读意图分类，不直接入队', () => {
+      // 群里任何人喊一句「@所有人」不该等于「让机器人改代码」；仍进 task_mention 以便接住真实反馈。
+      assert.equal(resolveMessageTrigger({ msg: { chatType: 'group', mentions: [{ key: '@_all' }] }, config }), 'task_mention')
+    }],
+    ['@所有人 同时 @bot → 仍是 direct（明确在叫机器人）', () => {
       const msg = { chatType: 'group', mentions: [{ key: '@_all' }, { id: BOT }] }
-      assert.equal(resolveMessageTrigger({ msg, config }), 'direct', '@所有人 同时 @bot → 仍是 direct（明确在叫机器人）')
-    }
-    {
-      const m = '未配置 botOpenId 时：有任意 mention 即算'
-      assert.equal(isForBot({ msg: { chatType: 'group', mentions: [{ id: 'x' }] }, config: {} }), true, m)
-      assert.equal(isForBot({ msg: { chatType: 'group', mentions: [] }, config: {} }), false, m)
-    }
-    assert.equal(resolveMessageTrigger({ msg: { chatType: 'group', mentions: [{ id: 'x' }] }, config: {} }), 'task_mention', '未配置 botOpenId 的兼容分支 → 降为只读分类而非 direct')
-  })
+      assert.equal(resolveMessageTrigger({ msg, config }), 'direct')
+    }],
+    ['未配置 botOpenId 时：有任意 mention 即算', () => {
+      assert.equal(isForBot({ msg: { chatType: 'group', mentions: [{ id: 'x' }] }, config: {} }), true)
+      assert.equal(isForBot({ msg: { chatType: 'group', mentions: [] }, config: {} }), false)
+    }],
+    ['未配置 botOpenId 的兼容分支 → 降为只读分类而非 direct', () => {
+      assert.equal(resolveMessageTrigger({ msg: { chatType: 'group', mentions: [{ id: 'x' }] }, config: {} }), 'task_mention')
+    }],
+  ]))
 })
 
 // ---------------------------------------------------------------------------
 // isWhitelisted：fail-closed + 群级信任边界（review P0-1 核心）
 // ---------------------------------------------------------------------------
 describe('isWhitelisted (fail-closed, 群级信任)', () => {
-  it('白名单：未配置 fail-closed / 群按群放行 / p2p 只认用户 / auto 动态成员制', () => {
-    {
-      const m = '完全没配白名单 → 拒绝所有事件（fail-closed，绝不 fail-open）'
-      assert.equal(isWhitelisted({ msg: { chatType: 'group', chatId: 'oc_1' }, config: {} }), false, m)
-      assert.equal(isWhitelisted({ msg: { chatType: 'p2p', senderOpenId: ME }, config: {} }), false, m)
+  it('白名单：未配置 fail-closed / 群按群放行 / p2p 只认用户 / auto 动态成员制', () => runSteps([
+    ['完全没配白名单 → 拒绝所有事件（fail-closed，绝不 fail-open）', () => {
+      assert.equal(isWhitelisted({ msg: { chatType: 'group', chatId: 'oc_1' }, config: {} }), false)
+      assert.equal(isWhitelisted({ msg: { chatType: 'p2p', senderOpenId: ME }, config: {} }), false)
       assert.equal(
         isWhitelisted({ msg: { chatType: 'group', chatId: 'oc_1' }, config: { allowedChatIds: [], allowedOpenIds: [] } }),
         false,
-        m,
       )
-    }
-    {
-      const m = '群消息按群放行、不按发送人过滤（群内 QA/PM/后台 @ 都能触发）'
+    }],
+    ['群消息按群放行、不按发送人过滤（群内 QA/PM/后台 @ 都能触发）', () => {
       const config = { allowedChatIds: ['oc_ok'] }
       // 白名单群里任意发送人都放行
-      assert.equal(isWhitelisted({ msg: { chatType: 'group', chatId: 'oc_ok', senderOpenId: 'ou_qa' }, config }), true, m)
-      assert.equal(isWhitelisted({ msg: { chatType: 'group', chatId: 'oc_ok', senderOpenId: 'ou_pm' }, config }), true, m)
+      assert.equal(isWhitelisted({ msg: { chatType: 'group', chatId: 'oc_ok', senderOpenId: 'ou_qa' }, config }), true)
+      assert.equal(isWhitelisted({ msg: { chatType: 'group', chatId: 'oc_ok', senderOpenId: 'ou_pm' }, config }), true)
       // 非白名单群一律拒绝
-      assert.equal(isWhitelisted({ msg: { chatType: 'group', chatId: 'oc_bad', senderOpenId: ME }, config }), false, m)
-    }
-    {
-      const m = 'p2p 直发无群作锚点：只放行白名单用户'
+      assert.equal(isWhitelisted({ msg: { chatType: 'group', chatId: 'oc_bad', senderOpenId: ME }, config }), false)
+    }],
+    ['p2p 直发无群作锚点：只放行白名单用户', () => {
       const config = { allowedOpenIds: [ME] }
-      assert.equal(isWhitelisted({ msg: { chatType: 'p2p', senderOpenId: ME }, config }), true, m)
-      assert.equal(isWhitelisted({ msg: { chatType: 'p2p', senderOpenId: 'ou_stranger' }, config }), false, m)
-    }
-    {
+      assert.equal(isWhitelisted({ msg: { chatType: 'p2p', senderOpenId: ME }, config }), true)
+      assert.equal(isWhitelisted({ msg: { chatType: 'p2p', senderOpenId: 'ou_stranger' }, config }), false)
+    }],
+    ['只配了群白名单时，p2p 直发被拒（用户名单为空）', () => {
       const config = { allowedChatIds: ['oc_ok'] }
-      assert.equal(isWhitelisted({ msg: { chatType: 'p2p', senderOpenId: ME }, config }), false, '只配了群白名单时，p2p 直发被拒（用户名单为空）')
-    }
-    {
-      const m = '动态成员制（auto）：群消息按注入的 isMember 放行/拒绝'
+      assert.equal(isWhitelisted({ msg: { chatType: 'p2p', senderOpenId: ME }, config }), false)
+    }],
+    ['动态成员制（auto）：群消息按注入的 isMember 放行/拒绝', () => {
       const config = { allowedChatIds: 'auto' }
-      assert.equal(isWhitelisted({ msg: { chatType: 'group', chatId: 'oc_x' }, config, isMember: true }), true, m)
-      assert.equal(isWhitelisted({ msg: { chatType: 'group', chatId: 'oc_x' }, config, isMember: false }), false, m)
+      assert.equal(isWhitelisted({ msg: { chatType: 'group', chatId: 'oc_x' }, config, isMember: true }), true)
+      assert.equal(isWhitelisted({ msg: { chatType: 'group', chatId: 'oc_x' }, config, isMember: false }), false)
       // auto 下 p2p 仍只放行白名单用户，与 isMember 无关
       const withUser = { allowedChatIds: 'auto', allowedOpenIds: [ME] }
-      assert.equal(isWhitelisted({ msg: { chatType: 'p2p', senderOpenId: ME }, config: withUser, isMember: true }), true, m)
-      assert.equal(isWhitelisted({ msg: { chatType: 'p2p', senderOpenId: 'ou_x' }, config: withUser, isMember: true }), false, m)
-    }
-  })
+      assert.equal(isWhitelisted({ msg: { chatType: 'p2p', senderOpenId: ME }, config: withUser, isMember: true }), true)
+      assert.equal(isWhitelisted({ msg: { chatType: 'p2p', senderOpenId: 'ou_x' }, config: withUser, isMember: true }), false)
+    }],
+  ]))
 })
 
 // ---------------------------------------------------------------------------
@@ -359,8 +356,8 @@ describe('isWhitelisted (fail-closed, 群级信任)', () => {
 describe('safeProject', () => {
   it('合法项目号归一为大写；非法/危险值一律空串（不作为路径/分支片段）', () => {
     const cases = [
-      { name: '合法项目号归一为大写', input: 'pr-01947', expected: 'PR-01947' },
-      { name: '合法项目号归一为大写', input: ' PM-1469 ', expected: 'PM-1469' },
+      { name: '合法项目号归一为大写："pr-01947"', input: 'pr-01947', expected: 'PR-01947' },
+      { name: '合法项目号归一为大写：" PM-1469 "', input: ' PM-1469 ', expected: 'PM-1469' },
       { name: '非法/危险值一律空串（不作为路径/分支片段）：路径穿越', input: '../../etc', expected: '' },
       { name: '非法/危险值一律空串（不作为路径/分支片段）：位数不足', input: 'PR-1', expected: '' },
       { name: '非法/危险值一律空串（不作为路径/分支片段）：注入串', input: 'DROP TABLE', expected: '' },
@@ -368,7 +365,7 @@ describe('safeProject', () => {
       { name: '非法/危险值一律空串（不作为路径/分支片段）：null', input: null, expected: '' },
       { name: '非法/危险值一律空串（不作为路径/分支片段）：undefined', input: undefined, expected: '' },
     ]
-    for (const { name, input, expected } of cases) assert.equal(safeProject(input), expected, name)
+    return eachCase(cases, ({ input, expected }) => assert.equal(safeProject(input), expected))
   })
 })
 
@@ -378,82 +375,76 @@ describe('safeProject', () => {
 describe('resolveWorkContext', () => {
   const cfg = { projectId: 'PR-01947', projectName: 'x' }
 
-  it('路由与分支命名：adhoc / 临时 hotfix / tail-8 后缀 / recordId 优先 / 只读主仓就地', () => {
-    {
-      const m = '非法项目号 → adhoc 临时 worktree（不越目录）'
+  it('路由与分支命名：adhoc / 临时 hotfix / tail-8 后缀 / recordId 优先 / 只读主仓就地', () => runSteps([
+    ['非法项目号 → adhoc 临时 worktree（不越目录）', () => {
       const ctx = resolveWorkContext(cfg, { project: '../../x', id: 'om_abcdefgh12345678' })
-      assert.equal(ctx.hotfixBranch, 'hotfix/adhoc-12345678', m)
-      assert.equal(ctx.projectId, '(adhoc)', m)
-      assert.ok(ctx.cwd.includes('.lark-hotfix'), m)
-    }
-    {
+      assert.equal(ctx.hotfixBranch, 'hotfix/adhoc-12345678')
+      assert.equal(ctx.projectId, '(adhoc)')
+      assert.ok(ctx.cwd.includes('.lark-hotfix'))
+    }],
+    ['无项目号 → adhoc 临时 worktree', () => {
       const ctx = resolveWorkContext(cfg, { id: 'om_xxxxxxxx87654321' })
-      assert.equal(ctx.hotfixBranch, 'hotfix/adhoc-87654321', '无项目号 → adhoc 临时 worktree')
-    }
-    {
-      const m = '合法但本地无 worktree 的项目 → 临时 hotfix 分支（项目号大写归一）'
+      assert.equal(ctx.hotfixBranch, 'hotfix/adhoc-87654321')
+    }],
+    ['合法但本地无 worktree 的项目 → 临时 hotfix 分支（项目号大写归一）', () => {
       const ctx = resolveWorkContext(cfg, { project: 'pr-99999', id: 'om_zzzzzzzzABCDEFGH' })
-      assert.equal(ctx.hotfixBranch, 'hotfix/PR-99999-ABCDEFGH', m)
-      assert.equal(ctx.projectId, 'PR-99999', m)
-    }
-    {
-      const m = '分支后缀取 id 尾 8 位（同群 messageId 共享长前缀，取头会撞车）'
+      assert.equal(ctx.hotfixBranch, 'hotfix/PR-99999-ABCDEFGH')
+      assert.equal(ctx.projectId, 'PR-99999')
+    }],
+    ['分支后缀取 id 尾 8 位（同群 messageId 共享长前缀，取头会撞车）', () => {
       const a = resolveWorkContext(cfg, { project: 'PR-99999', id: 'om_x100b68708_AAAA0001' })
       const b = resolveWorkContext(cfg, { project: 'PR-99999', id: 'om_x100b68708_AAAA0002' })
-      assert.notEqual(a.hotfixBranch, b.hotfixBranch, m) // 尾部不同 → 分支不同
-      assert.ok(a.hotfixBranch.endsWith('AAAA0001'), m)
-    }
-    {
+      assert.notEqual(a.hotfixBranch, b.hotfixBranch) // 尾部不同 → 分支不同
+      assert.ok(a.hotfixBranch.endsWith('AAAA0001'))
+    }],
+    ['recordId 优先于 id 作分支后缀', () => {
       const ctx = resolveWorkContext(cfg, { project: 'PR-99999', recordId: 'recABCDEFGH', id: 'om_ignored' })
-      assert.ok(ctx.hotfixBranch.endsWith('ecABCDEFGH'.slice(-8)), 'recordId 优先于 id 作分支后缀')
-    }
-    {
-      const m = '只读命令（状态/status）本地无 worktree → 主仓就地只读，不建临时 worktree、无分支'
+      assert.ok(ctx.hotfixBranch.endsWith('ecABCDEFGH'.slice(-8)))
+    }],
+    ['只读命令（状态/status）本地无 worktree → 主仓就地只读，不建临时 worktree、无分支', () => {
       const ctx = resolveWorkContext(cfg, { project: 'PR-99999', text: '状态：登录改造进度？', id: 'om_ro1234567890' })
-      assert.equal(ctx.readOnly, true, m)
-      assert.equal(ctx.hotfixBranch, undefined, m)
-      assert.equal(ctx.projectId, 'PR-99999', m)
-      assert.ok(!ctx.cwd.includes('.lark-hotfix'), m)
-    }
-    {
-      const m = '只读命令用 gateway 落的 commandType（无需再解析 text）'
+      assert.equal(ctx.readOnly, true)
+      assert.equal(ctx.hotfixBranch, undefined)
+      assert.equal(ctx.projectId, 'PR-99999')
+      assert.ok(!ctx.cwd.includes('.lark-hotfix'))
+    }],
+    ['只读命令用 gateway 落的 commandType（无需再解析 text）', () => {
       const ctx = resolveWorkContext(cfg, { commandType: 'status', id: 'om_ro0987654321' })
-      assert.equal(ctx.readOnly, true, m)
-      assert.equal(ctx.hotfixBranch, undefined, m)
-    }
-    {
-      const m = '非只读命令（修复）仍走临时 worktree'
+      assert.equal(ctx.readOnly, true)
+      assert.equal(ctx.hotfixBranch, undefined)
+    }],
+    ['非只读命令（修复）仍走临时 worktree', () => {
       const ctx = resolveWorkContext(cfg, { project: 'PR-99999', text: '修复：登录报错', id: 'om_fix1234567890' })
-      assert.ok(!ctx.readOnly, m)
-      assert.ok(ctx.hotfixBranch?.startsWith('hotfix/PR-99999-'), m)
-    }
-  })
+      assert.ok(!ctx.readOnly)
+      assert.ok(ctx.hotfixBranch?.startsWith('hotfix/PR-99999-'))
+    }],
+  ]))
 })
 
 describe('validateWorkContextRoute（任务 / 项目 / worktree 路由同源）', () => {
   const task = { project: 'PR-99999', id: 'om_zzzzzzzzABCDEFGH' }
 
-  it('同源路由通过；串项目 / 串分支 / 串目录 fail-closed；只读任务可回落主仓', () => {
-    assert.equal(validateWorkContextRoute({ task, workContext: resolveWorkContext({}, task) }).ok, true, 'resolveWorkContext 原样产出的临时路由通过')
-    {
-      const m = '串项目、串分支、串目录分别 fail-closed'
+  it('同源路由通过；串项目 / 串分支 / 串目录 fail-closed；只读任务可回落主仓', () => runSteps([
+    ['resolveWorkContext 原样产出的临时路由通过', () => {
+      assert.equal(validateWorkContextRoute({ task, workContext: resolveWorkContext({}, task) }).ok, true)
+    }],
+    ['串项目、串分支、串目录分别 fail-closed', () => {
       const context = resolveWorkContext({}, task)
-      assert.equal(validateWorkContextRoute({ task: { ...task, project: 'PR-99998' }, workContext: context }).ok, false, m)
-      assert.equal(validateWorkContextRoute({ task, workContext: { ...context, hotfixBranch: 'hotfix/PR-99999-other' } }).ok, false, m)
-      assert.equal(validateWorkContextRoute({ task, workContext: { ...context, cwd: '/tmp/wrong-worktree' } }).ok, false, m)
-    }
-    {
+      assert.equal(validateWorkContextRoute({ task: { ...task, project: 'PR-99998' }, workContext: context }).ok, false)
+      assert.equal(validateWorkContextRoute({ task, workContext: { ...context, hotfixBranch: 'hotfix/PR-99999-other' } }).ok, false)
+      assert.equal(validateWorkContextRoute({ task, workContext: { ...context, cwd: '/tmp/wrong-worktree' } }).ok, false)
+    }],
+    ['无项目号的 status 只读主仓路由通过', () => {
       const readOnlyTask = { commandType: 'status', id: 'om_ro0987654321' }
-      assert.equal(validateWorkContextRoute({ task: readOnlyTask, workContext: resolveWorkContext({}, readOnlyTask) }).ok, true, '无项目号的 status 只读主仓路由通过')
-    }
-    {
-      const m = '项目 worktree 不存在时只读任务可回落主仓，但错误目录仍 fail-closed'
+      assert.equal(validateWorkContextRoute({ task: readOnlyTask, workContext: resolveWorkContext({}, readOnlyTask) }).ok, true)
+    }],
+    ['项目 worktree 不存在时只读任务可回落主仓，但错误目录仍 fail-closed', () => {
       const readOnlyTask = { project: 'PR-99999', commandType: 'status', id: 'om_ro1234567890' }
       const context = resolveWorkContext({}, readOnlyTask)
-      assert.equal(validateWorkContextRoute({ task: readOnlyTask, workContext: context }).ok, true, m)
-      assert.equal(validateWorkContextRoute({ task: readOnlyTask, workContext: { ...context, cwd: '/tmp/wrong-worktree' } }).ok, false, m)
-    }
-  })
+      assert.equal(validateWorkContextRoute({ task: readOnlyTask, workContext: context }).ok, true)
+      assert.equal(validateWorkContextRoute({ task: readOnlyTask, workContext: { ...context, cwd: '/tmp/wrong-worktree' } }).ok, false)
+    }],
+  ]))
 })
 
 // ---------------------------------------------------------------------------
@@ -461,228 +452,206 @@ describe('validateWorkContextRoute（任务 / 项目 / worktree 路由同源）'
 // （runTask 用它把 bot 改动挪出人类脏工作区，绝不自动提交人类 WIP）
 // ---------------------------------------------------------------------------
 describe('tempWorktreeContextFor', () => {
-  it('隔离改路由落点：与默认临时 worktree 一致、保留项目基线、同 id 复用、无项目号 adhoc', () => {
-    {
-      const m = '落点与「本地无 worktree」的默认临时 worktree 完全一致（改路由不引入新分支命名）'
+  it('隔离改路由落点：与默认临时 worktree 一致、保留项目基线、同 id 复用、无项目号 adhoc', () => runSteps([
+    ['落点与「本地无 worktree」的默认临时 worktree 完全一致（改路由不引入新分支命名）', () => {
       const task = { project: 'PR-99999', id: 'om_zzzzzzzzABCDEFGH' }
       const rerouted = tempWorktreeContextFor(task)
       const fresh = resolveWorkContext({}, task) // PR-99999 本地无 worktree → 同一临时落点
-      assert.equal(rerouted.hotfixBranch, fresh.hotfixBranch, m)
-      assert.equal(rerouted.cwd, fresh.cwd, m)
-      assert.ok(rerouted.hotfixBranch.startsWith('hotfix/PR-99999-'), m)
-    }
-    {
-      const m = 'WIP 改路由保留项目分支基线，不能静默退回 online'
+      assert.equal(rerouted.hotfixBranch, fresh.hotfixBranch)
+      assert.equal(rerouted.cwd, fresh.cwd)
+      assert.ok(rerouted.hotfixBranch.startsWith('hotfix/PR-99999-'))
+    }],
+    ['WIP 改路由保留项目分支基线，不能静默退回 online', () => {
       const task = { project: 'PR-99999', id: 'om_x100b68708_AAAA0001' }
       const rerouted = tempWorktreeContextFor(task, {
         baseRef: 'abc123',
         sourceBranch: 'feature/PR-99999',
         sourceWorktree: '/tmp/PR-99999',
       })
-      assert.equal(rerouted.baseRef, 'abc123', m)
-      assert.equal(rerouted.sourceBranch, 'feature/PR-99999', m)
-      assert.equal(rerouted.sourceWorktree, '/tmp/PR-99999', m)
-    }
-    {
-      const m = '同一 task.id 恒定 → retry/补料/QA 验退复用同一隔离 worktree，不丢上一轮'
+      assert.equal(rerouted.baseRef, 'abc123')
+      assert.equal(rerouted.sourceBranch, 'feature/PR-99999')
+      assert.equal(rerouted.sourceWorktree, '/tmp/PR-99999')
+    }],
+    ['同一 task.id 恒定 → retry/补料/QA 验退复用同一隔离 worktree，不丢上一轮', () => {
       const task = { project: 'PR-99999', id: 'om_x100b68708_AAAA0001' }
-      assert.equal(tempWorktreeContextFor(task).hotfixBranch, tempWorktreeContextFor(task).hotfixBranch, m)
+      assert.equal(tempWorktreeContextFor(task).hotfixBranch, tempWorktreeContextFor(task).hotfixBranch)
       assert.notEqual(
         tempWorktreeContextFor(task).hotfixBranch,
         tempWorktreeContextFor({ ...task, id: 'om_x100b68708_AAAA0002' }).hotfixBranch,
-        m,
       )
-    }
-    assert.ok(tempWorktreeContextFor({ id: 'om_xxxxxxxx87654321' }).hotfixBranch.startsWith('hotfix/adhoc-'), '无项目号 → adhoc 隔离分支')
-  })
+    }],
+    ['无项目号 → adhoc 隔离分支', () => {
+      assert.ok(tempWorktreeContextFor({ id: 'om_xxxxxxxx87654321' }).hotfixBranch.startsWith('hotfix/adhoc-'))
+    }],
+  ]))
 })
 
 // ---------------------------------------------------------------------------
 // parseCommandType：命令前缀归一 + 只读命令判定
 // ---------------------------------------------------------------------------
 describe('parseCommandType', () => {
-  it('命令前缀解析、只读判定、命令类型来源 SSOT 与显式续跑指令', () => {
-    {
-      const m = '识别中英前缀（大小写/全半角冒号），取首行'
-      assert.equal(parseCommandType('状态：进度？'), 'status', m)
-      assert.equal(parseCommandType('STATUS: progress?'), 'status', m)
-      assert.equal(parseCommandType('文档: 更新'), 'docs', m)
-      assert.equal(parseCommandType('修复：登录报错'), 'fix', m)
-      assert.equal(parseCommandType('自测：跑用例'), 'test', m)
-      assert.equal(parseCommandType('QA：验收'), 'qa', m)
-      assert.equal(parseCommandType('api：补接口'), 'api', m)
-    }
-    {
-      const m = '首行无命令前缀 → null（普通 bug 正文）'
-      assert.equal(parseCommandType('登录页按钮点不动'), null, m)
-      assert.equal(parseCommandType(''), null, m)
-      assert.equal(parseCommandType(null), null, m)
-    }
-    {
-      const m = '只读命令集合仅含 status'
-      assert.equal(isReadOnlyCommand('status'), true, m)
-      assert.equal(isReadOnlyCommand('docs'), false, m)
-      assert.equal(isReadOnlyCommand('fix'), false, m)
-      assert.equal(isReadOnlyCommand(null), false, m)
-    }
-    {
-      const m = 'classifyCommandType 标注来源：显式前缀=explicit，自然语言兜底=inferred，兜不住=null'
-      assert.deepEqual(classifyCommandType('状态：这个项目做到哪了'), { type: 'status', source: 'explicit' }, m)
-      assert.deepEqual(classifyCommandType('这个项目现在的状态是？'), { type: 'status', source: 'inferred' }, m)
-      assert.deepEqual(classifyCommandType('登录页按钮点不动'), { type: null, source: null }, m)
-    }
-    {
-      const m = 'resolveCommandType 是任务级 SSOT：无来源字段时按正文回推 explicit/inferred'
+  it('命令前缀解析、只读判定、命令类型来源 SSOT 与显式续跑指令', () => runSteps([
+    ['识别中英前缀（大小写/全半角冒号），取首行', () => {
+      assert.equal(parseCommandType('状态：进度？'), 'status')
+      assert.equal(parseCommandType('STATUS: progress?'), 'status')
+      assert.equal(parseCommandType('文档: 更新'), 'docs')
+      assert.equal(parseCommandType('修复：登录报错'), 'fix')
+      assert.equal(parseCommandType('自测：跑用例'), 'test')
+      assert.equal(parseCommandType('QA：验收'), 'qa')
+      assert.equal(parseCommandType('api：补接口'), 'api')
+    }],
+    ['首行无命令前缀 → null（普通 bug 正文）', () => {
+      assert.equal(parseCommandType('登录页按钮点不动'), null)
+      assert.equal(parseCommandType(''), null)
+      assert.equal(parseCommandType(null), null)
+    }],
+    ['只读命令集合仅含 status', () => {
+      assert.equal(isReadOnlyCommand('status'), true)
+      assert.equal(isReadOnlyCommand('docs'), false)
+      assert.equal(isReadOnlyCommand('fix'), false)
+      assert.equal(isReadOnlyCommand(null), false)
+    }],
+    ['classifyCommandType 标注来源：显式前缀=explicit，自然语言兜底=inferred，兜不住=null', () => {
+      assert.deepEqual(classifyCommandType('状态：这个项目做到哪了'), { type: 'status', source: 'explicit' })
+      assert.deepEqual(classifyCommandType('这个项目现在的状态是？'), { type: 'status', source: 'inferred' })
+      assert.deepEqual(classifyCommandType('登录页按钮点不动'), { type: null, source: null })
+    }],
+    ['resolveCommandType 是任务级 SSOT：无来源字段时按正文回推 explicit/inferred', () => {
       // 已持久化命令类型 + 无 commandTypeSource：正文有显式前缀 → explicit
-      assert.deepEqual(resolveCommandType({ commandType: 'status', text: '状态：做到哪了' }), { type: 'status', source: 'explicit' }, m)
+      assert.deepEqual(resolveCommandType({ commandType: 'status', text: '状态：做到哪了' }), { type: 'status', source: 'explicit' })
       // 已持久化 status 但正文无显式前缀（自然语言） → inferred
-      assert.deepEqual(resolveCommandType({ commandType: 'status', text: '这个项目现在的状态是？' }), { type: 'status', source: 'inferred' }, m)
+      assert.deepEqual(resolveCommandType({ commandType: 'status', text: '这个项目现在的状态是？' }), { type: 'status', source: 'inferred' })
       // 显式 commandTypeSource 优先于正文回推
-      assert.deepEqual(resolveCommandType({ commandType: 'status', commandTypeSource: 'inferred', text: '状态：做到哪了' }), { type: 'status', source: 'inferred' }, m)
+      assert.deepEqual(resolveCommandType({ commandType: 'status', commandTypeSource: 'inferred', text: '状态：做到哪了' }), { type: 'status', source: 'inferred' })
       // 无持久化命令类型：直接按正文分类
-      assert.deepEqual(resolveCommandType({ text: '登录页按钮点不动' }), { type: null, source: null }, m)
-    }
-    {
-      const m = 'isReadOnlyTask 只在只读命令时为真'
-      assert.equal(isReadOnlyTask({ commandType: 'status', text: '状态：x' }), true, m)
-      assert.equal(isReadOnlyTask({ commandType: 'fix', text: '修复：x' }), false, m)
-      assert.equal(isReadOnlyTask({ text: '登录页按钮点不动' }), false, m)
-    }
-    {
-      const m = '解析显式续跑指令并保留补料正文'
+      assert.deepEqual(resolveCommandType({ text: '登录页按钮点不动' }), { type: null, source: null })
+    }],
+    ['isReadOnlyTask 只在只读命令时为真', () => {
+      assert.equal(isReadOnlyTask({ commandType: 'status', text: '状态：x' }), true)
+      assert.equal(isReadOnlyTask({ commandType: 'fix', text: '修复：x' }), false)
+      assert.equal(isReadOnlyTask({ text: '登录页按钮点不动' }), false)
+    }],
+    ['解析显式续跑指令并保留补料正文', () => {
       assert.deepEqual(parseResumeDirective('继续任务 recABC_123 产品确认按方案 A'), {
         taskId: 'recABC_123',
         supplementText: '产品确认按方案 A',
-      }, m)
-      assert.equal(parseResumeDirective('继续讨论这个问题'), null, m)
-    }
-  })
+      })
+      assert.equal(parseResumeDirective('继续讨论这个问题'), null)
+    }],
+  ]))
 
-  it('inferCommandType 自然语言推断：状态 / 环境地址 / 汇报 / 仓库事实问法归 status，写操作与缺陷信号一票否决', () => {
-    {
-      const m = '自然语言明确问状态时推断 status，带写操作或陈述句时不误判'
-      assert.equal(inferCommandType('这个项目现在的状态是？'), 'status', m)
-      assert.equal(inferCommandType('看看 PR-01947 目前做到哪一步'), 'status', m)
-      assert.equal(inferCommandType('修复项目状态显示错误'), null, m)
-      assert.equal(inferCommandType('项目状态字段显示错误'), null, m)
-    }
-    {
-      const m = '要测试/预览环境 URL、访问地址的信息查询归只读 status（不是需求、不改代码）'
+  it('inferCommandType 自然语言推断：状态 / 环境地址 / 汇报 / 仓库事实问法归 status，写操作与缺陷信号一票否决', () => runSteps([
+    ['自然语言明确问状态时推断 status，带写操作或陈述句时不误判', () => {
+      assert.equal(inferCommandType('这个项目现在的状态是？'), 'status')
+      assert.equal(inferCommandType('看看 PR-01947 目前做到哪一步'), 'status')
+      assert.equal(inferCommandType('修复项目状态显示错误'), null)
+      assert.equal(inferCommandType('项目状态字段显示错误'), null)
+    }],
+    ['要测试/预览环境 URL、访问地址的信息查询归只读 status（不是需求、不改代码）', () => {
       // PR-02172 真机：“web的测试链接给我一下”被误判成新需求、又因零 diff 判 failed。
-      assert.equal(inferCommandType('web的测试链接给我一下'), 'status', m)
-      assert.equal(inferCommandType('这个需求的 pre 环境的 url 是怎样的'), 'status', m)
-      assert.equal(inferCommandType('测试环境地址发我'), 'status', m)
-      assert.equal(inferCommandType('预览链接是什么'), 'status', m)
-      assert.equal(inferCommandType('怎么访问这个页面'), 'status', m)
+      assert.equal(inferCommandType('web的测试链接给我一下'), 'status')
+      assert.equal(inferCommandType('这个需求的 pre 环境的 url 是怎样的'), 'status')
+      assert.equal(inferCommandType('测试环境地址发我'), 'status')
+      assert.equal(inferCommandType('预览链接是什么'), 'status')
+      assert.equal(inferCommandType('怎么访问这个页面'), 'status')
       // 写操作 / 缺陷信号仍一票否决，不当信息查询。
-      assert.equal(inferCommandType('把测试链接改成新域名'), null, m) // 写操作（改成）
-      assert.equal(inferCommandType('测试链接报错打不开'), null, m) // 缺陷信号（报错）
-      assert.equal(inferCommandType('新增一个分享链接功能'), null, m) // 写操作（新增）
-    }
-    {
-      const m = '「汇报/报告」是常见的状态查询问法，与「汇总」同等判 status（真机漏判修复）'
+      assert.equal(inferCommandType('把测试链接改成新域名'), null) // 写操作（改成）
+      assert.equal(inferCommandType('测试链接报错打不开'), null) // 缺陷信号（报错）
+      assert.equal(inferCommandType('新增一个分享链接功能'), null) // 写操作（新增）
+    }],
+    ['「汇报/报告」是常见的状态查询问法，与「汇总」同等判 status（真机漏判修复）', () => {
       // 现场发现：「汇报一下这个项目的状态」曾因 cue 词表只收「汇总」漏「汇报」→ 被当新需求拦。
-      assert.equal(inferCommandType('汇报一下这个项目的状态'), 'status', m)
-      assert.equal(inferCommandType('报告下当前项目的进度'), 'status', m)
-      assert.equal(inferCommandType('说一下这个需求现在做到哪了'), 'status', m)
+      assert.equal(inferCommandType('汇报一下这个项目的状态'), 'status')
+      assert.equal(inferCommandType('报告下当前项目的进度'), 'status')
+      assert.equal(inferCommandType('说一下这个需求现在做到哪了'), 'status')
       // 词表扩充不得越过缺陷/写操作否决：报障、做功能仍判 null。
-      assert.equal(inferCommandType('汇报下为什么项目状态一直转圈'), null, m) // 缺陷信号（转圈）一票否决
-      assert.equal(inferCommandType('新增一个项目进度汇报页面'), null, m) // 写操作（新增）一票否决
-    }
-    {
-      const m = '分支 / 合并 / 上线等仓库事实问法归只读 status（真机漏判修复）'
+      assert.equal(inferCommandType('汇报下为什么项目状态一直转圈'), null) // 缺陷信号（转圈）一票否决
+      assert.equal(inferCommandType('新增一个项目进度汇报页面'), null) // 写操作（新增）一票否决
+    }],
+    ['分支 / 合并 / 上线等仓库事实问法归只读 status（真机漏判修复）', () => {
       // 2026-10-11 真机：「当前这个项目所在的分支还在吗」主题词不命中，落成新需求被放行闸拦下。
-      assert.equal(inferCommandType('当前这个项目所在的分支还在吗'), 'status', m)
-      assert.equal(inferCommandType('PR-01947 的分支是哪个'), 'status', m)
-      assert.equal(inferCommandType('这个需求上线了吗'), 'status', m)
-      assert.equal(inferCommandType('代码合并了没'), 'status', m)
-      assert.equal(inferCommandType('worktree 还在不在'), 'status', m)
+      assert.equal(inferCommandType('当前这个项目所在的分支还在吗'), 'status')
+      assert.equal(inferCommandType('PR-01947 的分支是哪个'), 'status')
+      assert.equal(inferCommandType('这个需求上线了吗'), 'status')
+      assert.equal(inferCommandType('代码合并了没'), 'status')
+      assert.equal(inferCommandType('worktree 还在不在'), 'status')
       // 指令式仓库操作不是查询：由 REPO_WRITE_RE / 写操作否决。
-      assert.equal(inferCommandType('把分支合并到 dev'), null, m)
-      assert.equal(inferCommandType('帮我新建一个分支'), null, m)
-      assert.equal(inferCommandType('分支删了吧'), null, m)
+      assert.equal(inferCommandType('把分支合并到 dev'), null)
+      assert.equal(inferCommandType('帮我新建一个分支'), null)
+      assert.equal(inferCommandType('分支删了吧'), null)
       // 缺陷信号仍一票否决。
-      assert.equal(inferCommandType('分支切换按钮不显示'), null, m)
-      assert.equal(inferCommandType('上线了吗？页面报错了'), null, m)
-    }
-    {
-      const m = '缺陷信号一票否决：报障式描述绝不当只读查询'
+      assert.equal(inferCommandType('分支切换按钮不显示'), null)
+      assert.equal(inferCommandType('上线了吗？页面报错了'), null)
+    }],
+    ['缺陷信号一票否决：报障式描述绝不当只读查询', () => {
       // 这些都含项目级主题词 + 查询提示，但带缺陷信号 → 必须判 null（此前「项目状态一直转圈」被误判成 status）。
-      assert.equal(inferCommandType('这个项目的状态一直转圈，是什么原因？'), null, m)
-      assert.equal(inferCommandType('看看项目状态怎么样，字段一直不显示'), null, m)
-      assert.equal(inferCommandType('项目进度页面白屏了是怎么回事'), null, m)
-    }
-  })
+      assert.equal(inferCommandType('这个项目的状态一直转圈，是什么原因？'), null)
+      assert.equal(inferCommandType('看看项目状态怎么样，字段一直不显示'), null)
+      assert.equal(inferCommandType('项目进度页面白屏了是怎么回事'), null)
+    }],
+  ]))
 
-  it('classifyClosureIntent / classifyPauseIntent 结单意图：明确结单、取消语族、否定暂停、疑问句、残余请求、partial、弱信号', () => {
-    {
-      const m = '只把明确的人工完成确认识别为直接结单'
+  it('classifyClosureIntent / classifyPauseIntent 结单意图：明确结单、取消语族、否定暂停、疑问句、残余请求、partial、弱信号', () => runSteps([
+    ['只把明确的人工完成确认识别为直接结单', () => {
       const closes = (text) => classifyClosureIntent(text).intent === 'close'
-      for (const text of ['已由另一位 AI 同学完成了，请同步更新状态', '👍 该问题已解决', '这个问题处理好了']) assert.equal(closes(text), true, `${m}：${text}`)
-      for (const text of ['该问题未解决', '只完成了一部分，还需继续处理', '请解决这个问题', '问题解决不了怎么办？']) assert.equal(closes(text), false, `${m}：${text}`)
-    }
-    {
-      const m = 'classifyClosureIntent：取消/无需/外部完成语族 → close(high) + 正确 closureReason'
-      assert.deepEqual(classifyClosureIntent('这个不用做了'), { intent: 'close', closureReason: 'no_longer_needed', scope: 'whole_task', confidence: 'high' }, m)
-      assert.deepEqual(classifyClosureIntent('取消吧'), { intent: 'close', closureReason: 'cancelled', scope: 'whole_task', confidence: 'high' }, m)
-      assert.deepEqual(classifyClosureIntent('这个任务终止'), { intent: 'close', closureReason: 'cancelled', scope: 'whole_task', confidence: 'high' }, m)
-      assert.deepEqual(classifyClosureIntent('需求变了，先不做了'), { intent: 'close', closureReason: 'no_longer_needed', scope: 'whole_task', confidence: 'high' }, m)
-      assert.deepEqual(classifyClosureIntent('已上线了'), { intent: 'close', closureReason: 'completed_elsewhere', scope: 'whole_task', confidence: 'high' }, m)
-      assert.equal(classifyClosureIntent('已经有人在改了').intent, 'close', m)
-      assert.equal(classifyClosureIntent('走线下处理了').intent, 'close', m)
-      assert.equal(classifyClosureIntent('不用继续做了').intent, 'close', m) // 否定+继续=停，不算 partial
-    }
-    {
-      const m = 'classifyClosureIntent：否定/暂停/条件未来时/转述 → unclear(不自动结单)'
-      assert.equal(classifyClosureIntent('不要结束，继续做').intent, 'unclear', m)
-      assert.equal(classifyClosureIntent('先暂停一下').intent, null, m) // 无结单原因信号 → 非控制表达
-      assert.equal(classifyClosureIntent('结束后再通知我').intent, 'unclear', m)
-      assert.equal(classifyClosureIntent('他说不用做了，但我觉得要做').intent, 'unclear', m)
-      assert.equal(classifyClosureIntent('还没解决').intent, null, m)
-    }
-    {
-      const m = '结单疑问句不自动关闭；暂停是独立控制动作'
+      for (const text of ['已由另一位 AI 同学完成了，请同步更新状态', '👍 该问题已解决', '这个问题处理好了']) assert.equal(closes(text), true, text)
+      for (const text of ['该问题未解决', '只完成了一部分，还需继续处理', '请解决这个问题', '问题解决不了怎么办？']) assert.equal(closes(text), false, text)
+    }],
+    ['classifyClosureIntent：取消/无需/外部完成语族 → close(high) + 正确 closureReason', () => {
+      assert.deepEqual(classifyClosureIntent('这个不用做了'), { intent: 'close', closureReason: 'no_longer_needed', scope: 'whole_task', confidence: 'high' })
+      assert.deepEqual(classifyClosureIntent('取消吧'), { intent: 'close', closureReason: 'cancelled', scope: 'whole_task', confidence: 'high' })
+      assert.deepEqual(classifyClosureIntent('这个任务终止'), { intent: 'close', closureReason: 'cancelled', scope: 'whole_task', confidence: 'high' })
+      assert.deepEqual(classifyClosureIntent('需求变了，先不做了'), { intent: 'close', closureReason: 'no_longer_needed', scope: 'whole_task', confidence: 'high' })
+      assert.deepEqual(classifyClosureIntent('已上线了'), { intent: 'close', closureReason: 'completed_elsewhere', scope: 'whole_task', confidence: 'high' })
+      assert.equal(classifyClosureIntent('已经有人在改了').intent, 'close')
+      assert.equal(classifyClosureIntent('走线下处理了').intent, 'close')
+      assert.equal(classifyClosureIntent('不用继续做了').intent, 'close') // 否定+继续=停，不算 partial
+    }],
+    ['classifyClosureIntent：否定/暂停/条件未来时/转述 → unclear(不自动结单)', () => {
+      assert.equal(classifyClosureIntent('不要结束，继续做').intent, 'unclear')
+      assert.equal(classifyClosureIntent('先暂停一下').intent, null) // 无结单原因信号 → 非控制表达
+      assert.equal(classifyClosureIntent('结束后再通知我').intent, 'unclear')
+      assert.equal(classifyClosureIntent('他说不用做了，但我觉得要做').intent, 'unclear')
+      assert.equal(classifyClosureIntent('还没解决').intent, null)
+    }],
+    ['结单疑问句不自动关闭；暂停是独立控制动作', () => {
       for (const text of ['是不是已经解决了？', '这个不用做了吗？', '修复了没', '完成没', '已上线了吗', '还没有取消']) {
-        assert.equal(classifyClosureIntent(text).intent, 'unclear', `${m}：${text}`)
+        assert.equal(classifyClosureIntent(text).intent, 'unclear', text)
       }
-      assert.equal(classifyPauseIntent('先暂停一下'), true, m)
-      assert.equal(classifyPauseIntent('不用继续做了'), false, m)
-    }
-    {
-      const m = '结单夹带新的缺陷/修改请求时保留残余请求，不静默吞掉'
+      assert.equal(classifyPauseIntent('先暂停一下'), true)
+      assert.equal(classifyPauseIntent('不用继续做了'), false)
+    }],
+    ['结单夹带新的缺陷/修改请求时保留残余请求，不静默吞掉', () => {
       for (const text of ['上个问题已解决，现在这个下拉框还是空的', '这个功能已上线后下拉框还是空的', '需求变了，按钮改成蓝色']) {
         const verdict = classifyClosureIntent(text)
-        assert.equal(verdict.intent, 'close_with_residual', `${m}：${text}`)
-        assert.ok(verdict.residualRequest, `${m}：${text}`)
+        assert.equal(verdict.intent, 'close_with_residual', text)
+        assert.ok(verdict.residualRequest, text)
       }
-      assert.equal(classifyClosureIntent('已由另一位 AI 同学完成了，请同步更新状态').intent, 'close', m)
-    }
-    {
-      const m = 'classifyClosureIntent：夹带「另一部分/其余继续」→ unclear + scope=partial'
+      assert.equal(classifyClosureIntent('已由另一位 AI 同学完成了，请同步更新状态').intent, 'close')
+    }],
+    ['classifyClosureIntent：夹带「另一部分/其余继续」→ unclear + scope=partial', () => {
       const a = classifyClosureIntent('A 不用做了，B 继续')
-      assert.equal(a.intent, 'unclear', m)
-      assert.equal(a.scope, 'partial', m)
+      assert.equal(a.intent, 'unclear')
+      assert.equal(a.scope, 'partial')
       const b = classifyClosureIntent('这个已解决，不过另外那个还要处理')
-      assert.equal(b.intent, 'unclear', m)
-      assert.equal(b.scope, 'partial', m)
-    }
-    {
-      const m = 'classifyClosureIntent：弱结单信号（收工/到此为止/先放着）→ unclear + scope=suspected（轻量仲裁去确认，不猜死）'
+      assert.equal(b.intent, 'unclear')
+      assert.equal(b.scope, 'partial')
+    }],
+    ['classifyClosureIntent：弱结单信号（收工/到此为止/先放着）→ unclear + scope=suspected（轻量仲裁去确认，不猜死）', () => {
       for (const text of ['收工', '就到此为止', '这个先放着吧', '行吧就这样吧', '这事就到这了', '不弄这个了']) {
         const v = classifyClosureIntent(text)
-        assert.equal(v.intent, 'unclear', `${m}：弱信号「${text}」应升级为 unclear`)
-        assert.equal(v.scope, 'suspected', `${m}：弱信号「${text}」scope 应为 suspected`)
-        assert.equal(v.closureReason, 'cancelled', `${m}：${text}`)
+        assert.equal(v.intent, 'unclear', `弱信号「${text}」应升级为 unclear`)
+        assert.equal(v.scope, 'suspected', `弱信号「${text}」scope 应为 suspected`)
+        assert.equal(v.closureReason, 'cancelled', text)
       }
-    }
-    {
-      const m = 'classifyClosureIntent：弱信号叠加否决门（先别收工）→ 仍为 null（= 继续，不该问「要结单吗」）'
-      assert.equal(classifyClosureIntent('先别收工，继续做').intent, null, m)
-      assert.equal(classifyClosureIntent('别放着，接着弄').intent, null, m)
+    }],
+    ['classifyClosureIntent：弱信号叠加否决门（先别收工）→ 仍为 null（= 继续，不该问「要结单吗」）', () => {
+      assert.equal(classifyClosureIntent('先别收工，继续做').intent, null)
+      assert.equal(classifyClosureIntent('别放着，接着弄').intent, null)
       // 普通补料不含弱信号 → 仍是 null，不误升级为 confirm
-      assert.equal(classifyClosureIntent('把按钮改成蓝色').intent, null, m)
-    }
-  })
+      assert.equal(classifyClosureIntent('把按钮改成蓝色').intent, null)
+    }],
+  ]))
 })
 
 describe('resolveManualCloseTarget', () => {
@@ -694,30 +663,30 @@ describe('resolveManualCloseTarget', () => {
     listActiveByThread: () => active,
   })
 
-  it('人工结单目标解析：回执 / 原任务 / 旧代次回执精确命中，同话题唯一活动任务兜底，无关联不猜', () => {
-    {
+  it('人工结单目标解析：回执 / 原任务 / 旧代次回执精确命中，同话题唯一活动任务兜底，无关联不猜', () => runSteps([
+    ['直接回复排队/待确认回执时精确命中原任务', () => {
       const store = makeStore({ byReceipt: { om_card: task } })
-      assert.equal(resolveManualCloseTarget({ msg: { replyToDirect: 'om_card' }, store }), task, '直接回复排队/待确认回执时精确命中原任务')
-    }
-    {
-      const m = '回复原任务消息或仅有线程根时也能命中'
+      assert.equal(resolveManualCloseTarget({ msg: { replyToDirect: 'om_card' }, store }), task)
+    }],
+    ['回复原任务消息或仅有线程根时也能命中', () => {
       const store = makeStore({ byId: { t: task } })
-      assert.equal(resolveManualCloseTarget({ msg: { replyToDirect: 't' }, store }), task, m)
-      assert.equal(resolveManualCloseTarget({ msg: { replyTo: 't' }, store }), task, m)
-    }
-    {
+      assert.equal(resolveManualCloseTarget({ msg: { replyToDirect: 't' }, store }), task)
+      assert.equal(resolveManualCloseTarget({ msg: { replyTo: 't' }, store }), task)
+    }],
+    ['忽略代次的回执反查：回复旧代次卡（findTaskByAnyReceipt）仍能命中', () => {
       const store = makeStore({ byAnyReceipt: { om_old: task } }) // findByReceiptMessageId 因 epoch 不匹配返回 null
-      assert.equal(resolveManualCloseTarget({ msg: { replyToDirect: 'om_old' }, store }), task, '忽略代次的回执反查：回复旧代次卡（findTaskByAnyReceipt）仍能命中')
-    }
-    {
-      const m = '无直接锚点时，同话题恰好一条活动任务才归并'
+      assert.equal(resolveManualCloseTarget({ msg: { replyToDirect: 'om_old' }, store }), task)
+    }],
+    ['无直接锚点时，同话题恰好一条活动任务才归并', () => {
       const one = makeStore({ active: [task] })
-      assert.equal(resolveManualCloseTarget({ msg: { threadRootId: 'th', messageId: 'm' }, store: one }), task, m)
+      assert.equal(resolveManualCloseTarget({ msg: { threadRootId: 'th', messageId: 'm' }, store: one }), task)
       const many = makeStore({ active: [task, { id: 't2', status: 'running' }] })
-      assert.equal(resolveManualCloseTarget({ msg: { threadRootId: 'th', messageId: 'm' }, store: many }), null, m)
-    }
-    assert.equal(resolveManualCloseTarget({ msg: {}, store: makeStore() }), null, '无明确回复关联时不猜测目标')
-    {
+      assert.equal(resolveManualCloseTarget({ msg: { threadRootId: 'th', messageId: 'm' }, store: many }), null)
+    }],
+    ['无明确回复关联时不猜测目标', () => {
+      assert.equal(resolveManualCloseTarget({ msg: {}, store: makeStore() }), null)
+    }],
+    ['direct 精确锚定失败时回落到同话题唯一活动任务', () => {
       const active = { id: 'task-a', status: 'running' }
       const store = {
         findTaskByAnyReceipt: () => null,
@@ -725,9 +694,9 @@ describe('resolveManualCloseTarget', () => {
         get: () => null,
         listActiveByThread: () => [active],
       }
-      assert.equal(resolveManualCloseTarget({ msg: { replyToDirect: 'unknown', replyTo: 'unknown', threadRootId: 'th' }, store }), active, 'direct 精确锚定失败时回落到同话题唯一活动任务')
-    }
-  })
+      assert.equal(resolveManualCloseTarget({ msg: { replyToDirect: 'unknown', replyTo: 'unknown', threadRootId: 'th' }, store }), active)
+    }],
+  ]))
 })
 
 // ---------------------------------------------------------------------------
@@ -737,103 +706,98 @@ describe('decideControlAction', () => {
   const ACTIVE = ['received', 'queued', 'running', 'verifying', 'waiting_confirmation', 'blocked', 'failed']
   const TERMINAL = ['done', 'superseded', 'ignored', 'no_change_needed']
 
-  it('控制通道路由：passthrough / close / confirm / resume / notice / ignore / pause / reopen 与活动态硬不变量', () => {
-    assert.equal(decideControlAction({ target: null, verdict: { intent: 'close' } }), 'passthrough', '无锚定 → passthrough')
-    {
-      const m = '结单意图对任意状态都走 close（终态由 store 幂等挡回）'
+  it('控制通道路由：passthrough / close / confirm / resume / notice / ignore / pause / reopen 与活动态硬不变量', () => runSteps([
+    ['无锚定 → passthrough', () => {
+      assert.equal(decideControlAction({ target: null, verdict: { intent: 'close' } }), 'passthrough')
+    }],
+    ['结单意图对任意状态都走 close（终态由 store 幂等挡回）', () => {
       for (const status of [...ACTIVE, ...TERMINAL]) {
-        assert.equal(decideControlAction({ target: { status }, verdict: { intent: 'close', closureReason: 'cancelled' } }), 'close', `${m}：${status}`)
+        assert.equal(decideControlAction({ target: { status }, verdict: { intent: 'close', closureReason: 'cancelled' } }), 'close', status)
       }
-    }
-    {
-      const m = '硬不变量：活动态任务被锚定时，任何非结单意图都不 passthrough（绝不新建任务）'
+    }],
+    ['硬不变量：活动态任务被锚定时，任何非结单意图都不 passthrough（绝不新建任务）', () => {
       for (const status of ACTIVE) {
         for (const intent of ['unclear', null]) {
           const action = decideControlAction({ target: { status }, verdict: { intent } })
-          assert.notEqual(action, 'passthrough', `${m}：status=${status} intent=${intent} 不应 passthrough`)
+          assert.notEqual(action, 'passthrough', `status=${status} intent=${intent} 不应 passthrough`)
         }
       }
-    }
-    {
-      const m = '活动态路由：unclear→confirm；parked 无结单→resume；其它活动态无结单→notice'
-      assert.equal(decideControlAction({ target: { status: 'running' }, verdict: { intent: 'unclear' } }), 'confirm', m)
-      assert.equal(decideControlAction({ target: { status: 'waiting_confirmation' }, verdict: { intent: null } }), 'resume', m)
-      assert.equal(decideControlAction({ target: { status: 'blocked' }, verdict: { intent: null } }), 'resume', m)
-      assert.equal(decideControlAction({ target: { status: 'queued' }, verdict: { intent: null } }), 'notice', m)
-    }
-    {
-      const m = '无实质内容的卡片回复无论原任务活动或终态都 ignore，不续跑也不新建'
+    }],
+    ['活动态路由：unclear→confirm；parked 无结单→resume；其它活动态无结单→notice', () => {
+      assert.equal(decideControlAction({ target: { status: 'running' }, verdict: { intent: 'unclear' } }), 'confirm')
+      assert.equal(decideControlAction({ target: { status: 'waiting_confirmation' }, verdict: { intent: null } }), 'resume')
+      assert.equal(decideControlAction({ target: { status: 'blocked' }, verdict: { intent: null } }), 'resume')
+      assert.equal(decideControlAction({ target: { status: 'queued' }, verdict: { intent: null } }), 'notice')
+    }],
+    ['无实质内容的卡片回复无论原任务活动或终态都 ignore，不续跑也不新建', () => {
       for (const status of [...ACTIVE, ...TERMINAL]) {
         assert.equal(
           decideControlAction({ target: { status }, verdict: { intent: null }, nonSupplemental: true }),
           'ignore',
-          `${m}：${status}`,
+          status,
         )
       }
-    }
-    {
-      const m = '暂停与混合结单分别走独立动作'
-      assert.equal(decideControlAction({ target: { status: 'blocked' }, verdict: { intent: null }, pause: true }), 'pause', m)
-      assert.equal(decideControlAction({ target: { status: 'running' }, verdict: { intent: 'close_with_residual' } }), 'close_with_residual', m)
-      assert.equal(decideControlAction({ target: { status: 'done' }, verdict: { intent: 'unclear' } }), 'confirm', m)
-    }
-    {
-      const m = '终态任务 + 普通新请求 → passthrough（允许在已了结话题里发起真正的新请求）'
+    }],
+    ['暂停与混合结单分别走独立动作', () => {
+      assert.equal(decideControlAction({ target: { status: 'blocked' }, verdict: { intent: null }, pause: true }), 'pause')
+      assert.equal(decideControlAction({ target: { status: 'running' }, verdict: { intent: 'close_with_residual' } }), 'close_with_residual')
+      assert.equal(decideControlAction({ target: { status: 'done' }, verdict: { intent: 'unclear' } }), 'confirm')
+    }],
+    ['终态任务 + 普通新请求 → passthrough（允许在已了结话题里发起真正的新请求）', () => {
       for (const status of TERMINAL) {
-        assert.equal(decideControlAction({ target: { status }, verdict: { intent: null } }), 'passthrough', `${m}：${status}`)
+        assert.equal(decideControlAction({ target: { status }, verdict: { intent: null } }), 'passthrough', status)
       }
-    }
-    {
-      const m = '误结单可逆：回复「人工结单」任务且有重开意图 → reopen；无重开意图仍 passthrough'
+    }],
+    ['误结单可逆：回复「人工结单」任务且有重开意图 → reopen；无重开意图仍 passthrough', () => {
       const closed = { status: 'superseded', externalResolution: { closureReason: 'cancelled' } }
-      assert.equal(decideControlAction({ target: closed, verdict: { intent: null }, reopen: true }), 'reopen', m)
-      assert.equal(decideControlAction({ target: closed, verdict: { intent: null }, reopen: false }), 'passthrough', m)
-    }
-    {
-      const m = '重开意图只对「人工结单」任务生效：兄弟归并 superseded / done 不可重开 → passthrough'
+      assert.equal(decideControlAction({ target: closed, verdict: { intent: null }, reopen: true }), 'reopen')
+      assert.equal(decideControlAction({ target: closed, verdict: { intent: null }, reopen: false }), 'passthrough')
+    }],
+    ['重开意图只对「人工结单」任务生效：兄弟归并 superseded / done 不可重开 → passthrough', () => {
       // 兄弟归并 supersede 无 externalResolution，done 也非人工结单 → 重开信号不复活，放行老路径
-      assert.equal(decideControlAction({ target: { status: 'superseded', supersededBy: 'x' }, verdict: { intent: null }, reopen: true }), 'passthrough', m)
-      assert.equal(decideControlAction({ target: { status: 'done' }, verdict: { intent: null }, reopen: true }), 'passthrough', m)
-    }
-  })
+      assert.equal(decideControlAction({ target: { status: 'superseded', supersededBy: 'x' }, verdict: { intent: null }, reopen: true }), 'passthrough')
+      assert.equal(decideControlAction({ target: { status: 'done' }, verdict: { intent: null }, reopen: true }), 'passthrough')
+    }],
+  ]))
 })
 
 // ---------------------------------------------------------------------------
 // parseControlDirective / classifyReopenIntent：L3 显式控制指令 + 重开意图
 // ---------------------------------------------------------------------------
 describe('parseControlDirective', () => {
-  it('显式控制指令：取消 / 结单 → close，重开 → reopen，无合法 taskId 或普通正文 → null', () => {
-    {
-      const m = '取消任务/撤销 → close + cancelled；结单/关闭任务 → close + completed_elsewhere'
-      assert.deepEqual(parseControlDirective('取消任务 om_abcd'), { action: 'close', taskId: 'om_abcd', closureReason: 'cancelled', supplementText: '' }, m)
-      assert.deepEqual(parseControlDirective('撤销 om_abcd'), { action: 'close', taskId: 'om_abcd', closureReason: 'cancelled', supplementText: '' }, m)
-      assert.deepEqual(parseControlDirective('结单 om_abcd'), { action: 'close', taskId: 'om_abcd', closureReason: 'completed_elsewhere', supplementText: '' }, m)
-      assert.deepEqual(parseControlDirective('关闭任务：om_abcd'), { action: 'close', taskId: 'om_abcd', closureReason: 'completed_elsewhere', supplementText: '' }, m)
-    }
-    {
-      const m = '重开任务/reopen → reopen，可带残余说明'
-      assert.deepEqual(parseControlDirective('重开任务 om_abcd'), { action: 'reopen', taskId: 'om_abcd', closureReason: null, supplementText: '' }, m)
-      assert.deepEqual(parseControlDirective('reopen om_abcd 其实还要做'), { action: 'reopen', taskId: 'om_abcd', closureReason: null, supplementText: '其实还要做' }, m)
-    }
-    {
-      const m = '无合法 taskId / 普通正文 → null（不误触发结单）'
-      assert.equal(parseControlDirective('取消'), null, m) // 无 id
-      assert.equal(parseControlDirective('这个功能取消了吧'), null, m) // 动词不在句首
-      assert.equal(parseControlDirective('帮我改一下这个页面'), null, m)
-      assert.equal(parseControlDirective(''), null, m)
-    }
-  })
+  it('显式控制指令：取消 / 结单 → close，重开 → reopen，无合法 taskId 或普通正文 → null', () => runSteps([
+    ['取消任务/撤销 → close + cancelled；结单/关闭任务 → close + completed_elsewhere', () => {
+      assert.deepEqual(parseControlDirective('取消任务 om_abcd'), { action: 'close', taskId: 'om_abcd', closureReason: 'cancelled', supplementText: '' })
+      assert.deepEqual(parseControlDirective('撤销 om_abcd'), { action: 'close', taskId: 'om_abcd', closureReason: 'cancelled', supplementText: '' })
+      assert.deepEqual(parseControlDirective('结单 om_abcd'), { action: 'close', taskId: 'om_abcd', closureReason: 'completed_elsewhere', supplementText: '' })
+      assert.deepEqual(parseControlDirective('关闭任务：om_abcd'), { action: 'close', taskId: 'om_abcd', closureReason: 'completed_elsewhere', supplementText: '' })
+    }],
+    ['重开任务/reopen → reopen，可带残余说明', () => {
+      assert.deepEqual(parseControlDirective('重开任务 om_abcd'), { action: 'reopen', taskId: 'om_abcd', closureReason: null, supplementText: '' })
+      assert.deepEqual(parseControlDirective('reopen om_abcd 其实还要做'), { action: 'reopen', taskId: 'om_abcd', closureReason: null, supplementText: '其实还要做' })
+    }],
+    ['无合法 taskId / 普通正文 → null（不误触发结单）', () => {
+      assert.equal(parseControlDirective('取消'), null) // 无 id
+      assert.equal(parseControlDirective('这个功能取消了吧'), null) // 动词不在句首
+      assert.equal(parseControlDirective('帮我改一下这个页面'), null)
+      assert.equal(parseControlDirective(''), null)
+    }],
+  ]))
 })
 
 describe('classifyReopenIntent', () => {
-  it('明确重开/恢复/纠错措辞 → true；普通补料/结单/空 → false', () => {
-    for (const t of ['重开这个任务', '重新做一下', '恢复执行吧', '其实还要做', '关错了', '误关了', '不该取消的']) {
-      assert.equal(classifyReopenIntent(t), true, `明确重开/恢复/纠错措辞 → true：${t}`)
-    }
-    for (const t of ['继续下一步', '补充一下需求', '取消吧', '', '这个已解决']) {
-      assert.equal(classifyReopenIntent(t), false, `普通补料/结单/空 → false（避免把续跑误判成重开）：${t}`)
-    }
-  })
+  it('明确重开/恢复/纠错措辞 → true；普通补料/结单/空 → false', () => runSteps([
+    ['明确重开/恢复/纠错措辞 → true', () => {
+      for (const t of ['重开这个任务', '重新做一下', '恢复执行吧', '其实还要做', '关错了', '误关了', '不该取消的']) {
+        assert.equal(classifyReopenIntent(t), true, t)
+      }
+    }],
+    ['普通补料/结单/空 → false（避免把续跑误判成重开）', () => {
+      for (const t of ['继续下一步', '补充一下需求', '取消吧', '', '这个已解决']) {
+        assert.equal(classifyReopenIntent(t), false, t)
+      }
+    }],
+  ]))
 })
 
 // ---------------------------------------------------------------------------
@@ -843,16 +807,16 @@ describe('isExecutionSuperseded', () => {
   it('协作式取消检测：superseded / 换代 → true；同代次、读不到任务 → false；epoch 缺省按 0', () => {
     const cases = [
       { name: '人工结单落 superseded → true（无论 epoch）', input: { current: { status: 'superseded', epoch: 2 }, claimedEpoch: 2 }, expected: true },
-      { name: '换代（epoch 变了：retry/resume/reclaim）→ true', input: { current: { status: 'running', epoch: 3 }, claimedEpoch: 2 }, expected: true },
-      { name: '换代（epoch 变了：retry/resume/reclaim）→ true', input: { current: { status: 'queued', epoch: 3 }, claimedEpoch: 2 }, expected: true },
-      { name: '同代次仍在跑 / 正常完成 → false（不误弃）', input: { current: { status: 'running', epoch: 2 }, claimedEpoch: 2 }, expected: false },
-      { name: '同代次仍在跑 / 正常完成 → false（不误弃）', input: { current: { status: 'done', epoch: 2 }, claimedEpoch: 2 }, expected: false },
-      { name: '读不到当前任务（网关瞬时不可达）→ false，交由 epoch/409 回写兜底，不误判取消', input: { current: null, claimedEpoch: 2 }, expected: false },
-      { name: '读不到当前任务（网关瞬时不可达）→ false，交由 epoch/409 回写兜底，不误判取消', input: {}, expected: false },
-      { name: 'epoch 缺省按 0 比较（旧任务无 epoch 字段）', input: { current: { status: 'running' }, claimedEpoch: undefined }, expected: false },
-      { name: 'epoch 缺省按 0 比较（旧任务无 epoch 字段）', input: { current: { status: 'running', epoch: 1 }, claimedEpoch: 0 }, expected: true },
+      { name: '换代（epoch 变了：retry/resume/reclaim）→ true：{ current: { status: "running", epoch: 3 }, claimedEpoch: 2 }', input: { current: { status: 'running', epoch: 3 }, claimedEpoch: 2 }, expected: true },
+      { name: '换代（epoch 变了：retry/resume/reclaim）→ true：{ current: { status: "queued", epoch: 3 }, claimedEpoch: 2 }', input: { current: { status: 'queued', epoch: 3 }, claimedEpoch: 2 }, expected: true },
+      { name: '同代次仍在跑 / 正常完成 → false（不误弃）：{ current: { status: "running", epoch: 2 }, claimedEpoch: 2 }', input: { current: { status: 'running', epoch: 2 }, claimedEpoch: 2 }, expected: false },
+      { name: '同代次仍在跑 / 正常完成 → false（不误弃）：{ current: { status: "done", epoch: 2 }, claimedEpoch: 2 }', input: { current: { status: 'done', epoch: 2 }, claimedEpoch: 2 }, expected: false },
+      { name: '读不到当前任务（网关瞬时不可达）→ false，交由 epoch/409 回写兜底，不误判取消：{ current: null, claimedEpoch: 2 }', input: { current: null, claimedEpoch: 2 }, expected: false },
+      { name: '读不到当前任务（网关瞬时不可达）→ false，交由 epoch/409 回写兜底，不误判取消：{}', input: {}, expected: false },
+      { name: 'epoch 缺省按 0 比较（旧任务无 epoch 字段）：{ current: { status: "running" }, claimedEpoch: undefined }', input: { current: { status: 'running' }, claimedEpoch: undefined }, expected: false },
+      { name: 'epoch 缺省按 0 比较（旧任务无 epoch 字段）：{ current: { status: "running", epoch: 1 }, claimedEpoch: 0 }', input: { current: { status: 'running', epoch: 1 }, claimedEpoch: 0 }, expected: true },
     ]
-    for (const { name, input, expected } of cases) assert.equal(isExecutionSuperseded(input), expected, name)
+    return eachCase(cases, ({ input, expected }) => assert.equal(isExecutionSuperseded(input), expected))
   })
 })
 
@@ -884,18 +848,19 @@ describe('monitorExecutionCancellation', () => {
 })
 
 describe('isNonSupplementalReply', () => {
-  it('纯确认 / 寒暄 / 协调话术不算补料；附件或带真实方案/字段的内容仍是有效补料', () => {
-    for (const text of ['OK', '好的', '收到', '明白了', '👌', '谢谢', '麻烦补充下，直接在这里回复就好了', '请确认一下']) {
-      assert.equal(isNonSupplementalReply({ text }), true, `识别纯确认、寒暄和等待他人补充的协调话术：${text}`)
-    }
-    {
-      const m = '附件或带真实方案/字段的内容仍是有效补料'
-      for (const text of ['方案 A 可以', '确认按方案 A 处理', '接口实际只返回 1 条', '补充：tableType=1']) {
-        assert.equal(isNonSupplementalReply({ text }), false, `${m}：${text}`)
+  it('纯确认 / 寒暄 / 协调话术不算补料；附件或带真实方案/字段的内容仍是有效补料', () => runSteps([
+    ['识别纯确认、寒暄和等待他人补充的协调话术', () => {
+      for (const text of ['OK', '好的', '收到', '明白了', '👌', '谢谢', '麻烦补充下，直接在这里回复就好了', '请确认一下']) {
+        assert.equal(isNonSupplementalReply({ text }), true, text)
       }
-      assert.equal(isNonSupplementalReply({ text: 'OK', attachments: [{ type: 'image' }] }), false, m)
-    }
-  })
+    }],
+    ['附件或带真实方案/字段的内容仍是有效补料', () => {
+      for (const text of ['方案 A 可以', '确认按方案 A 处理', '接口实际只返回 1 条', '补充：tableType=1']) {
+        assert.equal(isNonSupplementalReply({ text }), false, text)
+      }
+      assert.equal(isNonSupplementalReply({ text: 'OK', attachments: [{ type: 'image' }] }), false)
+    }],
+  ]))
 })
 
 describe('Bot receipt reply admission', () => {
@@ -917,42 +882,40 @@ describe('resolveResumeTarget', () => {
     findByReceiptMessageId: (id) => byReceipt[id] || null,
   })
 
-  it('续跑目标解析：显式指令 / 回执卡 / 原任务消息 / 线程根锚定，无续跑信号 → null', () => {
-    {
+  it('续跑目标解析：显式指令 / 回执卡 / 原任务消息 / 线程根锚定，无续跑信号 → null', () => runSteps([
+    ['显式「继续任务 <id>」即使目标缺失也返回目标（交 handleResume 明确回话）', () => {
       const store = makeStore()
       assert.deepEqual(
         resolveResumeTarget({ msg: {}, store, resumeDirective: { taskId: 'w', supplementText: 'x' } }),
         { taskId: 'w', task: null, explicit: true },
-        '显式「继续任务 <id>」即使目标缺失也返回目标（交 handleResume 明确回话）',
       )
-    }
-    {
+    }],
+    ['回复机器人回执卡（reply_to 命中回执）→ 命中，不限状态', () => {
       const store = makeStore({ byReceipt: { om_card: parked } })
-      assert.equal(resolveResumeTarget({ msg: { replyToDirect: 'om_card', replyTo: 'om_card' }, store }).task, parked, '回复机器人回执卡（reply_to 命中回执）→ 命中，不限状态')
-    }
-    {
-      const m = '回复原任务消息：仅当该任务仍待确认/阻塞才算续跑意图'
+      assert.equal(resolveResumeTarget({ msg: { replyToDirect: 'om_card', replyTo: 'om_card' }, store }).task, parked)
+    }],
+    ['回复原任务消息：仅当该任务仍待确认/阻塞才算续跑意图', () => {
       assert.equal(
         resolveResumeTarget({ msg: { replyToDirect: 'w', replyTo: 'w' }, store: makeStore({ byId: { w: parked } }) }).task,
         parked,
-        m,
       )
       // 回复一条已 done 的任务消息 → 视作线程内新请求，不劫持为续跑
-      assert.equal(resolveResumeTarget({ msg: { replyToDirect: 'd', replyTo: 'd' }, store: makeStore({ byId: { d: done } }) }), null, m)
-    }
-    {
-      const m = '仅有线程根 root_id（无 reply_to）：命中回执或原任务消息且仍待确认/阻塞才锚定'
+      assert.equal(resolveResumeTarget({ msg: { replyToDirect: 'd', replyTo: 'd' }, store: makeStore({ byId: { d: done } }) }), null)
+    }],
+    ['仅有线程根 root_id（无 reply_to）：命中回执或原任务消息且仍待确认/阻塞才锚定', () => {
       // root_id 命中待确认回执 → 锚定
-      assert.equal(resolveResumeTarget({ msg: { replyTo: 'root' }, store: makeStore({ byReceipt: { root: parked } }) }).task, parked, m)
+      assert.equal(resolveResumeTarget({ msg: { replyTo: 'root' }, store: makeStore({ byReceipt: { root: parked } }) }).task, parked)
       // root_id 就是原任务消息本身且任务仍卡着（话题内直接发补料，Lark 不带 reply_to）→ 锚定，不建孤儿任务
-      assert.equal(resolveResumeTarget({ msg: { replyTo: 'w' }, store: makeStore({ byId: { w: parked } }) }).task, parked, m)
+      assert.equal(resolveResumeTarget({ msg: { replyTo: 'w' }, store: makeStore({ byId: { w: parked } }) }).task, parked)
       // 话题根是一条已完成的任务 → 视作线程内新请求，不劫持
-      assert.equal(resolveResumeTarget({ msg: { replyTo: 'd' }, store: makeStore({ byId: { d: done } }) }), null, m)
+      assert.equal(resolveResumeTarget({ msg: { replyTo: 'd' }, store: makeStore({ byId: { d: done } }) }), null)
       // root_id 不对应任何任务 → 不锚定
-      assert.equal(resolveResumeTarget({ msg: { replyTo: 'om_other' }, store: makeStore({ byId: { w: parked } }) }), null, m)
-    }
-    assert.equal(resolveResumeTarget({ msg: {}, store: makeStore() }), null, '无任何续跑信号 → null（普通新任务）')
-  })
+      assert.equal(resolveResumeTarget({ msg: { replyTo: 'om_other' }, store: makeStore({ byId: { w: parked } }) }), null)
+    }],
+    ['无任何续跑信号 → null（普通新任务）', () => {
+      assert.equal(resolveResumeTarget({ msg: {}, store: makeStore() }), null)
+    }],
+  ]))
 })
 
 describe('Lark 回执 message_id 解析', () => {
@@ -965,9 +928,8 @@ describe('Lark 回执 message_id 解析', () => {
 })
 
 describe('sendQueuedReceipt', () => {
-  it('排队卡发送成功才登记 message_id 与 epoch；发送失败或无 message_id 不伪造关联', async () => {
-    {
-      const m = '排队卡发送成功后保存 message_id 与发送时 epoch'
+  it('排队卡发送成功才登记 message_id 与 epoch；发送失败或无 message_id 不伪造关联', () => runSteps([
+    ['排队卡发送成功后保存 message_id 与发送时 epoch', async () => {
       let recorded
       const task = { id: 't1', chatId: 'oc_1', project: 'PR-01930', summary: '测试任务', epoch: 2 }
       const receipt = await sendQueuedReceipt({
@@ -976,10 +938,10 @@ describe('sendQueuedReceipt', () => {
         task,
         sendMessage: async () => ({ ok: true, messageId: 'om_queued' }),
       })
-      assert.equal(receipt.ok, true, m)
-      assert.deepEqual(recorded, { id: 't1', messageId: 'om_queued', kind: 'queued', epoch: 2 }, m)
-    }
-    {
+      assert.equal(receipt.ok, true)
+      assert.deepEqual(recorded, { id: 't1', messageId: 'om_queued', kind: 'queued', epoch: 2 })
+    }],
+    ['发送失败或未返回 message_id 时不伪造关联', async () => {
       let recorded = false
       await sendQueuedReceipt({
         config: { project: 'PR-01930', title: '测试' },
@@ -987,9 +949,9 @@ describe('sendQueuedReceipt', () => {
         task: { id: 't1', chatId: 'oc_1', project: 'PR-01930', summary: '测试任务' },
         sendMessage: async () => ({ ok: false, reason: 'network' }),
       })
-      assert.equal(recorded, false, '发送失败或未返回 message_id 时不伪造关联')
-    }
-  })
+      assert.equal(recorded, false)
+    }],
+  ]))
 })
 
 // bug 表跨项目路由：按项目号反查项目群 chat_id（回执/结果卡发到对的群，而非固定通知群）
@@ -1002,14 +964,14 @@ describe('pickChatIdByProject（项目号 → 项目群反查）', () => {
 
   it('项目号反查项目群：命中不串群、大小写归一、无对应群 / 空项目号 → ""', () => {
     const cases = [
-      { name: '命中项目号 → 返回该项目自己的群，不串到别的项目群', project: 'PR-01947', expected: 'oc_01947' },
-      { name: '命中项目号 → 返回该项目自己的群，不串到别的项目群', project: 'PR-02031', expected: 'oc_02031' },
+      { name: '命中项目号 → 返回该项目自己的群，不串到别的项目群："PR-01947"', project: 'PR-01947', expected: 'oc_01947' },
+      { name: '命中项目号 → 返回该项目自己的群，不串到别的项目群："PR-02031"', project: 'PR-02031', expected: 'oc_02031' },
       { name: '大小写归一：小写项目号也命中', project: 'pr-01947', expected: 'oc_01947' },
-      { name: '无对应项目群 / 空项目号 → 返回 ""（由调用方回落到通知群）', project: 'PR-09999', expected: '' },
-      { name: '无对应项目群 / 空项目号 → 返回 ""（由调用方回落到通知群）', project: '', expected: '' },
-      { name: '无对应项目群 / 空项目号 → 返回 ""（由调用方回落到通知群）', project: undefined, expected: '' },
+      { name: '无对应项目群 / 空项目号 → 返回 ""（由调用方回落到通知群）："PR-09999"', project: 'PR-09999', expected: '' },
+      { name: '无对应项目群 / 空项目号 → 返回 ""（由调用方回落到通知群）：""', project: '', expected: '' },
+      { name: '无对应项目群 / 空项目号 → 返回 ""（由调用方回落到通知群）：undefined', project: undefined, expected: '' },
     ]
-    for (const { name, project, expected } of cases) assert.equal(pickChatIdByProject(chats, project), expected, name)
+    return eachCase(cases, ({ project, expected }) => assert.equal(pickChatIdByProject(chats, project), expected))
   })
 })
 
@@ -1019,10 +981,10 @@ describe('messageSendRecipientArgs（chat_id / open_id 择参）', () => {
     const cases = [
       { name: 'ou_ 开头 → --user-id 私聊', input: 'ou_91861d6da6cf6822e08045ba1868241e', expected: ['--user-id', 'ou_91861d6da6cf6822e08045ba1868241e'] },
       { name: 'oc_ 群 → --chat-id', input: 'oc_51e2bcf0ed6a772c402d6cacd43176b3', expected: ['--chat-id', 'oc_51e2bcf0ed6a772c402d6cacd43176b3'] },
-      { name: '空/缺失 → 仍归为 --chat-id（由 sendChatMessage 的 missing 校验拦下）', input: '', expected: ['--chat-id', ''] },
-      { name: '空/缺失 → 仍归为 --chat-id（由 sendChatMessage 的 missing 校验拦下）', input: undefined, expected: ['--chat-id', ''] },
+      { name: '空/缺失 → 仍归为 --chat-id（由 sendChatMessage 的 missing 校验拦下）：""', input: '', expected: ['--chat-id', ''] },
+      { name: '空/缺失 → 仍归为 --chat-id（由 sendChatMessage 的 missing 校验拦下）：undefined', input: undefined, expected: ['--chat-id', ''] },
     ]
-    for (const { name, input, expected } of cases) assert.deepEqual(messageSendRecipientArgs(input), expected, name)
+    return eachCase(cases, ({ input, expected }) => assert.deepEqual(messageSendRecipientArgs(input), expected))
   })
 })
 
@@ -1030,27 +992,34 @@ describe('messageSendRecipientArgs（chat_id / open_id 择参）', () => {
 // validateSource：文档同步只读，禁写校验扫全命令 token（review P2）
 // ---------------------------------------------------------------------------
 describe('validateSource (read-only guard)', () => {
-  it('只读守卫：非法 type / operation / 缺 url / 写类 token / 非 docs 用 +fetch 抛错，合法 docs +fetch 返回命令', () => {
-    assert.throws(() => validateSource({ type: 'sheet', url: 'http://x' }), /unsupported Lark source type/, '不支持的 service type → 抛错')
-    assert.throws(() => validateSource({ type: 'doc', url: 'http://x', operation: 'write' }), /unsupported Lark source operation/, '不支持的 operation → 抛错')
-    assert.throws(() => validateSource({ type: 'doc' }), /requires url/, '缺 url → 抛错')
-    {
-      const m = '合法 docs +fetch → 返回命令数组'
+  it('只读守卫：非法 type / operation / 缺 url / 写类 token / 非 docs 用 +fetch 抛错，合法 docs +fetch 返回命令', () => runSteps([
+    ['不支持的 service type → 抛错', () => {
+      assert.throws(() => validateSource({ type: 'sheet', url: 'http://x' }), /unsupported Lark source type/)
+    }],
+    ['不支持的 operation → 抛错', () => {
+      assert.throws(() => validateSource({ type: 'doc', url: 'http://x', operation: 'write' }), /unsupported Lark source operation/)
+    }],
+    ['缺 url → 抛错', () => {
+      assert.throws(() => validateSource({ type: 'doc' }), /requires url/)
+    }],
+    ['合法 docs +fetch → 返回命令数组', () => {
       const cmd = validateSource({ type: 'doc', url: 'http://x' })
-      assert.ok(Array.isArray(cmd), m)
-      assert.ok(cmd.includes('+fetch'), m)
-    }
-    assert.throws(
-      () => validateSource({ type: 'docs', url: 'http://x', command: ['lark-cli', 'docs', '+fetch', '--doc', 'http://x', '--mode', 'delete'] }),
-      /forbidden write-like token/,
-      '自定义命令里夹带写类 token（delete）→ 抛错（禁写扫全 token）',
-    )
-    assert.throws(
-      () => validateSource({ type: 'wiki', url: 'http://x', command: ['lark-cli', 'wiki', '+fetch', '--url', 'http://x'] }),
-      /\+fetch is only allowed for docs/,
-      '+fetch 只允许 docs，其它 service 用 +fetch → 抛错',
-    )
-  })
+      assert.ok(Array.isArray(cmd))
+      assert.ok(cmd.includes('+fetch'))
+    }],
+    ['自定义命令里夹带写类 token（delete）→ 抛错（禁写扫全 token）', () => {
+      assert.throws(
+        () => validateSource({ type: 'docs', url: 'http://x', command: ['lark-cli', 'docs', '+fetch', '--doc', 'http://x', '--mode', 'delete'] }),
+        /forbidden write-like token/,
+      )
+    }],
+    ['+fetch 只允许 docs，其它 service 用 +fetch → 抛错', () => {
+      assert.throws(
+        () => validateSource({ type: 'wiki', url: 'http://x', command: ['lark-cli', 'wiki', '+fetch', '--url', 'http://x'] }),
+        /\+fetch is only allowed for docs/,
+      )
+    }],
+  ]))
 })
 
 // ---------------------------------------------------------------------------
@@ -1060,49 +1029,49 @@ describe('validateSource (read-only guard)', () => {
 describe('matchProjectId（自由文本提取）', () => {
   it('提取首个项目号并大写归一；词边界不吞子串；无项目号 / 空输入 → null', () => {
     const cases = [
-      { name: '提取正文首个项目号并大写归一', input: '修复 pr-01947 的登录 bug', expected: 'PR-01947' },
-      { name: '提取正文首个项目号并大写归一', input: '迁移登录/注册 TR-02386', expected: 'TR-02386' },
-      { name: '提取正文首个项目号并大写归一', input: '见 PM-1469 需求', expected: 'PM-1469' },
-      { name: '词边界：SUPR-01947 不吞出 PR-01947（否则误路由）', input: 'SUPR-01947 是别的东西', expected: null },
-      { name: '词边界：SUPR-01947 不吞出 PR-01947（否则误路由）', input: 'XPM-1469', expected: null },
-      { name: '无项目号 / 空输入 → null', input: '没有项目号', expected: null },
-      { name: '无项目号 / 空输入 → null', input: '', expected: null },
-      { name: '无项目号 / 空输入 → null', input: null, expected: null },
+      { name: '提取正文首个项目号并大写归一："修复 pr-01947 的登录 bug"', input: '修复 pr-01947 的登录 bug', expected: 'PR-01947' },
+      { name: '提取正文首个项目号并大写归一："迁移登录/注册 TR-02386"', input: '迁移登录/注册 TR-02386', expected: 'TR-02386' },
+      { name: '提取正文首个项目号并大写归一："见 PM-1469 需求"', input: '见 PM-1469 需求', expected: 'PM-1469' },
+      { name: '词边界：SUPR-01947 不吞出 PR-01947（否则误路由）："SUPR-01947 是别的东西"', input: 'SUPR-01947 是别的东西', expected: null },
+      { name: '词边界：SUPR-01947 不吞出 PR-01947（否则误路由）："XPM-1469"', input: 'XPM-1469', expected: null },
+      { name: '无项目号 / 空输入 → null："没有项目号"', input: '没有项目号', expected: null },
+      { name: '无项目号 / 空输入 → null：""', input: '', expected: null },
+      { name: '无项目号 / 空输入 → null：null', input: null, expected: null },
     ]
-    for (const { name, input, expected } of cases) assert.equal(matchProjectId(input), expected, name)
+    return eachCase(cases, ({ input, expected }) => assert.equal(matchProjectId(input), expected))
   })
 })
 
 describe('matchProjectIds（全部项目号，用于判「正文是否明确指向唯一项目」）', () => {
-  it('去重 + 大写归一 + 保序；单个可作权威、多个视为引用；无项目号 → 空数组', () => {
-    assert.deepEqual(matchProjectIds('pr-01947 与 PM-1469 都提到过 PR-01947'), ['PR-01947', 'PM-1469'], '去重 + 大写归一 + 保持出现顺序')
-    {
-      const m = '恰好一个 → 正文可作权威来源；多个 → 视为引用，调用方回落群名'
-      assert.deepEqual(matchProjectIds('PR-02306 这个页面报错'), ['PR-02306'], m)
-      assert.equal(matchProjectIds('参考 PR-01947 的做法改 PR-02306').length, 2, m)
-    }
-    {
-      const m = '无项目号 / 空输入 → 空数组（不抛错）'
-      assert.deepEqual(matchProjectIds('没有项目号'), [], m)
-      assert.deepEqual(matchProjectIds(null), [], m)
-    }
-  })
+  it('去重 + 大写归一 + 保序；单个可作权威、多个视为引用；无项目号 → 空数组', () => runSteps([
+    ['去重 + 大写归一 + 保持出现顺序', () => {
+      assert.deepEqual(matchProjectIds('pr-01947 与 PM-1469 都提到过 PR-01947'), ['PR-01947', 'PM-1469'])
+    }],
+    ['恰好一个 → 正文可作权威来源；多个 → 视为引用，调用方回落群名', () => {
+      assert.deepEqual(matchProjectIds('PR-02306 这个页面报错'), ['PR-02306'])
+      assert.equal(matchProjectIds('参考 PR-01947 的做法改 PR-02306').length, 2)
+    }],
+    ['无项目号 / 空输入 → 空数组（不抛错）', () => {
+      assert.deepEqual(matchProjectIds('没有项目号'), [])
+      assert.deepEqual(matchProjectIds(null), [])
+    }],
+  ]))
 })
 
 describe('isProjectId（整串校验）', () => {
   it('恰为合法项目号（含尾部空白）→ true；夹带脏字符 / 子串 / 空 → false', () => {
     const cases = [
-      { name: '恰为合法项目号（含尾部空白/换行）→ true', input: 'PR-01947', expected: true },
-      { name: '恰为合法项目号（含尾部空白/换行）→ true', input: 'TR-02386', expected: true },
-      { name: '恰为合法项目号（含尾部空白/换行）→ true', input: 'pm-1469', expected: true },
-      { name: '恰为合法项目号（含尾部空白/换行）→ true', input: 'PM-1469\n', expected: true },
-      { name: '夹带脏字符 / 子串 / 空 → false（交 worker 走 adhoc）', input: '../../PR-01947', expected: false },
-      { name: '夹带脏字符 / 子串 / 空 → false（交 worker 走 adhoc）', input: 'SUPR-01947', expected: false },
-      { name: '夹带脏字符 / 子串 / 空 → false（交 worker 走 adhoc）', input: 'PR-01947 附注', expected: false },
-      { name: '夹带脏字符 / 子串 / 空 → false（交 worker 走 adhoc）', input: '', expected: false },
-      { name: '夹带脏字符 / 子串 / 空 → false（交 worker 走 adhoc）', input: null, expected: false },
+      { name: '恰为合法项目号（含尾部空白/换行）→ true："PR-01947"', input: 'PR-01947', expected: true },
+      { name: '恰为合法项目号（含尾部空白/换行）→ true："TR-02386"', input: 'TR-02386', expected: true },
+      { name: '恰为合法项目号（含尾部空白/换行）→ true："pm-1469"', input: 'pm-1469', expected: true },
+      { name: '恰为合法项目号（含尾部空白/换行）→ true："PM-1469\\n"', input: 'PM-1469\n', expected: true },
+      { name: '夹带脏字符 / 子串 / 空 → false（交 worker 走 adhoc）："../../PR-01947"', input: '../../PR-01947', expected: false },
+      { name: '夹带脏字符 / 子串 / 空 → false（交 worker 走 adhoc）："SUPR-01947"', input: 'SUPR-01947', expected: false },
+      { name: '夹带脏字符 / 子串 / 空 → false（交 worker 走 adhoc）："PR-01947 附注"', input: 'PR-01947 附注', expected: false },
+      { name: '夹带脏字符 / 子串 / 空 → false（交 worker 走 adhoc）：""', input: '', expected: false },
+      { name: '夹带脏字符 / 子串 / 空 → false（交 worker 走 adhoc）：null', input: null, expected: false },
     ]
-    for (const { name, input, expected } of cases) assert.equal(isProjectId(input), expected, name)
+    return eachCase(cases, ({ input, expected }) => assert.equal(isProjectId(input), expected))
   })
 })
 
@@ -1118,33 +1087,28 @@ describe('handleStatusUpdate epoch fencing', () => {
   }
   const cleanup = () => dir && rmSync(dir, { recursive: true, force: true })
 
-  it('epoch 不匹配拒 409 不改状态；匹配放行；缺省向后兼容放行', async () => {
-    // 每段各用一个全新 store，互不影响
-    {
-      const m = 'epoch 与当前不匹配 → 拒绝 409，不改状态'
+  it('epoch 不匹配拒 409 不改状态；匹配放行；缺省向后兼容放行', () => runSteps([
+    ['epoch 与当前不匹配 → 拒绝 409，不改状态', async () => {
       const store = freshStore()
       store.upsert({ id: 't', status: 'running', epoch: 2, createdAt: '2026-01-01T00:00:00Z' })
       const outcome = await handleStatusUpdate({ config: {}, store, id: 't', status: 'done', epoch: 1 })
-      assert.equal(outcome.ok, false, m)
-      assert.equal(outcome.code, 409, m)
-      assert.equal(store.get('t').status, 'running', m) // 未被旧 worker 覆盖
-      cleanup()
-    }
-    {
+      assert.equal(outcome.ok, false)
+      assert.equal(outcome.code, 409)
+      assert.equal(store.get('t').status, 'running') // 未被旧 worker 覆盖
+    }],
+    ['epoch 匹配 → 放行（running 态无群卡，纯 network-free）', async () => {
       const store = freshStore()
       store.upsert({ id: 't', status: 'running', epoch: 2, createdAt: '2026-01-01T00:00:00Z' })
       const outcome = await handleStatusUpdate({ config: {}, store, id: 't', status: 'running', epoch: 2 })
-      assert.equal(outcome.ok, true, 'epoch 匹配 → 放行（running 态无群卡，纯 network-free）')
-      cleanup()
-    }
-    {
+      assert.equal(outcome.ok, true)
+    }],
+    ['epoch 缺省 → 向后兼容放行（不校验）', async () => {
       const store = freshStore()
       store.upsert({ id: 't', status: 'running', epoch: 5, createdAt: '2026-01-01T00:00:00Z' })
       const outcome = await handleStatusUpdate({ config: {}, store, id: 't', status: 'running' })
-      assert.equal(outcome.ok, true, 'epoch 缺省 → 向后兼容放行（不校验）')
-      cleanup()
-    }
-  })
+      assert.equal(outcome.ok, true)
+    }],
+  ], { after: cleanup }))
 })
 
 // ---------------------------------------------------------------------------
@@ -1153,21 +1117,24 @@ describe('handleStatusUpdate epoch fencing', () => {
 // ---------------------------------------------------------------------------
 describe('终态结果卡回执可锚定', () => {
   const cardConfig = { project: 'PR-TEST', title: '任务', bugTable: {} }
-  it('done / failed / no_change_needed 结果卡的 messageId 被登记为回执，findTaskByAnyReceipt 可反查', async () => {
-    for (const status of ['done', 'failed', 'no_change_needed']) {
-      // 每个终态各用独立临时目录与 store
-      const m = `${status} 结果卡的 messageId 被登记为回执，findTaskByAnyReceipt 可反查`
+  it('done / failed / no_change_needed 结果卡的 messageId 被登记为回执，findTaskByAnyReceipt 可反查', () => {
+    const cases = ['done', 'failed', 'no_change_needed'].map((status) => ({ name: `${status} 结果卡的 messageId 被登记为回执，findTaskByAnyReceipt 可反查`, status }))
+    // 每个终态各用独立临时目录与 store，finally 清理
+    return eachCase(cases, async ({ status }) => {
       const dir = mkdtempSync(join(tmpdir(), 'lark-gw-term-'))
-      const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
-      store.upsert({ id: 't-term', status: 'running', epoch: 0, chatId: 'oc_x', summary: '原任务', createdAt: '2026-01-01T00:00:00Z' })
-      const sendMessage = async () => ({ ok: true, messageId: `om_result_${status}` })
-      const outcome = await handleStatusUpdate({ config: cardConfig, store, id: 't-term', status, epoch: 0, result: '结束。', sendMessage })
-      assert.equal(outcome.ok, true, m)
-      const anchored = store.findTaskByAnyReceipt(`om_result_${status}`)
-      assert.ok(anchored, `${m}：回复 ${status} 结果卡应能经回执锚定回原任务，否则控制通道会新建任务`)
-      assert.equal(anchored.id, 't-term', m)
-      rmSync(dir, { recursive: true, force: true })
-    }
+      try {
+        const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+        store.upsert({ id: 't-term', status: 'running', epoch: 0, chatId: 'oc_x', summary: '原任务', createdAt: '2026-01-01T00:00:00Z' })
+        const sendMessage = async () => ({ ok: true, messageId: `om_result_${status}` })
+        const outcome = await handleStatusUpdate({ config: cardConfig, store, id: 't-term', status, epoch: 0, result: '结束。', sendMessage })
+        assert.equal(outcome.ok, true)
+        const anchored = store.findTaskByAnyReceipt(`om_result_${status}`)
+        assert.ok(anchored, `回复 ${status} 结果卡应能经回执锚定回原任务，否则控制通道会新建任务`)
+        assert.equal(anchored.id, 't-term')
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    })
   })
 })
 
@@ -1175,22 +1142,20 @@ describe('终态结果卡回执可锚定', () => {
 // 变更分级探测 + changedFiles 交叉校验 + done 可信度评估（worker 侧无人值守验证加强，P2-13）
 // ---------------------------------------------------------------------------
 describe('detectChangeTier（契约/共享/类型敏感路径 → L2+）', () => {
-  it('命中 schema/mapper/api/.d.ts/packages 任一即 L2；纯样式/文案 → L1 无原因', () => {
-    {
-      const m = '命中 schema/mapper/api/.d.ts/packages 任一即 L2，附原因'
-      assert.equal(detectChangeTier(['apps/web/src/x/order.schema.ts']).tier, 'L2', m)
-      assert.equal(detectChangeTier(['apps/web/src/api/order.ts']).tier, 'L2', m)
-      assert.equal(detectChangeTier(['apps/web/src/mappers/orderMapper.ts']).tier, 'L2', m)
-      assert.equal(detectChangeTier(['packages/ui/src/Button.tsx']).tier, 'L2', m)
-      assert.equal(detectChangeTier(['apps/web/src/types/global.d.ts']).tier, 'L2', m)
-    }
-    {
-      const m = '纯样式/文案改动 → L1，无原因'
+  it('命中 schema/mapper/api/.d.ts/packages 任一即 L2；纯样式/文案 → L1 无原因', () => runSteps([
+    ['命中 schema/mapper/api/.d.ts/packages 任一即 L2，附原因', () => {
+      assert.equal(detectChangeTier(['apps/web/src/x/order.schema.ts']).tier, 'L2')
+      assert.equal(detectChangeTier(['apps/web/src/api/order.ts']).tier, 'L2')
+      assert.equal(detectChangeTier(['apps/web/src/mappers/orderMapper.ts']).tier, 'L2')
+      assert.equal(detectChangeTier(['packages/ui/src/Button.tsx']).tier, 'L2')
+      assert.equal(detectChangeTier(['apps/web/src/types/global.d.ts']).tier, 'L2')
+    }],
+    ['纯样式/文案改动 → L1，无原因', () => {
       const { tier, reasons } = detectChangeTier(['apps/web/src/x/Panel.tsx', 'apps/web/src/x/panel.css'])
-      assert.equal(tier, 'L1', m)
-      assert.deepEqual(reasons, [], m)
-    }
-  })
+      assert.equal(tier, 'L1')
+      assert.deepEqual(reasons, [])
+    }],
+  ]))
 })
 
 describe('appendPublicCompletionEvidence（群完成卡隐藏内部治理字段）', () => {
@@ -1209,179 +1174,172 @@ describe('appendPublicCompletionEvidence（群完成卡隐藏内部治理字段�
 
 describe('buildResultCard（结果卡渲染分支行）', () => {
   const config = { project: 'PR-01645', title: '冒烟', bugTable: {} }
-  it('结果卡有分支才渲染分支行；待确认卡展示任务 ID、轮次和续跑入口', () => {
-    {
-      const m = '有 task.branch → 卡片含分支行'
+  it('结果卡有分支才渲染分支行；待确认卡展示任务 ID、轮次和续跑入口', () => runSteps([
+    ['有 task.branch → 卡片含分支行', () => {
       const card = buildResultCard({ config, task: { summary: 'x', branch: 'hotfix/PR-01645-ab12cd' }, status: 'done', result: '已完成。' })
-      assert.match(card, /hotfix\/PR-01645-ab12cd/, m)
-      assert.match(card, /分支/, m)
-    }
-    {
-      const m = '无 task.branch（只读任务）→ 卡片不含分支行'
+      assert.match(card, /hotfix\/PR-01645-ab12cd/)
+      assert.match(card, /分支/)
+    }],
+    ['无 task.branch（只读任务）→ 卡片不含分支行', () => {
       const card = buildResultCard({ config, task: { summary: 'x', commandType: 'status' }, status: 'done', result: '查询完成。' })
-      assert.ok(!/\*\*分支\*\*/.test(card), m)
-      assert.match(card, /查询成功/, m)
-    }
-    {
-      const m = '待确认卡展示任务 ID、轮次和两种续跑入口'
+      assert.ok(!/\*\*分支\*\*/.test(card))
+      assert.match(card, /查询成功/)
+    }],
+    ['待确认卡展示任务 ID、轮次和两种续跑入口', () => {
       const card = buildWaitingCard({
         config,
         task: { id: 'rec1234', summary: '缺接口口径', waitRound: 2 },
         status: 'waiting_confirmation',
         result: '需确认全部账户含义。',
       })
-      assert.match(card, /rec1234/, m)
-      assert.match(card, /第 2 轮/, m)
-      assert.match(card, /继续任务 rec1234/, m)
-    }
-  })
+      assert.match(card, /rec1234/)
+      assert.match(card, /第 2 轮/)
+      assert.match(card, /继续任务 rec1234/)
+    }],
+  ]))
 })
 
 describe('crossCheckChangedFiles（AI 自报 vs 真实 git diff）', () => {
-  it('一致 → consistent；漏报 / 虚报分落两个差集；实际零改动 → actualEmpty', () => {
-    {
-      const m = '一致 → consistent，无差集'
+  it('一致 → consistent；漏报 / 虚报分落两个差集；实际零改动 → actualEmpty', () => runSteps([
+    ['一致 → consistent，无差集', () => {
       const r = crossCheckChangedFiles({ reported: ['a.ts', './b.ts'], actual: ['a.ts', 'b.ts'] })
-      assert.equal(r.consistent, true, m)
-      assert.equal(r.actualEmpty, false, m)
-    }
-    {
-      const m = '漏报 / 虚报分别落到两个差集'
+      assert.equal(r.consistent, true)
+      assert.equal(r.actualEmpty, false)
+    }],
+    ['漏报 / 虚报分别落到两个差集', () => {
       const r = crossCheckChangedFiles({ reported: ['a.ts', 'ghost.ts'], actual: ['a.ts', 'real.ts'] })
-      assert.deepEqual(r.missingFromReport, ['real.ts'], m) // 真改了 AI 没报
-      assert.deepEqual(r.notActuallyChanged, ['ghost.ts'], m) // AI 报了实际没改
-      assert.equal(r.consistent, false, m)
-    }
-    assert.equal(crossCheckChangedFiles({ reported: ['a.ts'], actual: [] }).actualEmpty, true, '实际零改动 → actualEmpty')
-  })
+      assert.deepEqual(r.missingFromReport, ['real.ts']) // 真改了 AI 没报
+      assert.deepEqual(r.notActuallyChanged, ['ghost.ts']) // AI 报了实际没改
+      assert.equal(r.consistent, false)
+    }],
+    ['实际零改动 → actualEmpty', () => {
+      assert.equal(crossCheckChangedFiles({ reported: ['a.ts'], actual: [] }).actualEmpty, true)
+    }],
+  ]))
 })
 
 describe('assessDoneResult（done 可信度评估）', () => {
-  it('done 可信度：零改动 / 只读豁免 / L2 type-check 闸 / L1 不受影响 / 漏报 note / test-only 修复降级', () => {
-    {
-      const m = 'done 但工作区零改动 → 不可信（需人工复核）'
+  it('done 可信度：零改动 / 只读豁免 / L2 type-check 闸 / L1 不受影响 / 漏报 note / test-only 修复降级', () => runSteps([
+    ['done 但工作区零改动 → 不可信（需人工复核）', () => {
       const a = assessDoneResult({ reportedChangedFiles: ['a.ts'], actualChangedFiles: [], checks: ['tsc'] })
-      assert.equal(a.trustworthy, false, m)
-      assert.match(a.notes[0], /无任何改动/, m)
-    }
-    {
-      const m = '只读任务（状态/status）豁免零改动降级'
+      assert.equal(a.trustworthy, false)
+      assert.match(a.notes[0], /无任何改动/)
+    }],
+    ['只读任务（状态/status）豁免零改动降级', () => {
       const a = assessDoneResult({ reportedChangedFiles: [], actualChangedFiles: [], readOnly: true })
-      assert.equal(a.trustworthy, true, m)
-      assert.deepEqual(a.notes, [], m)
-    }
-    {
-      const m = 'L2 契约/共享改动但 AI checks 不含 type-check → 不可信，降级人工复核（不再是 note 级）'
+      assert.equal(a.trustworthy, true)
+      assert.deepEqual(a.notes, [])
+    }],
+    ['L2 契约/共享改动但 AI checks 不含 type-check → 不可信，降级人工复核（不再是 note 级）', () => {
       const a = assessDoneResult({
         reportedChangedFiles: ['x.schema.ts'],
         actualChangedFiles: ['x.schema.ts'],
         checks: ['biome', '单测通过'],
       })
-      assert.equal(a.trustworthy, false, m)
-      assert.equal(a.tier, 'L2', m)
-      assert.ok(a.notes.some((n) => /type-check/.test(n)), m)
-    }
-    {
-      const m = 'L2 契约/共享改动且 checks 含 tsc → 可信、无 type-check note'
+      assert.equal(a.trustworthy, false)
+      assert.equal(a.tier, 'L2')
+      assert.ok(a.notes.some((n) => /type-check/.test(n)))
+    }],
+    ['L2 契约/共享改动且 checks 含 tsc → 可信、无 type-check note', () => {
       const a = assessDoneResult({
         reportedChangedFiles: ['x.schema.ts'],
         actualChangedFiles: ['x.schema.ts'],
         checks: ['tsc --noEmit 通过'],
       })
-      assert.equal(a.trustworthy, true, m)
-      assert.ok(!a.notes.some((n) => /type-check/.test(n)), m)
-    }
-    {
-      const m = 'L1 改动缺 type-check 不受影响（type-check 闸只作用于契约/共享改动）'
+      assert.equal(a.trustworthy, true)
+      assert.ok(!a.notes.some((n) => /type-check/.test(n)))
+    }],
+    ['L1 改动缺 type-check 不受影响（type-check 闸只作用于契约/共享改动）', () => {
       const a = assessDoneResult({
         reportedChangedFiles: ['a.tsx'],
         actualChangedFiles: ['a.tsx'],
         checks: [],
       })
-      assert.equal(a.trustworthy, true, m)
-      assert.equal(a.tier, 'L1', m)
-    }
-    {
-      const m = '漏报改动文件 → 挂 note 但不阻断（可信）'
+      assert.equal(a.trustworthy, true)
+      assert.equal(a.tier, 'L1')
+    }],
+    ['漏报改动文件 → 挂 note 但不阻断（可信）', () => {
       const a = assessDoneResult({
         reportedChangedFiles: ['a.tsx'],
         actualChangedFiles: ['a.tsx', 'b.tsx'],
         checks: [],
       })
-      assert.equal(a.trustworthy, true, m)
-      assert.ok(a.notes.some((n) => /漏报/.test(n) && /b\.tsx/.test(n)), m)
-    }
-    {
-      const m = '修复类任务只改了测试文件 → 不可信（拿加测试凑 diff 冒充完成）'
+      assert.equal(a.trustworthy, true)
+      assert.ok(a.notes.some((n) => /漏报/.test(n) && /b\.tsx/.test(n)))
+    }],
+    ['修复类任务只改了测试文件 → 不可信（拿加测试凑 diff 冒充完成）', () => {
       const a = assessDoneResult({
         reportedChangedFiles: ['apps/web/src/components/VerifyMan/index.test.ts'],
         actualChangedFiles: ['apps/web/src/components/VerifyMan/index.test.ts'],
         checks: ['单测通过'],
         expectsCodeFix: true,
       })
-      assert.equal(a.trustworthy, false, m)
-      assert.ok(a.notes.some((n) => /只动了测试文件|no_change_needed/.test(n)), m)
-    }
-    {
+      assert.equal(a.trustworthy, false)
+      assert.ok(a.notes.some((n) => /只动了测试文件|no_change_needed/.test(n)))
+    }],
+    ['修复类任务改了业务代码 + 测试 → 可信（不是 test-only）', () => {
       const a = assessDoneResult({
         reportedChangedFiles: ['src/a.ts', 'src/a.test.ts'],
         actualChangedFiles: ['src/a.ts', 'src/a.test.ts'],
         checks: [],
         expectsCodeFix: true,
       })
-      assert.equal(a.trustworthy, true, '修复类任务改了业务代码 + 测试 → 可信（不是 test-only）')
-    }
-    {
+      assert.equal(a.trustworthy, true)
+    }],
+    ['自测/文档类任务（expectsCodeFix=false）只改测试文件不降级', () => {
       const a = assessDoneResult({
         reportedChangedFiles: ['src/a.test.ts'],
         actualChangedFiles: ['src/a.test.ts'],
         checks: [],
         expectsCodeFix: false,
       })
-      assert.equal(a.trustworthy, true, '自测/文档类任务（expectsCodeFix=false）只改测试文件不降级')
-    }
-  })
+      assert.equal(a.trustworthy, true)
+    }],
+  ]))
 })
 
 describe('isTestOnlyDiff（只动测试文件识别）', () => {
-  it('全是测试文件 → true；含业务文件或空清单 → false', () => {
-    assert.equal(isTestOnlyDiff(['a/b/index.test.ts', 'c/__tests__/d.mjs', 'e.spec.tsx']), true, '全是测试文件 → true')
-    assert.equal(isTestOnlyDiff(['a.ts', 'a.test.ts']), false, '含任一业务文件 → false')
-    assert.equal(isTestOnlyDiff([]), false, '空清单 → false（无改动另有专门判定）')
-  })
+  it('全是测试文件 → true；含业务文件或空清单 → false', () => runSteps([
+    ['全是测试文件 → true', () => {
+      assert.equal(isTestOnlyDiff(['a/b/index.test.ts', 'c/__tests__/d.mjs', 'e.spec.tsx']), true)
+    }],
+    ['含任一业务文件 → false', () => {
+      assert.equal(isTestOnlyDiff(['a.ts', 'a.test.ts']), false)
+    }],
+    ['空清单 → false（无改动另有专门判定）', () => {
+      assert.equal(isTestOnlyDiff([]), false)
+    }],
+  ]))
 })
 
 describe('splitViolations（规范闸残留分级：色类硬拦 / 其余 note）', () => {
-  it('失效裸色类进硬桶、其余进软桶；只有 arbitrary value 时硬桶为空', () => {
-    {
-      const m = '失效裸色类进硬桶，arbitrary value 等进软桶'
+  it('失效裸色类进硬桶、其余进软桶；只有 arbitrary value 时硬桶为空', () => runSteps([
+    ['失效裸色类进硬桶，arbitrary value 等进软桶', () => {
       const violations = [
         { kind: 'invalid-color-class', token: 'text-green', file: 'a.tsx' },
         { kind: 'arbitrary-value', token: 'rounded-[12px]', file: 'a.tsx' },
         { kind: 'bare-any', token: 'as any', file: 'a.ts' },
       ]
       const { hardRemaining, softRemaining } = splitViolations(violations)
-      assert.deepEqual(hardRemaining.map((v) => v.kind), ['invalid-color-class'], m)
-      assert.deepEqual(softRemaining.map((v) => v.kind), ['arbitrary-value', 'bare-any'], m)
-    }
-    {
-      const m = '只有 arbitrary value 时硬桶为空（不阻断 done，仅 note）'
+      assert.deepEqual(hardRemaining.map((v) => v.kind), ['invalid-color-class'])
+      assert.deepEqual(softRemaining.map((v) => v.kind), ['arbitrary-value', 'bare-any'])
+    }],
+    ['只有 arbitrary value 时硬桶为空（不阻断 done，仅 note）', () => {
       const { hardRemaining, softRemaining } = splitViolations([
         { kind: 'arbitrary-value', token: 'w-[336px]', file: 'a.tsx' },
       ])
-      assert.equal(hardRemaining.length, 0, m)
-      assert.equal(softRemaining.length, 1, m)
-    }
-  })
+      assert.equal(hardRemaining.length, 0)
+      assert.equal(softRemaining.length, 1)
+    }],
+  ]))
 })
 
 // ---------------------------------------------------------------------------
 // changed-file 静态扫描摘要（D5）：结果保留在内部审计，命中本次改动 error 时阻断
 // ---------------------------------------------------------------------------
 describe('summarizeCodeRules（bot 改动过一次同一把静态尺子）', () => {
-  it('按 severity 计数与 ruleId 去重；无 finding → ok；扫描器未安装 → ran:false 不抛', () => {
-    {
-      const m = '按 severity 计数，note 不进点名清单，ruleId 去重'
+  it('按 severity 计数与 ruleId 去重；无 finding → ok；扫描器未安装 → ran:false 不抛', () => runSteps([
+    ['按 severity 计数，note 不进点名清单，ruleId 去重', () => {
       const summary = summarizeCodeRules({
         changedFiles: ['a.tsx', 'b.ts'],
         findings: [
@@ -1395,22 +1353,20 @@ describe('summarizeCodeRules（bot 改动过一次同一把静态尺子）', () 
       assert.deepEqual(
         { ok: summary.ok, error: summary.error, warn: summary.warn, note: summary.note, other: summary.other, changedFiles: summary.changedFiles },
         { ok: false, error: 1, warn: 2, note: 1, other: 1, changedFiles: 2 },
-        m,
       )
-      assert.deepEqual(summary.ruleIds, ['CODE-ANY-001', 'CODE-I18N-002', 'CODE-NEW-001'], m)
-      assert.deepEqual(summary.errorFindings, [{ ruleId: 'CODE-ANY-001', file: '', line: 0 }], `${m}：errorFindings 只收 error 级，缺 file/line 归一为 空/0`)
-    }
-    {
+      assert.deepEqual(summary.ruleIds, ['CODE-ANY-001', 'CODE-I18N-002', 'CODE-NEW-001'])
+      assert.deepEqual(summary.errorFindings, [{ ruleId: 'CODE-ANY-001', file: '', line: 0 }], 'errorFindings 只收 error 级，缺 file/line 归一为 空/0')
+    }],
+    ['无 finding → ok 且计数全 0', () => {
       const summary = summarizeCodeRules({ changedFiles: ['a.ts'], findings: [] })
-      assert.deepEqual({ ok: summary.ok, error: summary.error, warn: summary.warn }, { ok: true, error: 0, warn: 0 }, '无 finding → ok 且计数全 0')
-    }
-    {
-      const m = '扫描器副本未安装 → ran:false 且不抛（只记审计，不阻断任务）'
+      assert.deepEqual({ ok: summary.ok, error: summary.error, warn: summary.warn }, { ok: true, error: 0, warn: 0 })
+    }],
+    ['扫描器副本未安装 → ran:false 且不抛（只记审计，不阻断任务）', () => {
       const outcome = runCodeRulesScan({ cwd: tmpdir(), scanScript: join(tmpdir(), 'no-such-code-rules.mjs') })
-      assert.equal(outcome.ran, false, m)
-      assert.match(outcome.reason, /未安装/, m)
-    }
-  })
+      assert.equal(outcome.ran, false)
+      assert.match(outcome.reason, /未安装/)
+    }],
+  ]))
 })
 
 describe('codeRuleErrorsInDiff / buildCodeRulesBlockedResult（文件级归因硬闸）', () => {
@@ -1422,34 +1378,33 @@ describe('codeRuleErrorsInDiff / buildCodeRulesBlockedResult（文件级归因�
       { severity: 'warn', ruleId: 'CODE-I18N-002', file: 'apps/web/src/a.tsx', line: 8 },
     ],
   })
-  it('只归因本次改动文件的 error（warn / 存量 / ran=false / 缺参数不命中），阻断卡如实点名', () => {
-    {
-      const m = '只挑出 error 且文件落在本次实测改动清单里的 finding'
+  it('只归因本次改动文件的 error（warn / 存量 / ran=false / 缺参数不命中），阻断卡如实点名', () => runSteps([
+    ['只挑出 error 且文件落在本次实测改动清单里的 finding', () => {
       const hits = codeRuleErrorsInDiff({ summary, changedFiles: ['apps/web/src/a.tsx'] })
-      assert.deepEqual(hits.map((h) => h.ruleId), ['CODE-MSW-002'], `${m}：本次只改了 a.tsx，legacy.ts 的存量 error 不该命中`)
-      assert.equal(hits[0].file, 'apps/web/src/a.tsx', m)
-    }
-    {
+      assert.deepEqual(hits.map((h) => h.ruleId), ['CODE-MSW-002'], '本次只改了 a.tsx，legacy.ts 的存量 error 不该命中')
+      assert.equal(hits[0].file, 'apps/web/src/a.tsx')
+    }],
+    ['本次改动文件无 error → 空（warn 不算，存量 error 不算）', () => {
       const warnOnly = summarizeCodeRules({ changedFiles: ['a.tsx'], findings: [{ severity: 'warn', ruleId: 'X', file: 'a.tsx' }] })
-      assert.deepEqual(codeRuleErrorsInDiff({ summary: warnOnly, changedFiles: ['a.tsx'] }), [], '本次改动文件无 error → 空（warn 不算，存量 error 不算）')
-    }
-    assert.deepEqual(codeRuleErrorsInDiff({ summary: { ran: false, reason: '缺 rg' }, changedFiles: ['a.tsx'] }), [], 'ran=false（扫描没跑成）恒不命中——降级环境不误伤')
-    {
-      const m = '缺参数安全返回空'
-      assert.deepEqual(codeRuleErrorsInDiff({}), [], m)
-      assert.deepEqual(codeRuleErrorsInDiff({ summary, changedFiles: null }), [], m)
-    }
-    {
-      const m = '阻断卡如实点名 ruleId:file:line 与两条出口，带任务号'
+      assert.deepEqual(codeRuleErrorsInDiff({ summary: warnOnly, changedFiles: ['a.tsx'] }), [])
+    }],
+    ['ran=false（扫描没跑成）恒不命中——降级环境不误伤', () => {
+      assert.deepEqual(codeRuleErrorsInDiff({ summary: { ran: false, reason: '缺 rg' }, changedFiles: ['a.tsx'] }), [])
+    }],
+    ['缺参数安全返回空', () => {
+      assert.deepEqual(codeRuleErrorsInDiff({}), [])
+      assert.deepEqual(codeRuleErrorsInDiff({ summary, changedFiles: null }), [])
+    }],
+    ['阻断卡如实点名 ruleId:file:line 与两条出口，带任务号', () => {
       const hits = codeRuleErrorsInDiff({ summary, changedFiles: ['apps/web/src/a.tsx'] })
       const text = buildCodeRulesBlockedResult({ id: 'PR-02306-1' }, hits)
-      assert.match(text, /PR-02306-1/, m)
-      assert.match(text, /命中 1 处 error/, m)
-      assert.match(text, /CODE-MSW-002 apps\/web\/src\/a\.tsx:12/, m)
-      assert.match(text, /code-rules-ignore <RULE-ID>: <理由>/, m)
-      assert.doesNotMatch(text, /rule-waivers\.json/, `${m}：旧引擎的豁免台账已下线，不再指给用户`)
-    }
-  })
+      assert.match(text, /PR-02306-1/)
+      assert.match(text, /命中 1 处 error/)
+      assert.match(text, /CODE-MSW-002 apps\/web\/src\/a\.tsx:12/)
+      assert.match(text, /code-rules-ignore <RULE-ID>: <理由>/)
+      assert.doesNotMatch(text, /rule-waivers\.json/, '旧引擎的豁免台账已下线，不再指给用户')
+    }],
+  ]))
 })
 
 // 端到端：真实的 scripts/code-rules.mjs 在临时 git 仓库里跑，验证 lark 侧解析与文件级归因接得上新扫描器
@@ -1476,38 +1431,39 @@ describe('runCodeRulesScan（内置 scripts/code-rules.mjs 端到端）', () => 
     writeFileSync(join(cwd, file), `${lines.join('\n')}\n`)
   }
 
-  it('端到端扫描：直连 fetch 命中并归因、code-rules-ignore 豁免、非 git 目录 ran:false（每段独立临时仓库）', () => {
-    withRepo((cwd) => {
-      const m = '新增组件直连 fetch → ran:true 命中 CODE-ARCH-001，且能归因到本次改动文件'
-      writeComponent(cwd, ['export const X = () => {', "  fetch('/api/x')", '  return null', '}'])
-      const summary = runCodeRulesScan({ cwd })
-      assert.equal(summary.ran, true, `${m}：${summary.reason}`)
-      assert.equal(summary.ok, false, m)
-      assert.equal(summary.baseResolved, false, `${m}：临时仓库没有 origin/online，扫描器降级为工作区 + untracked`)
-      assert.deepEqual(summary.errorFindings, [{ ruleId: 'CODE-ARCH-001', file, line: 2 }], m)
-      assert.deepEqual(codeRuleErrorsInDiff({ summary, changedFiles: [file] }).map((hit) => hit.ruleId), ['CODE-ARCH-001'], m)
-      assert.deepEqual(codeRuleErrorsInDiff({ summary, changedFiles: ['apps/web/src/apps/Y/Y.tsx'] }), [], `${m}：不在本次改动清单里的文件不归因`)
-    })
-    withRepo((cwd) => {
-      const m = '上一行带 code-rules-ignore <RULE-ID>: <理由> → 不命中'
-      writeComponent(cwd, ['export const X = () => {', '  // code-rules-ignore CODE-ARCH-001: 下载海报 blob，不走 query 层', "  fetch('/api/x')", '  return null', '}'])
-      const summary = runCodeRulesScan({ cwd })
-      assert.equal(summary.ran, true, `${m}：${summary.reason}`)
-      assert.equal(summary.ok, true, m)
-      assert.deepEqual(codeRuleErrorsInDiff({ summary, changedFiles: [file] }), [], m)
-    })
-    {
-      const m = '非 git 目录（扫描器退出码 2）→ ran:false 且不抛'
+  it('端到端扫描：直连 fetch 命中并归因、code-rules-ignore 豁免、非 git 目录 ran:false（每段独立临时仓库）', () => runSteps([
+    ['新增组件直连 fetch → ran:true 命中 CODE-ARCH-001，且能归因到本次改动文件', () => {
+      withRepo((cwd) => {
+        writeComponent(cwd, ['export const X = () => {', "  fetch('/api/x')", '  return null', '}'])
+        const summary = runCodeRulesScan({ cwd })
+        assert.equal(summary.ran, true, summary.reason)
+        assert.equal(summary.ok, false)
+        assert.equal(summary.baseResolved, false, '临时仓库没有 origin/online，扫描器降级为工作区 + untracked')
+        assert.deepEqual(summary.errorFindings, [{ ruleId: 'CODE-ARCH-001', file, line: 2 }])
+        assert.deepEqual(codeRuleErrorsInDiff({ summary, changedFiles: [file] }).map((hit) => hit.ruleId), ['CODE-ARCH-001'])
+        assert.deepEqual(codeRuleErrorsInDiff({ summary, changedFiles: ['apps/web/src/apps/Y/Y.tsx'] }), [], '不在本次改动清单里的文件不归因')
+      })
+    }],
+    ['上一行带 code-rules-ignore <RULE-ID>: <理由> → 不命中', () => {
+      withRepo((cwd) => {
+        writeComponent(cwd, ['export const X = () => {', '  // code-rules-ignore CODE-ARCH-001: 下载海报 blob，不走 query 层', "  fetch('/api/x')", '  return null', '}'])
+        const summary = runCodeRulesScan({ cwd })
+        assert.equal(summary.ran, true, summary.reason)
+        assert.equal(summary.ok, true)
+        assert.deepEqual(codeRuleErrorsInDiff({ summary, changedFiles: [file] }), [])
+      })
+    }],
+    ['非 git 目录（扫描器退出码 2）→ ran:false 且不抛', () => {
       const cwd = mkdtempSync(join(tmpdir(), 'lark-code-rules-nogit-'))
       try {
         const summary = runCodeRulesScan({ cwd })
-        assert.equal(summary.ran, false, m)
-        assert.match(summary.reason, /exit 2/, m)
+        assert.equal(summary.ran, false)
+        assert.match(summary.reason, /exit 2/)
       } finally {
         rmSync(cwd, { recursive: true, force: true })
       }
-    }
-  })
+    }],
+  ]))
 
   // 副本只允许比权威版本多出第 2–3 行的同步说明；权威版本不在本机（CI/他人机器）时跳过，不让测试依赖外部文件
   const upstream = join(homedir(), '.ai-rules/skills/prd-to-commit/scripts/code-rules.mjs')
@@ -1522,15 +1478,16 @@ describe('runCodeRulesScan（内置 scripts/code-rules.mjs 端到端）', () => 
 
 describe('configTitleFor（项目名只属于 config.project）', () => {
   const config = { project: 'PR-01947', title: 'CopyTrading 跟单设置' }
-  it('项目号与 config.project 一致才带项目名，别的项目 / 无项目号不挂', () => {
-    assert.equal(configTitleFor('PR-01947', config), 'CopyTrading 跟单设置', '项目号与 config.project 一致才带项目名')
-    {
-      const m = '别的项目 / 无项目号不挂 config.title（2026-10-11 真机：PR-02233 被叫成跟单设置）'
-      assert.equal(configTitleFor('PR-02233', config), undefined, m)
-      assert.equal(configTitleFor(null, config), undefined, m)
-      assert.equal(configTitleFor('', config), undefined, m)
-    }
-  })
+  it('项目号与 config.project 一致才带项目名，别的项目 / 无项目号不挂', () => runSteps([
+    ['项目号与 config.project 一致才带项目名', () => {
+      assert.equal(configTitleFor('PR-01947', config), 'CopyTrading 跟单设置')
+    }],
+    ['别的项目 / 无项目号不挂 config.title（2026-10-11 真机：PR-02233 被叫成跟单设置）', () => {
+      assert.equal(configTitleFor('PR-02233', config), undefined)
+      assert.equal(configTitleFor(null, config), undefined)
+      assert.equal(configTitleFor('', config), undefined)
+    }],
+  ]))
 })
 
 describe('validateConfig（启动期配置结构校验）', () => {
@@ -1540,95 +1497,94 @@ describe('validateConfig（启动期配置结构校验）', () => {
     allowedChatIds: 'auto',
     bugTable: { appToken: 'app', tableId: 'tbl', statusField: '状态', assigneeField: '负责人', doneValue: '已处理' },
   }
-  it('配置结构校验：合法无告警；project / config / allowedChatIds / taskMentionOpenIds / bugTable 的 error 与 warning 分级', () => {
-    {
-      const m = '合法配置：无 error 无 warning'
+  it('配置结构校验：合法无告警；project / config / allowedChatIds / taskMentionOpenIds / bugTable 的 error 与 warning 分级', () => runSteps([
+    ['合法配置：无 error 无 warning', () => {
       const { errors, warnings } = validateConfig(base)
-      assert.deepEqual(errors, [], m)
-      assert.deepEqual(warnings, [], m)
-    }
-    {
-      const m = 'project 缺失 / 空串 → error'
-      assert.ok(validateConfig({ ...base, project: undefined }).errors.some((e) => e.includes('project')), m)
-      assert.ok(validateConfig({ ...base, project: '  ' }).errors.some((e) => e.includes('project')), m)
-    }
-    {
-      const m = '非对象 config → 单条 error'
-      assert.deepEqual(validateConfig(null).errors, ['config 必须是对象'], m)
-      assert.deepEqual(validateConfig([]).errors, ['config 必须是对象'], m)
-    }
-    {
-      const m = 'allowedChatIds 只接受 "auto" 或字符串数组'
-      assert.deepEqual(validateConfig({ ...base, allowedChatIds: ['oc_1', 'oc_2'] }).errors, [], m)
-      assert.ok(validateConfig({ ...base, allowedChatIds: 123 }).errors.some((e) => e.includes('allowedChatIds')), m)
-    }
-    assert.ok(validateConfig({ ...base, taskMentionOpenIds: [1, 2] }).errors.some((e) => e.includes('taskMentionOpenIds')), 'taskMentionOpenIds 非字符串数组 → error')
-    {
-      const m = 'botOpenId 缺失 → 只 warning 不 error（有只读降级兼容）'
+      assert.deepEqual(errors, [])
+      assert.deepEqual(warnings, [])
+    }],
+    ['project 缺失 / 空串 → error', () => {
+      assert.ok(validateConfig({ ...base, project: undefined }).errors.some((e) => e.includes('project')))
+      assert.ok(validateConfig({ ...base, project: '  ' }).errors.some((e) => e.includes('project')))
+    }],
+    ['非对象 config → 单条 error', () => {
+      assert.deepEqual(validateConfig(null).errors, ['config 必须是对象'])
+      assert.deepEqual(validateConfig([]).errors, ['config 必须是对象'])
+    }],
+    ['allowedChatIds 只接受 "auto" 或字符串数组', () => {
+      assert.deepEqual(validateConfig({ ...base, allowedChatIds: ['oc_1', 'oc_2'] }).errors, [])
+      assert.ok(validateConfig({ ...base, allowedChatIds: 123 }).errors.some((e) => e.includes('allowedChatIds')))
+    }],
+    ['taskMentionOpenIds 非字符串数组 → error', () => {
+      assert.ok(validateConfig({ ...base, taskMentionOpenIds: [1, 2] }).errors.some((e) => e.includes('taskMentionOpenIds')))
+    }],
+    ['botOpenId 缺失 → 只 warning 不 error（有只读降级兼容）', () => {
       const { errors, warnings } = validateConfig({ ...base, botOpenId: undefined })
-      assert.deepEqual(errors, [], m)
-      assert.ok(warnings.some((w) => w.includes('botOpenId')), m)
-    }
-    {
-      const m = 'bugTable 配了就得配全 appToken/tableId/statusField/assigneeField'
+      assert.deepEqual(errors, [])
+      assert.ok(warnings.some((w) => w.includes('botOpenId')))
+    }],
+    ['bugTable 配了就得配全 appToken/tableId/statusField/assigneeField', () => {
       const { errors } = validateConfig({ ...base, bugTable: { appToken: 'app' } })
       for (const field of ['tableId', 'statusField', 'assigneeField']) {
-        assert.ok(errors.some((e) => e.includes(`bugTable.${field}`)), `${m}：应报 bugTable.${field} 缺失`)
+        assert.ok(errors.some((e) => e.includes(`bugTable.${field}`)), `应报 bugTable.${field} 缺失`)
       }
-      assert.ok(!errors.some((e) => e.includes('bugTable.appToken')), `${m}：appToken 已配不该报缺失`)
-    }
-    {
-      const m = 'bugTable.doneValue 缺失 → 只 warning（回写有优雅降级）'
+      assert.ok(!errors.some((e) => e.includes('bugTable.appToken')), 'appToken 已配不该报缺失')
+    }],
+    ['bugTable.doneValue 缺失 → 只 warning（回写有优雅降级）', () => {
       const { errors, warnings } = validateConfig({ ...base, bugTable: { ...base.bugTable, doneValue: undefined } })
-      assert.deepEqual(errors, [], m)
-      assert.ok(warnings.some((w) => w.includes('doneValue')), m)
-    }
-    assert.deepEqual(validateConfig({ ...base, bugTable: undefined }).errors, [], '无 bugTable → 合法（bug 表集成可选，poller 侧另有刚需校验）')
-  })
+      assert.deepEqual(errors, [])
+      assert.ok(warnings.some((w) => w.includes('doneValue')))
+    }],
+    ['无 bugTable → 合法（bug 表集成可选，poller 侧另有刚需校验）', () => {
+      assert.deepEqual(validateConfig({ ...base, bugTable: undefined }).errors, [])
+    }],
+  ]))
 })
 
 // ---------------------------------------------------------------------------
 // classifyLarkTask 多标签 + 图片/fix 强制 UI/STYLE + extractMarkdownSection（P3-18）
 // ---------------------------------------------------------------------------
 describe('classifyLarkTask（多标签叠加）', () => {
-  it('多标签叠加：ui+api 混合、纯样式、无信号兜底、图片 / fix 强制并入 UI+STYLE', () => {
-    {
-      const m = '混合任务 ui+api 同时给标签（不再单一胜出）'
+  it('多标签叠加：ui+api 混合、纯样式、无信号兜底、图片 / fix 强制并入 UI+STYLE', () => runSteps([
+    ['混合任务 ui+api 同时给标签（不再单一胜出）', () => {
       const { scenarios } = classifyLarkTask('修改接口字段后同步更新弹窗组件样式')
-      assert.ok(scenarios.includes('write_api'), m)
-      assert.ok(scenarios.includes('write_ui'), m)
-    }
-    {
-      const m = '纯样式任务 → write_ui + style 信号'
+      assert.ok(scenarios.includes('write_api'))
+      assert.ok(scenarios.includes('write_ui'))
+    }],
+    ['纯样式任务 → write_ui + style 信号', () => {
       const { scenario, scenarios, signals } = classifyLarkTask('调整按钮圆角和背景色')
-      assert.equal(scenario, scenarios[0], m)
-      assert.ok(scenarios.includes('write_ui'), m)
-      assert.ok(signals.includes('style'), m)
-    }
-    assert.deepEqual(classifyLarkTask('随便改点东西').scenarios, ['g4_coding_worktree'], '无信号 → g4_coding_worktree 兜底')
-    {
-      const m = '有图片附件 → 强制并入 UI+STYLE（防「字段」误判成纯 API 丢样式规则）'
+      assert.equal(scenario, scenarios[0])
+      assert.ok(scenarios.includes('write_ui'))
+      assert.ok(signals.includes('style'))
+    }],
+    ['无信号 → g4_coding_worktree 兜底', () => {
+      assert.deepEqual(classifyLarkTask('随便改点东西').scenarios, ['g4_coding_worktree'])
+    }],
+    ['有图片附件 → 强制并入 UI+STYLE（防「字段」误判成纯 API 丢样式规则）', () => {
       const withoutImage = classifyLarkTask('字段对不上')
-      assert.ok(!withoutImage.scenarios.includes('write_ui'), m) // 纯文字「字段」判成 API
+      assert.ok(!withoutImage.scenarios.includes('write_ui')) // 纯文字「字段」判成 API
       const withImage = classifyLarkTask('字段对不上', { hasImage: true })
-      assert.ok(withImage.signals.includes('style'), m)
-      assert.ok(withImage.scenarios.includes('write_ui'), m)
-    }
-    {
-      const m = 'fix 命令 → 强制并入 UI+STYLE'
+      assert.ok(withImage.signals.includes('style'))
+      assert.ok(withImage.scenarios.includes('write_ui'))
+    }],
+    ['fix 命令 → 强制并入 UI+STYLE', () => {
       const fix = classifyLarkTask('接口返回异常', { isFix: true })
-      assert.ok(fix.scenarios.includes('write_ui'), m)
-      assert.ok(fix.scenarios.includes('write_api'), m) // 原 api 信号仍在
-    }
-  })
+      assert.ok(fix.scenarios.includes('write_ui'))
+      assert.ok(fix.scenarios.includes('write_api')) // 原 api 信号仍在
+    }],
+  ]))
 })
 
 describe('extractMarkdownSection', () => {
   const doc = '# T\n\n## A\n\na1\na2\n\n## B\n\nb1\n'
-  it('抽出指定标题到下一同级标题前；标题不存在 → 空串', () => {
-    assert.equal(extractMarkdownSection(doc, '## A'), '## A\n\na1\na2', '抽出指定标题到下一同级标题前')
-    assert.equal(extractMarkdownSection(doc, '## Z'), '', '标题不存在 → 空串（供 buildFocusedRuleContext fail-closed）')
-  })
+  it('抽出指定标题到下一同级标题前；标题不存在 → 空串', () => runSteps([
+    ['抽出指定标题到下一同级标题前', () => {
+      assert.equal(extractMarkdownSection(doc, '## A'), '## A\n\na1\na2')
+    }],
+    ['标题不存在 → 空串（供 buildFocusedRuleContext fail-closed）', () => {
+      assert.equal(extractMarkdownSection(doc, '## Z'), '')
+    }],
+  ]))
 })
 
 describe('allRuleRefs（规则路由表 ↔ 真实文档，锁住漂移）', () => {
@@ -1644,12 +1600,11 @@ describe('allRuleRefs（规则路由表 ↔ 真实文档，锁住漂移）', () 
 })
 
 describe('buildFocusedRuleContext（正常场景零 warnings，全路由章节命中）', () => {
-  it('正常场景：全信号任务全章节命中 0 warnings、规则版本绑定进指纹、readRuleRevisions 失败记 null', () => {
-    {
-      const m = '全信号任务加载全部路由章节，0 warnings'
+  it('正常场景：全信号任务全章节命中 0 warnings、规则版本绑定进指纹、readRuleRevisions 失败记 null', () => runSteps([
+    ['全信号任务加载全部路由章节，0 warnings', () => {
       const ctx = buildFocusedRuleContext({ taskText: '文案 tooltip 样式颜色圆角 页面组件表单 API接口schema DTO mapper映射 React Query mutation缓存 Zustand store状态管理 MSW mock fixture' })
-      assert.equal(ctx.warnings.length, 0, m)
-      assert.equal(ctx.sources.length, allRuleRefs().length, m)
+      assert.equal(ctx.warnings.length, 0)
+      assert.equal(ctx.sources.length, allRuleRefs().length)
       const expectedTopicSources = [
         ['~/.ai-rules/skills/coding-quality/references/reuse-before-new-ui.md', '# Reuse Before New UI'],
         ['~/.ai-rules/skills/coding-quality/references/i18n-keys.md', '# i18n Keys Are What-You-See-In-Source (i18n Ally WYSIWYG)'],
@@ -1659,11 +1614,10 @@ describe('buildFocusedRuleContext（正常场景零 warnings，全路由章节�
         ['~/.ai-rules/skills/coding-quality/references/state-derivation-lookup.md', '# State Derivation And Lookup Resolvers'],
       ]
       for (const [path, section] of expectedTopicSources) {
-        assert.ok(ctx.sources.some((source) => source.path === path && source.section === section), `${m}：专题规则未加载：${path} · ${section}`)
+        assert.ok(ctx.sources.some((source) => source.path === path && source.section === section), `专题规则未加载：${path} · ${section}`)
       }
-    }
-    {
-      const m = '绑定规则来源版本；同一章节在规则仓库换版后上下文指纹必须变化'
+    }],
+    ['绑定规则来源版本；同一章节在规则仓库换版后上下文指纹必须变化', () => {
       const first = buildFocusedRuleContext({
         taskText: '调整页面样式',
         ruleRevisions: { aiRulesRevision: 'aaa1111', larkBotRevision: 'bbb1111' },
@@ -1672,23 +1626,21 @@ describe('buildFocusedRuleContext（正常场景零 warnings，全路由章节�
         taskText: '调整页面样式',
         ruleRevisions: { aiRulesRevision: 'aaa1111', larkBotRevision: 'bbb2222' },
       })
-      assert.equal(first.aiRulesRevision, 'aaa1111', m)
-      assert.equal(first.larkBotRevision, 'bbb1111', m)
-      assert.notEqual(first.fingerprint, second.fingerprint, m)
-    }
-    {
-      const m = 'readRuleRevisions：读 git 短 sha；非 git 目录 / git 失败记 null 不抛'
+      assert.equal(first.aiRulesRevision, 'aaa1111')
+      assert.equal(first.larkBotRevision, 'bbb1111')
+      assert.notEqual(first.fingerprint, second.fingerprint)
+    }],
+    ['readRuleRevisions：读 git 短 sha；非 git 目录 / git 失败记 null 不抛', () => {
       const revisions = readRuleRevisions({ larkBotDir: larkBotRoot, aiRulesDir: tmpdir() })
-      assert.match(revisions.larkBotRevision, /^[a-f0-9]{7,}$/, m)
-      assert.equal(revisions.aiRulesRevision, null, m)
+      assert.match(revisions.larkBotRevision, /^[a-f0-9]{7,}$/)
+      assert.equal(revisions.aiRulesRevision, null)
       const throwing = () => { throw new Error('spawn failed') }
-      assert.deepEqual(readRuleRevisions({ spawn: throwing }), { aiRulesRevision: null, larkBotRevision: null }, m)
-    }
-  })
+      assert.deepEqual(readRuleRevisions({ spawn: throwing }), { aiRulesRevision: null, larkBotRevision: null })
+    }],
+  ]))
 
-  it('章节缺失：required 常驻硬规则 fail-closed 阻断，辅助章节降级浮现 warnings（每段独立临时目录）', () => {
-    {
-      const m = 'required（常驻硬规则）章节缺失 → fail-closed 阻断'
+  it('章节缺失：required 常驻硬规则 fail-closed 阻断，辅助章节降级浮现 warnings（每段独立临时目录）', () => runSteps([
+    ['required（常驻硬规则）章节缺失 → fail-closed 阻断', () => {
       const dir = mkdtempSync(join(tmpdir(), 'lark-rule-context-'))
       const file = join(dir, 'rule.md')
       writeFileSync(file, '# Rule\n\n## Existing\n\ntext\n')
@@ -1699,14 +1651,12 @@ describe('buildFocusedRuleContext（正常场景零 warnings，全路由章节�
             ruleRefs: [{ file, label: 'rule.md', heading: '## Missing', required: true }],
           }),
           /VERIFY-RULE-004.*规则上下文构建失败.*常驻硬规则/,
-          m,
         )
       } finally {
         rmSync(dir, { recursive: true, force: true })
       }
-    }
-    {
-      const m = '辅助（非 required）章节缺失 → 降级 + 浮现 warnings，不阻断'
+    }],
+    ['辅助（非 required）章节缺失 → 降级 + 浮现 warnings，不阻断', () => {
       const dir = mkdtempSync(join(tmpdir(), 'lark-rule-context-'))
       const file = join(dir, 'rule.md')
       writeFileSync(file, '# Rule\n\n## Existing\n\ntext\n')
@@ -1719,44 +1669,40 @@ describe('buildFocusedRuleContext（正常场景零 warnings，全路由章节�
             { file, label: 'rule.md', heading: '## Missing' },
           ],
         })
-        assert.equal(ctx.sources.length, 1, m)
-        assert.equal(ctx.warnings.length, 1, m)
-        assert.match(ctx.warnings[0], /规则章节缺失.*Missing/, m)
+        assert.equal(ctx.sources.length, 1)
+        assert.equal(ctx.warnings.length, 1)
+        assert.match(ctx.warnings[0], /规则章节缺失.*Missing/)
       } finally {
         rmSync(dir, { recursive: true, force: true })
       }
-    }
-  })
+    }],
+  ]))
 })
 
 // ---------------------------------------------------------------------------
 // classifyWorkerFailure：Worker 层技术性失败归因（preflight / timeout / worktree / exit）（P3-17）
 // ---------------------------------------------------------------------------
 describe('classifyWorkerFailure', () => {
-  it('失败归因：超时 → tool、登录权限 → permission、缺二进制 / worktree / git → env、未知 → tool 兜底带下一步', () => {
-    {
-      const m = '超时类 → tool 失败'
-      assert.equal(classifyWorkerFailure(new Error('AI process timeout after 1800000ms')).failureKind, 'tool', m)
-      assert.equal(classifyWorkerFailure(new Error('killed by SIGKILL')).failureKind, 'tool', m)
-    }
-    {
-      const m = '登录 / 权限类 → permission 失败'
+  it('失败归因：超时 → tool、登录权限 → permission、缺二进制 / worktree / git → env、未知 → tool 兜底带下一步', () => runSteps([
+    ['超时类 → tool 失败', () => {
+      assert.equal(classifyWorkerFailure(new Error('AI process timeout after 1800000ms')).failureKind, 'tool')
+      assert.equal(classifyWorkerFailure(new Error('killed by SIGKILL')).failureKind, 'tool')
+    }],
+    ['登录 / 权限类 → permission 失败', () => {
       const r = classifyWorkerFailure(new Error('Codex 未登录：login required'))
-      assert.equal(r.failureKind, 'permission', m)
-      assert.match(r.nextStep, /登录/, m)
-    }
-    {
-      const m = '缺二进制 / worktree / git 类 → env 失败'
-      assert.equal(classifyWorkerFailure(new Error('spawn codex ENOENT')).failureKind, 'env', m)
-      assert.equal(classifyWorkerFailure(new Error('git worktree add failed')).failureKind, 'env', m)
-    }
-    {
-      const m = '未知错误 → tool 兜底，带下一步'
+      assert.equal(r.failureKind, 'permission')
+      assert.match(r.nextStep, /登录/)
+    }],
+    ['缺二进制 / worktree / git 类 → env 失败', () => {
+      assert.equal(classifyWorkerFailure(new Error('spawn codex ENOENT')).failureKind, 'env')
+      assert.equal(classifyWorkerFailure(new Error('git worktree add failed')).failureKind, 'env')
+    }],
+    ['未知错误 → tool 兜底，带下一步', () => {
       const r = classifyWorkerFailure(new Error('something odd'))
-      assert.equal(r.failureKind, 'tool', m)
-      assert.ok(r.nextStep, m)
-    }
-  })
+      assert.equal(r.failureKind, 'tool')
+      assert.ok(r.nextStep)
+    }],
+  ]))
 })
 
 // ---------------------------------------------------------------------------
@@ -1775,44 +1721,41 @@ describe('pruneStaleAudits', () => {
     return file
   }
 
-  it('审计清理：删超期留新近、retentionMs=0 关闭、空目录 / 散文件 / 缺失 root 不抛（每段独立临时根）', () => {
-    {
-      const m = '删超过留存期的文件，保留新近文件'
+  it('审计清理：删超期留新近、retentionMs=0 关闭、空目录 / 散文件 / 缺失 root 不抛（每段独立临时根）', () => runSteps([
+    ['删超过留存期的文件，保留新近文件', () => {
       const root = mkdtempSync(join(tmpdir(), 'lark-audit-'))
       try {
         const stale = mkAudit(root, 'PR-01645', 'old.log', 8 * 24 * 60 * 60 * 1000) // 8 天前
         const fresh = mkAudit(root, 'PR-01645', 'new.log', 60 * 1000) // 1 分钟前
         pruneStaleAudits(root, 7 * 24 * 60 * 60 * 1000)
-        assert.throws(() => statSync(stale), `${m}：超期文件应被删除`)
-        assert.ok(statSync(fresh), `${m}：新近文件应保留`)
+        assert.throws(() => statSync(stale), '超期文件应被删除')
+        assert.ok(statSync(fresh), '新近文件应保留')
       } finally {
         rmSync(root, { recursive: true, force: true })
       }
-    }
-    {
-      const m = 'retentionMs=0 时不删任何文件（关闭开关）'
+    }],
+    ['retentionMs=0 时不删任何文件（关闭开关）', () => {
       const root = mkdtempSync(join(tmpdir(), 'lark-audit-'))
       try {
         const stale = mkAudit(root, 'PR-01645', 'old.log', 30 * 24 * 60 * 60 * 1000)
         pruneStaleAudits(root, 0)
-        assert.ok(statSync(stale), `${m}：retention=0 应保留`)
+        assert.ok(statSync(stale), 'retention=0 应保留')
       } finally {
         rmSync(root, { recursive: true, force: true })
       }
-    }
-    {
-      const m = '空项目目录 / root 下的散文件 / 缺失 root 均不抛错'
+    }],
+    ['空项目目录 / root 下的散文件 / 缺失 root 均不抛错', () => {
       const root = mkdtempSync(join(tmpdir(), 'lark-audit-'))
       try {
         mkdirSync(join(root, 'PR-99999'), { recursive: true }) // 有项目目录但无审计文件
         writeFileSync(join(root, 'stray.txt'), 'x') // root 直接子项不是目录：跳过
-        assert.doesNotThrow(() => pruneStaleAudits(root, 1000), m)
-        assert.doesNotThrow(() => pruneStaleAudits(join(root, 'does-not-exist'), 1000), m)
+        assert.doesNotThrow(() => pruneStaleAudits(root, 1000))
+        assert.doesNotThrow(() => pruneStaleAudits(join(root, 'does-not-exist'), 1000))
       } finally {
         rmSync(root, { recursive: true, force: true })
       }
-    }
-  })
+    }],
+  ]))
 })
 
 
@@ -1828,19 +1771,19 @@ describe('parkedReminderRound（挂起催办轮次）', () => {
   it('催办轮次：未到间隔不催、按轮递增、本轮已催不重复、超上限停、非挂起 / superseded 不催、锚点回落 updatedAt', () => {
     const cases = [
       { name: '未到一轮间隔 → 不催', task: { status: 'waiting_confirmation', parkedAt: at(3) }, expected: 0 },
-      { name: '挂起 4h / 9h → 第 1 / 2 轮', task: { status: 'waiting_confirmation', parkedAt: at(4) }, expected: 1 },
-      { name: '挂起 4h / 9h → 第 1 / 2 轮', task: { status: 'blocked', parkedAt: at(9) }, expected: 2 },
-      { name: '本轮已催过 → 不重复催', task: { status: 'blocked', parkedAt: at(5), parkedRemindedRound: 1 }, expected: 0 },
-      { name: '本轮已催过 → 不重复催', task: { status: 'blocked', parkedAt: at(9), parkedRemindedRound: 1 }, expected: 2 },
+      { name: '挂起 4h / 9h → 第 1 / 2 轮：{ status: "waiting_confirmation", parkedAt: at(4) }', task: { status: 'waiting_confirmation', parkedAt: at(4) }, expected: 1 },
+      { name: '挂起 4h / 9h → 第 1 / 2 轮：{ status: "blocked", parkedAt: at(9) }', task: { status: 'blocked', parkedAt: at(9) }, expected: 2 },
+      { name: '本轮已催过 → 不重复催：{ status: "blocked", parkedAt: at(5), parkedRemindedRound: 1 }', task: { status: 'blocked', parkedAt: at(5), parkedRemindedRound: 1 }, expected: 0 },
+      { name: '本轮已催过 → 不重复催：{ status: "blocked", parkedAt: at(9), parkedRemindedRound: 1 }', task: { status: 'blocked', parkedAt: at(9), parkedRemindedRound: 1 }, expected: 2 },
       { name: '超过最大轮次 → 停止催办（不无限刷群）', task: { status: 'blocked', parkedAt: at(100) }, expected: 0 },
-      { name: '非挂起态 / 无锚点 → 不催', task: { status: 'done', parkedAt: at(50) }, expected: 0 },
-      { name: '非挂起态 / 无锚点 → 不催', task: { status: 'blocked' }, expected: 0 },
+      { name: '非挂起态 / 无锚点 → 不催：{ status: "done", parkedAt: at(50) }', task: { status: 'done', parkedAt: at(50) }, expected: 0 },
+      { name: '非挂起态 / 无锚点 → 不催：{ status: "blocked" }', task: { status: 'blocked' }, expected: 0 },
       // supersede() 会清掉 parkedAt，但即使残留旧锚点，superseded 不在 PARKED_STATUSES → 恒 0。
-      { name: 'superseded（同话题收尾终态）→ 恒不催，即便还带着旧 parkedAt', task: { status: 'superseded', parkedAt: at(50) }, expected: 0 },
-      { name: 'superseded（同话题收尾终态）→ 恒不催，即便还带着旧 parkedAt', task: { status: 'superseded', parkedAt: at(4), parkedRemindedRound: 0 }, expected: 0 },
+      { name: 'superseded（同话题收尾终态）→ 恒不催，即便还带着旧 parkedAt：{ status: "superseded", parkedAt: at(50) }', task: { status: 'superseded', parkedAt: at(50) }, expected: 0 },
+      { name: 'superseded（同话题收尾终态）→ 恒不催，即便还带着旧 parkedAt：{ status: "superseded", parkedAt: at(4), parkedRemindedRound: 0 }', task: { status: 'superseded', parkedAt: at(4), parkedRemindedRound: 0 }, expected: 0 },
       { name: '锚点回落 updatedAt（老任务无 parkedAt）仍能催', task: { status: 'blocked', updatedAt: at(5) }, expected: 1 },
     ]
-    for (const { name, task, expected } of cases) assert.equal(round(task), expected, name)
+    return eachCase(cases, ({ task, expected }) => assert.equal(round(task), expected))
   })
 })
 
@@ -1906,9 +1849,8 @@ describe('handleStatusUpdate 的 scopeRequest（范围契约待批准请求）',
 describe('任务回执持久化重试', () => {
   const freshStore = () => createTaskStore({ tasksDir: mkdtempSync(join(tmpdir(), 'lark-receipt-')), leaseMs: 1000 })
 
-  it('回执重试：失败落 pending 重试成功再结算、到上限停、旧请求不覆盖新一代、换代不登记旧卡、已投递直接结算（每段独立 store）', async () => {
-    {
-      const m = '发送失败不落可清理终态，重试成功后才恢复最终状态'
+  it('回执重试：失败落 pending 重试成功再结算、到上限停、旧请求不覆盖新一代、换代不登记旧卡、已投递直接结算（每段独立 store）', () => runSteps([
+    ['发送失败不落可清理终态，重试成功后才恢复最终状态', async () => {
       const store = freshStore()
       store.upsert({ id: 't', status: 'running', epoch: 2, project: 'PR-99999', summary: 'fix', chatId: 'oc_x', createdAt: '2026-01-01T00:00:00Z' })
       const first = await handleStatusUpdate({
@@ -1920,30 +1862,29 @@ describe('任务回执持久化重试', () => {
         epoch: 2,
         sendMessage: async () => ({ ok: false, reason: 'network down' }),
       })
-      assert.equal(first.receiptPending, true, m)
-      assert.equal(store.get('t').status, 'result_pending_receipt', m)
-      assert.equal(store.get('t').pendingReceipt.attempts, 1, m)
-      assert.equal(store.get('t').pendingReceipt.epoch, 2, m)
-      assert.equal(store.get('t').pendingReceipt.idempotencyKey, 't-e2-done', m)
+      assert.equal(first.receiptPending, true)
+      assert.equal(store.get('t').status, 'result_pending_receipt')
+      assert.equal(store.get('t').pendingReceipt.attempts, 1)
+      assert.equal(store.get('t').pendingReceipt.epoch, 2)
+      assert.equal(store.get('t').pendingReceipt.idempotencyKey, 't-e2-done')
 
       await retryPendingReceipts({
         config: { project: 'PR-99999' },
         store,
         sendMessage: async () => ({ ok: true, messageId: 'om_receipt' }),
       })
-      assert.equal(store.get('t').status, 'done', m)
-      assert.equal(store.get('t').pendingReceipt, undefined, m)
-      assert.equal(store.get('t').lastDeliveredReceipt.idempotencyKey, 't-e2-done', m)
-    }
-
-    assert.deepEqual(resolveReceiptOutcome({ ok: false, attempts: 2, max: 3 }), {
-      attempts: 3,
-      gaveUp: true,
-      retry: false,
-    }, '达到上限后保持 pending 并停止自动重试')
-
-    {
-      const m = '旧回执请求返回时不得覆盖更新一代的 pending'
+      assert.equal(store.get('t').status, 'done')
+      assert.equal(store.get('t').pendingReceipt, undefined)
+      assert.equal(store.get('t').lastDeliveredReceipt.idempotencyKey, 't-e2-done')
+    }],
+    ['达到上限后保持 pending 并停止自动重试', () => {
+      assert.deepEqual(resolveReceiptOutcome({ ok: false, attempts: 2, max: 3 }), {
+        attempts: 3,
+        gaveUp: true,
+        retry: false,
+      })
+    }],
+    ['旧回执请求返回时不得覆盖更新一代的 pending', async () => {
       const store = freshStore()
       const oldPending = {
         status: 'blocked',
@@ -1983,12 +1924,10 @@ describe('任务回执持久化重试', () => {
       releaseSend({ ok: true, messageId: 'om_old' })
       await sending
 
-      assert.equal(store.get('t').pendingReceipt.status, 'done', m)
-      assert.equal(store.get('t').pendingReceipt.idempotencyKey, 't-e2-done', m)
-    }
-
-    {
-      const m = 'waiting 回执发送期间任务换代时，不登记旧卡也不重新制造 pending'
+      assert.equal(store.get('t').pendingReceipt.status, 'done')
+      assert.equal(store.get('t').pendingReceipt.idempotencyKey, 't-e2-done')
+    }],
+    ['waiting 回执发送期间任务换代时，不登记旧卡也不重新制造 pending', async () => {
       const store = freshStore()
       store.upsert({
         id: 't',
@@ -2016,15 +1955,13 @@ describe('任务回执持久化重试', () => {
       releaseSend({ ok: true, messageId: 'om_old' })
       const outcome = await updating
 
-      assert.equal(outcome.receiptSuperseded, true, m)
-      assert.equal(store.get('t').status, 'queued', m)
-      assert.equal(store.get('t').epoch, 2, m)
-      assert.equal(store.get('t').pendingReceipt, undefined, m)
-      assert.equal(store.findByReceiptMessageId('om_old'), null, m)
-    }
-
-    {
-      const m = '已持久化 delivered marker 时直接结算残留 pending，不重复发送'
+      assert.equal(outcome.receiptSuperseded, true)
+      assert.equal(store.get('t').status, 'queued')
+      assert.equal(store.get('t').epoch, 2)
+      assert.equal(store.get('t').pendingReceipt, undefined)
+      assert.equal(store.findByReceiptMessageId('om_old'), null)
+    }],
+    ['已持久化 delivered marker 时直接结算残留 pending，不重复发送', async () => {
       const store = freshStore()
       store.upsert({
         id: 't',
@@ -2043,60 +1980,56 @@ describe('任务回执持久化重试', () => {
         store,
         sendMessage: async () => { sends += 1; return { ok: true } },
       })
-      assert.equal(sends, 0, m)
-      assert.equal(store.get('t').status, 'done', m)
-      assert.equal(store.get('t').pendingReceipt, undefined, m)
-    }
-  })
+      assert.equal(sends, 0)
+      assert.equal(store.get('t').status, 'done')
+      assert.equal(store.get('t').pendingReceipt, undefined)
+    }],
+  ]))
 })
 
 // ---------------------------------------------------------------------------
 // rotateLogIfLarge：launchd 日志轮转必须是 copy-truncate，且稀疏文件不得触发反复轮转
 describe('rotateLogIfLarge（launchd 日志轮转）', () => {
+  // 每段建的临时目录由 after 钩子在 finally 里清掉，断言失败也不残留
+  const dirs = []
+  const hooks = { after: () => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }) } }
   const mkLog = (bytes) => {
     const dir = mkdtempSync(join(tmpdir(), 'lark-log-'))
+    dirs.push(dir)
     const file = join(dir, 'worker.log')
     writeFileSync(file, 'x'.repeat(bytes))
     return { dir, file }
   }
 
-  it('日志轮转：未超限不动、超限 copy-truncate 不改 inode、按 keep 滚动、关闭 / 文件不存在返回 false（每段独立日志）', () => {
-    {
-      const m = '未超限不动文件'
-      const { dir, file } = mkLog(100)
-      assert.equal(rotateLogIfLarge({ file, maxBytes: 1024, keep: 1 }), false, m)
-      assert.equal(statSync(file).size, 100, m)
-      rmSync(dir, { recursive: true, force: true })
-    }
-    {
-      const m = '超限则原文件截零、内容留在 .1（copy-truncate，不改 inode）'
-      const { dir, file } = mkLog(4096)
+  it('日志轮转：未超限不动、超限 copy-truncate 不改 inode、按 keep 滚动、关闭 / 文件不存在返回 false（每段独立日志）', () => runSteps([
+    ['未超限不动文件', () => {
+      const { file } = mkLog(100)
+      assert.equal(rotateLogIfLarge({ file, maxBytes: 1024, keep: 1 }), false)
+      assert.equal(statSync(file).size, 100)
+    }],
+    ['超限则原文件截零、内容留在 .1（copy-truncate，不改 inode）', () => {
+      const { file } = mkLog(4096)
       const inodeBefore = statSync(file).ino
-      assert.equal(rotateLogIfLarge({ file, maxBytes: 1024, keep: 1 }), true, m)
-      assert.equal(statSync(file).size, 0, `${m}：当前日志应被截零`)
+      assert.equal(rotateLogIfLarge({ file, maxBytes: 1024, keep: 1 }), true)
+      assert.equal(statSync(file).size, 0, '当前日志应被截零')
       // inode 不变是关键：launchd 持有的那个 fd 指向 inode，rename 式轮转会让新日志永远为空。
-      assert.equal(statSync(file).ino, inodeBefore, `${m}：轮转不得更换 inode`)
-      assert.equal(statSync(`${file}.1`).size, 4096, `${m}：旧内容应完整留在 .1`)
-      rmSync(dir, { recursive: true, force: true })
-    }
-    {
-      const m = '历史代按 keep 上限滚动，超出的被丢弃'
-      const { dir, file } = mkLog(4096)
+      assert.equal(statSync(file).ino, inodeBefore, '轮转不得更换 inode')
+      assert.equal(statSync(`${file}.1`).size, 4096, '旧内容应完整留在 .1')
+    }],
+    ['历史代按 keep 上限滚动，超出的被丢弃', () => {
+      const { file } = mkLog(4096)
       rotateLogIfLarge({ file, maxBytes: 1024, keep: 2 })
       writeFileSync(file, 'y'.repeat(4096))
       rotateLogIfLarge({ file, maxBytes: 1024, keep: 2 })
-      assert.equal(statSync(`${file}.1`).size, 4096, m)
-      assert.equal(statSync(`${file}.2`).size, 4096, `${m}：第一代应被推到 .2`)
-      rmSync(dir, { recursive: true, force: true })
-    }
-    {
-      const m = 'maxBytes=0（关闭）或文件不存在时安全返回 false'
+      assert.equal(statSync(`${file}.1`).size, 4096)
+      assert.equal(statSync(`${file}.2`).size, 4096, '第一代应被推到 .2')
+    }],
+    ['maxBytes=0（关闭）或文件不存在时安全返回 false', () => {
       const { dir, file } = mkLog(4096)
-      assert.equal(rotateLogIfLarge({ file, maxBytes: 0, keep: 1 }), false, m)
-      assert.equal(rotateLogIfLarge({ file: join(dir, 'nope.log'), maxBytes: 1, keep: 1 }), false, m)
-      rmSync(dir, { recursive: true, force: true })
-    }
-  })
+      assert.equal(rotateLogIfLarge({ file, maxBytes: 0, keep: 1 }), false)
+      assert.equal(rotateLogIfLarge({ file: join(dir, 'nope.log'), maxBytes: 1, keep: 1 }), false)
+    }],
+  ], hooks))
 })
 
 // sweepAttachments：按目录 mtime TTL 清理 runtime/lark-attachments/<PR>/<msgId>，天然连孤儿一起回收
@@ -2110,59 +2043,63 @@ describe('sweepAttachments（附件保留期清扫）', () => {
     return dir
   }
 
-  it('附件清扫：只删超期 <msgId> 目录（含孤儿）；根不存在 / maxAgeMs<=0 返回 0 不误删（每段独立临时根）', () => {
-    {
-      const m = '只删 mtime 超过保留期的 <msgId> 目录，保留期内的不动'
+  // 每段建的临时根由 after 钩子在 finally 里清掉，断言失败也不残留
+  const roots = []
+  const mkRoot = () => {
+    const root = mkdtempSync(join(tmpdir(), 'lark-retention-'))
+    roots.push(root)
+    return root
+  }
+  const hooks = { after: () => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }) } }
+
+  it('附件清扫：只删超期 <msgId> 目录（含孤儿）；根不存在 / maxAgeMs<=0 返回 0 不误删（每段独立临时根）', () => runSteps([
+    ['只删 mtime 超过保留期的 <msgId> 目录，保留期内的不动', () => {
       const now = 1_000_000_000_000
-      const attachmentsRoot = mkdtempSync(join(tmpdir(), 'lark-retention-'))
+      const attachmentsRoot = mkRoot()
       const maxAgeMs = 7 * 24 * 3600000
       const oldDir = mkAttach(attachmentsRoot, 'PR-00001', 'om_old', maxAgeMs + 3600000, now) // 超期
       const freshDir = mkAttach(attachmentsRoot, 'PR-00001', 'om_fresh', 3600000, now) // 1h 前，保留
       const orphanDir = mkAttach(attachmentsRoot, 'PR-00002', 'om_orphan', maxAgeMs * 2, now) // 别的项目的孤儿，超期
 
       const { removed, freedDirs } = sweepAttachments({ attachmentsRoot, maxAgeMs, now })
-      assert.equal(removed, 2, m)
-      assert.equal(existsSync(oldDir), false, m)
-      assert.equal(existsSync(orphanDir), false, m)
-      assert.equal(existsSync(freshDir), true, `${m}：保留期内的附件不应被删`)
-      assert.ok(freedDirs.includes(oldDir) && freedDirs.includes(orphanDir), m)
-      rmSync(attachmentsRoot, { recursive: true, force: true })
-    }
-    {
-      const m = '根不存在 / maxAgeMs<=0 时安全返回 0，不误删'
-      assert.deepEqual(sweepAttachments({ attachmentsRoot: '/no/such/root', maxAgeMs: 1000 }), { removed: 0, freedDirs: [] }, m)
-      const attachmentsRoot = mkdtempSync(join(tmpdir(), 'lark-retention-'))
+      assert.equal(removed, 2)
+      assert.equal(existsSync(oldDir), false)
+      assert.equal(existsSync(orphanDir), false)
+      assert.equal(existsSync(freshDir), true, '保留期内的附件不应被删')
+      assert.ok(freedDirs.includes(oldDir) && freedDirs.includes(orphanDir))
+    }],
+    ['根不存在 / maxAgeMs<=0 时安全返回 0，不误删', () => {
+      assert.deepEqual(sweepAttachments({ attachmentsRoot: '/no/such/root', maxAgeMs: 1000 }), { removed: 0, freedDirs: [] })
+      const attachmentsRoot = mkRoot()
       const dir = mkAttach(attachmentsRoot, 'PR-00001', 'om_x', 999 * 24 * 3600000, 1_000_000_000_000)
-      assert.equal(sweepAttachments({ attachmentsRoot, maxAgeMs: 0, now: 1_000_000_000_000 }).removed, 0, m)
-      assert.equal(existsSync(dir), true, `${m}：maxAgeMs=0（关闭）不得删任何东西`)
-      rmSync(attachmentsRoot, { recursive: true, force: true })
-    }
-  })
+      assert.equal(sweepAttachments({ attachmentsRoot, maxAgeMs: 0, now: 1_000_000_000_000 }).removed, 0)
+      assert.equal(existsSync(dir), true, 'maxAgeMs=0（关闭）不得删任何东西')
+    }],
+  ], hooks))
 })
 
 // ---------------------------------------------------------------------------
 // resolveDeliveryChatId：发送时按项目号改投项目群，命中则用群 id，否则回落冻结的 fallback。
 // 修复「入队时 bot 未进群 → chatId 冻结成私聊，之后进群仍私发」。
 describe('resolveDeliveryChatId（发送时改投项目群）', () => {
-  it('命中项目群用群 chat_id；未命中回落 fallback；无 project 短路不触发解析', async () => {
-    {
+  it('命中项目群用群 chat_id；未命中回落 fallback；无 project 短路不触发解析', () => runSteps([
+    ['有 project 且解析命中项目群 → 用群 chat_id（而非冻结的私聊 fallback）', async () => {
       const chatId = await resolveDeliveryChatId({
         project: 'PR-02265',
         fallbackChatId: 'ou_reporter',
         resolve: async (p) => (p === 'PR-02265' ? 'oc_group' : ''),
       })
-      assert.equal(chatId, 'oc_group', '有 project 且解析命中项目群 → 用群 chat_id（而非冻结的私聊 fallback）')
-    }
-    {
+      assert.equal(chatId, 'oc_group')
+    }],
+    ['解析未命中（bot 不在项目群）→ 回落到冻结的 fallbackChatId', async () => {
       const chatId = await resolveDeliveryChatId({
         project: 'PR-99999',
         fallbackChatId: 'ou_reporter',
         resolve: async () => '',
       })
-      assert.equal(chatId, 'ou_reporter', '解析未命中（bot 不在项目群）→ 回落到冻结的 fallbackChatId')
-    }
-    {
-      const m = '无 project（adhoc / p2p）→ 短路返回 fallback，不触发解析（network-free）'
+      assert.equal(chatId, 'ou_reporter')
+    }],
+    ['无 project（adhoc / p2p）→ 短路返回 fallback，不触发解析（network-free）', async () => {
       let called = false
       const chatId = await resolveDeliveryChatId({
         project: null,
@@ -2172,41 +2109,39 @@ describe('resolveDeliveryChatId（发送时改投项目群）', () => {
           return 'oc_should_not_be_used'
         },
       })
-      assert.equal(chatId, 'oc_notify', m)
-      assert.equal(called, false, `${m}：project 为空时不得调用 resolve`)
-    }
-  })
+      assert.equal(chatId, 'oc_notify')
+      assert.equal(called, false, 'project 为空时不得调用 resolve')
+    }],
+  ]))
 })
 
 // ---------------------------------------------------------------------------
 // formatLarkCliError / isTransientLarkError：poller 告警可读化 + 瞬时错误有界重试判定
 describe('formatLarkCliError（失败结果压成一行可读原因）', () => {
-  it('结构化 error 压成单行可读原因；非 JSON 回落 stderr 并截断', () => {
-    {
-      const m = '结构化 error 取 type/subtype/message、单行、不塞截断 JSON'
+  it('结构化 error 压成单行可读原因；非 JSON 回落 stderr 并截断', () => runSteps([
+    ['结构化 error 取 type/subtype/message、单行、不塞截断 JSON', () => {
       const result = { code: -1, stdout: JSON.stringify({ ok: false, identity: 'bot', error: { type: 'network', subtype: 'transport', message: 'API call failed: Post "https://accounts.larksuite.com/oauth/v3/token":\n  dial tcp 1.2.3.4:443: i/o timeout' } }), stderr: '' }
       const reason = formatLarkCliError(result)
-      assert.equal(reason, 'network/transport: API call failed: Post "https://accounts.larksuite.com/oauth/v3/token": dial tcp 1.2.3.4:443: i/o timeout', m)
-      assert.doesNotMatch(reason, /[{}]/, m) // 不再是原始 JSON
-    }
-    {
-      const m = '非 JSON（超时/spawn error）回落 stderr，压成单行并截断'
-      assert.equal(formatLarkCliError({ code: -1, stdout: '', stderr: 'spawn lark ENOENT' }), 'spawn lark ENOENT', m)
-      assert.equal(formatLarkCliError({ code: 0, stdout: '', stderr: '' }), '未知错误', m)
-      assert.ok(formatLarkCliError({ code: -1, stdout: 'x'.repeat(500), stderr: '' }).length <= 200, m)
-    }
-  })
+      assert.equal(reason, 'network/transport: API call failed: Post "https://accounts.larksuite.com/oauth/v3/token": dial tcp 1.2.3.4:443: i/o timeout')
+      assert.doesNotMatch(reason, /[{}]/) // 不再是原始 JSON
+    }],
+    ['非 JSON（超时/spawn error）回落 stderr，压成单行并截断', () => {
+      assert.equal(formatLarkCliError({ code: -1, stdout: '', stderr: 'spawn lark ENOENT' }), 'spawn lark ENOENT')
+      assert.equal(formatLarkCliError({ code: 0, stdout: '', stderr: '' }), '未知错误')
+      assert.ok(formatLarkCliError({ code: -1, stdout: 'x'.repeat(500), stderr: '' }).length <= 200)
+    }],
+  ]))
 })
 
 describe('isTransientLarkError（仅网络层/本地 spawn 超时可重试）', () => {
   it('code=-1 与 network 判为瞬时；权限 / 参数类结构化错误不重试', () => {
     const cases = [
-      { name: 'code=-1（超时/spawn error）与 error.type=network 判为瞬时', input: { code: -1, stdout: '', stderr: 'timeout' }, expected: true },
-      { name: 'code=-1（超时/spawn error）与 error.type=network 判为瞬时', input: { code: 1, stdout: JSON.stringify({ ok: false, error: { type: 'network', subtype: 'transport' } }) }, expected: true },
-      { name: '权限/参数类结构化错误不重试（尽快失败以告警）', input: { code: 1, stdout: JSON.stringify({ ok: false, error: { type: 'permission', subtype: 'missing_scope' } }) }, expected: false },
-      { name: '权限/参数类结构化错误不重试（尽快失败以告警）', input: { code: 1, stdout: 'not json' }, expected: false },
-      { name: '权限/参数类结构化错误不重试（尽快失败以告警）', input: { code: 0, stdout: '{}' }, expected: false },
+      { name: 'code=-1（超时/spawn error）与 error.type=network 判为瞬时：code=-1 超时', input: { code: -1, stdout: '', stderr: 'timeout' }, expected: true },
+      { name: 'code=-1（超时/spawn error）与 error.type=network 判为瞬时：error.type=network', input: { code: 1, stdout: JSON.stringify({ ok: false, error: { type: 'network', subtype: 'transport' } }) }, expected: true },
+      { name: '权限/参数类结构化错误不重试（尽快失败以告警）：error.type=permission', input: { code: 1, stdout: JSON.stringify({ ok: false, error: { type: 'permission', subtype: 'missing_scope' } }) }, expected: false },
+      { name: '权限/参数类结构化错误不重试（尽快失败以告警）：stdout 非 JSON', input: { code: 1, stdout: 'not json' }, expected: false },
+      { name: '权限/参数类结构化错误不重试（尽快失败以告警）：code=0 空对象', input: { code: 0, stdout: '{}' }, expected: false },
     ]
-    for (const { name, input, expected } of cases) assert.equal(isTransientLarkError(input), expected, name)
+    return eachCase(cases, ({ input, expected }) => assert.equal(isTransientLarkError(input), expected))
   })
 })

@@ -2,7 +2,8 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, it } from 'node:test'
+import { describe, it } from 'node:test'
+import { runSteps } from './support/steps.mjs'
 
 import {
   buildSweepTask,
@@ -68,101 +69,100 @@ const register = (extra = {}) => registerRepoProfiles({
   },
 })
 
+// 每段（= 合并前的一个原 it）结束都清掉注册的仓配置，等价原来各 describe 的 afterEach
+const hooks = { after: () => resetRepoProfiles() }
+
 describe('日报清扫：抽负责人待办', () => {
-  afterEach(() => resetRepoProfiles())
+  it('extractOwnerTodos：第三节按负责人取行、第一节取计数行；二节表格不算、没有第三节为空', () => runSteps([
+    ['第三节只取负责人列含 aven 的行（含共同负责、「aven 跟进」、第二张表），第一节取计数行', () => {
+      const todos = extractOwnerTodos({ markdown: REPORT, me: 'aven' })
+      assert.deepEqual(todos.followUps.map((item) => item.title), ['发邮件部署 pre', '关注接口改按扁平结构解析', 'live 后端 pre 数据与配置', '设计走查'], '第三节只取负责人列含 aven 的行（含共同负责、「aven 跟进」、第二张表）')
+      assert.equal(todos.followUps[1].owners, 'aven / henry')
+      assert.match(todos.followUps[2].detail, /推荐主播（LN1）\\\| 标签/)
+      assert.equal(todos.unfinished, 'aven 9 项：#2 #4（预约卡在 A5-2）', '第一节取计数行')
+    }],
+    ['二节表格不算待办；没有第三节 → 空', () => {
+      const empty = extractOwnerTodos({ markdown: '## 二、API\n| 功能 | 负责人 |\n|---|---|\n| #4 | aven |\n', me: 'aven' })
+      assert.deepEqual(empty, { followUps: [], unfinished: null }, '二节表格不算待办；没有第三节 → 空')
+    }],
+  ], hooks))
 
-  it('extractOwnerTodos：第三节按负责人取行、第一节取计数行；二节表格不算、没有第三节为空', () => {
-    // 第三节只取负责人列含 aven 的行（含共同负责、「aven 跟进」、第二张表），第一节取计数行
-    const todos = extractOwnerTodos({ markdown: REPORT, me: 'aven' })
-    assert.deepEqual(todos.followUps.map((item) => item.title), ['发邮件部署 pre', '关注接口改按扁平结构解析', 'live 后端 pre 数据与配置', '设计走查'], '第三节只取负责人列含 aven 的行（含共同负责、「aven 跟进」、第二张表）')
-    assert.equal(todos.followUps[1].owners, 'aven / henry')
-    assert.match(todos.followUps[2].detail, /推荐主播（LN1）\\\| 标签/)
-    assert.equal(todos.unfinished, 'aven 9 项：#2 #4（预约卡在 A5-2）', '第一节取计数行')
-    // 二节表格不算待办；没有第三节 → 空
-    const empty = extractOwnerTodos({ markdown: '## 二、API\n| 功能 | 负责人 |\n|---|---|\n| #4 | aven |\n', me: 'aven' })
-    assert.deepEqual(empty, { followUps: [], unfinished: null }, '二节表格不算待办；没有第三节 → 空')
-  })
-
-  it('清扫任务构造、按完整版日报建任务（同一天幂等 / 没开 sweep 跳过）、自带租约不被当孤儿回收', () => {
-    // 清扫任务：私信负责人、docs 类型、自带超时 / 租约 / 强度，id 每天唯一
-    register()
-    const task = buildSweepTask({ profile: repoProfile('falive'), date: '2026-10-14', text: 'x', count: 5, now: new Date('2026-10-14T15:20:00Z') })
-    assert.equal(task.id, 'sweep-falive-20261014', 'id 每天唯一')
-    assert.equal(task.source, 'daily-sweep')
-    assert.equal(task.chatId, 'ou_aven', '私信负责人')
-    assert.equal(task.commandType, 'docs')
-    assert.equal(task.aiTimeoutMs, 90 * 60_000)
-    assert.equal(task.leaseMs, 120 * 60_000)
-    assert.equal(task.aiEffort, 'high')
-    assert.equal(task.status, 'queued')
-
-    // enqueueDailySweep：读完整版日报建任务，同一天幂等；没开 sweep 跳过
-    resetRepoProfiles()
-    register()
-    const dir = mkdtempSync(join(tmpdir(), 'lark-sweep-'))
-    try {
-      const docPath = join(dir, 'FaliveWeb日报-2026-10-14-完整版.md')
-      writeFileSync(docPath, REPORT)
-      const store = createTaskStore({ tasksDir: join(dir, 'tasks'), leaseMs: 1000 })
-      const outcome = { ok: true, date: '2026-10-14', doc: { path: docPath, url: 'https://lark/doc' } }
-      const first = enqueueDailySweep({ store, profile: repoProfile('falive'), outcome })
-      assert.equal(first.taskId, 'sweep-falive-20261014')
-      assert.equal(first.count, 5)
-      const queued = store.get(first.taskId)
-      assert.match(queued.text, /1\. 发邮件部署 pre（负责人：aven）/)
-      assert.match(queued.text, /5\. aven 名下未完成功能/)
-      assert.match(queued.text, /日报云文档：https:\/\/lark\/doc/)
-      assert.equal(enqueueDailySweep({ store, profile: repoProfile('falive'), outcome }).skipped, '今天已建过', '同一天幂等')
-      resetRepoProfiles()
-      register({ sweep: { enabled: false } })
-      assert.equal(enqueueDailySweep({ store, profile: repoProfile('falive'), outcome }).ok, false, '没开 sweep 跳过')
-    } finally {
-      rmSync(dir, { recursive: true, force: true })
-    }
-
-    // 任务自带租约：默认租约过期也不当孤儿回收
-    const leaseDir = mkdtempSync(join(tmpdir(), 'lark-sweep-lease-'))
-    try {
-      const store = createTaskStore({ tasksDir: leaseDir, leaseMs: 1000 })
-      const claimedAt = new Date(Date.now() - 5000).toISOString()
-      store.upsert({ id: 'sweep-x', status: 'running', claimedAt, leaseMs: 60_000, epoch: 0, createdAt: claimedAt })
-      store.upsert({ id: 'plain-x', status: 'running', claimedAt, epoch: 0, createdAt: claimedAt })
-      store.reclaimOrphans()
-      assert.equal(store.get('sweep-x').status, 'running', '任务自带租约：默认租约过期也不当孤儿回收')
-      assert.notEqual(store.get('plain-x').status, 'running')
-    } finally {
-      rmSync(leaseDir, { recursive: true, force: true })
-    }
-  })
+  it('清扫任务构造、按完整版日报建任务（同一天幂等 / 没开 sweep 跳过）、自带租约不被当孤儿回收', () => runSteps([
+    ['清扫任务：私信负责人、docs 类型、自带超时 / 租约 / 强度，id 每天唯一', () => {
+      register()
+      const task = buildSweepTask({ profile: repoProfile('falive'), date: '2026-10-14', text: 'x', count: 5, now: new Date('2026-10-14T15:20:00Z') })
+      assert.equal(task.id, 'sweep-falive-20261014', 'id 每天唯一')
+      assert.equal(task.source, 'daily-sweep')
+      assert.equal(task.chatId, 'ou_aven', '私信负责人')
+      assert.equal(task.commandType, 'docs')
+      assert.equal(task.aiTimeoutMs, 90 * 60_000)
+      assert.equal(task.leaseMs, 120 * 60_000)
+      assert.equal(task.aiEffort, 'high')
+      assert.equal(task.status, 'queued')
+    }],
+    ['enqueueDailySweep：读完整版日报建任务，同一天幂等；没开 sweep 跳过', () => {
+      register()
+      const dir = mkdtempSync(join(tmpdir(), 'lark-sweep-'))
+      try {
+        const docPath = join(dir, 'FaliveWeb日报-2026-10-14-完整版.md')
+        writeFileSync(docPath, REPORT)
+        const store = createTaskStore({ tasksDir: join(dir, 'tasks'), leaseMs: 1000 })
+        const outcome = { ok: true, date: '2026-10-14', doc: { path: docPath, url: 'https://lark/doc' } }
+        const first = enqueueDailySweep({ store, profile: repoProfile('falive'), outcome })
+        assert.equal(first.taskId, 'sweep-falive-20261014')
+        assert.equal(first.count, 5)
+        const queued = store.get(first.taskId)
+        assert.match(queued.text, /1\. 发邮件部署 pre（负责人：aven）/)
+        assert.match(queued.text, /5\. aven 名下未完成功能/)
+        assert.match(queued.text, /日报云文档：https:\/\/lark\/doc/)
+        assert.equal(enqueueDailySweep({ store, profile: repoProfile('falive'), outcome }).skipped, '今天已建过', '同一天幂等')
+        resetRepoProfiles()
+        register({ sweep: { enabled: false } })
+        assert.equal(enqueueDailySweep({ store, profile: repoProfile('falive'), outcome }).ok, false, '没开 sweep 跳过')
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    }],
+    ['任务自带租约：默认租约过期也不当孤儿回收', () => {
+      const leaseDir = mkdtempSync(join(tmpdir(), 'lark-sweep-lease-'))
+      try {
+        const store = createTaskStore({ tasksDir: leaseDir, leaseMs: 1000 })
+        const claimedAt = new Date(Date.now() - 5000).toISOString()
+        store.upsert({ id: 'sweep-x', status: 'running', claimedAt, leaseMs: 60_000, epoch: 0, createdAt: claimedAt })
+        store.upsert({ id: 'plain-x', status: 'running', claimedAt, epoch: 0, createdAt: claimedAt })
+        store.reclaimOrphans()
+        assert.equal(store.get('sweep-x').status, 'running', '任务自带租约：默认租约过期也不当孤儿回收')
+        assert.notEqual(store.get('plain-x').status, 'running')
+      } finally {
+        rmSync(leaseDir, { recursive: true, force: true })
+      }
+    }],
+  ], hooks))
 })
 
 describe('日报清扫：结果私信', () => {
-  afterEach(() => resetRepoProfiles())
-
-  it('清单不截成 6 行、合进集成分支才提示「推 pre」；没合回集成分支提示推 pre 会带上这条分支', () => {
-    // 清单不截成 6 行；有改动且已合进集成分支才提示回「推 pre」
-    register()
-    const body = ['2026-10-14 日报 aven 待办 9 条：清掉 6 条，剩 3 条。', '清掉：A、B、C、D、E、F', '- G：等 Encone', '- H：等运维', '- I：你要做：发邮件', '- J：没做完：时间不够', '- K：等产品'].join('\n')
-    const task = { id: 'sweep-falive-20261014', source: 'daily-sweep', repo: 'falive', chatId: 'ou_aven', changedFiles: ['a.md'], branch: 'lark/falive-20261014', integration: { mergedBack: true, branch: 'lark/falive-integration' } }
-    const note = buildRepoNote({ task, status: 'done', profile: repoProfile('falive'), result: body })
-    assert.match(note, /- K：等产品/, '清单不截成 6 行')
-    assert.match(note, /回「推 pre」/)
-    assert.doesNotMatch(note, /你合这一条分支就够/)
-    assert.equal(sweepPushHint({ ...task, changedFiles: [] }), null)
-
-    // 没合回集成分支：提示推 pre 会带上这条分支，不再叫负责人手动合
-    resetRepoProfiles()
-    register()
-    const unmerged = { id: 'sweep-falive-20261014', source: 'daily-sweep', repo: 'falive', chatId: 'ou_aven', changedFiles: ['a.md'], branch: 'lark/falive-20261014', integration: { mergedBack: false, branch: 'lark/falive-integration', mergeReason: '冲突' } }
-    const unmergedNote = buildRepoNote({ task: unmerged, status: 'done', profile: repoProfile('falive'), result: '2026-10-14 日报 aven 待办 1 条：清掉 1 条，剩 0 条。' })
-    assert.match(unmergedNote, /改动在分支 lark\/falive-20261014（没合进集成分支）。回「推 pre」我会把它一起合进 pre/, '没合回集成分支：提示推 pre 会带上这条分支')
-    assert.doesNotMatch(unmergedNote, /要你手动合/, '不再叫负责人手动合')
-  })
+  it('清单不截成 6 行、合进集成分支才提示「推 pre」；没合回集成分支提示推 pre 会带上这条分支', () => runSteps([
+    ['清单不截成 6 行；有改动且已合进集成分支才提示回「推 pre」', () => {
+      register()
+      const body = ['2026-10-14 日报 aven 待办 9 条：清掉 6 条，剩 3 条。', '清掉：A、B、C、D、E、F', '- G：等 Encone', '- H：等运维', '- I：你要做：发邮件', '- J：没做完：时间不够', '- K：等产品'].join('\n')
+      const task = { id: 'sweep-falive-20261014', source: 'daily-sweep', repo: 'falive', chatId: 'ou_aven', changedFiles: ['a.md'], branch: 'lark/falive-20261014', integration: { mergedBack: true, branch: 'lark/falive-integration' } }
+      const note = buildRepoNote({ task, status: 'done', profile: repoProfile('falive'), result: body })
+      assert.match(note, /- K：等产品/, '清单不截成 6 行')
+      assert.match(note, /回「推 pre」/)
+      assert.doesNotMatch(note, /你合这一条分支就够/)
+      assert.equal(sweepPushHint({ ...task, changedFiles: [] }), null)
+    }],
+    ['没合回集成分支：提示推 pre 会带上这条分支，不再叫负责人手动合', () => {
+      register()
+      const unmerged = { id: 'sweep-falive-20261014', source: 'daily-sweep', repo: 'falive', chatId: 'ou_aven', changedFiles: ['a.md'], branch: 'lark/falive-20261014', integration: { mergedBack: false, branch: 'lark/falive-integration', mergeReason: '冲突' } }
+      const unmergedNote = buildRepoNote({ task: unmerged, status: 'done', profile: repoProfile('falive'), result: '2026-10-14 日报 aven 待办 1 条：清掉 1 条，剩 0 条。' })
+      assert.match(unmergedNote, /改动在分支 lark\/falive-20261014（没合进集成分支）。回「推 pre」我会把它一起合进 pre/, '没合回集成分支：提示推 pre 会带上这条分支')
+      assert.doesNotMatch(unmergedNote, /要你手动合/, '不再叫负责人手动合')
+    }],
+  ], hooks))
 })
 
 describe('推 pre', () => {
-  afterEach(() => resetRepoProfiles())
-
   const fakeGit = ({ conflictOn = null, headAfter = 'h2' } = {}) => {
     const calls = []
     const git = async (cwd, args) => {
@@ -178,34 +178,34 @@ describe('推 pre', () => {
     return { git, calls }
   }
 
-  it('只认整句「推 pre」；推完回部署邮件正文，待部署提交从上次部署点算起（#84：不再记 lastPush）', async () => {
-    // 只认整句「推 pre」
-    assert.equal(parsePushPreDirective('推 pre'), true)
-    assert.equal(parsePushPreDirective(' 推PRE '), true)
-    assert.equal(parsePushPreDirective('先别推 pre'), false)
-    assert.equal(parsePushPreDirective('推 pre 吗'), false)
+  it('只认整句「推 pre」；推完回部署邮件正文，待部署提交从上次部署点算起（#84：不再记 lastPush）', () => runSteps([
+    ['只认整句「推 pre」', () => {
+      assert.equal(parsePushPreDirective('推 pre'), true)
+      assert.equal(parsePushPreDirective(' 推PRE '), true)
+      assert.equal(parsePushPreDirective('先别推 pre'), false)
+      assert.equal(parsePushPreDirective('推 pre 吗'), false)
+    }],
+    ['推完回部署邮件正文；待部署提交从盯部署记下的上次部署点算起（#84：不再记 lastPush）', async () => {
+      register()
+      const runtimeDir = mkdtempSync(join(tmpdir(), 'lark-sweep-state-'))
+      try {
+        saveSweepState('falive', { lastDeploy: { buildTime: 1, head: 'deployed1' } }, { runtimeDir })
+        let seen = null
+        const reply = await handlePushPre({ deps: { runtimeDir, pushToPre: async ({ logFrom }) => { seen = logFrom; return { ok: true, head: 'abcdef1234', base: 'h1', commits: ['abc1234 fix: 关注接口扁平', 'bbb2222 docs: 回填'], pushedAt: '2026-10-14T16:00:00.000Z' } } } })
+        assert.equal(seen, 'deployed1', '待部署提交从盯部署记下的上次部署点算起')
+        assert.match(reply, /已推 pre（abcdef12，待部署 2 个提交）/)
+        assert.match(reply, /主题：falive pre 前端部署申请/)
+        assert.match(reply, /- fix: 关注接口扁平/)
+        assert.equal(loadSweepState('falive', { runtimeDir }).lastPush, undefined, '不再记 lastPush')
+      } finally {
+        rmSync(runtimeDir, { recursive: true, force: true })
+      }
+    }],
+  ], hooks))
 
-    // 推完回部署邮件正文；待部署提交从盯部署记下的上次部署点算起（#84：不再记 lastPush）
-    register()
-    const runtimeDir = mkdtempSync(join(tmpdir(), 'lark-sweep-state-'))
-    try {
-      saveSweepState('falive', { lastDeploy: { buildTime: 1, head: 'deployed1' } }, { runtimeDir })
-      let seen = null
-      const reply = await handlePushPre({ deps: { runtimeDir, pushToPre: async ({ logFrom }) => { seen = logFrom; return { ok: true, head: 'abcdef1234', base: 'h1', commits: ['abc1234 fix: 关注接口扁平', 'bbb2222 docs: 回填'], pushedAt: '2026-10-14T16:00:00.000Z' } } } })
-      assert.equal(seen, 'deployed1', '待部署提交从盯部署记下的上次部署点算起')
-      assert.match(reply, /已推 pre（abcdef12，待部署 2 个提交）/)
-      assert.match(reply, /主题：falive pre 前端部署申请/)
-      assert.match(reply, /- fix: 关注接口扁平/)
-      assert.equal(loadSweepState('falive', { runtimeDir }).lastPush, undefined, '不再记 lastPush')
-    } finally {
-      rmSync(runtimeDir, { recursive: true, force: true })
-    }
-  })
-
-  it('pushToPre 正常路径：合并顺序与回收 worktree、带上没合回的清扫分支、logFrom 起点', async () => {
-    register()
-    {
-      // 先合 baseRef 再合集成分支，推 HEAD:pre，最后回收临时 worktree
+  it('pushToPre 正常路径：合并顺序与回收 worktree、带上没合回的清扫分支、logFrom 起点', () => runSteps([
+    ['先合 baseRef 再合集成分支，推 HEAD:pre，最后回收临时 worktree', async () => {
+      register()
       const { git, calls } = fakeGit()
       const out = await pushToPre({ profile: repoProfile('falive'), git, now: new Date('2026-10-14T16:00:00Z') })
       assert.equal(out.ok, true)
@@ -215,9 +215,9 @@ describe('推 pre', () => {
       assert.match(merges[1], /lark\/falive-integration$/, '再合集成分支')
       assert.ok(calls.includes('push origin HEAD:pre'), '推 HEAD:pre')
       assert.match(calls.at(-1), /^worktree remove --force/, '最后回收临时 worktree')
-    }
-    {
-      // 没合回集成分支的清扫分支：近 48 小时、有改动才带上，并排在 baseRef / 集成分支之后合
+    }],
+    ['没合回集成分支的清扫分支：近 48 小时、有改动才带上，并排在 baseRef / 集成分支之后合', async () => {
+      register()
       const now = new Date('2026-10-14T20:00:00Z')
       const store = { list: () => [
         { source: 'daily-sweep', repo: 'falive', branch: 'lark/falive-20261014', changedFiles: ['a.md'], integration: { mergedBack: false }, updatedAt: '2026-10-14T19:00:00Z' },
@@ -230,9 +230,9 @@ describe('推 pre', () => {
       const { git, calls } = fakeGit()
       await pushToPre({ profile: repoProfile('falive'), extraRefs, git })
       assert.match(calls.filter((cmd) => cmd.startsWith('merge --no-ff')).at(-1), /lark\/falive-20261014$/, '排在 baseRef / 集成分支之后合')
-    }
-    {
-      // logFrom（上次部署点）是新头的祖先 → 提交从它算起；不是祖先 → 退回本次推送起点
+    }],
+    ['logFrom（上次部署点）是新头的祖先 → 提交从它算起；不是祖先 → 退回本次推送起点', async () => {
+      register()
       const { git, calls } = fakeGit()
       await pushToPre({ profile: repoProfile('falive'), logFrom: 'dep1', git })
       assert.ok(calls.includes('log --no-merges --format=%h %s dep1..h2'), calls.join('\n'))
@@ -240,26 +240,25 @@ describe('推 pre', () => {
       calls.length = 0
       await pushToPre({ profile: repoProfile('falive'), logFrom: 'stale', git: notAncestor })
       assert.ok(calls.includes('log --no-merges --format=%h %s h1..h2'), calls.join('\n'))
-    }
-  })
+    }],
+  ], hooks))
 
-  it('pushToPre 不推送：冲突 abort 并报冲突文件、没有新提交', async () => {
-    register()
-    {
-      // 冲突 → abort、不推送，告诉负责人冲突文件
+  it('pushToPre 不推送：冲突 abort 并报冲突文件、没有新提交', () => runSteps([
+    ['冲突 → abort、不推送，告诉负责人冲突文件', async () => {
+      register()
       const { git, calls } = fakeGit({ conflictOn: 'lark/falive-integration' })
       const out = await pushToPre({ profile: repoProfile('falive'), git })
       assert.equal(out.ok, false, '冲突 → 不推送')
       assert.match(out.reason, /有冲突，没推：docs\/a\.md/)
       assert.ok(calls.includes('merge --abort'), '冲突 → abort')
       assert.ok(!calls.some((cmd) => cmd.startsWith('push')))
-    }
-    {
-      // 没有新提交 → 不推送
+    }],
+    ['没有新提交 → 不推送', async () => {
+      register()
       const { git, calls } = fakeGit({ headAfter: 'h1' })
       const out = await pushToPre({ profile: repoProfile('falive'), git })
       assert.equal(out.nothingNew, true, '没有新提交 → 不推送')
       assert.ok(!calls.some((cmd) => cmd.startsWith('push')))
-    }
-  })
+    }],
+  ], hooks))
 })

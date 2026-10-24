@@ -18,6 +18,7 @@ import {
 } from '../lib/lark-failure-fingerprint.mjs'
 import { countRecentFingerprint, listFailures, recordFailure, selfHealAttemptsForTask, summarizeFailures } from '../lib/lark-failure-ledger.mjs'
 import { buildFailureResult } from '../lib/lark-worker-results.mjs'
+import { runSteps } from './support/steps.mjs'
 
 const REAL = {
   resultMissing: "Claude 未返回合法结构化结果：ENOENT: no such file or directory, open '/var/folders/07/f0k63_dx0yb54r7bk3dx0ddr0000gp/T/lark-claude-result-wiD91Q/result.json'",
@@ -33,50 +34,52 @@ const REAL = {
 }
 
 describe('fingerprintFailure', () => {
-  it('错误指纹：真实错误归类、实例差异归一、未知错误不重排队', () => {
-    // 真实错误各归其类
-    const expect = {
-      resultMissing: 'result_missing', ruleContext: 'rule_context', exit1: 'exec_exit', aborted: 'aborted', timeout: 'timeout',
-      cursorTransient: 'transient_api', staleEpoch: 'stale_epoch', resultInvalid: 'result_invalid', toolMissing: 'tool_missing', readonly: 'readonly_violation',
-    }
-    for (const [key, cls] of Object.entries(expect)) assert.equal(fingerprintFailure(new Error(REAL[key])).cls, cls, key)
-
-    const t2 = '同一种错不同实例指纹相同：临时目录 / 任务 id / 数字都归一'
-    const a = fingerprintFailure(REAL.resultMissing)
-    const b = fingerprintFailure(REAL.resultMissing.replace('wiD91Q', 'Ab12Cd').replace('07/f0k63', '99/zzz'))
-    assert.equal(a.fingerprint, b.fingerprint, t2)
-    assert.match(a.fingerprint, /^result_missing:[0-9a-f]{8}$/, t2)
-    assert.equal(normalizeFailureText('timed out after 1800000ms on om_x100b62'), 'timed out after #ms on <id>', t2)
-    assert.notEqual(fingerprintFailure('claude exec timed out after 1800000ms').fingerprint, fingerprintFailure('pi exec timed out after 1800000ms').fingerprint, t2)
-
-    const t3 = '未知错误 → unknown，不重排队'
-    const fp = fingerprintFailure(new Error('something odd happened'))
-    assert.equal(fp.cls, 'unknown', t3)
-    assert.equal(fp.requeue, false, t3)
-  })
+  it('错误指纹：真实错误归类、实例差异归一、未知错误不重排队', () => runSteps([
+    ['真实错误各归其类', () => {
+      const expect = {
+        resultMissing: 'result_missing', ruleContext: 'rule_context', exit1: 'exec_exit', aborted: 'aborted', timeout: 'timeout',
+        cursorTransient: 'transient_api', staleEpoch: 'stale_epoch', resultInvalid: 'result_invalid', toolMissing: 'tool_missing', readonly: 'readonly_violation',
+      }
+      for (const [key, cls] of Object.entries(expect)) assert.equal(fingerprintFailure(new Error(REAL[key])).cls, cls, key)
+    }],
+    ['同一种错不同实例指纹相同：临时目录 / 任务 id / 数字都归一', () => {
+      const a = fingerprintFailure(REAL.resultMissing)
+      const b = fingerprintFailure(REAL.resultMissing.replace('wiD91Q', 'Ab12Cd').replace('07/f0k63', '99/zzz'))
+      assert.equal(a.fingerprint, b.fingerprint)
+      assert.match(a.fingerprint, /^result_missing:[0-9a-f]{8}$/)
+      assert.equal(normalizeFailureText('timed out after 1800000ms on om_x100b62'), 'timed out after #ms on <id>')
+      assert.notEqual(fingerprintFailure('claude exec timed out after 1800000ms').fingerprint, fingerprintFailure('pi exec timed out after 1800000ms').fingerprint)
+    }],
+    ['未知错误 → unknown，不重排队', () => {
+      const fp = fingerprintFailure(new Error('something odd happened'))
+      assert.equal(fp.cls, 'unknown')
+      assert.equal(fp.requeue, false)
+    }],
+  ]))
 })
 
 describe('decideFailurePlaybook', () => {
-  it('失败剧本：首次 requeue 再次 fail、换代 ignore，7 天同指纹算复发', () => {
-    const t1 = '可重排队的类第一次 requeue、第二次 fail；不可重排队的直接 fail；换代 / 中断 ignore'
-    const rm = fingerprintFailure(REAL.resultMissing)
-    assert.equal(decideFailurePlaybook({ fingerprint: rm, priorAttempts: 0 }).action, 'requeue', t1)
-    const second = decideFailurePlaybook({ fingerprint: rm, priorAttempts: 1 })
-    assert.equal(second.action, 'fail', t1)
-    assert.match(second.reason, /已自动重跑 1 次仍失败/, t1)
-    assert.equal(decideFailurePlaybook({ fingerprint: fingerprintFailure(REAL.timeout), priorAttempts: 0 }).action, 'fail', t1)
-    assert.equal(decideFailurePlaybook({ fingerprint: fingerprintFailure(REAL.staleEpoch) }).action, 'ignore', t1)
-    assert.equal(decideFailurePlaybook({ fingerprint: fingerprintFailure(REAL.aborted) }).action, 'ignore', t1)
-
-    const t2 = '7 天内同指纹已出现 → recurring，失败卡写第几次'
-    const fp = fingerprintFailure(REAL.ruleContext)
-    const playbook = decideFailurePlaybook({ fingerprint: fp, recentSameFingerprint: 15 })
-    assert.equal(playbook.recurring, true, t2)
-    const line = formatFingerprintLine({ fingerprint: fp, playbook, recentSameFingerprint: 15 })
-    assert.match(line, /^失败归类：规则文件缺失（bot 自己的环境），同一种错 7 天内第 16 次，指纹 rule_context:[0-9a-f]{8}$/, t2)
-    const result = buildFailureResult({ text: '修资料页' }, new Error(REAL.ruleContext), { fingerprintLine: line })
-    assert.match(result, /\n2\. 失败类型：[^\n]+；\n3\. 失败归类：规则文件缺失/, t2)
-  })
+  it('失败剧本：首次 requeue 再次 fail、换代 ignore，7 天同指纹算复发', () => runSteps([
+    ['可重排队的类第一次 requeue、第二次 fail；不可重排队的直接 fail；换代 / 中断 ignore', () => {
+      const rm = fingerprintFailure(REAL.resultMissing)
+      assert.equal(decideFailurePlaybook({ fingerprint: rm, priorAttempts: 0 }).action, 'requeue')
+      const second = decideFailurePlaybook({ fingerprint: rm, priorAttempts: 1 })
+      assert.equal(second.action, 'fail')
+      assert.match(second.reason, /已自动重跑 1 次仍失败/)
+      assert.equal(decideFailurePlaybook({ fingerprint: fingerprintFailure(REAL.timeout), priorAttempts: 0 }).action, 'fail')
+      assert.equal(decideFailurePlaybook({ fingerprint: fingerprintFailure(REAL.staleEpoch) }).action, 'ignore')
+      assert.equal(decideFailurePlaybook({ fingerprint: fingerprintFailure(REAL.aborted) }).action, 'ignore')
+    }],
+    ['7 天内同指纹已出现 → recurring，失败卡写第几次', () => {
+      const fp = fingerprintFailure(REAL.ruleContext)
+      const playbook = decideFailurePlaybook({ fingerprint: fp, recentSameFingerprint: 15 })
+      assert.equal(playbook.recurring, true)
+      const line = formatFingerprintLine({ fingerprint: fp, playbook, recentSameFingerprint: 15 })
+      assert.match(line, /^失败归类：规则文件缺失（bot 自己的环境），同一种错 7 天内第 16 次，指纹 rule_context:[0-9a-f]{8}$/)
+      const result = buildFailureResult({ text: '修资料页' }, new Error(REAL.ruleContext), { fingerprintLine: line })
+      assert.match(result, /\n2\. 失败类型：[^\n]+；\n3\. 失败归类：规则文件缺失/)
+    }],
+  ]))
 })
 
 describe('buildSelfHealHint', () => {

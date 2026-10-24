@@ -12,7 +12,8 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, before, beforeEach, describe, it } from 'node:test'
+import { after, before, describe, it } from 'node:test'
+import { runSteps } from './support/steps.mjs'
 
 import {
   finalizeExistingWorktree,
@@ -22,17 +23,6 @@ import {
   removeTempWorktreeIfClean,
   setRepoRoot,
 } from '../lib/lark-worker-git.mjs'
-
-// 合并后的 it 里每段用 step 包住：段内作用域独立，失败时报错信息带上原用例标题
-const step = async (name, fn) => {
-  try {
-    await fn()
-  } catch (error) {
-    error.message = `【${name}】${error.message}`
-    error.stack = `【${name}】${error.stack}`
-    throw error
-  }
-}
 
 let sandbox
 let repo
@@ -68,7 +58,7 @@ after(() => {
   if (sandbox) rmSync(sandbox, { recursive: true, force: true })
 })
 
-// 每个用例都从「刚建好的干净临时 worktree」起步，互不污染。
+// 每段（= 合并前的一个原 it）都从「刚建好的干净临时 worktree」起步，互不污染（等价原来的 beforeEach）。
 const resetWorktree = () => {
   if (existsSync(wtPath())) spawnSync('git', ['-C', repo, 'worktree', 'remove', '--force', wtPath()], { encoding: 'utf8' })
   spawnSync('git', ['-C', repo, 'worktree', 'prune'], { encoding: 'utf8' })
@@ -76,16 +66,11 @@ const resetWorktree = () => {
   rmSync(wtPath(), { recursive: true, force: true })
   prepareTempWorktree({ path: wtPath(), branch: BRANCH })
 }
-beforeEach(resetWorktree)
-// 合并后的 it 里每段先回到同样的干净临时 worktree（等同原来每个 it 前的 beforeEach），再跑原用例
-const freshStep = (name, fn) => step(name, () => {
-  resetWorktree()
-  return fn()
-})
+const hooks = { before: resetWorktree }
 
 describe('挂起现场跟进新基线（教训 #40）与定向提交后回收干净的临时 worktree（教训 #45）', () => {
-  it('挂起现场跟上新基线且改动原样保留（#40）；干净才回收临时 worktree、有未提交改动保留（#45）', async () => {
-    await freshStep('现场有 intent-to-add 新文件与已改文件时，基线前移后能跟上，改动原样保留', async () => {
+  it('挂起现场跟上新基线且改动原样保留（#40）；干净才回收临时 worktree、有未提交改动保留（#45）', () => runSteps([
+    ['现场有 intent-to-add 新文件与已改文件时，基线前移后能跟上，改动原样保留', () => {
       writeFileSync(join(wtPath(), 'base.txt'), 'base\nedited\n')
       writeFileSync(join(wtPath(), 'new-file.md'), 'draft\n')
       run(wtPath(), ['add', '-N', 'new-file.md'])
@@ -98,9 +83,8 @@ describe('挂起现场跟进新基线（教训 #40）与定向提交后回收干
       assert.equal(readFileSync(join(wtPath(), 'new-file.md'), 'utf8'), 'draft\n', '新文件还在')
       assert.equal(readFileSync(join(wtPath(), 'base.txt'), 'utf8'), 'base\nedited\n', '已改文件还在')
       assert.equal(run(wtPath(), ['stash', 'list']), '', '不留 stash')
-    })
-
-    await freshStep('工作区干净 → 删掉 worktree，分支随后可删；有未提交改动 → 保留', async () => {
+    }],
+    ['工作区干净 → 删掉 worktree，分支随后可删；有未提交改动 → 保留', () => {
       writeFileSync(join(wtPath(), 'wip.txt'), 'wip\n')
       assert.equal(removeTempWorktreeIfClean({ path: wtPath(), repoRoot: repo }), false)
       assert.equal(existsSync(join(wtPath(), 'wip.txt')), true, '有未提交改动不删')
@@ -108,21 +92,20 @@ describe('挂起现场跟进新基线（教训 #40）与定向提交后回收干
       assert.equal(removeTempWorktreeIfClean({ path: wtPath(), repoRoot: repo }), true)
       assert.equal(existsSync(wtPath()), false)
       run(repo, ['branch', '-D', BRANCH])
-    })
-  })
+    }],
+  ], hooks))
 })
 
 describe('inspectWorktreeIdentity（提交链身份锁）', () => {
-  it('身份锁：root / branch / HEAD 一致通过，分支不符或 HEAD 变了 fail-closed', async () => {
-    await freshStep('root / branch / HEAD 全部一致时通过', async () => {
+  it('身份锁：root / branch / HEAD 一致通过，分支不符或 HEAD 变了 fail-closed', () => runSteps([
+    ['root / branch / HEAD 全部一致时通过', () => {
       const headSha = run(wtPath(), ['rev-parse', 'HEAD'])
       const identity = inspectWorktreeIdentity({ cwd: wtPath(), expectedBranch: BRANCH, expectedHeadSha: headSha })
       assert.equal(identity.ok, true)
       assert.equal(identity.branch, BRANCH)
       assert.equal(identity.headSha, headSha)
-    })
-
-    await freshStep('分支不符或任务执行期间 HEAD 改变时 fail-closed', async () => {
+    }],
+    ['分支不符或任务执行期间 HEAD 改变时 fail-closed', () => {
       const headSha = run(wtPath(), ['rev-parse', 'HEAD'])
       assert.equal(inspectWorktreeIdentity({ cwd: wtPath(), expectedBranch: 'wrong-branch' }).ok, false)
       writeFileSync(join(wtPath(), 'ai-commit.txt'), 'committed outside worker\n')
@@ -131,19 +114,18 @@ describe('inspectWorktreeIdentity（提交链身份锁）', () => {
       const changed = inspectWorktreeIdentity({ cwd: wtPath(), expectedBranch: BRANCH, expectedHeadSha: headSha })
       assert.equal(changed.ok, false)
       assert.ok(changed.problems.some((problem) => problem.includes('HEAD')))
-    })
-  })
+    }],
+  ], hooks))
 })
 
 describe('prepareTempWorktree（retry/resume 不得摧毁保留的现场）', () => {
-  it('prepareTempWorktree 新建：基线与分支、只迁移旧依赖软链、有 WIP 时从项目分支 HEAD 建隔离分支', async () => {
-    await freshStep('新建：worktree 在 origin/online 上、分支已切好', async () => {
+  it('prepareTempWorktree 新建：基线与分支、只迁移旧依赖软链、有 WIP 时从项目分支 HEAD 建隔离分支', () => runSteps([
+    ['新建：worktree 在 origin/online 上、分支已切好', () => {
       assert.equal(run(wtPath(), ['rev-parse', '--abbrev-ref', 'HEAD']), BRANCH)
       assert.equal(run(wtPath(), ['rev-parse', 'HEAD']), run(repo, ['rev-parse', 'origin/online']))
       assert.equal(existsSync(join(wtPath(), 'node_modules')), false, '创建 worktree 不应软链主仓依赖')
-    })
-
-    await freshStep('只迁移旧 bot 指向主仓的依赖软链，不碰独立安装', async () => {
+    }],
+    ['只迁移旧 bot 指向主仓的依赖软链，不碰独立安装', () => {
       mkdirSync(join(repo, 'node_modules'))
       writeFileSync(join(wtPath(), 'keep.txt'), 'unfinished\n')
       symlinkSync(join(repo, 'node_modules'), join(wtPath(), 'node_modules'), 'dir')
@@ -156,9 +138,8 @@ describe('prepareTempWorktree（retry/resume 不得摧毁保留的现场）', ()
       mkdirSync(join(wtPath(), 'node_modules'))
       prepareTempWorktree({ path: wtPath(), branch: BRANCH })
       assert.equal(existsSync(join(wtPath(), 'node_modules')), true)
-    })
-
-    await freshStep('项目 worktree 有 WIP 时：隔离分支从项目分支 HEAD 创建，不退回 origin/online', async () => {
+    }],
+    ['项目 worktree 有 WIP 时：隔离分支从项目分支 HEAD 创建，不退回 origin/online', () => {
       const featureBranch = 'feature/PR-TEST'
       const isolatedBranch = 'lark/hotfix-feature-base'
       const isolatedPath = join(sandbox, 'worktrees', 'feature-base')
@@ -183,26 +164,24 @@ describe('prepareTempWorktree（retry/resume 不得摧毁保留的现场）', ()
         spawnSync('git', ['-C', repo, 'branch', '-D', isolatedBranch], { encoding: 'utf8' })
         spawnSync('git', ['-C', repo, 'branch', '-D', featureBranch], { encoding: 'utf8' })
       }
-    })
-  })
+    }],
+  ], hooks))
 
-  it('prepareTempWorktree 复用保留现场：未提交改动、AI 自行提交、QA 验退续上一轮、残留空壳重建', async () => {
-    await freshStep('有未提交改动 → 原地复用，改动不丢', async () => {
+  it('prepareTempWorktree 复用保留现场：未提交改动、AI 自行提交、QA 验退续上一轮、残留空壳重建', () => runSteps([
+    ['有未提交改动 → 原地复用，改动不丢', () => {
       writeFileSync(join(wtPath(), 'wip.txt'), 'half done\n')
       prepareTempWorktree({ path: wtPath(), branch: BRANCH })
       assert.ok(existsSync(join(wtPath(), 'wip.txt')), 'retry 不得删掉上次保留的半成品')
-    })
-
-    await freshStep('分支已有提交（AI 自行 commit 后失败） → 复用，提交不被 -B 重置', async () => {
+    }],
+    ['分支已有提交（AI 自行 commit 后失败） → 复用，提交不被 -B 重置', () => {
       writeFileSync(join(wtPath(), 'fix.txt'), 'fixed\n')
       run(wtPath(), ['add', '-A'])
       run(wtPath(), ['commit', '-m', 'ai commit'])
       const head = run(wtPath(), ['rev-parse', 'HEAD'])
       prepareTempWorktree({ path: wtPath(), branch: BRANCH })
       assert.equal(run(wtPath(), ['rev-parse', 'HEAD']), head, 'worktree add -B 会把分支重置回 origin/online，丢掉这笔提交')
-    })
-
-    await freshStep('上一轮成功收尾后 QA 验退 → 从原 hotfix 分支继续，不丢上一轮提交', async () => {
+    }],
+    ['上一轮成功收尾后 QA 验退 → 从原 hotfix 分支继续，不丢上一轮提交', () => {
       writeFileSync(join(wtPath(), 'first-fix.txt'), 'first round\n')
       const first = finalizeTempWorktree({ path: wtPath(), branch: BRANCH, task, allowCommit: true })
       assert.equal(first.committed, true)
@@ -216,9 +195,8 @@ describe('prepareTempWorktree（retry/resume 不得摧毁保留的现场）', ()
       const second = finalizeTempWorktree({ path: wtPath(), branch: BRANCH, task, allowCommit: true })
       assert.equal(second.committed, true)
       assert.equal(run(repo, ['rev-list', '--count', `origin/online..${BRANCH}`]), '2')
-    })
-
-    await freshStep('残留空壳目录（不是有效 worktree） → 重建', async () => {
+    }],
+    ['残留空壳目录（不是有效 worktree） → 重建', () => {
       const shell = join(sandbox, 'worktrees', 'shell')
       mkdirSync(shell, { recursive: true })
       writeFileSync(join(shell, 'junk.txt'), 'junk\n')
@@ -226,13 +204,13 @@ describe('prepareTempWorktree（retry/resume 不得摧毁保留的现场）', ()
       assert.equal(run(shell, ['rev-parse', '--abbrev-ref', 'HEAD']), 'lark/hotfix-shell')
       spawnSync('git', ['-C', repo, 'worktree', 'remove', '--force', shell], { encoding: 'utf8' })
       spawnSync('git', ['-C', repo, 'branch', '-D', 'lark/hotfix-shell'], { encoding: 'utf8' })
-    })
-  })
+    }],
+  ], hooks))
 })
 
 describe('finalizeTempWorktree（ok=false 即「改动没落盘」，调用方据此不报完成）', () => {
-  it('finalizeTempWorktree 有改动：hook 失败保留现场、允许提交则提交删目录且带 lark-task trailer、不允许提交 ok=false 保留', async () => {
-    await freshStep('正常运行提交 hook，失败保留 worktree 和改动', async () => {
+  it('finalizeTempWorktree 有改动：hook 失败保留现场、允许提交则提交删目录且带 lark-task trailer、不允许提交 ok=false 保留', () => runSteps([
+    ['正常运行提交 hook，失败保留 worktree 和改动', () => {
       const hooks = join(sandbox, 'reject-hooks')
       mkdirSync(hooks)
       writeFileSync(join(hooks, 'pre-commit'), '#!/bin/sh\nexit 1\n', { mode: 0o755 })
@@ -247,63 +225,58 @@ describe('finalizeTempWorktree（ok=false 即「改动没落盘」，调用方�
         run(repo, ['config', '--unset', 'core.hooksPath'])
         rmSync(hooks, { recursive: true, force: true })
       }
-    })
-
-    await freshStep('有改动 + 允许提交 → 提交进分支并删目录', async () => {
+    }],
+    ['有改动 + 允许提交 → 提交进分支并删目录', () => {
       writeFileSync(join(wtPath(), 'fix.txt'), 'fixed\n')
       const outcome = finalizeTempWorktree({ path: wtPath(), branch: BRANCH, task, allowCommit: true })
       assert.deepEqual({ ok: outcome.ok, committed: outcome.committed }, { ok: true, committed: true })
       assert.equal(existsSync(wtPath()), false)
       assert.equal(run(repo, ['rev-list', '--count', `origin/online..${BRANCH}`]), '1')
-    })
-
+    }],
     // `lark-task:` trailer 是「群里这条反馈 → 哪个提交」的机器可查锚点（D5）。
-    await freshStep('提交信息带 lark-task trailer，可被 git log --grep 精确捞出', async () => {
+    ['提交信息带 lark-task trailer，可被 git log --grep 精确捞出', () => {
       writeFileSync(join(wtPath(), 'trailer.txt'), 'x\n')
       finalizeTempWorktree({ path: wtPath(), branch: BRANCH, task, allowCommit: true })
       assert.match(run(repo, ['log', '-1', '--format=%B', BRANCH]), /^lark-task: T1$/m)
       assert.equal(run(repo, ['log', '--grep', '^lark-task: T1$', '--format=%h', BRANCH]).split('\n').filter(Boolean).length, 1)
-    })
-
-    await freshStep('有改动 + 不允许提交（失败/阻塞） → ok=false，现场完整保留', async () => {
+    }],
+    ['有改动 + 不允许提交（失败/阻塞） → ok=false，现场完整保留', () => {
       writeFileSync(join(wtPath(), 'half.txt'), 'half\n')
       const outcome = finalizeTempWorktree({ path: wtPath(), branch: BRANCH, task, allowCommit: false })
       assert.equal(outcome.ok, false)
       assert.ok(existsSync(join(wtPath(), 'half.txt')), '未完成的半成品必须留在原地')
-    })
-  })
+    }],
+  ], hooks))
 
-  it('finalizeTempWorktree 无改动 / 已提交 / git 读不出：空分支清掉、删目录保分支、ok=false 不删任何东西', async () => {
-    await freshStep('无改动且分支无提交 → 目录与空分支一起清掉', async () => {
+  it('finalizeTempWorktree 无改动 / 已提交 / git 读不出：空分支清掉、删目录保分支、ok=false 不删任何东西', () => runSteps([
+    ['无改动且分支无提交 → 目录与空分支一起清掉', () => {
       const outcome = finalizeTempWorktree({ path: wtPath(), branch: BRANCH, task, allowCommit: true })
       assert.deepEqual({ ok: outcome.ok, committed: outcome.committed }, { ok: true, committed: false })
       assert.equal(existsSync(wtPath()), false)
       assert.notEqual(spawnSync('git', ['-C', repo, 'rev-parse', '--verify', BRANCH], { encoding: 'utf8' }).status, 0)
-    })
-
-    await freshStep('工作区干净但分支已有提交（AI 自行 commit） → 删目录保分支', async () => {
+    }],
+    ['工作区干净但分支已有提交（AI 自行 commit） → 删目录保分支', () => {
       writeFileSync(join(wtPath(), 'fix.txt'), 'fixed\n')
       run(wtPath(), ['add', '-A'])
       run(wtPath(), ['commit', '-m', 'ai commit'])
       const outcome = finalizeTempWorktree({ path: wtPath(), branch: BRANCH, task, allowCommit: true })
       assert.deepEqual({ ok: outcome.ok, committed: outcome.committed }, { ok: true, committed: true })
       assert.equal(spawnSync('git', ['-C', repo, 'rev-parse', '--verify', BRANCH], { encoding: 'utf8' }).status, 0)
-    })
-
-    await freshStep('git 状态读不出来（非 git 目录） → ok=false 且不做任何删除', async () => {
+    }],
+    ['git 状态读不出来（非 git 目录） → ok=false 且不做任何删除', () => {
       const alien = mkdtempSync(join(tmpdir(), 'lark-alien-'))
       writeFileSync(join(alien, 'keep.txt'), 'keep\n')
       const outcome = finalizeTempWorktree({ path: alien, branch: BRANCH, task, allowCommit: true })
       assert.equal(outcome.ok, false, 'git 异常绝不能被当成「干净可删」')
       assert.ok(existsSync(join(alien, 'keep.txt')))
       rmSync(alien, { recursive: true, force: true })
-    })
-  })
+    }],
+  ], hooks))
 })
 
 describe('finalizeExistingWorktree（命中已有 worktree 的定向收尾提交）', () => {
-  it('finalizeExistingWorktree 定向提交：hook 只看到定向文件、清单内改动提交、执行期间新改动不进提交并显形', async () => {
-    await freshStep('提交 hook 只看到定向文件，已有暂存 WIP 不进入提交', async () => {
+  it('finalizeExistingWorktree 定向提交：hook 只看到定向文件、清单内改动提交、执行期间新改动不进提交并显形', () => runSteps([
+    ['提交 hook 只看到定向文件，已有暂存 WIP 不进入提交', () => {
       const hooks = join(sandbox, 'scope-hooks')
       const observed = join(sandbox, 'hook-staged.txt')
       mkdirSync(hooks)
@@ -322,16 +295,14 @@ describe('finalizeExistingWorktree（命中已有 worktree 的定向收尾提交
         run(repo, ['config', '--unset', 'core.hooksPath'])
         rmSync(hooks, { recursive: true, force: true })
       }
-    })
-
-    await freshStep('改动在本任务实测清单内 → 提交到当前分支', async () => {
+    }],
+    ['改动在本任务实测清单内 → 提交到当前分支', () => {
       writeFileSync(join(wtPath(), 'fix.txt'), 'fixed\n')
       const outcome = finalizeExistingWorktree({ cwd: wtPath(), task, taskPaths: ['fix.txt'] })
       assert.deepEqual({ ok: outcome.ok, committed: outcome.committed }, { ok: true, committed: true })
       assert.equal(run(wtPath(), ['status', '--porcelain']), '')
-    })
-
-    await freshStep('任务执行期间新出现的改动不进提交，且在 unexpected 里显形', async () => {
+    }],
+    ['任务执行期间新出现的改动不进提交，且在 unexpected 里显形', () => {
       writeFileSync(join(wtPath(), 'bot.txt'), 'bot\n')
       writeFileSync(join(wtPath(), 'human-wip.txt'), 'human\n')
       const outcome = finalizeExistingWorktree({ cwd: wtPath(), task, taskPaths: ['bot.txt'] })
@@ -342,36 +313,34 @@ describe('finalizeExistingWorktree（命中已有 worktree 的定向收尾提交
       assert.match(run(wtPath(), ['status', '--porcelain']), /human-wip\.txt/, 'WIP 应原样留在工作区')
       rmSync(join(wtPath(), 'human-wip.txt'), { force: true })
       run(wtPath(), ['reset'])
-    })
-  })
+    }],
+  ], hooks))
 
-  it('finalizeExistingWorktree 不提交：实测清单为空 ok=false、无改动 ok=true、git 读不出 ok=false', async () => {
-    await freshStep('实测清单为空（无从证明哪些是本任务的）→ 一个都不提交且 ok=false', async () => {
+  it('finalizeExistingWorktree 不提交：实测清单为空 ok=false、无改动 ok=true、git 读不出 ok=false', () => runSteps([
+    ['实测清单为空（无从证明哪些是本任务的）→ 一个都不提交且 ok=false', () => {
       writeFileSync(join(wtPath(), 'unknown.txt'), 'x\n')
       const outcome = finalizeExistingWorktree({ cwd: wtPath(), task, taskPaths: [] })
       assert.deepEqual({ ok: outcome.ok, committed: outcome.committed }, { ok: false, committed: false })
       assert.match(run(wtPath(), ['status', '--porcelain']), /unknown\.txt/)
       rmSync(join(wtPath(), 'unknown.txt'), { force: true })
       run(wtPath(), ['reset'])
-    })
-
-    await freshStep('无改动 → 不提交，ok=true', async () => {
+    }],
+    ['无改动 → 不提交，ok=true', () => {
       const outcome = finalizeExistingWorktree({ cwd: wtPath(), task, taskPaths: ['fix.txt'] })
       assert.deepEqual({ ok: outcome.ok, committed: outcome.committed }, { ok: true, committed: false })
-    })
-
-    await freshStep('git 状态读不出来 → ok=false（调用方据此不报完成）', async () => {
+    }],
+    ['git 状态读不出来 → ok=false（调用方据此不报完成）', () => {
       const alien = mkdtempSync(join(tmpdir(), 'lark-alien-'))
       const outcome = finalizeExistingWorktree({ cwd: alien, task, taskPaths: ['fix.txt'] })
       assert.equal(outcome.ok, false)
       rmSync(alien, { recursive: true, force: true })
-    })
-  })
+    }],
+  ], hooks))
 })
 
 describe('集成分支（整改 #10）、合回后删任务分支（aven 2026-10-16）、合并提交信息过 commit-msg 钩子（10-21）', () => {
-  it('集成分支建 / 同步 / 合回 / 冲突 abort，合回后按包含关系删任务分支，合并提交信息以 Merge branch 开头', async () => {
-    await freshStep('建分支 + 常驻 worktree；同步 base；任务分支 no-ff 合回；冲突 abort 并报文件', async () => {
+  it('集成分支建 / 同步 / 合回 / 冲突 abort，合回后按包含关系删任务分支，合并提交信息以 Merge branch 开头', () => runSteps([
+    ['建分支 + 常驻 worktree；同步 base；任务分支 no-ff 合回；冲突 abort 并报文件', async () => {
       const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs')
       const { tmpdir } = await import('node:os')
       const { join } = await import('node:path')
@@ -407,9 +376,8 @@ describe('集成分支（整改 #10）、合回后删任务分支（aven 2026-10
       } finally {
         rmSync(root, { recursive: true, force: true })
       }
-    })
-
-    await freshStep('已被集成分支包含才删；未合入 / 非 lark/ / 集成分支本身 / 仍被检出 都不删', async () => {
+    }],
+    ['已被集成分支包含才删；未合入 / 非 lark/ / 集成分支本身 / 仍被检出 都不删', async () => {
       const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs')
       const { tmpdir } = await import('node:os')
       const { join } = await import('node:path')
@@ -463,14 +431,13 @@ describe('集成分支（整改 #10）、合回后删任务分支（aven 2026-10
       } finally {
         rmSync(root, { recursive: true, force: true })
       }
-    })
-
-    await freshStep('以「Merge branch」开头（falive-react verify-commit-msg 只放行 <type>: … 或 Merge / Revert 开头）', async () => {
+    }],
+    ['以「Merge branch」开头（falive-react verify-commit-msg 只放行 <type>: … 或 Merge / Revert 开头）', async () => {
       const { integrationMergeMessage } = await import('../lib/lark-worker-git.mjs')
       const BYPASS = /^(Merge |Revert |fixup!|squash!)/
       for (const message of [integrationMergeMessage({ branch: 'feature/phase-4-page', integrationBranch: 'lark/falive-integration' }), integrationMergeMessage({ branch: 'lark/falive-cb475c79', integrationBranch: 'lark/falive-integration', summary: 'aven 交办：新闻详情页按新稿改版' })]) {
         assert.match(message, BYPASS, message)
       }
-    })
-  })
+    }],
+  ], hooks))
 })

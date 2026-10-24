@@ -16,25 +16,27 @@ import {
   resolvePrdCacheRoot,
 } from '../lib/lark-paths.mjs'
 import { prdCacheDocsFor } from '../lib/lark-work-context.mjs'
+import { runSteps } from './support/steps.mjs'
 
 describe('lark-paths 基座', () => {
-  it('larkBotRoot 与 runtime 目录、consumerRoot / prdCacheRoot 的取值优先级', () => {
-    const t1 = 'larkBotRoot 锚定到本仓根，运行态目录都在 runtime/ 下'
-    assert.equal(larkBotRoot, dirname(dirname(fileURLToPath(import.meta.url))), t1)
-    assert.equal(larkRuntimeDir, join(larkBotRoot, 'runtime'), t1)
-    assert.equal(attachmentsDirFor('PR-00001', 'om_x'), join(larkAttachmentsRoot, 'PR-00001', 'om_x'), t1)
-    assert.equal(auditDirFor('PR-00001'), join(larkAuditsRoot, 'PR-00001'), t1)
-    assert.equal(auditDirFor(''), join(larkAuditsRoot, '_adhoc'), t1)
-
-    const t2 = 'consumerRoot：env > local.json > 默认；支持 ~ 展开'
-    assert.equal(resolveConsumerRoot({ env: { LARK_BOT_CONSUMER_ROOT: '/tmp/a' }, localConfig: { consumerRoot: '/tmp/b' } }), '/tmp/a', t2)
-    assert.equal(resolveConsumerRoot({ env: {}, localConfig: { consumerRoot: '~/x' } }), join(homedir(), 'x'), t2)
-    assert.equal(resolveConsumerRoot({ env: { LARK_BOT_CONSUMER_ROOT: '  ' }, localConfig: {} }), '/Users/aven/github/fameex-web', t2)
-
-    const t3 = 'prdCacheRoot：env > ~/.prd-cache'
-    assert.equal(resolvePrdCacheRoot({ env: { LARK_BOT_PRD_CACHE: '/tmp/cache' } }), '/tmp/cache', t3)
-    assert.equal(resolvePrdCacheRoot({ env: {} }), join(homedir(), '.prd-cache'), t3)
-  })
+  it('larkBotRoot 与 runtime 目录、consumerRoot / prdCacheRoot 的取值优先级', () => runSteps([
+    ['larkBotRoot 锚定到本仓根，运行态目录都在 runtime/ 下', () => {
+      assert.equal(larkBotRoot, dirname(dirname(fileURLToPath(import.meta.url))))
+      assert.equal(larkRuntimeDir, join(larkBotRoot, 'runtime'))
+      assert.equal(attachmentsDirFor('PR-00001', 'om_x'), join(larkAttachmentsRoot, 'PR-00001', 'om_x'))
+      assert.equal(auditDirFor('PR-00001'), join(larkAuditsRoot, 'PR-00001'))
+      assert.equal(auditDirFor(''), join(larkAuditsRoot, '_adhoc'))
+    }],
+    ['consumerRoot：env > local.json > 默认；支持 ~ 展开', () => {
+      assert.equal(resolveConsumerRoot({ env: { LARK_BOT_CONSUMER_ROOT: '/tmp/a' }, localConfig: { consumerRoot: '/tmp/b' } }), '/tmp/a')
+      assert.equal(resolveConsumerRoot({ env: {}, localConfig: { consumerRoot: '~/x' } }), join(homedir(), 'x'))
+      assert.equal(resolveConsumerRoot({ env: { LARK_BOT_CONSUMER_ROOT: '  ' }, localConfig: {} }), '/Users/aven/github/fameex-web')
+    }],
+    ['prdCacheRoot：env > ~/.prd-cache', () => {
+      assert.equal(resolvePrdCacheRoot({ env: { LARK_BOT_PRD_CACHE: '/tmp/cache' } }), '/tmp/cache')
+      assert.equal(resolvePrdCacheRoot({ env: {} }), join(homedir(), '.prd-cache'))
+    }],
+  ]))
 })
 
 describe('prdCacheDocsFor（项目文档只来自 PRD 缓存）', () => {
@@ -43,9 +45,8 @@ describe('prdCacheDocsFor（项目文档只来自 PRD 缓存）', () => {
     writeFileSync(path, 'x')
   }
 
-  it('PRD 缓存取最大 rev 带 checklist / plan，无 rev 用 manual，项目不存在为空', () => {
-    {
-      // 取 rev 最大且含 prd.md 的 r<rev>，并带上同项目根下的 checklist / plan
+  it('PRD 缓存取最大 rev 带 checklist / plan，无 rev 用 manual，项目不存在为空', () => runSteps([
+    ['取 rev 最大且含 prd.md 的 r<rev>，并带上同项目根下的 checklist / plan', () => {
       const cacheRoot = mkdtempSync(join(tmpdir(), 'lark-prd-cache-'))
       try {
         touch(join(cacheRoot, 'PR-00001/r98/prd.md'))
@@ -59,10 +60,8 @@ describe('prdCacheDocsFor（项目文档只来自 PRD 缓存）', () => {
       } finally {
         rmSync(cacheRoot, { recursive: true, force: true })
       }
-    }
-
-    {
-      const t2 = '没有 r<rev> 时用 manual/prd.md；项目目录不存在 → 空'
+    }],
+    ['没有 r<rev> 时用 manual/prd.md；项目目录不存在 → 空', () => {
       const cacheRoot = mkdtempSync(join(tmpdir(), 'lark-prd-cache-'))
       try {
         touch(join(cacheRoot, 'PR-00002/manual/prd.md'))
@@ -71,11 +70,11 @@ describe('prdCacheDocsFor（项目文档只来自 PRD 缓存）', () => {
           join(cacheRoot, 'PR-00002/manual/prd.md'),
           join(cacheRoot, 'PR-00002/plan.md'),
         ])
-        assert.deepEqual(prdCacheDocsFor('PR-09999', { cacheRoot }), [], t2)
+        assert.deepEqual(prdCacheDocsFor('PR-09999', { cacheRoot }), [])
       } finally {
         rmSync(cacheRoot, { recursive: true, force: true })
       }
-    }
-  })
+    }],
+  ]))
 
 })

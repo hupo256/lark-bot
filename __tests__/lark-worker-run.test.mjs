@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os'
 import { describe, it } from 'node:test'
 
 import { runAI } from '../lib/lark-worker-run.mjs'
+import { runSteps } from './support/steps.mjs'
 
 const workContext = (extra = {}) => ({ projectId: 'PR-99999', projectName: '测试项目', projectDocs: [], cwd: tmpdir(), ...extra })
 const scope = { targets: [{ path: 'apps/web/src/a.ts', symbols: ['amount'], reason: '首个出错位置' }], siblings: { searchQueries: ['amount'], items: [] } }
@@ -46,35 +47,28 @@ describe('runAI：所有执行器在会改代码的任务上先跑只读分析',
     })
   }
 
-  it('只读查询单趟、自测类不注入契约、分析 blocked 不实施、分析改了工作区直接抛错', async () => {
-    {
-      const t1 = '只读查询（claude）仍单趟，不跑分析、不带 scope'
+  it('只读查询单趟、自测类不注入契约、分析 blocked 不实施、分析改了工作区直接抛错', () => runSteps([
+    ['只读查询（claude）仍单趟，不跑分析、不带 scope', async () => {
       const { exec, calls } = mockExec()
       const run = await runAI({ localConfig: {} }, bugTask('claude', { text: '状态：项目进度如何' }), workContext({ readOnly: true }), null, undefined, { exec, snapshot: stableSnapshot })
-      assert.deepEqual(calls.map((call) => call.resultKind), ['task'], t1)
-      assert.equal(run.scope, null, t1)
-    }
-
-    {
-      const t2 = '自测类命令（不做收尾核对）：仍先分析，但不宣称越界不提交、实施不注入契约'
+      assert.deepEqual(calls.map((call) => call.resultKind), ['task'])
+      assert.equal(run.scope, null)
+    }],
+    ['自测类命令（不做收尾核对）：仍先分析，但不宣称越界不提交、实施不注入契约', async () => {
       const { exec, calls } = mockExec()
       await runAI({ localConfig: {} }, bugTask('claude', { text: '自测：跑一下提现页的单测' }), workContext(), null, undefined, { exec, snapshot: stableSnapshot })
-      assert.deepEqual(calls.map((call) => call.resultKind), ['analysis', 'task'], t2)
-      assert.match(calls[0].promptText, /不做收尾范围核对/, t2)
-      assert.doesNotMatch(calls[1].promptText, /修改范围契约（第一阶段只读分析产出/, t2)
-    }
-
-    {
-      const t3 = '分析 blocked → 不进入实施，返回 blocked 结果'
+      assert.deepEqual(calls.map((call) => call.resultKind), ['analysis', 'task'])
+      assert.match(calls[0].promptText, /不做收尾范围核对/)
+      assert.doesNotMatch(calls[1].promptText, /修改范围契约（第一阶段只读分析产出/)
+    }],
+    ['分析 blocked → 不进入实施，返回 blocked 结果', async () => {
       const { exec, calls } = mockExec({ analysis: readyAnalysis({ status: 'blocked', blockers: ['无法定位目标页面'], scope: null }) })
       const run = await runAI({ localConfig: {} }, bugTask('claude'), workContext(), null, undefined, { exec, snapshot: stableSnapshot })
-      assert.deepEqual(calls.map((call) => call.resultKind), ['analysis'], t3)
-      assert.equal(run.result.status, 'blocked', t3)
-      assert.deepEqual(run.result.blockers, ['无法定位目标页面'], t3)
-    }
-
-    {
-      const t4 = '分析前后工作区变化 → 违反只读约束直接抛错，不实施'
+      assert.deepEqual(calls.map((call) => call.resultKind), ['analysis'])
+      assert.equal(run.result.status, 'blocked')
+      assert.deepEqual(run.result.blockers, ['无法定位目标页面'])
+    }],
+    ['分析前后工作区变化 → 违反只读约束直接抛错，不实施', async () => {
       const { exec, calls } = mockExec()
       let n = 0
       const snapshot = () => ({ status: n++ ? ' M a.ts' : '', diff: '' })
@@ -82,35 +76,30 @@ describe('runAI：所有执行器在会改代码的任务上先跑只读分析',
         runAI({ localConfig: {} }, bugTask('claude'), workContext(), null, undefined, { exec, snapshot }),
         /claude 分析阶段违反只读约束/,
       )
-      assert.deepEqual(calls.map((call) => call.resultKind), ['analysis'], t4)
-    }
-  })
+      assert.deepEqual(calls.map((call) => call.resultKind), ['analysis'])
+    }],
+  ]))
 
-  it('集合型任务要求 siblings、非集合型不注入；人工批准扩大的文件并入契约', async () => {
-    {
-      const t1 = '集合型任务：分析提示点名命中词并要求 siblings 非空'
+  it('集合型任务要求 siblings、非集合型不注入；人工批准扩大的文件并入契约', () => runSteps([
+    ['集合型任务：分析提示点名命中词并要求 siblings 非空', async () => {
       const { exec, calls } = mockExec()
       await runAI({ localConfig: {} }, bugTask('claude', { text: '「可用余额」统一改为「余额」，涉及申请/列表/流水' }), workContext(), null, undefined, { exec, snapshot: stableSnapshot })
-      assert.match(calls[0].promptText, /这是集合型任务（命中词：「统一」）/, t1)
-      assert.match(calls[0].promptText, /siblings\.items 不能为空/, t1)
-    }
-
-    {
-      const t2 = '非集合型任务不注入集合型要求'
+      assert.match(calls[0].promptText, /这是集合型任务（命中词：「统一」）/)
+      assert.match(calls[0].promptText, /siblings\.items 不能为空/)
+    }],
+    ['非集合型任务不注入集合型要求', async () => {
       const { exec, calls } = mockExec()
       await runAI({ localConfig: {} }, bugTask('claude'), workContext(), null, undefined, { exec, snapshot: stableSnapshot })
-      assert.doesNotMatch(calls[0].promptText, /这是集合型任务/, t2)
-    }
-
-    {
-      const t3 = '人工已批准扩大的文件：分析提示列为可信额外目标，实施契约并入；本机 scopeBudgets 覆盖行数上限'
+      assert.doesNotMatch(calls[0].promptText, /这是集合型任务/)
+    }],
+    ['人工已批准扩大的文件：分析提示列为可信额外目标，实施契约并入；本机 scopeBudgets 覆盖行数上限', async () => {
       const { exec, calls } = mockExec()
       const task = bugTask('claude', { scopeApprovals: [{ paths: ['apps/web/src/neighbor.ts'], approvedBy: 'ou_x', at: '2026-10-11T00:00:00Z' }] })
       await runAI({ localConfig: { scopeBudgets: { bugfix: 80 } } }, task, workContext(), null, undefined, { exec, snapshot: stableSnapshot })
-      assert.match(calls[0].promptText, /人工已确认扩大范围的文件（可信输入，必须列入 targets[^\n]*`apps\/web\/src\/neighbor\.ts`/, t3)
-      assert.match(calls[0].promptText, /改动行数上限：80 行/, t3)
-      assert.match(calls[1].promptText, / {2}- apps\/web\/src\/neighbor\.ts：人工确认扩大范围/, t3)
-      assert.match(calls[1].promptText, /改动行数上限 80 行/, t3)
-    }
-  })
+      assert.match(calls[0].promptText, /人工已确认扩大范围的文件（可信输入，必须列入 targets[^\n]*`apps\/web\/src\/neighbor\.ts`/)
+      assert.match(calls[0].promptText, /改动行数上限：80 行/)
+      assert.match(calls[1].promptText, / {2}- apps\/web\/src\/neighbor\.ts：人工确认扩大范围/)
+      assert.match(calls[1].promptText, /改动行数上限 80 行/)
+    }],
+  ]))
 })

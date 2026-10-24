@@ -7,41 +7,43 @@ import { describe, it } from 'node:test'
 import { classifyBugPollAction, classifyBugTaskStatus, isBugtableTombstone } from '../lib/lark-bugtable-parse.mjs'
 import { createTaskStore } from '../lib/lark-task-store.mjs'
 import { gitTail } from '../lib/lark-worker-git.mjs'
+import { runSteps } from './support/steps.mjs'
 
 // aven 2026-10-20 review：bug 表里判「无需改动」/ 人工结单的任务，表格仍是待处理；
 // 任务被定期清理后 poller 查不到它，就按新 bug 重跑。人工结单原来连清理都不用等，每轮都按新 bug 入队。
 describe('bug 表终局任务不重跑', () => {
-  it('bug 表终局：人工结单与无需改动不入队，只认 bug 表来源的墓碑，清理时保留墓碑', () => {
-    const t1 = '人工结单（superseded）与无需改动一样是终局，poller 不入队'
-    assert.equal(classifyBugTaskStatus('superseded'), 'no-change', t1)
-    assert.equal(classifyBugPollAction({ recordStatus: '待处理', taskStatus: 'superseded', seen: false, rejectedValue: '验退' }), 'no-change', t1)
-    assert.equal(classifyBugPollAction({ recordStatus: '待处理', taskStatus: undefined, seen: false, rejectedValue: '验退' }), 'enqueue', t1)
-
-    const t2 = '只有 bug 表来源的无需改动 / 人工结单算墓碑'
-    assert.equal(isBugtableTombstone({ source: 'lark-bugtable', status: 'no_change_needed' }), true, t2)
-    assert.equal(isBugtableTombstone({ source: 'lark-bugtable', status: 'superseded' }), true, t2)
-    assert.equal(isBugtableTombstone({ source: 'lark-bugtable', status: 'done' }), false, t2)
-    assert.equal(isBugtableTombstone({ source: 'lark', status: 'no_change_needed' }), false, t2)
-
-    const t3 = '定期清理留着墓碑，其它陈旧终态照删'
-    const dir = mkdtempSync(join(tmpdir(), 'bugtable-tombstone-'))
-    try {
-      const old = { createdAt: '2000-01-01T00:00:00Z', updatedAt: '2000-01-01T00:00:00Z' }
-      for (const task of [
-        { id: 'rec-nochange', source: 'lark-bugtable', status: 'no_change_needed', ...old },
-        { id: 'rec-closed', source: 'lark-bugtable', status: 'superseded', ...old },
-        { id: 'rec-done', source: 'lark-bugtable', status: 'done', ...old },
-        { id: 'chat-nochange', source: 'lark', status: 'no_change_needed', ...old },
-      ]) writeFileSync(join(dir, `${task.id}.json`), JSON.stringify(task))
-      const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
-      const removed = store.pruneTerminal({ olderThanMs: 60_000, statuses: ['done', 'no_change_needed', 'superseded'], keep: isBugtableTombstone })
-      assert.deepEqual(removed.sort(), ['chat-nochange', 'rec-done'], t3)
-      assert.equal(store.has('rec-nochange'), true, t3)
-      assert.equal(store.has('rec-closed'), true, t3)
-    } finally {
-      rmSync(dir, { recursive: true, force: true })
-    }
-  })
+  it('bug 表终局：人工结单与无需改动不入队，只认 bug 表来源的墓碑，清理时保留墓碑', () => runSteps([
+    ['人工结单（superseded）与无需改动一样是终局，poller 不入队', () => {
+      assert.equal(classifyBugTaskStatus('superseded'), 'no-change')
+      assert.equal(classifyBugPollAction({ recordStatus: '待处理', taskStatus: 'superseded', seen: false, rejectedValue: '验退' }), 'no-change')
+      assert.equal(classifyBugPollAction({ recordStatus: '待处理', taskStatus: undefined, seen: false, rejectedValue: '验退' }), 'enqueue')
+    }],
+    ['只有 bug 表来源的无需改动 / 人工结单算墓碑', () => {
+      assert.equal(isBugtableTombstone({ source: 'lark-bugtable', status: 'no_change_needed' }), true)
+      assert.equal(isBugtableTombstone({ source: 'lark-bugtable', status: 'superseded' }), true)
+      assert.equal(isBugtableTombstone({ source: 'lark-bugtable', status: 'done' }), false)
+      assert.equal(isBugtableTombstone({ source: 'lark', status: 'no_change_needed' }), false)
+    }],
+    ['定期清理留着墓碑，其它陈旧终态照删', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'bugtable-tombstone-'))
+      try {
+        const old = { createdAt: '2000-01-01T00:00:00Z', updatedAt: '2000-01-01T00:00:00Z' }
+        for (const task of [
+          { id: 'rec-nochange', source: 'lark-bugtable', status: 'no_change_needed', ...old },
+          { id: 'rec-closed', source: 'lark-bugtable', status: 'superseded', ...old },
+          { id: 'rec-done', source: 'lark-bugtable', status: 'done', ...old },
+          { id: 'chat-nochange', source: 'lark', status: 'no_change_needed', ...old },
+        ]) writeFileSync(join(dir, `${task.id}.json`), JSON.stringify(task))
+        const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+        const removed = store.pruneTerminal({ olderThanMs: 60_000, statuses: ['done', 'no_change_needed', 'superseded'], keep: isBugtableTombstone })
+        assert.deepEqual(removed.sort(), ['chat-nochange', 'rec-done'])
+        assert.equal(store.has('rec-nochange'), true)
+        assert.equal(store.has('rec-closed'), true)
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    }],
+  ]))
 })
 
 describe('gitTail', () => {

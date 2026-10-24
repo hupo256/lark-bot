@@ -5,18 +5,16 @@ import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
 import { ledgerAsOf, ledgerSummary, loadLedger, markLedgerItems, parsePendingItems, recordLedgerEvent, saveLedger, setStandingInstruction, syncLedgerFromPending, takeStandingInstructions, workKeyFor } from '../lib/lark-ledger.mjs'
+import { runSteps } from './support/steps.mjs'
 
 describe('对接台账（事实层）', () => {
-  it('台账条目解析、同步与事件推进、ledgerAsOf 回放', () => {
-    {
-      const t1 = 'pending 文档 → 条目：小标题编号与表格首列编号'
+  it('台账条目解析、同步与事件推进、ledgerAsOf 回放', () => runSteps([
+    ['pending 文档 → 条目：小标题编号与表格首列编号', () => {
       const items = parsePendingItems('对接-live后端-3.md', '## 需要你们做的\n\n### 1. 预约接口认不到 live_id\n\n### 2. pre 灌点播视频\n\n| O11 | 直播拉流：白名单已加 | x |\n| 不是 | 编号 |')
-      assert.deepEqual(items.map((i) => i.id), ['对接-live后端-3#1', '对接-live后端-3#2', '对接-live后端-3#O11'], t1)
-      assert.equal(items[0].title, '预约接口认不到 live_id', t1)
-    }
-
-    {
-      const t2 = '同步只补新条目不动状态；事件推进状态；新事建 new# 条目；工单键按条目排序'
+      assert.deepEqual(items.map((i) => i.id), ['对接-live后端-3#1', '对接-live后端-3#2', '对接-live后端-3#O11'])
+      assert.equal(items[0].title, '预约接口认不到 live_id')
+    }],
+    ['同步只补新条目不动状态；事件推进状态；新事建 new# 条目；工单键按条目排序', () => {
       const ledger = { items: {}, events: [] }
       const profile = { docIntakeDir: '/pending', root: '/' }
       const fs = { readDir: () => ['对接-live后端-3.md', 'README.md'], readFile: () => '### 1. 预约接口\n### 2. 灌视频\n' }
@@ -25,33 +23,31 @@ describe('对接台账（事实层）', () => {
       // 直接造条目（syncLedgerFromPending 依赖真实目录，这里用 parse 结果手工灌）
       for (const item of parsePendingItems('对接-live后端-3.md', fs.readFile())) ledger.items[item.id] = { ...item, status: 'open', updatedAt: 't0', lastEvent: null }
       const touched = recordLedgerEvent(ledger, { messageId: 'om_1', chatId: 'oc', sender: 'Ache', decision: 'api_reply', items: [{ id: '对接-live后端-3#2', transition: 'answer', note: '灌了 3 条' }, { id: 'new', transition: 'new', note: '非 mp4 怎么播' }], excerpt: 'x' })
-      assert.equal(touched.length, 2, t2)
-      assert.equal(ledger.items['对接-live后端-3#2'].status, 'answered', t2)
-      assert.ok(touched[1].startsWith('new#'), t2)
-      assert.equal(ledger.items[touched[1]].title, '非 mp4 怎么播', t2)
-      assert.equal(ledger.events.length, 1, t2)
-      assert.equal(workKeyFor({ items: [{ id: 'b' }, { id: 'a' }, { id: 'a' }], messageId: 'm' }), 'a+b', t2)
-      assert.equal(workKeyFor({ items: [], messageId: 'om_9' }), 'msg:om_9', t2)
+      assert.equal(touched.length, 2)
+      assert.equal(ledger.items['对接-live后端-3#2'].status, 'answered')
+      assert.ok(touched[1].startsWith('new#'))
+      assert.equal(ledger.items[touched[1]].title, '非 mp4 怎么播')
+      assert.equal(ledger.events.length, 1)
+      assert.equal(workKeyFor({ items: [{ id: 'b' }, { id: 'a' }, { id: 'a' }], messageId: 'm' }), 'a+b')
+      assert.equal(workKeyFor({ items: [], messageId: 'om_9' }), 'msg:om_9')
       markLedgerItems(ledger, ['对接-live后端-3#2'], 'applied', '工单 w1')
-      assert.equal(ledger.items['对接-live后端-3#2'].status, 'applied', t2)
+      assert.equal(ledger.items['对接-live后端-3#2'].status, 'applied')
       const summary = ledgerSummary(ledger)
-      assert.match(summary, /^- 对接-live后端-3#1｜预约接口｜open/m, t2)
-      assert.match(summary, /对接-live后端-3#2｜灌视频｜applied｜最近：applied by bot/, t2)
+      assert.match(summary, /^- 对接-live后端-3#1｜预约接口｜open/m)
+      assert.match(summary, /对接-live后端-3#2｜灌视频｜applied｜最近：applied by bot/)
       // 落盘 / 读回
       const dir = mkdtempSync(join(tmpdir(), 'lark-ledger-'))
       try {
         saveLedger('falive', ledger, { dir })
-        assert.equal(loadLedger('falive', { dir }).items['对接-live后端-3#2'].status, 'applied', t2)
-        assert.deepEqual(loadLedger('nope', { dir }), { items: {}, events: [] }, t2)
+        assert.equal(loadLedger('falive', { dir }).items['对接-live后端-3#2'].status, 'applied')
+        assert.deepEqual(loadLedger('nope', { dir }), { items: {}, events: [] })
       } finally {
         rmSync(dir, { recursive: true, force: true })
       }
       void syncLedgerFromPending
       void profile
-    }
-
-    {
-      const t3 = '回放用的 ledgerAsOf：后来才建的条目不出现，最近事件退回到当时那次，没事件的文档条目原样留（10-23 回放接上 10-22 的条目）'
+    }],
+    ['回放用的 ledgerAsOf：后来才建的条目不出现，最近事件退回到当时那次，没事件的文档条目原样留（10-23 回放接上 10-22 的条目）', () => {
       const ev = (at, id, transition, excerpt) => ({ at, messageId: `om_${at}`, sender: 'ou_x', items: [{ id, transition }], excerpt })
       const ledger = {
         items: {
@@ -63,13 +59,13 @@ describe('对接台账（事实层）', () => {
         events: [ev('2026-10-15T08:00:00Z', 'new#old', 'new', '当时的提问'), ev('2026-10-22T10:00:00Z', 'new#old', 'answer', '后来的答复'), ev('2026-10-22T16:00:00Z', 'new#late', 'new', '后来')],
       }
       const asOf = ledgerAsOf(ledger, '2026-10-16T09:00:00Z')
-      assert.deepEqual(Object.keys(asOf.items).sort(), ['new#old', '对接-live后端-3#1'], t3)
-      assert.deepEqual([asOf.items['new#old'].lastEvent.at, asOf.items['new#old'].lastEvent.transition, asOf.items['new#old'].lastEvent.note], ['2026-10-15T08:00:00Z', 'new', '当时的提问'], t3)
-      assert.equal(asOf.events.length, 1, t3)
+      assert.deepEqual(Object.keys(asOf.items).sort(), ['new#old', '对接-live后端-3#1'])
+      assert.deepEqual([asOf.items['new#old'].lastEvent.at, asOf.items['new#old'].lastEvent.transition, asOf.items['new#old'].lastEvent.note], ['2026-10-15T08:00:00Z', 'new', '当时的提问'])
+      assert.equal(asOf.events.length, 1)
       assert.equal(ledger.items['new#old'].lastEvent.at, '2026-10-22T10:00:00Z', '不改原台账')
-      assert.equal(ledgerAsOf(ledger, ''), ledger, t3)
-    }
-  })
+      assert.equal(ledgerAsOf(ledger, ''), ledger)
+    }],
+  ]))
 })
 
 describe('待命指令闭环', () => {

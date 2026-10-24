@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import { describe, it } from 'node:test'
+import { runSteps } from './support/steps.mjs'
 
 // gateway 纯度闸（第 1 批）：gateway 进程只做接入 + 存储 + HTTP。日报曾在它里面 spawnSync 跑 git / 探针，把 HTTP、
 // 长连接、轮询全冻住几分钟；「收到」曾在它里面起 claude。这里把 lark-gateway.mjs 的 import 闭包整个扫一遍，
@@ -27,26 +28,21 @@ const WORKER_ONLY = /lib\/lark-(daily-report|ai-executor|doc|worker-run|worker-g
 
 describe('gateway 纯度闸', () => {
   const closure = closureOf('lark-gateway.mjs')
-  it('gateway 闭包无同步子进程与模型调用，child_process 只在固定模块，worker 专属模块不进闭包', () => {
-    {
-      // 闭包里没有同步子进程、没有模型调用
+  it('gateway 闭包无同步子进程与模型调用，child_process 只在固定模块，worker 专属模块不进闭包', () => runSteps([
+    ['闭包里没有同步子进程、没有模型调用', () => {
       const offenders = closure.filter((file) => {
         const source = stripComments(readFileSync(join(root, file), 'utf8'))
         return /\b(spawnSync|execSync|execFileSync)\b/.test(source) || /spawn\(['"](claude|codex|pi|cursor-agent)['"]/.test(source)
       })
       assert.deepEqual(offenders, [], `gateway 闭包里出现同步子进程 / 模型调用：${offenders.join('、')}`)
-    }
-
-    {
-      // node:child_process 只允许在固定几个模块里出现
+    }],
+    ['node:child_process 只允许在固定几个模块里出现', () => {
       const offenders = closure.filter((file) => /node:child_process/.test(stripComments(readFileSync(join(root, file), 'utf8'))) && !CHILD_PROCESS_ALLOWED.has(file))
       assert.deepEqual(offenders, [], `child_process 越界：${offenders.join('、')}`)
-    }
-
-    {
-      // worker 专属模块不进 gateway 闭包
+    }],
+    ['worker 专属模块不进 gateway 闭包', () => {
       const offenders = closure.filter((file) => WORKER_ONLY.test(file))
       assert.deepEqual(offenders, [], `worker 模块进了 gateway：${offenders.join('、')}`)
-    }
-  })
+    }],
+  ]))
 })

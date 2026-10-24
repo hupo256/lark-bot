@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
+import { runSteps } from './support/steps.mjs'
 
 import {
   annotateLedgerHeadings,
@@ -33,17 +34,6 @@ import {
   tableMismatches,
   validateStatusData,
 } from '../lib/lark-daily-ledger.mjs'
-
-// 合并后的 it 里每段用 step 包住：段内作用域独立，失败时报错信息带上原用例标题
-const step = async (name, fn) => {
-  try {
-    await fn()
-  } catch (error) {
-    error.message = `【${name}】${error.message}`
-    error.stack = `【${name}】${error.stack}`
-    throw error
-  }
-}
 
 const ROWS = [
   { no: 1, feature: '用户资料', owner: 'henry', status: '🟡' },
@@ -80,17 +70,16 @@ describe('工作日', () => {
 
 describe('逐功能状态', () => {
   const text = `# 日报\n\n正文\n\n<!-- STATUS_JSON\n${JSON.stringify(statusData)}\nSTATUS_JSON -->\n`
-  it('剥离状态块、校验齐全与取值、进度按代码状态算（排除 #54、沿用昨天状态、计数与表格不一致）', async () => {
-    await step('剥离 JSON 块；缺失 / 坏 JSON 给错误', async () => {
+  it('剥离状态块、校验齐全与取值、进度按代码状态算（排除 #54、沿用昨天状态、计数与表格不一致）', () => runSteps([
+    ['剥离 JSON 块；缺失 / 坏 JSON 给错误', () => {
       const { doc, data, error } = splitStatusBlock(text)
       assert.equal(error, null)
       assert.equal(doc, '# 日报\n\n正文')
       assert.equal(data.features.length, 6)
       assert.match(splitStatusBlock('# x').error, /没有逐功能状态/)
       assert.match(splitStatusBlock('# x\n<!-- STATUS_JSON\n{bad\nSTATUS_JSON -->').error, /解析失败/)
-    })
-
-    await step('校验齐全与取值', async () => {
+    }],
+    ['校验齐全与取值', () => {
       const { statuses, errors, resolved } = validateStatusData(statusData, ROWS)
       assert.deepEqual(errors, [])
       assert.equal(statuses.get(17).pre, '未验证')
@@ -98,9 +87,8 @@ describe('逐功能状态', () => {
       const bad = validateStatusData({ features: [{ no: 1, status: '好' }] }, ROWS)
       assert.match(bad.errors.join('；'), /#1 状态「好」不合法/)
       assert.match(bad.errors.join('；'), /缺 6 个功能的状态/)
-    })
-
-    await step('进度按代码状态算，排除 #54', async () => {
+    }],
+    ['进度按代码状态算，排除 #54', () => {
       const { statuses } = validateStatusData(statusData, ROWS)
       const progress = computeProgress({ rows: ROWS, statuses })
       assert.equal(progress.total, 5)
@@ -113,8 +101,8 @@ describe('逐功能状态', () => {
       assert.deepEqual(keepUnchangedStatuses(sticky, null), [])
       assert.equal(renderCounts(progress), '**计数**（不含 #54）：✅ 3 项（aven 1、adrian 1、henry 1）。未完成 2 项：\n- aven 1 项：#4\n- adrian 1 项：#17')
       assert.deepEqual(tableMismatches(ROWS, statuses).map((item) => `${item.no}:${item.table}→${item.code}`), ['1:🟡→✅', '18:🟡→✅'])
-    })
-  })
+    }],
+  ]))
 })
 
 const DOC = `# Falive Web 一期 · 日报（2026-10-15）
@@ -148,8 +136,8 @@ const DOC = `# Falive Web 一期 · 日报（2026-10-15）
 
 describe('回写与台账', () => {
   const { statuses } = validateStatusData(statusData, ROWS)
-  it('正文回写：状态列按代码回写（合并行全 ✅ 才 ✅）、总体进度与计数块按脚本数字替换', async () => {
-    await step('状态列按代码回写，合并行全 ✅ 才 ✅', async () => {
+  it('正文回写：状态列按代码回写（合并行全 ✅ 才 ✅）、总体进度与计数块按脚本数字替换', () => runSteps([
+    ['状态列按代码回写，合并行全 ✅ 才 ✅', () => {
       const out = applyStatusColumn(DOC, statuses)
       assert.match(out, /\| 1 \| 用户资料 \| henry \| ✅ \|/)
       assert.match(out, /\| 4 \| 预约 \| aven \| ⬜ \|/)
@@ -161,9 +149,8 @@ describe('回写与台账', () => {
       assert.match(applyStatusColumn(DOC.replace('| 4 | 预约 | aven | ✅ | x | y |', '| 4 | 预约 | aven | ✅ |  | y |'), statuses), /\| 4 \| 预约 \| aven \| ⬜ \| -- \| y \|/)
       assert.deepEqual(expandNos('17–20'), [17, 18, 19, 20])
       assert.deepEqual(expandNos('**#9**'), [9])
-    })
-
-    await step('总体进度与计数块按脚本数字替换', async () => {
+    }],
+    ['总体进度与计数块按脚本数字替换', () => {
       const out = applyProgress(DOC, computeProgress({ rows: ROWS, statuses }))
       assert.match(out, /^## 总体进度：60\.0%（✅ 3 \/ 5）$/m)
       // 一节标题写全量项数时注明不计哪几项，和分母对上；重跑不重复追加
@@ -174,10 +161,10 @@ describe('回写与台账', () => {
       assert.match(out, /\*\*计数\*\*（不含 #54）：✅ 3 项/)
       assert.doesNotMatch(out, /谁 0 项/)
       assert.match(out, /- adrian 1 项：#17\n\n## 二、/)
-    })
-  })
-  it('台账对比（有依据算删 / 无故消失、标题剩余行数）、二节整节替换、模板取前一天完整版', async () => {
-    await step('昨天有今天没：有依据算删，没依据算无故消失；标题带剩余行数', async () => {
+    }],
+  ]))
+  it('台账对比（有依据算删 / 无故消失、标题剩余行数）、二节整节替换、模板取前一天完整版', () => runSteps([
+    ['昨天有今天没：有依据算删，没依据算无故消失；标题带剩余行数', () => {
       const previous = DOC.replace('| 发邮件部署 pre | x | **aven** |', '| 发邮件部署 pre | x | **aven** |\n| help 模块改名「聊天」 | x | **henry** |\n| 分支流程 | x | 待确认 |')
       const diff = diffLedger({ previous, current: DOC, resolved: validateStatusData(statusData, ROWS).resolved })
       const three = diff.find((item) => item.name === '三')
@@ -191,16 +178,14 @@ describe('回写与台账', () => {
       assert.match(out, /^## 三、需要再跟进的工作（剩 1 行，今日删 1 行）$/m)
       const cleared = annotateLedgerHeadings(DOC.replace('| 发邮件部署 pre | x | **aven** |\n', ''), diffLedger({ previous: DOC, current: DOC.replace('| 发邮件部署 pre | x | **aven** |\n', ''), resolved: [{ section: '三', key: '发邮件部署 pre' }] }))
       assert.match(cleared, /^## 三、.*（剩 0 行，今日删 1 行，已清零）$/m)
-    })
-
-    await step('二节整节替换成给定行；没有二节就插到三节前面', async () => {
+    }],
+    ['二节整节替换成给定行；没有二节就插到三节前面', () => {
       const out = replaceSection(DOC, '## 二、', ['## 二、测试 Bug', '', '- 共 3 个'])
       assert.match(out, /\n## 二、测试 Bug\n\n- 共 3 个\n\n## 三、/)
       assert.doesNotMatch(out, /reserveMatch/)
       assert.match(replaceSection('# t\n\n## 一、x\n\n## 三、y\n', '## 二、', ['## 二、测试 Bug']), /## 一、x\n\n## 二、测试 Bug\n\n## 三、y/)
-    })
-
-    await step('模板取前一天（或更早）的完整版', async () => {
+    }],
+    ['模板取前一天（或更早）的完整版', () => {
       const dir = mkdtempSync(join(tmpdir(), 'ledger-'))
       try {
         for (const day of ['2026-10-13', '2026-10-14', '2026-10-15']) writeFileSync(join(dir, `FaliveWeb日报-${day}-完整版.md`), day)
@@ -210,30 +195,29 @@ describe('回写与台账', () => {
       } finally {
         rmSync(dir, { recursive: true, force: true })
       }
-    })
-  })
+    }],
+  ]))
 })
 
 describe('网络实测（注入 fetch）', () => {
   const response = (status, body) => ({ status, text: async () => body })
-  it('pre 构建时间取自入口 JS、拉流 404 / 非播放列表 / 超时都算播不了', async () => {
-    await step('pre 构建时间取自入口 JS 的 VITE_BUILD_TIME', async () => {
+  it('pre 构建时间取自入口 JS、拉流 404 / 非播放列表 / 超时都算播不了', () => runSteps([
+    ['pre 构建时间取自入口 JS 的 VITE_BUILD_TIME', async () => {
       const fetchImpl = async (url) => (url.endsWith('/') ? response(200, '<script src="/assets/index-DTxx_yMcN.js">') : response(200, 'a={VITE_BUILD_TIME:1791903942562,b:1}'))
       const out = await fetchSiteBuildTime({ siteUrl: 'https://pre.example.com/', fetchImpl })
       assert.equal(out.ok, true)
       assert.equal(out.ms, 1791903942562)
       assert.equal((await fetchSiteBuildTime({ siteUrl: 'https://pre.example.com/', fetchImpl: async () => response(200, '<html>') })).ok, false)
-    })
-
-    await step('拉流：404 / 非播放列表 / 超时都算播不了', async () => {
+    }],
+    ['拉流：404 / 非播放列表 / 超时都算播不了', async () => {
       assert.equal((await checkStreamUrl({ url: 'https://cdn/x.flv', fetchImpl: async () => response(404, '') })).ok, false)
       assert.equal((await checkStreamUrl({ url: 'https://cdn/x.flv', fetchImpl: async () => response(206, '') })).ok, true)
       assert.equal((await checkStreamUrl({ url: 'https://cdn/x.m3u8?t=1', fetchImpl: async () => response(200, '<html>') })).ok, false)
       assert.equal((await checkStreamUrl({ url: 'https://cdn/x.m3u8', fetchImpl: async () => response(200, '#EXTM3U\n#EXTINF') })).ok, true)
       const hang = (url, { signal }) => new Promise((_, reject) => signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' }))))
       assert.match((await checkStreamUrl({ url: 'https://cdn/x.m3u8', fetchImpl: hang, timeoutMs: 20 })).detail, /无响应/)
-    })
-  })
+    }],
+  ]))
 })
 
 describe('负责人拍板关闭', () => {
@@ -249,8 +233,8 @@ describe('负责人拍板关闭', () => {
   ].join('\n')
   const closures = { features: [{ no: 2, status: '✅', pre: '能用', by: 'aven', at: '2026-10-16', note: '' }], rows: [{ section: '三', key: '发 pre 部署邮件', by: 'aven', at: '2026-10-16' }, { section: '三', key: '#2 收尾', by: 'aven', at: '2026-10-16' }] }
 
-  it('负责人拍板关闭：台账行删除与依据、功能状态覆盖、高亮框数字回写、拍板文件缺失或损坏', async () => {
-    await step('按首列删掉台账行，只给昨天还在的行登记依据', async () => {
+  it('负责人拍板关闭：台账行删除与依据、功能状态覆盖、高亮框数字回写、拍板文件缺失或损坏', () => runSteps([
+    ['按首列删掉台账行，只给昨天还在的行登记依据', () => {
       const previous = doc.split('\n').filter((line) => !line.includes('#2 收尾')).join('\n')
       const out = applyLedgerClosures({ markdown: doc, previous, closures })
       assert.ok(!out.doc.includes('发 pre 部署邮件'))
@@ -258,22 +242,19 @@ describe('负责人拍板关闭', () => {
       assert.ok(out.doc.includes('测试房间推流'))
       assert.deepEqual(out.resolved.map((item) => item.key), ['发 pre 部署邮件'])
       assert.match(out.resolved[0].evidence, /aven 2026-10-16 拍板关闭/)
-    })
-
-    await step('功能拍板覆盖模型状态', async () => {
+    }],
+    ['功能拍板覆盖模型状态', () => {
       const statuses = new Map([[2, { no: 2, status: '🟠', pre: '看不到', reason: '手机号注册报错', evidence: 'x' }]])
       applyFeatureClosures(statuses, closures)
       assert.equal(statuses.get(2).status, '✅')
       assert.equal(statuses.get(2).pre, '能用')
       assert.equal(statuses.get(2).reason, '')
-    })
-
-    await step('高亮框数字按脚本回写，句子其它部分不动', async () => {
+    }],
+    ['高亮框数字按脚本回写，句子其它部分不动', () => {
       const out = applyCalloutCounts(doc, { byOwner: { aven: { total: 28, done: 27 } } })
       assert.ok(out.includes('<b>aven：</b>负责 28 项，27 项 ✅；其中 1 项看不到'))
-    })
-
-    await step('没有拍板文件 / 文件坏了都按空处理', async () => {
+    }],
+    ['没有拍板文件 / 文件坏了都按空处理', () => {
       const dir = mkdtempSync(join(tmpdir(), 'closures-'))
       try {
         assert.deepEqual(loadOwnerClosures(dir), { features: [], rows: [] })
@@ -287,13 +268,13 @@ describe('负责人拍板关闭', () => {
       } finally {
         rmSync(dir, { recursive: true, force: true })
       }
-    })
-  })
+    }],
+  ]))
 })
 
 describe('走查不进日报（aven 2026-10-20）', () => {
-  it('非问题不进日报：走查（10-20）、部署 / 复测 / pre 看不到效果、合不合 pre（10-21）', async () => {
-    await step('走查事项整行删；其余行只删提到走查的分句，高亮框标签保持完整', async () => {
+  it('非问题不进日报：走查（10-20）、部署 / 复测 / pre 看不到效果、合不合 pre（10-21）', () => runSteps([
+    ['走查事项整行删；其余行只删提到走查的分句，高亮框标签保持完整', () => {
       const doc = [
         '<p><b>henry：</b>负责 10 项，10 项 ✅。其中 2 项 pre 上还看不到效果：#32 测试房间 260 没在推流。#23 #25 pre 还没走查。</p>',
         '<p><b>aven：</b>负责 5 项；设计走查：搜索页还没做。</p>',
@@ -313,9 +294,8 @@ describe('走查不进日报（aven 2026-10-20）', () => {
         '普通行',
       ].join('\n'))
       assert.equal(stripNonIssues('没有相关内容\n| a | b |'), '没有相关内容\n| a | b |')
-    })
-
-    await step('部署 / 复测 / pre 看不到效果也不进日报（aven 2026-10-21）；后端「回调有没有部署」这类真问题不删', async () => {
+    }],
+    ['部署 / 复测 / pre 看不到效果也不进日报（aven 2026-10-21）；后端「回调有没有部署」这类真问题不删', () => {
       const doc = [
         '<p><b>adrian：</b>负责 10 项，4 项 ✅（#12 #13），这 4 项在部署版上都还没复测。#14 补签回 400（G3）。</p>',
         '<p><b>broker：</b>负责 3 项，2 项 ✅。#49 测试号自己没有存档，pre 没验。</p>',
@@ -333,24 +313,22 @@ describe('走查不进日报（aven 2026-10-20）', () => {
         '| #18 回调 | G5 服务端回调有没有部署 | Go 后端 |',
         '| 47 | 入口 | eric | ⬜ | 代码已接，Go 回 500（G2） | Go 后端 |',
       ].join('\n'))
-    })
-
-    await step('合不合 pre 也不是问题（aven 2026-10-21）：标签里带「未合 pre」整行删，正文里的分句删', async () => {
+    }],
+    ['合不合 pre 也不是问题（aven 2026-10-21）：标签里带「未合 pre」整行删，正文里的分句删', () => {
       assert.equal(stripNonIssues(['- **aven（本地已做、未合 pre）**：更正一期问题清单', '- **eric**：修正成功码判断；今天没合 pre', '<p><b>aven：</b>负责 30 项，30 项 ✅</p>'].join('\n')),
         ['- **eric**：修正成功码判断。', '<p><b>aven：</b>负责 30 项，30 项 ✅</p>'].join('\n'))
-    })
-  })
+    }],
+  ]))
 })
 
 describe('精简 / 空表补 -- / 高亮框去掉已完成功能的分句（aven 2026-10-21）', () => {
-  it('10-21 精简：高亮框只删运维 / 外部阻塞、超长列进核对单、三节空表补 --、高亮框去掉已完成分句', async () => {
-    await step('高亮框只删「运维」「外部阻塞」两行，负责人行不动', async () => {
+  it('10-21 精简：高亮框只删运维 / 外部阻塞、超长列进核对单、三节空表补 --、高亮框去掉已完成分句', () => runSteps([
+    ['高亮框只删「运维」「外部阻塞」两行，负责人行不动', () => {
       const doc = ['<callout>', '  <p><b>aven：</b>负责 30 项，30 项 ✅</p>', '  <p><b>运维：</b>等 O1</p>', '  <p><b>外部阻塞：</b>Go 后端 G2</p>', '</callout>', '运维：正文里的不动'].join('\n')
       assert.equal(stripCalloutExtras(doc), ['<callout>', '  <p><b>aven：</b>负责 30 项，30 项 ✅</p>', '</callout>', '运维：正文里的不动'].join('\n'))
       assert.equal(stripCalloutExtras('<callout><p><b>aven：</b>x</p><p><b>运维：</b>y</p></callout>'), '<callout><p><b>aven：</b>x</p></callout>')
-    })
-
-    await step('超长单元格和高亮框行列进核对单，不改正文；标记和反引号不计字数', async () => {
+    }],
+    ['超长单元格和高亮框行列进核对单，不改正文；标记和反引号不计字数', () => {
       const long = '字'.repeat(81)
       const doc = [
         `<callout><p><b>henry：</b>${'话'.repeat(101)}</p></callout>`,
@@ -361,9 +339,8 @@ describe('精简 / 空表补 -- / 高亮框去掉已完成功能的分句（aven
       const [problem] = checkVerbose(doc)
       assert.match(problem, /^超过字数上限 2 处（单元格 80 字、高亮框 100 字）：高亮框 henry（101 字）、一节 #1（81 字）$/)
       assert.deepEqual(checkVerbose('## 一、x\n\n| # | a |\n|---|---|\n| 1 | 短 |'), [])
-    })
-
-    await step('三节删空的表补一行 --，不算台账行；有行的表、一节 / 二节的表不动，已有 -- 行不重复补', async () => {
+    }],
+    ['三节删空的表补一行 --，不算台账行；有行的表、一节 / 二节的表不动，已有 -- 行不重复补', () => {
       const doc = [
         '## 一、功能', '', '| # | a |', '|---|---|', '',
         '## 二、测试 Bug', '', '| 功能 | 缺什么 |', '|---|---|', '',
@@ -375,9 +352,8 @@ describe('精简 / 空表补 -- / 高亮框去掉已完成功能的分句（aven
       assert.equal(out.split('| -- | -- | -- |').length - 1, 2)
       assert.match(out, /## 二、测试 Bug\n\n\| 功能 \| 缺什么 \|\n\|---\|---\|\n\n/)
       assert.deepEqual(sectionTableRows(out, '## 三、').map((row) => row.cells[0]), ['#6'])
-    })
-
-    await step('全 ✅ 只留负责 / ✅；部分完成只删提到已 ✅ 编号的分句，补回「没完成的」；没编号的分句保留', async () => {
+    }],
+    ['全 ✅ 只留负责 / ✅；部分完成只删提到已 ✅ 编号的分句，补回「没完成的」；没编号的分句保留', () => {
       const statuses = new Map([[16, { status: '✅' }], [17, { status: '🟠' }], [18, { status: '🟠' }], [19, { status: '✅' }], [20, { status: '✅' }], [45, { status: '✅' }]])
       const doc = [
         '<p><b>aven：</b>负责 30 项，30 项 ✅；没完成的 #45 卡在常见问答字段</p>',
@@ -387,6 +363,6 @@ describe('精简 / 空表补 -- / 高亮框去掉已完成功能的分句（aven
         '<p><b>aven：</b>负责 30 项，30 项 ✅</p>',
         '<p><b>adrian：</b>负责 10 项，5 项 ✅；没完成的 #17–20 卡在 L2；等产品答复</p>',
       ].join('\n'))
-    })
-  })
+    }],
+  ]))
 })
