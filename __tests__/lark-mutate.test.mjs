@@ -60,6 +60,9 @@ describe('变异测试工具（scripts/mutate.mjs）', () => {
       assert.equal(isAccepted(site, [entry]), true)
       assert.equal(isAccepted(site, [{ ...entry, op: '&& → ||' }]), false)
       assert.equal(isAccepted(site, [{ ...entry, file: 'lib/y.mjs' }]), false)
+      const [onA, onB] = findSites('lib/x.mjs', 'if (!p || p.d || !p.n) go()')
+      const one = { file: 'lib/x.mjs', code: 'if (!p || p.d || !p.n) go()', op: '|| → &&', col: onA.col, reason: '只豁免第一处' }
+      assert.deepEqual([isAccepted(onA, [one]), isAccepted(onB, [one])], [true, false], '带 col 只豁免该行那一处')
       const pool = Array.from({ length: 50 }, (_, index) => ({ id: index }))
       const first = sampleSites(pool, 10, 3)
       assert.deepEqual(first, sampleSites(pool, 10, 3))

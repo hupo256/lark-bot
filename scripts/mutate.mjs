@@ -7,6 +7,7 @@
  *   node scripts/mutate.mjs --diff <基线>          只扫相对基线改动 / 新增的 lib 行（合并前必跑；有未豁免的存活就退出 1）
  *   node scripts/mutate.mjs --files lib/a.mjs,...  扫指定模块的全部变异点
  *   node scripts/mutate.mjs --sample 80 [--seed 7] 全 lib 随机抽样摸底
+ *   node scripts/mutate.mjs --all                  全 lib 全部变异点（很慢，几千个；一般用不到）
  *   node scripts/mutate.mjs --only <清单.json>       只复跑清单里的变异点（--json 的输出或其子集），补测后验证用
  *   通用：--lanes N（并行路数，默认按核数最多 3，每路测试并发 2）  --json <文件>（存完整结果）  --list（只列变异点不跑）  --strict（非 diff 模式有存活也退出 1）
  *   排查：MUTATE_DEBUG=1 显示测试输出（基线红时看原因）
@@ -17,7 +18,7 @@
 
 import { spawn, spawnSync } from 'node:child_process'
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { availableParallelism, tmpdir } from 'node:os'
+import { availableParallelism, setPriority, tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { importsOf, pickTests } from './test-affected.mjs'
@@ -118,7 +119,8 @@ export const changedLinesFromDiff = (diffText) => {
 }
 
 export const siteKey = (site) => `${site.file}｜${site.code}｜${site.from.trim()} → ${site.to.trim()}`
-export const isAccepted = (site, accepted = []) => accepted.some((item) => item.file === site.file && item.code === site.code && item.op === `${site.from.trim()} → ${site.to.trim()}`)
+// 豁免按文件 + 代码行文本 + 算子匹配；带 col 时只豁免该行那一处（同一行有多处同算子时用）
+export const isAccepted = (site, accepted = []) => accepted.some((item) => item.file === site.file && item.code === site.code && item.op === `${site.from.trim()} → ${site.to.trim()}` && (item.col === undefined || item.col === site.col))
 
 export const sampleSites = (sites, n, seed = 7) => {
   let state = Number(seed) || 7
@@ -140,6 +142,8 @@ const parseArgs = (argv) => {
     json: value('--json'),
     only: value('--only'),
     list: argv.includes('--list'),
+    all: argv.includes('--all'),
+    help: argv.includes('--help') || argv.includes('-h'),
     strict: argv.includes('--strict'),
   }
 }
@@ -149,9 +153,9 @@ const libFiles = () => git(['ls-files', '-co', '--exclude-standard', 'lib']).spl
 
 const collectSites = (opts) => {
   if (opts.only) {
-    // 只复跑清单里的变异点（--json 的输出或其子集）；按文件 + 代码行文本 + 列 + 算子重新定位，行号漂移不影响。
+    // 只复跑清单里的变异点（--json 的输出或其子集）；按文件 + 行号 + 列 + 代码行文本 + 算子精确定位（补测期间 lib 不该变；变了就重扫）。
     const wanted = JSON.parse(readFileSync(resolve(opts.only), 'utf8'))
-    const key = (site) => `${site.file}｜${site.code}｜${site.col}｜${site.from}｜${site.to}`
+    const key = (site) => `${site.file}｜${site.line}｜${site.col}｜${site.code}｜${site.from}｜${site.to}`
     const keys = new Set(wanted.map(key))
     return [...new Set(wanted.map((site) => site.file))].flatMap((file) => findSites(file, readFileSync(join(root, file), 'utf8')).filter((site) => keys.has(key(site))))
   }
@@ -170,13 +174,30 @@ const collectSites = (opts) => {
 
 const runNodeTests = (cwd, tests) => new Promise((done) => {
   if (!tests.length) return done({ failed: false })
-  const child = spawn(process.execPath, ['--test', '--test-concurrency=2', ...tests], { cwd, env: { ...process.env, LARK_CLI_BIN: '/usr/bin/false' }, stdio: process.env.MUTATE_DEBUG ? 'inherit' : 'ignore' })
-  const timer = setTimeout(() => child.kill('SIGKILL'), 120_000)
-  child.on('close', (code, signal) => { clearTimeout(timer); done({ failed: code !== 0, timedOut: signal === 'SIGKILL' }) })
+  // 单独进程组：超时整组杀掉。只杀 node --test 主进程会留下孤儿（10-24：变异让测试卡死循环，16 个孤儿空转一小时吃掉 5 个核）
+  const child = spawn(process.execPath, ['--test', '--test-concurrency=2', ...tests], { cwd, detached: true, env: { ...process.env, LARK_CLI_BIN: '/usr/bin/false' }, stdio: process.env.MUTATE_DEBUG ? 'inherit' : 'ignore' })
+  const killGroup = () => { try { process.kill(-child.pid, 'SIGKILL') } catch {} }
+  let timedOut = false
+  const timer = setTimeout(() => { timedOut = true; killGroup() }, 120_000)
+  child.on('close', (code) => { clearTimeout(timer); killGroup(); done({ failed: code !== 0 || timedOut, timedOut }) })
 })
 
+const KNOWN_FLAGS = new Set(['--diff', '--files', '--sample', '--seed', '--lanes', '--json', '--only', '--list', '--strict', '--all', '--help', '-h'])
+const usage = () => readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(2, 14).map((line) => line.replace(/^ \*\s?/, '')).join('\n')
+
 const main = async () => {
-  const opts = parseArgs(process.argv.slice(2))
+  const argv = process.argv.slice(2)
+  const opts = parseArgs(argv)
+  const unknown = argv.filter((arg) => arg.startsWith('-') && !KNOWN_FLAGS.has(arg))
+  // 不带模式 / 未知参数 / --help：只打印用法，绝不默认去跑全 lib（10-24 误跑 --help 起了 4000 多个变异）
+  if (opts.help || unknown.length || !(opts.diff || opts.files?.length || opts.sample || opts.only || opts.all)) {
+    if (unknown.length) console.log(`不认识的参数：${unknown.join(' ')}\n`)
+    console.log(usage())
+    process.exitCode = opts.help ? 0 : 2
+    return
+  }
+  // 自己和所有子进程降到低优先级：后台慢慢跑，不抢前台与 bot 本身（子进程继承 nice 值）
+  try { setPriority(15) } catch {}
   const accepted = existsSync(join(root, ACCEPTED_FILE)) ? JSON.parse(readFileSync(join(root, ACCEPTED_FILE), 'utf8')) : []
   const sites = collectSites(opts)
   if (opts.list) return void sites.forEach((site) => console.log(`${site.file}:${site.line}:${site.col}  ${site.from.trim()} → ${site.to.trim()}  ${site.code.slice(0, 100)}`))

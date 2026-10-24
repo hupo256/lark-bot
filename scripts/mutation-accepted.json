@@ -3,6 +3,7 @@
     "file": "lib/lark-routes.mjs",
     "code": "if (!profile || profile.isDefault || !profile.notifyChatId) return sendJson(res, 404, { ok: false, error: 'repo or notifyChatId not found' })",
     "op": "|| → &&",
+    "col": 21,
     "reason": "等价（针对第一个 `!profile ||`）：repoProfile() 查不到时回落默认仓，buildRepoRegistry 无条件写入默认仓（lib/lark-repo-profile.mjs），profile 永不为空；默认仓 normalizeRepoProfile 固定 notifyChatId: null（不读配置里的 notifyChatId），isDefault 蕴含 !notifyChatId。改成 `!profile && profile.isDefault` 后整式仍等于 `!profile.notifyChatId`，行为不变。同一行第二个 `||`（isDefault || !notifyChatId → &&）不等价，已由 lark-routes-intake「本机脚本发私聊」段钉住（rvwnonotify 404）。"
   },
   {

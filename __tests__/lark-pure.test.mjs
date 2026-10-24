@@ -14,7 +14,7 @@ import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
-import { eachCase, runSteps } from './support/steps.mjs'
+import { eachCase, runSteps, waitUntil } from './support/steps.mjs'
 
 import { handleStatusUpdate, resolveReceiptOutcome, retryPendingReceipts, sendQueuedReceipt } from '../lib/lark-status.mjs'
 import {
@@ -1924,7 +1924,7 @@ describe('任务回执持久化重试', () => {
         store,
         sendMessage: () => new Promise((resolve) => { releaseSend = resolve }),
       })
-      while (!releaseSend) await new Promise((resolve) => setImmediate(resolve))
+      await waitUntil(() => releaseSend, { what: 'sendMessage 被调用' })
       store.get('t').pendingReceipt = {
         status: 'done',
         result: '新完成',
@@ -1963,7 +1963,7 @@ describe('任务回执持久化重试', () => {
         epoch: 1,
         sendMessage: () => new Promise((resolve) => { releaseSend = resolve }),
       })
-      while (!releaseSend) await new Promise((resolve) => setImmediate(resolve))
+      await waitUntil(() => releaseSend, { what: 'sendMessage 被调用' })
       store.retry('t')
       releaseSend({ ok: true, messageId: 'om_old' })
       const outcome = await updating

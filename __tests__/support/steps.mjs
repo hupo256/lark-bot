@@ -28,3 +28,13 @@ export const runSteps = async (steps, { before, after } = {}) => {
 
 // 用例表：每一行都跑，全部失败一起报；行的 name 是原用例标题。
 export const eachCase = (cases, fn, hooks) => runSteps(cases.map((item, index) => [item?.name || `第 ${index + 1} 行`, () => fn(item)]), hooks)
+
+// 等某个条件成立（如桩函数被调用），有上限：等不到就报错，不空转。
+// 10-24：无上限的 while (!x) await setImmediate 在代码被改坏时会无限循环，变异扫描留下的孤儿进程空转了一小时。
+export const waitUntil = async (check, { ticks = 10_000, what = '条件' } = {}) => {
+  for (let i = 0; i < ticks; i += 1) {
+    if (check()) return
+    await new Promise((resolve) => setImmediate(resolve))
+  }
+  throw new assert.AssertionError({ message: `等了 ${ticks} 轮还没等到：${what}` })
+}

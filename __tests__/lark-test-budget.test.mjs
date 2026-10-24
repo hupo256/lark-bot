@@ -41,7 +41,7 @@ export const unawaitedStepCalls = (source) => {
 const LOCAL_STEP_HELPER = /^\s*(const|let|function)\s+(step|freshStep|scenario|seg)\b/m
 
 describe('合并用例的执行器与调用约束', () => {
-  it('runSteps 每段都跑、失败全报带原标题、清理照跑；eachCase 每行都跑；调用处都 await、没有本地 step', async () => {
+  it('runSteps 每段都跑、失败全报带原标题、清理照跑；eachCase 每行都跑；调用处都 await、没有本地 step、没有无上限空转等待', async () => {
     const ran = []
     const error = await runSteps([
       ['段一', () => { ran.push('1'); assert.equal(1, 2) }],
@@ -69,5 +69,7 @@ describe('合并用例的执行器与调用约束', () => {
     assert.deepEqual(bad, [], 'runSteps / eachCase 调用必须 return / await')
     const local = files.filter((name) => LOCAL_STEP_HELPER.test(readFileSync(join(dir, name), 'utf8')))
     assert.deepEqual(local, [], '合并用例统一用 support/steps.mjs，不另写本地 step / freshStep / scenario / seg')
+    const spinning = files.filter((name) => /while \(!?[\w.]+\) await/.test(readFileSync(join(dir, name), 'utf8')))
+    assert.deepEqual(spinning, [], '等桩被调用用 support/steps.mjs 的 waitUntil（有上限），不写无上限的 while 空转（10-24 变异扫描留下空转孤儿进程）')
   })
 })
