@@ -13,7 +13,8 @@ import { runSteps } from './support/steps.mjs'
 
 import { isDefectCandidate } from '../lib/lark-defect-rules.mjs'
 import { findCompletionContradiction, findUnverifiedPreClaim, schemaVerifyVerdict } from '../lib/lark-completion-rule.mjs'
-import { buildValidationRequirements } from '../lib/lark-worker-prompts.mjs'
+import { buildTaskPrompt, buildValidationRequirements } from '../lib/lark-worker-prompts.mjs'
+import { registerRepoProfiles, resetRepoProfiles } from '../lib/lark-repo-profile.mjs'
 import { buildDocIntakeText, changedDocPaths, docArchiveDirs, planDocIntakeCommit, restoreKeptDocs } from '../lib/lark-doc-archive.mjs'
 import { integrationReport, readableBranchAfterMerge, shouldUseIntegrationBranch } from '../lib/lark-task-finish.mjs'
 import { resolveScopeGate } from '../lib/lark-scope-contract.mjs'
@@ -185,6 +186,20 @@ describe('C5 / C8 / C9 文档存档', () => {
         assert.deepEqual(restoreKeptDocs({ cwd: dir, archived }), [], '没改过的 #kept 不动')
         assert.deepEqual(changedDocPaths({ cwd: join(dir, 'nope'), paths: ['x.md'] }), null)
       } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    }],
+    ['实施提示告诉 AI 答复类存档进答复目录、其余进收件目录（两个目录都配了时答复类不落收件目录）（变异补测 10-24）', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'lark-review-prompt-'))
+      try {
+        registerRepoProfiles({ repos: { falive: { root: dir, baseRef: 'main', chatIds: ['oc'], ownership: { me: 'aven' }, docIntakeDir: 'docs/delivery/pending', docReplyDir: 'docs/delivery/reply' } } })
+        const ctx = { repo: 'falive', projectId: 'FALIVE', projectName: 'Falive Web', cwd: dir, baseRef: 'main', projectDocs: [], readOnly: false }
+        const task = { id: 'doc', repo: 'falive', chatId: 'oc', text: '对接文档', addressedToBot: true, attachments: [{ type: 'file', name: '对接-回复.md', localPath: join(dir, '对接-回复.md') }], archivedDocs: ['docs/delivery/reply/对接-回复.md'] }
+        const prompt = buildTaskPrompt(ctx, task, 'claude', { ruleContext: { text: '', sources: [] } })
+        assert.match(prompt, /答复类进 `docs\/delivery\/reply\/`，其余进 `docs\/delivery\/pending\/`/)
+        assert.match(prompt, /`docs\/delivery\/reply\/对接-回复\.md`，不要再拷贝/)
+      } finally {
+        resetRepoProfiles()
         rmSync(dir, { recursive: true, force: true })
       }
     }],
