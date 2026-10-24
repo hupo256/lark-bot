@@ -14,4 +14,5 @@
 | [falive-repo-profile.md](./falive-repo-profile.md) | **多仓 profile**：按仓库路由（根 / 基线 / 规则 / 模型 / 投递）、falive 接入决策、外部群只能 webhook + 用户身份轮询、日报 |
 | [falive-lessons.md](./falive-lessons.md) | **出错 → 规则或闸** 沉淀台账：每次 bot 出错落成规则或机械闸，附验证方式；只有规则没有闸的单列 |
 | [falive-self-healing.md](./falive-self-healing.md) | **自愈 / 纠偏策略**：执行中自纠 → 失败后自诊 → 运行态体检三环，每环的已有 / 已落地 / 待做清单、护栏与验收 |
+| [mutation-testing.md](./mutation-testing.md) | **变异测试**：故意改坏代码看测试能否发现；`scripts/mutate.mjs` 用法（合并前 `--diff` 必跑）、存活怎么处理、豁免清单 |
 | [runtime-and-scheduling.md](./runtime-and-scheduling.md) | 长连接健壮性、规则链告警、附件保留期、bug 表项目群路由与按 worktree 并行调度 |
