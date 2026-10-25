@@ -123,4 +123,4 @@ fameex 实例 10-24 沙箱端到端试跑发现的问题里，falive 同样存�
 | 11 | 排空自检用 `spawnSync` 跑全量单测，卡住 worker 事件循环、心跳定时器不走 | `runSelfTests` 改异步子进程（`runCommand`：detached、超时杀进程组），tick 里 await，期间心跳照常；超时摘要「超时（Nms）」；f57ab5d 的配置自检保留。`hermeticTestEnv` 另去掉 `LARK_CLAUDE_BIN`、`NODE_TEST_CONTEXT` | `lark-drain-restart`（跑测试期间 20ms 定时器照走；绿 / 红 / 超时 / 起不来；驱动器 await 异步自检） |
 | 12 | claude 路径没有开关，测试只靠 PATH 遮挡，假 claude 一失效就落到真 claude（fameex 试跑事故原因） | `lib/lark-constants.mjs` 的 `resolveClaudeBinary`：`LARK_CLAUDE_BIN` 覆盖（调用时读 env），node --test 进程里（`NODE_TEST_CONTEXT`）没指定就用不存在的 `/nonexistent/lark-bot-test-no-claude`。任务四种模式、就绪探针、`--version` 预检（`resolveAiExecutorBinary`）和日报生成（`generateDailyReportText`）都经它 | `lark-ai-executor`、`lark-daily-report`；另用会记账的假 `claude` 放 PATH 最前跑全量，一次也没被调到 |
 
-fameex 那批的其余项不在本次范围；其中「自修执行器起不来直接 failed」falive 不需要（falive 自修是普通任务队列，起不来走普通失败路径）。已知没覆盖：falive 的 `diskChangedAt` 只在代码落后时有值，只改配置时体检仍立即 warn（空档内也算），要收紧得让 `createRuntimeVersion` 给配置改动也记时间。
+fameex 那批的其余项不在本次范围；其中「自修执行器起不来直接 failed」falive 不需要（falive 自修是普通任务队列，起不来走普通失败路径）。只改配置时 `diskChangedAt` 为空的缺口已在 ad37d9f 补上（代码看源码 mtime、配置看配置文件 mtime，取较新的）。
