@@ -139,6 +139,8 @@ const E2E = {
   // ── 异常 / 中断
   routeMismatch: { context: 'wrongCwd', releaseTask: true },
   routeMismatchSuperseded: { context: 'wrongCwd', getTask: { 1: { status: 'superseded', epoch: 2 }, 2: 'throw' } },
+  // 同一任务换代重领后又撞同一种错、再来一条别的任务撞上：复发只数别的任务（项目号让指纹与 routeMismatch 不同，不受同路用例影响）
+  routeMismatchRerun: { context: 'wrongCwd', task: { project: 'PR-00042' }, rerun: [{ epoch: 2 }, { id: 'e2e-routeMismatchRerun-other' }] },
   shutdownAbort: { signal: 'aborted', analysis: { status: 'blocked', blockers: ['缺设计稿'] } },
   deadline: { signal: 'live', deadline: true, analysis: { status: 'blocked', blockers: ['缺设计稿'] } },
   deadlineNoAny: { deadline: true, noAbortSignalAny: true, analysis: { status: 'blocked', blockers: ['缺设计稿'] } },
@@ -208,6 +210,7 @@ const runE2ECase = async (name, spec, root) => {
     writeFileSync(join(tempPath, 'stray.txt'), '上次留下的\n')
   }
   const reports = []
+  const runs = []
   const intakes = []
   let current = { ...task }
   let getTaskCount = 0
@@ -251,7 +254,13 @@ const runE2ECase = async (name, spec, root) => {
   let threw = null
   const started = Date.now()
   try {
-    await createTaskRunner({ client, workerConfig: { localConfig: {} } })(task, workContext, spec.signal ? { signal: controller.signal } : {})
+    // rerun：同一进程（同一本失败台账）里接着再跑几次，每次一个任务补丁（换代重领 / 别的任务），回写按次分组（10-25）。
+    for (const patch of [null, ...(spec.rerun || [])]) {
+      const runTask = patch ? { ...task, ...patch } : task
+      if (patch) current = { ...runTask }
+      runs.push(reports.length)
+      await createTaskRunner({ client, workerConfig: { localConfig: {} } })(runTask, workContext, spec.signal ? { signal: controller.signal } : {})
+    }
   } catch (error) {
     threw = String(error?.stack || error)
   } finally {
@@ -266,6 +275,7 @@ const runE2ECase = async (name, spec, root) => {
   return {
     ms: Date.now() - started,
     reports,
+    runReports: runs.map((start, index) => reports.slice(start, runs[index + 1])),
     intakes,
     audit,
     threw,
@@ -323,7 +333,7 @@ const runE2EBatch = async () => {
       const batchFile = join(root, `batch-${lane}.json`)
       const out = join(root, `out-${lane}.json`)
       writeFileSync(batchFile, JSON.stringify({ names: laneNames, root: join(root, `lane-${lane}`), out }))
-      const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, LARK_RUNTIME_DIR: join(root, `runtime-${lane}`), LARK_CLI_BIN: '/usr/bin/false', LARK_SELF_FIX: '0', HOME: join(root, 'home'), LARK_RUNNER_E2E_BATCH: batchFile }
+      const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, LARK_RUNTIME_DIR: join(root, `runtime-${lane}`), LARK_CLAUDE_BIN: join(bin, 'claude'), LARK_CLI_BIN: '/usr/bin/false', LARK_SELF_FIX: '0', HOME: join(root, 'home'), LARK_RUNNER_E2E_BATCH: batchFile }
       const child = spawn(process.execPath, [fileURLToPath(import.meta.url)], { env, cwd: root, stdio: ['ignore', 'ignore', 'pipe'] })
       let stderr = ''
       child.stderr.on('data', (chunk) => { stderr = `${stderr}${chunk}`.slice(-4000) })
@@ -558,6 +568,15 @@ describe('任务截止时间与续租心跳（第 0 批）', () => {
       const superseded = await e2e('routeMismatchSuperseded')
       assert.deepEqual(superseded.reports, [])
       assert.equal(superseded.audit.status, 'superseded')
+    }],
+    ['执行异常的复发计数只数别的任务：同一任务换代重领后再撞同一种错不写「同一种错 7 天内第 2 次」；别的任务撞上才算第 2 次（10-25 搬自 fameex 沙箱修复）', async () => {
+      const r = await e2e('routeMismatchRerun')
+      assert.deepEqual(r.runReports.map((items) => items.map((item) => item.status)), [['failed'], ['failed'], ['failed']])
+      const [first, again, other] = r.runReports.map((items) => items.at(-1).result)
+      assert.match(first, /任务路由一致性校验失败/)
+      assert.doesNotMatch(first, /同一种错/)
+      assert.doesNotMatch(again, /同一种错/, `本任务自己的上一次失败不算复发：${again}`)
+      assert.match(other, /同一种错 7 天内第 2 次/, other)
     }],
     ['截止时间到（TimeoutError）中断 AI 并按失败回写；Worker 带退出信号时截止时间照样生效，没有 AbortSignal.any 的运行时也生效（变异补测 10-24）', async () => {
       const withSignal = await e2e('deadline')

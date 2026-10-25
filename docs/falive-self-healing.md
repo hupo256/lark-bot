@@ -109,3 +109,18 @@
 1. 自动重启：排空再重启，默认开（见 §4 第一行）。「空闲时重启」被否：等不到空闲就一直跑旧代码。
 2. 自修工单：aven 人不在 Lark 上也允许跑，只落本地分支 + 私信，不上线。
 3. worker 代跑白名单命令：不做，等真遇到第二条跑不完的命令再说。
+
+## 7. 10-25 搬自 fameex 沙箱试跑
+
+fameex 实例 10-24 沙箱端到端试跑发现的问题里，falive 同样存在的 6 条，按 fameex `fameex-stable`（74459d0）的修法搬回（编号沿用 fameex 试跑报告，详见 fameex 仓 `docs/port-from-falive-2026-10-24.md`「沙箱试跑（10-24）」）。每条先写会红的测试、确认修复前红，再修。
+
+| # | 问题 | 修法 | 测试（已有 it 里的新段，段名带「10-25 搬自 fameex 沙箱修复」） |
+|---|---|---|---|
+| 1 | 复发误算：任务自己第一次 requeue 那行让第二次失败变成「同一种错 7 天内第 2 次」、台账 recurring:true，自修开单（`shouldOpenSelfFix`）跟着按复发判 | `countRecentFingerprint` 加 `taskId`：排除本任务，按不同任务计数（缺 taskId 的旧行各算各的）；`lib/lark-task-runner.mjs` 传 `task.id` | `lark-failure-fingerprint`（台账）、`lark-task-runner`（端到端 `routeMismatchRerun`：同任务换代再失败不写第 2 次，别的任务才写）、`lark-self-fix` |
+| 2 | 体检汇总把 requeue / 自修记录也当失败，一条任务就报「7 天失败 3、复发指纹 ×3」并 warn 私信 | `summarizeFailures` 只数 fail，requeue 单列 healed，self_fix / ignore 不算；复发 = 不同任务 ≥2，count 是任务数。doctor 文案「指纹（N 个任务）」，只有自动重跑没有失败时 ok 行 / 日报自检行带「自动重跑 N 次」 | `lark-failure-fingerprint`、`lark-doctor` |
+| 3 | 异步 `spawn claude ENOENT / EACCES` 落成 unknown，去开「未归类」自修工单 | tool_missing 认 `spawn(Sync)? <cmd> ENOENT\|EACCES`；falive 的自修是普通任务，起不来就走普通失败路径（tool_missing 本来就不开自修） | `lark-failure-fingerprint`（含真实异步 spawn 报错）、`lark-self-fix` |
+| 4 | 体检正好落在「磁盘刚改、worker 还没轮到排空 tick」的空档，误报「排空重启没动」并私信，还被 24h 去重压住后面真没接手的那次 | `DRAIN_PICKUP_GRACE_MS` = 2 分钟（settleMs 60s + 2 个轮询周期 + 版本观测缓存，留余量）：`diskChangedAt` 之后 2 分钟内还没排空只算 info；缺失 / 不合法照旧 warn | `lark-doctor` |
+| 11 | 排空自检用 `spawnSync` 跑全量单测，卡住 worker 事件循环、心跳定时器不走 | `runSelfTests` 改异步子进程（`runCommand`：detached、超时杀进程组），tick 里 await，期间心跳照常；超时摘要「超时（Nms）」；f57ab5d 的配置自检保留。`hermeticTestEnv` 另去掉 `LARK_CLAUDE_BIN`、`NODE_TEST_CONTEXT` | `lark-drain-restart`（跑测试期间 20ms 定时器照走；绿 / 红 / 超时 / 起不来；驱动器 await 异步自检） |
+| 12 | claude 路径没有开关，测试只靠 PATH 遮挡，假 claude 一失效就落到真 claude（fameex 试跑事故原因） | `lib/lark-constants.mjs` 的 `resolveClaudeBinary`：`LARK_CLAUDE_BIN` 覆盖（调用时读 env），node --test 进程里（`NODE_TEST_CONTEXT`）没指定就用不存在的 `/nonexistent/lark-bot-test-no-claude`。任务四种模式、就绪探针、`--version` 预检（`resolveAiExecutorBinary`）和日报生成（`generateDailyReportText`）都经它 | `lark-ai-executor`、`lark-daily-report`；另用会记账的假 `claude` 放 PATH 最前跑全量，一次也没被调到 |
+
+fameex 那批的其余项不在本次范围；其中「自修执行器起不来直接 failed」falive 不需要（falive 自修是普通任务队列，起不来走普通失败路径）。已知没覆盖：falive 的 `diskChangedAt` 只在代码落后时有值，只改配置时体检仍立即 warn（空档内也算），要收紧得让 `createRuntimeVersion` 给配置改动也记时间。

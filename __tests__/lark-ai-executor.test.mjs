@@ -21,8 +21,10 @@ import {
   isTransientAiError,
   preflightAiExecutor,
   resolveAiExecutor,
+  resolveAiExecutorBinary,
   validateAiExecutor,
 } from '../lib/lark-ai-executor.mjs'
+import { TEST_CLAUDE_BIN, resolveClaudeBinary } from '../lib/lark-constants.mjs'
 import {
   buildClaudeResultFileInstruction,
   buildClaudeResultRecoveryInstruction,
@@ -147,7 +149,7 @@ describe('claude headless command', () => {
   it('Claude 只读面：readiness probe、意图分类只开 Read + plan、只读分析含 scope Schema、分析结果解析、只读放行目录', () => runSteps([
     ['Claude readiness probe 只读、不指定模型（与任务命令同一模型来源）', () => {
       const command = buildClaudeReadinessCommand()
-      assert.equal(command.cmd, 'claude')
+      assert.equal(command.cmd, process.env.LARK_CLAUDE_BIN || TEST_CLAUDE_BIN, 'node --test 里没指定 LARK_CLAUDE_BIN 时是必失败的路径')
       assert.deepEqual(command.args.slice(command.args.indexOf('--permission-mode'), command.args.indexOf('--permission-mode') + 2), ['--permission-mode', 'plan'])
       assert.equal(command.args.includes('--model'), false)
       assert.equal(command.args.includes('--dangerously-skip-permissions'), false)
@@ -206,10 +208,12 @@ describe('claude headless command', () => {
       const bin = mkdtempSync(join(tmpdir(), 'lark-preflight-bin-'))
       const log = join(bin, 'calls.log')
       const savedPath = process.env.PATH
+      const savedBin = process.env.LARK_CLAUDE_BIN
       try {
         writeFileSync(join(bin, 'claude'), `#!/bin/sh\necho "$1" >> '${log}'\nif [ "$1" = "--version" ]; then echo '9.9.9 (fake)'; exit 0; fi\necho CLAUDE_MODEL_READY\n`)
         chmodSync(join(bin, 'claude'), 0o755)
         process.env.PATH = `${bin}:${savedPath}`
+        process.env.LARK_CLAUDE_BIN = join(bin, 'claude')
         const calls = () => (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n') : [])
         // 模型名唯一：缓存是模块级的，不和别的用例串。
         const localConfig = { claudeModel: 'mutfix-preflight-model' }
@@ -226,7 +230,36 @@ describe('claude headless command', () => {
         assert.equal(calls().length, 3, '探过之后不再重复烧模型请求')
       } finally {
         process.env.PATH = savedPath
+        if (savedBin == null) delete process.env.LARK_CLAUDE_BIN
+        else process.env.LARK_CLAUDE_BIN = savedBin
         rmSync(bin, { recursive: true, force: true })
+      }
+    }],
+    ['claude 路径开关：LARK_CLAUDE_BIN 覆盖；node --test 里（NODE_TEST_CONTEXT）没显式指定就用不存在的路径，任务四种模式 / 就绪探针 / --version 预检 / 真 spawn 都起不来真 claude（10-25 搬自 fameex 沙箱修复）', async () => {
+      assert.equal(resolveClaudeBinary({}), 'claude')
+      assert.equal(resolveClaudeBinary({ LARK_CLAUDE_BIN: '/x/claude' }), '/x/claude')
+      assert.equal(resolveClaudeBinary({ LARK_CLAUDE_BIN: '/x/claude', NODE_TEST_CONTEXT: 'child-v8' }), '/x/claude')
+      assert.equal(resolveClaudeBinary({ NODE_TEST_CONTEXT: 'child-v8' }), TEST_CLAUDE_BIN)
+      assert.equal(existsSync(TEST_CLAUDE_BIN), false)
+      const saved = process.env.LARK_CLAUDE_BIN
+      delete process.env.LARK_CLAUDE_BIN
+      try {
+        assert.ok(process.env.NODE_TEST_CONTEXT, '本文件跑在 node --test 下')
+        assert.equal(resolveAiExecutorBinary('claude'), TEST_CLAUDE_BIN)
+        assert.equal(resolveAiExecutorBinary('codex'), 'codex', '别的执行器名原样')
+        for (const resultKind of ['task', 'intent', 'triage', 'analysis']) {
+          assert.equal(buildAiExecutorCommand({ executor: 'claude', promptText: 'x', cwd: '/tmp/repo', resultPath: '/tmp/r.json', resultKind }).cmd, TEST_CLAUDE_BIN, resultKind)
+        }
+        assert.equal(buildClaudeReadinessCommand().cmd, TEST_CLAUDE_BIN)
+        assert.throws(() => preflightAiExecutor('claude', { localConfig: { claudeModel: 'no-claude-guard' }, probeModel: true }), /CLI 不可用：.*ENOENT/)
+        const error = await execAiExecutor({ executor: 'claude', promptText: '修一下', cwd: tmpdir(), resultPath: join(tmpdir(), 'lark-no-claude-result.json'), localConfig: {} }).then(() => assert.fail('不该跑起来'), (e) => e)
+        assert.equal(error.code, 'ENOENT')
+        assert.equal(error.path, TEST_CLAUDE_BIN)
+        process.env.LARK_CLAUDE_BIN = '/x/claude'
+        assert.equal(buildClaudeReadinessCommand().cmd, '/x/claude', '调用时读 env，不在加载时定死')
+      } finally {
+        if (saved == null) delete process.env.LARK_CLAUDE_BIN
+        else process.env.LARK_CLAUDE_BIN = saved
       }
     }],
   ]))

@@ -25,6 +25,7 @@ import {
   summarizeFeatureTable,
 } from '../lib/lark-daily-report.mjs'
 import { normalizeRepoProfile, registerRepoProfiles, resetRepoProfiles } from '../lib/lark-repo-profile.mjs'
+import { TEST_CLAUDE_BIN } from '../lib/lark-constants.mjs'
 import { runSteps } from './support/steps.mjs'
 
 const TABLE = `## 总表（3 项）
@@ -434,6 +435,22 @@ describe('完整版：没测的先测完（aven 2026-10-21）', () => {
       await generateDailyReportText({ prompt: 'p', profile: { root: '/r' }, spawnImpl: fakeSpawn(calls) })
       assert.deepEqual(calls[0].args.slice(1, 5), ['--permission-mode', 'plan', '--tools', 'Read,Grep,Glob'])
       assert.equal(calls[0].opts.env, undefined)
+    }],
+    ['日报生成起的 claude 也走 claude 路径开关：node --test 里是必失败的路径，LARK_CLAUDE_BIN 覆盖（10-25 搬自 fameex 沙箱修复）', async () => {
+      const saved = process.env.LARK_CLAUDE_BIN
+      try {
+        delete process.env.LARK_CLAUDE_BIN
+        const calls = []
+        await generateDailyReportText({ prompt: 'p', profile: { root: '/r' }, spawnImpl: fakeSpawn(calls) })
+        process.env.LARK_CLAUDE_BIN = '/x/claude'
+        await generateDailyReportText({ prompt: 'p', profile: { root: '/r' }, spawnImpl: fakeSpawn(calls) })
+        await generateDailyReportText({ prompt: 'p', profile: { root: '/r' }, cwd: '/w', spawnImpl: fakeSpawn(calls) })
+        assert.deepEqual(calls.map((call) => call.cmd), [TEST_CLAUDE_BIN, '/x/claude', '/x/claude'])
+        assert.deepEqual(calls.map((call) => call.opts.cwd), ['/r', '/r', '/w'], '没给 cwd 在业务仓根目录跑，给了用给的')
+      } finally {
+        if (saved == null) delete process.env.LARK_CLAUDE_BIN
+        else process.env.LARK_CLAUDE_BIN = saved
+      }
     }],
     ['私信核对单列出三节今天新加的行', () => {
       const note = buildReviewNote({ date: '2026-10-21', ledger: [{ name: '二', added: ['#9 x'], unexplained: [], resolved: [] }, { name: '三', added: ['新事项'], unexplained: [], resolved: [] }] })

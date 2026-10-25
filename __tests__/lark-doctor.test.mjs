@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
-import { buildDailySelfCheckLine, buildDoctorReport, createDoctorMonitor, formatDoctorReport, pickNotifiable } from '../lib/lark-doctor.mjs'
+import { DRAIN_PICKUP_GRACE_MS, buildDailySelfCheckLine, buildDoctorReport, createDoctorMonitor, formatDoctorReport, pickNotifiable } from '../lib/lark-doctor.mjs'
 import { runSteps } from './support/steps.mjs'
 
 // 2026-10-16 周五 20:30 本地
@@ -56,10 +56,34 @@ describe('buildDoctorReport', () => {
       const byId = Object.fromEntries(report.checks.map((check) => [check.id, check]))
       assert.match(byId.parked.text, /1 条任务挂起超过 24 小时[^\n]*aaaaaaa1/)
       assert.equal(byId['failed-tasks'].level, 'warn')
-      assert.match(byId.failures.text, /7 天失败 5（result_missing 3、timeout 2），自动重跑 2 次，复发指纹 1 个：result_missing:abc×3/)
+      assert.match(byId.failures.text, /7 天失败 5（result_missing 3、timeout 2），自动重跑 2 次，复发指纹 1 个：result_missing:abc（3 个任务）/)
       const gw = report.checks.filter((check) => check.id === 'gateway-warning')
       assert.deepEqual(gw.map((check) => check.level), ['info', 'warn'])
       assert.equal(report.level, 'warn')
+    }],
+    ['磁盘刚改、worker 还没轮到排空 tick 的 2 分钟空档只算 info（不私信），超过才 warn；失败行写「指纹（N 个任务）」，只有自动重跑没有失败时 ok 行带重跑次数，日报自检行同口径（10-25 搬自 fameex 沙箱修复）', () => {
+      const iso = (agoMs) => new Date(now - agoMs).toISOString()
+      const cases = [
+        [{ codeStale: true, diskChangedAt: iso(DRAIN_PICKUP_GRACE_MS - 1000) }, {}, 'info', '代码落后磁盘（磁盘 2 分钟前刚改），等排空重启接手（2 分钟内接手属正常）'],
+        [{ codeStale: true, configStale: true, diskChangedAt: iso(0) }, {}, 'info', '代码和配置落后磁盘（磁盘 0 分钟前刚改），等排空重启接手（2 分钟内接手属正常）'],
+        [{ codeStale: true, diskChangedAt: iso(DRAIN_PICKUP_GRACE_MS) }, {}, 'warn', '代码落后磁盘，排空重启没动：看 selfHeal.drainRestart 是否关了、单测是否红了'],
+        [{ codeStale: true, diskChangedAt: 'garbage' }, {}, 'warn', '代码落后磁盘，排空重启没动：看 selfHeal.drainRestart 是否关了、单测是否红了'],
+        [{ configStale: true, diskChangedAt: null }, {}, 'warn', '配置落后磁盘，排空重启没动：看 selfHeal.drainRestart 是否关了、单测是否红了'],
+        [{ codeStale: true, diskChangedAt: iso(0) }, { draining: true }, 'info', '代码落后磁盘，worker 已在排空，跑完在飞任务会自动重启'],
+      ]
+      for (const [version, workerExtra, level, text] of cases) {
+        const check = buildDoctorReport({ health: { ...healthy, version, worker: { ...healthy.worker, ...workerExtra } }, now }).checks.find((c) => c.id === 'version')
+        assert.deepEqual([check.level, check.text], [level, text], JSON.stringify(version))
+      }
+      // 默认 settleMs 60s + 2 个轮询周期（5s）+ 版本观测缓存 10s，留余量取 2 分钟
+      assert.equal(DRAIN_PICKUP_GRACE_MS, 2 * 60_000)
+      const failuresCheck = (failures) => buildDoctorReport({ health: healthy, failures, now }).checks.find((c) => c.id === 'failures')
+      const healedOnly = failuresCheck({ total: 0, byClass: {}, recurring: [], healed: 2 })
+      assert.deepEqual([healedOnly.level, healedOnly.text], ['ok', '7 天内没有 worker 层失败（自动重跑 2 次）'])
+      assert.equal(failuresCheck({ total: 0, byClass: {}, recurring: [], healed: 0 }).text, '7 天内没有 worker 层失败')
+      const once = failuresCheck({ total: 2, byClass: { timeout: 2 }, recurring: [], healed: 1 })
+      assert.deepEqual([once.level, once.text], ['info', '7 天失败 2（timeout 2），自动重跑 1 次'])
+      assert.equal(buildDailySelfCheckLine({ now, failures: { total: 0, healed: 2, recurring: [], byClass: {} }, heartbeat: { heartbeatStale: false, codeStale: false } }), 'bot 自检：worker 正常；7 天无失败（自动重跑 2 次）')
     }],
   ]))
 })

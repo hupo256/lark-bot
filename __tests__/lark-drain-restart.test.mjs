@@ -6,10 +6,10 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { DEFAULT_SETTLE_MS, RESTART_OVERDUE_MS, checkConfigFile, createDrainRestart, pickFailingTests, planDrainRestart } from '../lib/lark-drain-restart.mjs'
+import { DEFAULT_SETTLE_MS, RESTART_OVERDUE_MS, checkConfigFile, createDrainRestart, pickFailingTests, planDrainRestart, runCommand, runSelfTests } from '../lib/lark-drain-restart.mjs'
 import { runSteps } from './support/steps.mjs'
 
 const fresh = { codeStale: false, configStale: false, codeHash: 'a', diskCodeHash: 'a', diskConfigHash: 'c', diskChangedAt: null }
@@ -140,6 +140,60 @@ describe('createDrainRestart（驱动器）', () => {
         assert.deepEqual(checkConfigFile(write('ok.json', base)), { ok: true, summary: '配置校验通过', failing: [] })
       } finally {
         rmSync(dir, { recursive: true, force: true })
+      }
+    }],
+    ['自检异步：runSelfTests 起子进程跑单测期间事件循环不卡（心跳定时器照走），绿 / 红 / 超时都如实；子进程环境去掉 NODE_TEST_CONTEXT 与 LARK_CLAUDE_BIN；驱动器 await 异步自检，绿才重启（10-25 搬自 fameex 沙箱修复）', async () => {
+      const root = mkdtempSync(join(tmpdir(), 'lark-drain-selftest-'))
+      const saved = process.env.LARK_CLAUDE_BIN
+      process.env.LARK_CLAUDE_BIN = '/x/real-claude'
+      try {
+        mkdirSync(join(root, '__tests__'))
+        writeFileSync(join(root, '__tests__', 'a.test.mjs'), "import { it } from 'node:test'\nit('看不到 claude 覆盖', async () => { await new Promise((r) => setTimeout(r, 200)); if (process.env.LARK_CLAUDE_BIN) throw new Error('leak') })\n")
+        writeFileSync(join(root, '__tests__', 'helper.mjs'), 'throw new Error("非测试文件不该被跑")\n')
+        // 10-24 fameex 沙箱试跑：spawnSync 跑全量单测卡住 worker 事件循环 8–11 秒，期间心跳不更新。
+        let ticks = 0
+        const beat = setInterval(() => { ticks += 1 }, 20)
+        const pending = runSelfTests({ root })
+        const green = await pending
+        clearInterval(beat)
+        assert.ok(pending instanceof Promise, '自检必须是异步的')
+        assert.ok(ticks >= 5, `跑测试期间定时器只走了 ${ticks} 次`)
+        assert.equal(green.ok, true, green.summary)
+        assert.match(green.summary, /ℹ tests 1 ℹ pass 1 ℹ fail 0/)
+        assert.deepEqual(green.failing, [])
+        writeFileSync(join(root, '__tests__', 'b.test.mjs'), "import { it } from 'node:test'\nit('坏用例', () => { throw new Error('boom') })\n")
+        const red = await runSelfTests({ root })
+        assert.equal(red.ok, false)
+        assert.match(red.summary, /fail 1/)
+        assert.equal(red.failing.length, 1)
+        assert.match(red.failing[0], /^✖ 坏用例 .*→ .*boom/)
+        const slow = await runSelfTests({ root, timeoutMs: 50 })
+        assert.deepEqual([slow.ok, slow.summary], [false, '超时（50ms）'])
+        // 不给超时（timeoutMs 0）就不设定时器、跑到自己退出
+        const untimed = await runCommand({ args: ['-e', 'setTimeout(() => process.stdout.write("done"), 50)'], cwd: root })
+        assert.deepEqual([untimed.ok, untimed.timedOut, untimed.tail], [true, false, 'done'])
+        const gone = await runSelfTests({ root: join(root, 'nope') })
+        assert.equal(gone.ok, false, gone.summary)
+        assert.match(gone.summary, /^exit null：spawn .*ENOENT$/, '子进程起不来时摘要带报错')
+      } finally {
+        if (saved == null) delete process.env.LARK_CLAUDE_BIN
+        else process.env.LARK_CLAUDE_BIN = saved
+        rmSync(root, { recursive: true, force: true })
+      }
+      for (const ok of [true, false]) {
+        const clock = 1_000_000_000
+        const version = makeVersion()
+        const calls = { restarts: 0, notes: [] }
+        const drain = createDrainRestart({
+          version, now: () => clock, log: () => {},
+          runTests: async () => ({ ok, summary: `tests 1 fail ${ok ? 0 : 1}`, failing: ok ? [] : ['✖ x'] }),
+          requestRestart: () => { calls.restarts += 1 },
+          notify: async (text) => { calls.notes.push(text) },
+        })
+        version.set(stale(DEFAULT_SETTLE_MS + 5, clock))
+        await drain.tick({ inFlight: 0 })
+        assert.equal((await drain.tick({ inFlight: 0 })).action, 'verify')
+        assert.deepEqual([calls.restarts, calls.notes.length], ok ? [1, 0] : [0, 1], `ok=${ok}`)
       }
     }],
     ['关闭时永远 none，不排空', async () => {

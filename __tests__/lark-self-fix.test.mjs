@@ -51,6 +51,14 @@ describe('shouldOpenSelfFix', () => {
       assert.equal(shouldOpenSelfFix({ task, fingerprint: timeout, playbook: fail }).open, false)
       assert.equal(shouldOpenSelfFix({ task, fingerprint: timeout, playbook: fail, recentSameFingerprint: 2 }).open, true)
     }],
+    ['执行器起不来（异步 spawn claude ENOENT / EACCES）是 CLI 不在本机、不开自修工单（原来落成未归类去开单）；复发数是「别的任务数」，本任务自己重跑过不算复发（10-25 搬自 fameex 沙箱修复）', () => {
+      for (const text of ['spawn claude ENOENT', 'spawn /Users/aven/.local/bin/claude EACCES']) {
+        const decision = shouldOpenSelfFix({ task, fingerprint: fingerprintFailure(text), playbook: fail })
+        assert.deepEqual([decision.open, decision.reason], [false, '执行器 CLI 不在本机：不是 bot 代码能修的'], text)
+      }
+      // task-runner 传进来的 recentSameFingerprint 已排除本任务：本任务 requeue 过一次（priorAttempts 1）、别的任务没撞上 → 触发原因只有「重跑也没救」
+      assert.equal(shouldOpenSelfFix({ task, fingerprint: resultMissing, playbook: fail, priorAttempts: 1, recentSameFingerprint: 0 }).reason, '自动重跑 1 次仍失败')
+    }],
     ['预算：同指纹 7 天 1 条；每天最多 3 条', () => {
       const base = { task, fingerprint: unknown, playbook: fail }
       assert.match(shouldOpenSelfFix({ ...base, openedForFingerprint: 1 }).reason, /已开过/)
