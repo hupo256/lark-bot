@@ -70,10 +70,12 @@ install_agent() {
   mkdir -p "$AGENT_DIR"
   cp "$source" "$target"
   plutil -lint "$target" >/dev/null
+  # 先 enable 再 bootstrap：被 launchctl disable 过的服务直接 bootstrap 会报「5: Input/output error」
+  # （10-25：fameex 三个服务 10-20 拆实例时被禁用，lark-bot start 一直起不来）。
+  launchctl enable "$DOMAIN/$label"
   if ! _loaded "$label"; then
     launchctl bootstrap "$DOMAIN" "$target"
   fi
-  launchctl enable "$DOMAIN/$label"
   launchctl kickstart -k "$DOMAIN/$label"
 }
 
