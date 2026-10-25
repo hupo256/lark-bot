@@ -18,7 +18,7 @@ import { loadWorkerLocalConfig } from './lib/lark-worker-run.mjs'
 import { resolveWorkContext, safeProject } from './lib/lark-work-context.mjs'
 import { createTaskRunner } from './lib/lark-task-runner.mjs'
 import { startLogRotation } from './lib/lark-log-rotate.mjs'
-import { createRuntimeVersion, versionWarnings, writeWorkerHeartbeat } from './lib/lark-runtime-version.mjs'
+import { createRuntimeVersion, heartbeatActivity, versionWarnings, writeWorkerHeartbeat } from './lib/lark-runtime-version.mjs'
 import { createDrainRestart, drainRestartSwitch } from './lib/lark-drain-restart.mjs'
 import { startDoctorSchedule } from './lib/lark-doctor.mjs'
 import { selfFixEnabled } from './lib/lark-self-fix.mjs'
@@ -94,7 +94,7 @@ export async function runLarkWorker({
   }
 
   const heartbeat = (extra) => writeWorkerHeartbeat({ runtimeDir: larkRuntimeDir, version: runtimeVersion, extra: { readiness, ...extra } })
-  heartbeat({ inFlight: 0 })
+  heartbeat(heartbeatActivity({ tasks: 0 }))
 
   const client = createGatewayClient(gatewayUrl)
   const runTask = createTaskRunner({ client, workerConfig })
@@ -114,20 +114,22 @@ export async function runLarkWorker({
   const selfHeal = localConfig.selfHeal || {}
   const drainSwitch = drainRestartSwitch({ selfHeal })
   const notifyOpenId = typeof localConfig.notifyOpenId === 'string' && localConfig.notifyOpenId.startsWith('ou_') ? localConfig.notifyOpenId : null
+  // worker 里发的消息日志打 [lark-worker]（lark-cli 缺省前缀是 [lark-gateway]，10-24 沙箱试跑发现）。
+  const workerSend = (args) => sendChatMessage({ ...args, logTag: '[lark-worker]' })
   const drain = createDrainRestart({
     version: runtimeVersion,
     configPath,
     enabled: drainSwitch.enabled,
     settleMs: Number(selfHeal.settleMs) > 0 ? Number(selfHeal.settleMs) : undefined,
     notify: notifyOpenId
-      ? (text, { idempotencyKey } = {}) => sendChatMessage({ chatId: notifyOpenId, text, idempotencyKey, logPrefix: 'drain-restart' })
+      ? (text, { idempotencyKey } = {}) => workerSend({ chatId: notifyOpenId, text, idempotencyKey, logPrefix: 'drain-restart' })
       : async () => {},
   })
   console.log(`[lark-worker] 排空重启：${drainSwitch.enabled ? `开（磁盘改动 → 排空 → 自检绿 → 自动 restart；自检红${notifyOpenId ? '私信 notifyOpenId' : '只写日志：未配 notifyOpenId'}）` : `关（${drainSwitch.reason}）`}`)
 
   // 运行态体检（自愈环 3，从 falive 移植）：启动 3 分钟后一次、之后每小时；warn / bad 私信 notifyOpenId（没配只写日志），
   // 同一条 24h 只报一次。开关 selfHeal.doctor=false / LARK_DOCTOR=0（只关定时，`lark-bot doctor` 照常可用）。
-  startDoctorSchedule({ selfHeal, notifyOpenId, send: sendChatMessage, gatewayUrl, listTasks: () => client.listTasks() })
+  startDoctorSchedule({ selfHeal, notifyOpenId, send: workerSend, gatewayUrl, listTasks: () => client.listTasks() })
 
   // 优雅退出：SIGTERM/SIGINT（launchd bootout 与 lark-bot stop 都发 SIGTERM）时，先把在飞任务
   // 交还队列（releaseTask → queued + epoch++），再中断在跑的 AI 子进程，让重启后的 worker 立刻重领，
@@ -146,7 +148,7 @@ export async function runLarkWorker({
     enabled: selfFixOn,
     signal: shutdownController.signal,
     notify: notifyOpenId
-      ? (text, { idempotencyKey } = {}) => sendChatMessage({ chatId: notifyOpenId, text, idempotencyKey, logPrefix: 'self-fix' })
+      ? (text, { idempotencyKey } = {}) => workerSend({ chatId: notifyOpenId, text, idempotencyKey, logPrefix: 'self-fix' })
       : async () => {},
   })
   console.log(`[lark-worker] 自修工单：${selfFixOn ? `开（空闲时执行；结果${notifyOpenId ? '私信 notifyOpenId' : '只写日志与 lark-bot self-fix list：未配 notifyOpenId'}）` : '关（selfHeal.selfFix=false 或 LARK_SELF_FIX=0）'}`)
@@ -154,10 +156,12 @@ export async function runLarkWorker({
   // 版本心跳 + 自检告警：每分钟落一次盘（供 gateway health 汇总），同时把落后状态打进 worker.log。
   // 这里只告警不自杀——正在跑的长任务比"跑最新代码"更值得保住；重启时机由上面的排空重启（或人）决定。
   let lastVersionWarning = ''
+  // 心跳的「在干什么」：在飞任务 + 自修工单（自修算一个在飞并带工单 id，10-24 沙箱试跑：原来自修中显示在飞 0）。
+  const activity = () => heartbeatActivity({ tasks: inFlight.size, selfFix: selfFix.status(), draining: drain.isDraining() })
   const heartbeatTimer = setInterval(() => {
-    heartbeat({ inFlight: inFlight.size, draining: drain.isDraining() })
-    // 版本落后只在内容变化时打一行（原每分钟一行，worker.log 里一天几千行同样的话）。
-    const warningText = versionWarnings(runtimeVersion.observe()).join('\n')
+    heartbeat(activity())
+    // 版本落后只在内容变化时打一行（原每分钟一行，worker.log 里一天几千行同样的话）。排空中改口「会自动 restart」。
+    const warningText = versionWarnings(runtimeVersion.observe(), { draining: drain.isDraining() }).join('\n')
     if (warningText && warningText !== lastVersionWarning) console.warn(`[lark-worker] ⚠ ${warningText}`)
     lastVersionWarning = warningText
   }, 60_000)
@@ -189,6 +193,7 @@ export async function runLarkWorker({
   // 并行调度器：inFlight 以 workContext.cwd 为 key（同一 worktree 只允许一个在飞、天然串行；
   // 不同 worktree 并行）。git worktree add/remove 等走 spawnSync 同步执行，本就互不交错，无需额外锁。
   let lastDraining = false
+  let lastSelfFix = null
   for (;;) {
     // 本轮跳过集：claim 竞态失败的 id 记下来，避免「可列出却不可领」的任务被反复重挑，
     // 把内层 while 变成不带退避的紧循环、满速打 gateway。每轮重新开始，不会永久屏蔽任务。
@@ -196,7 +201,7 @@ export async function runLarkWorker({
     // 排空重启每轮先判：排空中不领新任务（在飞的照常跑完）。
     await drain.tick({ inFlight: inFlight.size + selfFix.inFlightCount() }).catch((error) => console.error('[lark-worker] 排空重启 tick 异常（忽略）：', error))
     // 排空状态一变就补写心跳，health / `lark-bot status` 不用等下一分钟才看到「排空中」。
-    if (drain.isDraining() !== lastDraining) heartbeat({ inFlight: inFlight.size, draining: drain.isDraining() })
+    if (drain.isDraining() !== lastDraining) heartbeat(activity())
     lastDraining = drain.isDraining()
     while (!shuttingDown && !drain.isDraining() && !selfFix.busy() && inFlight.size < defaultConcurrency) {
       // gateway 重启 / 抖动时不裸崩：listClaimable 的 reliableRequest 只重试 3×150ms，超过就抛；
@@ -251,8 +256,11 @@ export async function runLarkWorker({
       inFlight.set(key, { promise: running, taskId: claimed.id })
     }
 
-    // 没领到任务、也没有在飞的：跑一张自修工单（一次一张）。
+    // 没领到任务、也没有在飞的：跑一张自修工单（一次一张）。开跑 / 跑完都补写心跳，status 立刻看到「自修中」。
     selfFix.maybeStart({ inFlight: inFlight.size, draining: drain.isDraining(), shuttingDown })
+    const selfFixNow = selfFix.status()?.id || null
+    if (selfFixNow !== lastSelfFix) heartbeat(activity())
+    lastSelfFix = selfFixNow
     if (shuttingDown) return
     await sleep(pollMs)
   }

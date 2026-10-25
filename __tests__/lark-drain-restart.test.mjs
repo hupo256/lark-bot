@@ -137,6 +137,7 @@ describe('createDrainRestart（驱动器）', () => {
     assert.equal((await drain.tick({ inFlight: 0 })).action, 'wait-restart')
     assert.equal(calls.restarts, 1)
     assert.ok(calls.logs.some((line) => /自检绿.*pid 4242/.test(line)))
+    assert.ok(calls.logs.some((line) => line.includes('磁盘代码已更新（代码 a → b）')), calls.logs.join('\n'))
     // 排空中磁盘又改回来 → 取消排空
     version.set({ ...fresh })
     assert.equal((await drain.tick({ inFlight: 0 })).action, 'cancel-drain')
@@ -185,7 +186,7 @@ describe('createDrainRestart（驱动器）', () => {
 
   it('只改配置：不跑单测、校验配置；绿直接重启，红不重启；代码配置都改两样都做', async () => {
     const clock = { now: 1_000_000_000 }
-    const configOnly = { ...fresh, configStale: true, diskConfigHash: 'c2' }
+    const configOnly = { ...fresh, configStale: true, configHash: 'c', diskConfigHash: 'c2' }
     {
       const version = makeVersion()
       const { drain, calls } = makeDrain({ clock, version })
@@ -193,6 +194,8 @@ describe('createDrainRestart（驱动器）', () => {
       await drain.tick({ inFlight: 0 })
       assert.equal((await drain.tick({ inFlight: 0 })).action, 'verify')
       assert.deepEqual([calls.tests, calls.configs, calls.restarts], [0, ['/cfg.json'], 1])
+      // 10-24 沙箱试跑：只改配置时日志打的是代码哈希（a → a），看不出改了什么。
+      assert.ok(calls.logs.some((line) => line.includes('磁盘配置已更新（配置 c → c2）')), calls.logs.join('\n'))
     }
     {
       const version = makeVersion()
@@ -206,8 +209,9 @@ describe('createDrainRestart（驱动器）', () => {
     {
       const version = makeVersion()
       const { drain, calls } = makeDrain({ clock, version, config: { ok: false, summary: '配置读不了', failing: [] } })
-      version.set({ ...stale(DEFAULT_SETTLE_MS + 5, clock.now), configStale: true })
+      version.set({ ...stale(DEFAULT_SETTLE_MS + 5, clock.now), configStale: true, configHash: 'c0' })
       await drain.tick({ inFlight: 0 })
+      assert.ok(calls.logs.some((line) => line.includes('磁盘代码已更新（代码 a → b，配置 c0 → c）')), calls.logs.join('\n'))
       await drain.tick({ inFlight: 0 })
       assert.deepEqual([calls.tests, calls.configs.length, calls.restarts], [1, 1, 0], '测试绿但配置红也不重启')
       assert.match(calls.notes[0].text, /fail 0；配置读不了/)
@@ -275,22 +279,32 @@ describe('默认副作用', () => {
     )
   })
 
-  it('runSelfTests：在 hermetic 环境里跑 __tests__ 全部 *.test.mjs，红的摘出用例名', () => withTmp((root) => {
+  it('runSelfTests：异步子进程（跑测试期间事件循环不卡、心跳照常）在 hermetic 环境里跑 __tests__ 全部 *.test.mjs，红的摘出用例名；超时算红', () => withTmp(async (root) => {
     mkdirSync(join(root, '__tests__'))
-    writeFileSync(join(root, '__tests__', 'a.test.mjs'), "import { it } from 'node:test'\nit('看不到实例变量', () => { if (process.env.LARK_DRAIN_PROBE) throw new Error('leak') })\n")
+    writeFileSync(join(root, '__tests__', 'a.test.mjs'), "import { it } from 'node:test'\nit('看不到实例变量', async () => { await new Promise((r) => setTimeout(r, 200)); if (process.env.LARK_DRAIN_PROBE) throw new Error('leak') })\n")
     writeFileSync(join(root, '__tests__', 'helper.mjs'), 'throw new Error("非测试文件不该被跑")\n')
     process.env.LARK_DRAIN_PROBE = '1'
     try {
-      const green = runSelfTests({ root })
+      // 10-24 沙箱试跑：spawnSync 跑全量单测卡住 worker 事件循环 8–11 秒，期间心跳不更新。
+      let ticks = 0
+      const beat = setInterval(() => { ticks += 1 }, 20)
+      beat.unref()
+      const pending = runSelfTests({ root })
+      const green = await pending
+      clearInterval(beat)
+      assert.ok(pending instanceof Promise, '自检必须是异步的')
+      assert.ok(ticks >= 5, `跑测试期间定时器只走了 ${ticks} 次`)
       assert.equal(green.ok, true, green.summary)
       assert.match(green.summary, /ℹ tests 1 ℹ pass 1 ℹ fail 0/)
       assert.deepEqual(green.failing, [])
       writeFileSync(join(root, '__tests__', 'b.test.mjs'), "import { it } from 'node:test'\nit('坏用例', () => { throw new Error('boom') })\n")
-      const red = runSelfTests({ root })
+      const red = await runSelfTests({ root })
       assert.equal(red.ok, false)
       assert.match(red.summary, /fail 1/)
       assert.equal(red.failing.length, 1)
       assert.match(red.failing[0], /^✖ 坏用例 .*→ .*boom/)
+      const slow = await runSelfTests({ root, timeoutMs: 50 })
+      assert.deepEqual([slow.ok, slow.summary], [false, '超时（50ms）'])
     } finally {
       delete process.env.LARK_DRAIN_PROBE
     }

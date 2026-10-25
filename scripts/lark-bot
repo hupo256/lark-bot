@@ -13,8 +13,10 @@ GW="$RUNTIME_DIR/lark-gateway.mjs"
 WK="$RUNTIME_DIR/lark-worker.mjs"
 POLLER="$RUNTIME_DIR/lark-bugtable-poller.mjs"
 LOGDIR="$HOME/Library/Logs/fameex-lark"
-HEALTH="http://127.0.0.1:3005/lark/health"
-TASKS="http://127.0.0.1:3005/lark/tasks"
+# gateway 地址：与 lib/lark-constants.mjs 的 defaultGatewayUrl 同一口径（doctor 也认它），沙箱 / 别的实例用 LARK_GATEWAY_URL 指过去。
+GATEWAY_URL="${LARK_GATEWAY_URL:-http://127.0.0.1:3005}"
+HEALTH="$GATEWAY_URL/lark/health"
+TASKS="$GATEWAY_URL/lark/tasks"
 AGENT_DIR="$HOME/Library/LaunchAgents"
 GW_LABEL="com.fameex.lark-gateway"
 WK_LABEL="com.fameex.lark-worker"
@@ -199,12 +201,12 @@ failed() {
 # 人工重触发一个 failed/blocked 任务：重置为 queued，worker 下一轮重跑
 retry() {
   [ -n "${1:-}" ] || { echo "usage: lark-bot retry <taskId>"; exit 1; }
-  curl -s -m 5 -X POST ${SECRET_HDR[@]+"${SECRET_HDR[@]}"} "http://127.0.0.1:3005/lark/tasks/$1/retry"; echo
+  curl -s -m 5 -X POST ${SECRET_HDR[@]+"${SECRET_HDR[@]}"} "$TASKS/$1/retry"; echo
 }
 
 receipt_retry() {
   [ -n "${1:-}" ] || { echo "usage: lark-bot receipt-retry <taskId>"; exit 1; }
-  curl -s -m 5 -X POST ${SECRET_HDR[@]+"${SECRET_HDR[@]}"} "http://127.0.0.1:3005/lark/tasks/$1/receipt/retry"; echo
+  curl -s -m 5 -X POST ${SECRET_HDR[@]+"${SECRET_HDR[@]}"} "$TASKS/$1/receipt/retry"; echo
 }
 
 # 清理陈旧终态任务。默认清 done；传 --failed 一并清 failed/blocked（注意：poller 运行时会重投 bug 表待处理项）
@@ -213,7 +215,7 @@ clean() {
   if [ "${1:-}" = "--failed" ]; then statuses='["done","failed","blocked"]'; hours="${2:-0}"; fi
   curl -s -m 5 -X POST ${SECRET_HDR[@]+"${SECRET_HDR[@]}"} -H 'Content-Type: application/json' \
     -d "{\"olderThanHours\":$hours,\"statuses\":$statuses}" \
-    "http://127.0.0.1:3005/lark/tasks/prune"; echo
+    "$TASKS/prune"; echo
 }
 
 status() {
@@ -233,6 +235,7 @@ status() {
     LARK_STATUS_WORKER_PID="$worker_pid" \
     LARK_STATUS_POLLER_PID="$poller_pid" \
     LARK_STATUS_CLAUDE_AUTH="$(_claude_auth_mode)" \
+    LARK_STATUS_GATEWAY_URL="$GATEWAY_URL" \
     node -e '
       let input="";
       process.stdin.on("data", chunk => input += chunk).on("end", () => {
@@ -247,9 +250,12 @@ status() {
         const pollerPid = process.env.LARK_STATUS_POLLER_PID;
         const worker = health?.worker;
         const gatewayState = health ? (health.ok ? "running" : "unhealthy") : (gatewayPid ? "unhealthy" : "stopped");
+        // 排空重启：磁盘代码 / 配置已更新，worker 不领新任务，在飞跑完、自检绿自己发起 restart（lib/lark-drain-restart.mjs）。
+        // 排空是正常的自动上线过程，不算 unhealthy（10-24 沙箱试跑：原来标 unhealthy、退出码 1）。
+        const draining = Boolean(worker?.draining && workerPid && worker.pid === Number(workerPid) && !worker.heartbeatStale);
         const workerHealthy = Boolean(
           workerPid && worker && worker.pid === Number(workerPid) &&
-          !worker.heartbeatStale && !worker.codeStale && worker.readiness?.ok
+          !worker.heartbeatStale && (!worker.codeStale || draining) && worker.readiness?.ok
         );
         const workerState = workerPid ? (workerHealthy ? "running" : "unhealthy") : "stopped";
         const pollerState = pollerPid ? "running" : "stopped";
@@ -257,11 +263,14 @@ status() {
         const counts = health?.counts || {};
 
         console.log(`started time: ${health?.version?.startedAt || "--"}`);
-        console.log(`lark-gateway: ${gatewayState}  port=3005`);
-        // 排空重启：磁盘代码 / 配置已更新，worker 不领新任务，在飞跑完、自检绿自己发起 restart（lib/lark-drain-restart.mjs）。
-        const draining = Boolean(worker?.draining && workerPid && worker.pid === Number(workerPid) && !worker.heartbeatStale);
+        const gatewayUrl = process.env.LARK_STATUS_GATEWAY_URL;
+        let gatewayPort = "";
+        try { gatewayPort = new URL(gatewayUrl).port; } catch {}
+        console.log(`lark-gateway: ${gatewayState}  ${gatewayPort ? `port=${gatewayPort}` : `url=${gatewayUrl}`}`);
         const staleFix = draining ? "worker 排空中，在飞任务跑完、自检绿会自动 restart" : "需 lark-bot restart";
-        console.log(`lark-worker:  ${workerState}${workerPid ? `  pid=${workerPid}` : ""}${draining ? `  排空中（在飞 ${worker.inFlight ?? "?"} 个，跑完即自动 restart）` : ""}`);
+        // 自修工单在跑：心跳的 inFlight 已把它算进去，这里单列出工单 id 与开始时间（lark-bot self-fix list 看明细）。
+        const selfFix = worker?.selfFix && !worker.heartbeatStale ? `  自修中 ${worker.selfFix.id}（自 ${String(worker.selfFix.since || "?").slice(0, 16)}）` : "";
+        console.log(`lark-worker:  ${workerState}${workerPid ? `  pid=${workerPid}` : ""}${draining ? `  排空中（在飞 ${worker.inFlight ?? "?"} 个，跑完即自动 restart）` : ""}${selfFix}`);
         console.log(`poller:       ${pollerState}${pollerPid ? `  pid=${pollerPid}` : ""}`);
         console.log("");
         console.log(`executor:     ${readiness?.executor || "--"}${readiness?.model ? `  model=${readiness.model}  reasoning=${readiness.reasoningEffort}  probe=${readiness.modelProbe}` : ""}${readiness?.executor === "claude" ? `  auth=${process.env.LARK_STATUS_CLAUDE_AUTH}` : ""}`);
@@ -299,7 +308,7 @@ status() {
         for (const warning of health?.warnings || []) console.log(`⚠ ${warning}`);
 
         const unhealthy = gatewayState !== "running" || workerState !== "running" ||
-          health?.version?.codeStale || health?.version?.configStale ||
+          (!draining && (health?.version?.codeStale || health?.version?.configStale)) ||
           (health?.pendingReceipts?.gaveUp || 0) > 0;
         if (unhealthy) process.exitCode = 1;
       });'

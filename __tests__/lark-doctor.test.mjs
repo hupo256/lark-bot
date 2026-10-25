@@ -84,6 +84,9 @@ describe('buildDoctorReport（纯判定）', () => {
       [{ health: { ...healthy, worker: { pid: 9, heartbeatStale: false } } }, 'worker', 'bad', /就绪检查没过/],
       [{ health: { ...healthy, worker: { pid: 9, readiness: { ok: false } } } }, 'worker', 'bad', /就绪检查没过/],
       [{ health: { ...healthy, worker: { ...healthy.worker, inFlight: undefined, draining: true } } }, 'worker', 'ok', /在飞 \?，排空中/],
+      // 10-24 沙箱试跑：自修中显示「在飞 0」看不出有自修在跑
+      [{ health: { ...healthy, worker: { ...healthy.worker, inFlight: 1, selfFix: { id: 'sf-20261024-abcdef12', since: iso(60_000) } } } }, 'worker', 'ok', /^worker 在线（在飞 1，自修中 sf-20261024-abcdef12）$/],
+      [{ health: { ...healthy, worker: { ...healthy.worker, inFlight: 1, draining: true, selfFix: { id: 'sf-1' } } } }, 'worker', 'ok', /^worker 在线（在飞 1，自修中 sf-1，排空中）$/],
     ]
     for (const [input, id, level, text] of cases) {
       const item = check(input, id)
@@ -346,7 +349,7 @@ describe('startDoctorSchedule / doctorNotifier（worker 装配）', () => {
       monitor: { tick: async () => { ticks += 1; throw new Error('collect boom') } },
     })
     assert.equal(on.enabled, true)
-    assert.match(logs[1], /体检：开（0 分钟后首次、之后每 60 分钟；异常私信 notifyOpenId/)
+    assert.match(logs[1], /体检：开（1 秒后首次、之后每 60 分钟；异常私信 notifyOpenId/)
     await new Promise((resolve) => setTimeout(resolve, 30))
     on.stop()
     assert.equal(ticks, 1)
@@ -354,6 +357,12 @@ describe('startDoctorSchedule / doctorNotifier（worker 装配）', () => {
     const quiet = startDoctorSchedule({ selfHeal: {}, env: {}, log: (line) => logs.push(line), monitor: { tick: async () => {} } })
     quiet.stop()
     assert.match(logs[3], /3 分钟后首次、之后每 60 分钟；异常只写日志：未配 notifyOpenId/)
+    // 10-24 沙箱试跑：LARK_DOCTOR_FIRST_MS=20000 显示成「0 分钟后首次」；不足 1 分钟按秒
+    for (const [firstMs, text] of [['20000', '20 秒后首次'], ['59999', '60 秒后首次'], ['60000', '1 分钟后首次'], ['90000', '2 分钟后首次']]) {
+      const lines = []
+      startDoctorSchedule({ selfHeal: {}, env: { LARK_DOCTOR_FIRST_MS: firstMs }, log: (line) => lines.push(line), monitor: { tick: async () => {} } }).stop()
+      assert.ok(lines[0].includes(`（${text}、`), lines[0])
+    }
 
     const sent = []
     const dm = doctorNotifier({ notifyOpenId: 'ou_x', send: async (args) => { sent.push(args); return { ok: true } } })

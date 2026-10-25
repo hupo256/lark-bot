@@ -12,7 +12,7 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, it } from 'node:test'
+import { describe, it, mock } from 'node:test'
 
 import { handleStatusUpdate, resolveReceiptOutcome, retryPendingReceipts, sendQueuedReceipt } from '../lib/lark-status.mjs'
 import {
@@ -29,7 +29,7 @@ import { parkedReminderRound } from '../lib/lark-parked-reminder.mjs'
 import { rotateLogIfLarge } from '../lib/lark-log-rotate.mjs'
 import { sweepAttachments } from '../lib/lark-retention.mjs'
 import { buildResultCard, buildWaitingCard } from '../lib/lark-cards.mjs'
-import { messageSendRecipientArgs, parseSentMessageId, pickChatIdByProject, resolveDeliveryChatId, formatLarkCliError, isTransientLarkError } from '../lib/lark-cli.mjs'
+import { messageSendRecipientArgs, parseSentMessageId, pickChatIdByProject, resolveDeliveryChatId, formatLarkCliError, isTransientLarkError, runLarkCliWithRetry, sendChatMessage } from '../lib/lark-cli.mjs'
 import {
   classifyClosureIntent,
   classifyCommandType,
@@ -1022,9 +1022,31 @@ describe('messageSendRecipientArgs（chat_id / open_id 择参）', () => {
     assert.deepEqual(messageSendRecipientArgs('oc_51e2bcf0ed6a772c402d6cacd43176b3'), ['--chat-id', 'oc_51e2bcf0ed6a772c402d6cacd43176b3'])
   })
 
-  it('空/缺失 → 仍归为 --chat-id（由 sendChatMessage 的 missing 校验拦下）', () => {
+  it('空/缺失 → 仍归为 --chat-id（由 sendChatMessage 的 missing 校验拦下）；日志前缀由调用方传（worker 发的不该打 [lark-gateway]）', async () => {
     assert.deepEqual(messageSendRecipientArgs(''), ['--chat-id', ''])
     assert.deepEqual(messageSendRecipientArgs(undefined), ['--chat-id', ''])
+    // 10-24 沙箱试跑：worker 里发私信的日志前缀是 [lark-gateway]，翻 worker.log 时以为是 gateway 发的。
+    const lines = []
+    const spies = ['log', 'warn', 'error'].map((name) => mock.method(console, name, (line) => lines.push(line)))
+    try {
+      assert.deepEqual(await sendChatMessage({ chatId: '', text: 'x', logPrefix: 'self-fix', logTag: '[lark-worker]' }), { ok: false, reason: 'missing chatId' })
+      await sendChatMessage({ chatId: '', text: 'x', logPrefix: 'notice' })
+      const okRun = await runLarkCliWithRetry(['im'], { logPrefix: 'dm', logTag: '[lark-worker]', run: async () => ({ code: 0, stdout: '{}', stderr: '' }) })
+      assert.equal(okRun.ok, true)
+      const badRun = await runLarkCliWithRetry(['im'], { logPrefix: 'dm', retries: 1, logTag: '[lark-worker]', run: async () => ({ code: 1, stdout: '', stderr: 'nope' }) })
+      assert.deepEqual(badRun, { ok: false, reason: 'nope' })
+      await runLarkCliWithRetry(['im'], { logPrefix: 'gw', run: async () => ({ code: 0, stdout: '{}', stderr: '' }) })
+    } finally {
+      for (const spy of spies) spy.mock.restore()
+    }
+    assert.deepEqual(lines, [
+      '[lark-worker] self-fix: skipped, missing chatId',
+      '[lark-gateway] notice: skipped, missing chatId',
+      '[lark-worker] dm ok',
+      '[lark-worker] dm attempt 1/1 failed: nope',
+      '[lark-worker] dm gave up after 1 attempts',
+      '[lark-gateway] gw ok',
+    ])
   })
 })
 

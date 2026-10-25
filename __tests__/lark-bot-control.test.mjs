@@ -2,6 +2,7 @@
 
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, it } from 'node:test'
@@ -160,17 +161,67 @@ describe('lark-bot control script', () => {
     `)
     const version = { codeStale: true, codeHash: 'aaa', diskCodeHash: 'bbb', configStale: true, configHash: 'c1', diskConfigHash: 'c2' }
     const draining = { pid: 101, codeHash: 'aaa', codeStale: true, draining: true, inFlight: 2, readiness: { ok: true, executor: 'claude' } }
-    const out = statusWith(draining, version).stdout
-    assert.match(out, /lark-worker:  unhealthy  pid=101  排空中（在飞 2 个，跑完即自动 restart）\n/)
+    const drainingRun = statusWith(draining, version)
+    const out = drainingRun.stdout
+    // 10-24 沙箱试跑：排空中 status 把 worker 标 unhealthy、退出码 1；排空是正常的自动上线过程
+    assert.match(out, /lark-worker:  running  pid=101  排空中（在飞 2 个，跑完即自动 restart）\n/)
+    assert.equal(drainingRun.status, 0, out)
     assert.match(out, /gateway 跑的是旧代码（aaa，磁盘 bbb）：worker 排空中，在飞任务跑完、自检绿会自动 restart/)
     assert.match(out, /gateway 跑的是旧配置（c1，磁盘 c2）：worker 排空中/)
     assert.match(out, /worker 跑的是旧代码（aaa，磁盘 bbb）：worker 排空中/)
     assert.doesNotMatch(out, /需 lark-bot restart/)
     for (const notDraining of [{ ...draining, draining: false }, { ...draining, heartbeatStale: true }, { ...draining, pid: 999 }]) {
-      const plain = statusWith(notDraining, version).stdout
+      const plainRun = statusWith(notDraining, version)
+      const plain = plainRun.stdout
       assert.doesNotMatch(plain, /排空中/)
       assert.match(plain, /worker 跑的是旧代码（aaa，磁盘 bbb）：需 lark-bot restart/)
+      assert.match(plain, /lark-worker:  unhealthy/)
+      assert.equal(plainRun.status, 1)
     }
+    // 自修工单在跑：status 显示自修中 + 工单 id（心跳的 inFlight 已把它算进去）
+    const selfFix = { id: 'sf-20261024-abcdef12', since: '2026-10-24T01:00:00.000Z' }
+    const fixing = statusWith({ ...draining, inFlight: 1, selfFix }, version).stdout
+    assert.match(fixing, /lark-worker:  running  pid=101  排空中（在飞 1 个，跑完即自动 restart）  自修中 sf-20261024-abcdef12（自 2026-10-24T01:00）\n/)
+    const fixingFresh = statusWith({ pid: 101, inFlight: 1, selfFix, readiness: { ok: true, executor: 'claude' } }, {}).stdout
+    assert.match(fixingFresh, /lark-worker:  running  pid=101  自修中 sf-20261024-abcdef12（自 2026-10-24T01:00）\n/)
+  })
+
+  // 10-24 沙箱试跑：status / failed / retry / clean / close / resume / receipt-retry 把 3005 写死，沙箱实例（别的端口）全打到正式那套。
+  it('gateway 地址统一认 LARK_GATEWAY_URL（缺省 http://127.0.0.1:3005），status 的 port 跟着它', () => {
+    const calls = (url) => runBash(`
+      export LARK_BOT_SOURCE_ONLY=1
+      ${url ? `export LARK_GATEWAY_URL=${url}` : 'unset LARK_GATEWAY_URL'}
+      source ${JSON.stringify(script)}
+      _pid() { echo 101 ; }
+      node() { cat >/dev/null; command node "$@" </dev/null >/dev/null 2>&1 || true; }
+      log="$(mktemp)"
+      curl() { for a in "$@"; do case "$a" in http*) echo "URL $a" >>"$log" ;; esac; done; }
+      failed; retry t1; receipt_retry t2; clean 3; status
+      cat "$log"; rm -f "$log"
+    `).stdout
+    const custom = calls('http://127.0.0.1:3999')
+    assert.deepEqual(custom.match(/^URL .*$/gm), [
+      'URL http://127.0.0.1:3999/lark/tasks',
+      'URL http://127.0.0.1:3999/lark/tasks/t1/retry',
+      'URL http://127.0.0.1:3999/lark/tasks/t2/receipt/retry',
+      'URL http://127.0.0.1:3999/lark/tasks/prune',
+      'URL http://127.0.0.1:3999/lark/health',
+      'URL http://127.0.0.1:3999/lark/tasks',
+    ])
+    assert.doesNotMatch(custom, /3005/)
+    assert.match(calls(''), /^URL http:\/\/127\.0\.0\.1:3005\/lark\/health$/m)
+    const statusPort = (url) => runBash(`
+      export LARK_BOT_SOURCE_ONLY=1
+      export LARK_GATEWAY_URL=${url}
+      source ${JSON.stringify(script)}
+      _pid() { echo 101 ; }
+      curl() { case "$*" in *health*) printf '%s' '{"ok":true,"worker":{"pid":101,"readiness":{"ok":true,"executor":"claude"}},"counts":{},"pendingReceipts":{"total":0}}' ;; *) printf '%s' '{"tasks":[]}' ;; esac; }
+      status
+    `).stdout
+    assert.match(statusPort('http://127.0.0.1:3999'), /lark-gateway: running  port=3999\n/)
+    assert.match(statusPort('http://localhost'), /lark-gateway: running  url=http:\/\/localhost\n/)
+    const src = readFileSync(script, 'utf8')
+    assert.deepEqual(src.match(/3005/g), ['3005'], '3005 只该出现在缺省值一处')
   })
 
   it('无挂起任务时不输出挂起区块', () => {

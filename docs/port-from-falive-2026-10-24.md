@@ -184,3 +184,21 @@ aven 10-24 下午定：「刻意没搬的」里的排空重启和自愈环 2 这
 上线：合进运行分支后由排空重启自动生效（或手动 `lark-bot restart`）；不用改配置，想关定时私信加 `"selfHeal": { "doctor": false }`。`scripts/lark-bot` 的 usage 行没加 `doctor`（避免和自修工单分支同一行冲突），合并两条分支时一起补。
 
 测试：`__tests__/lark-doctor.test.mjs`（各检查项表格化判定、轮询 / 自修工单状态文件读写、去重 24 小时与数字归一、发送失败不记已报、合盖 / 刚醒跳过、定时装配与私信出口、取数兜底、真走 `scripts/lark-bot doctor` 起假 health 服务验退出码）。`node scripts/mutate.mjs --diff a2f4fbc` 59 个变异点全抓到。
+
+### 沙箱试跑（10-24）
+
+沙箱端到端试跑发现的问题，编号沿用试跑报告。下面是分支 `lark/sh-fix-worker` 修的（5–9、11、12 和 10 的四处）；1–4 和 10 的另两处在另一条分支。每条先写了失败的测试，确认修复前红。
+
+| # | 问题 | 修法 | 测试 |
+|---|---|---|---|
+| 12 | 执行器没有 claude 路径开关，只能靠 PATH 遮挡；假 claude 一失效就落到真 claude（这次试跑的事故原因） | `LARK_CLAUDE_BIN` 覆盖（与 `LARK_CLI_BIN` 同风格，调用时读 env）；node --test 进程里（`NODE_TEST_CONTEXT`）没显式指定就用不存在的 `/nonexistent/lark-bot-test-no-claude`。任务四种模式、就绪探针、`--version` 预检全走 `resolveAiExecutorBinary('claude')` | `lark-ai-executor.test.mjs`：各模式 cmd、预检 ENOENT、真 spawn 起不来；另用一个会记账的假 `claude` 放在 PATH 最前跑全量 604 条，一次也没被调到 |
+| 5 | `scripts/lark-bot` 的 status / failed / retry / clean / close / resume / receipt-retry 写死 3005，status 写死 `port=3005` | 统一 `GATEWAY_URL="${LARK_GATEWAY_URL:-http://127.0.0.1:3005}"`，status 的 port 从地址解析（没有端口显示 url） | `lark-bot-control.test.mjs`：自定义地址下 6 个 curl 全打到新端口、脚本里 3005 只剩缺省值一处 |
+| 6 | 心跳 `inFlight` 不含自修工单：自修中排空显示「在飞 0」，status 看不出有自修在跑 | 心跳改用 `heartbeatActivity({ tasks, selfFix, draining })`：自修算一个在飞，带 `selfFix: { id, since }`；自修开跑 / 跑完立即补写心跳。status 行尾「自修中 <id>（自 …）」，doctor「worker 在线（在飞 1，自修中 <id>）」 | `lark-runtime-version` / `lark-self-fix`（`runner.status()`）/ `lark-bot-control` / `lark-doctor` |
+| 7 | 排空中 gateway 的版本提示仍写「需 lark-bot restart」；worker.log 发起重启后又打一次；status 把排空中的 worker 标 unhealthy、退出 1 | `versionWarnings(version, { draining })` 排空中改口「worker 已在排空…会自动 restart」，health（`workerDraining(worker)`：心跳活着才算）与 worker 日志都传；status 排空中 worker 算 running，旧代码 / 旧配置不计入退出码 | `lark-runtime-version` / `lark-bot-control`（排空 exit 0；心跳停 / pid 对不上仍 unhealthy、exit 1） |
+| 8 | worker 被 SIGKILL 时在跑的自修 claude 成孤儿（recover 只删现场） | `execAiExecutor` 新增 `onSpawn({ pid, cmd })`，自修把执行器 pid（= 进程组号）记进工单 `execPid`；recover 先 `killOrphanExec`：`ps -A -ww` 里这个进程组有命令行含工单 worktree 路径的进程才 `kill(-pid)`，防 pid 复用误杀 | `lark-self-fix.test.mjs` 起真进程：命令行带 worktree 路径的被 SIGKILL，无关进程不动 |
+| 9 | 改动行没有可变异点时变异闸也算过，私信 / 提交说明写「变异存活 0」 | `defaultRunMutate` 返回 `checked`：有变异点写「变异存活 S（N 个变异点：抓到 K，豁免 A）」，没有写「改动行没有可变异的运算符（未做变异检查）」；提交说明同样区分 | `lark-self-fix.test.mjs` |
+| 11 | 排空自检用 `spawnSync` 跑全量单测，卡住 worker 事件循环 8–11 秒、心跳不更新 | `runSelfTests` 改异步（复用自修验收的 `runCommand`，挪进 `lib/lark-drain-restart.mjs`，self-fix-run re-export），自检期间定时器照走；超时显示「超时（Nms）」 | `lark-drain-restart.test.mjs`：跑测试期间 20ms 定时器照常走 |
+| 10 | spawn 报错把带完整提示词的 `spawnargs`（约 13KB）倒进 worker.log | `trimSpawnArgs`：参数只留前 200 字（命令名在 `error.path` / message 里） | `lark-ai-executor.test.mjs` |
+| 10 | 只改配置时排空日志打的是代码哈希「a2ec… → a2ec…」 | 改了什么打什么：「代码 a → b」「配置 c → c2」，两样都改两样都打 | `lark-drain-restart.test.mjs` |
+| 10 | `LARK_DOCTOR_FIRST_MS=20000` 显示「0 分钟后首次」 | 不足 1 分钟按秒（向上取整） | `lark-doctor.test.mjs` |
+| 10 | worker 发私信的日志前缀是 `[lark-gateway]` | `sendChatMessage` / `runLarkCliWithRetry` 加 `logTag`（缺省不变），worker 的排空 / 自修 / 体检私信传 `[lark-worker]` | `lark-pure.test.mjs` |
