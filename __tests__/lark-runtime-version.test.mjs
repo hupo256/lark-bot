@@ -6,7 +6,7 @@
  */
 
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
@@ -109,6 +109,7 @@ describe('lark-runtime-version', () => {
         assert.equal(observed.codeStale, true)
         assert.equal(observed.codeHash, version.codeHash, 'codeHash 始终是启动时加载的那一版')
         assert.notEqual(observed.diskCodeHash, observed.codeHash)
+        assert.equal(observed.diskChangedAt, new Date(statSync(join(root, 'lib', 'a.mjs')).mtimeMs).toISOString(), '只改代码：磁盘改动时间取源码 mtime，不是观测时刻')
         const warnings = versionWarnings(observed)
         assert.equal(warnings.length, 1)
         const mode = process.env.LARK_INSTANCE_MODE
@@ -137,6 +138,8 @@ describe('lark-runtime-version', () => {
         assert.equal(observed.configStale, true)
         assert.equal(observed.codeStale, false)
         assert.equal(versionWarnings(observed).length, 1)
+        const configMtime = statSync(configPath).mtimeMs
+        assert.equal(observed.diskChangedAt, new Date(configMtime).toISOString(), '只改配置也记磁盘改动时间（取配置文件 mtime，10-25）')
       } finally {
         rmSync(root, { recursive: true, force: true })
       }
