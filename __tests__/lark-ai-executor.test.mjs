@@ -19,8 +19,13 @@ import {
   executorReadableDirs,
   formatStructuredAiResult,
   isTransientAiError,
+  preflightAiExecutor,
   resolveAiExecutor,
+  resolveAiExecutorBinary,
   resolveAiModelConfig,
+  resolveClaudeBinary,
+  TEST_CLAUDE_BIN,
+  trimSpawnArgs,
   validateAiExecutor,
 } from '../lib/lark-ai-executor.mjs'
 import { buildClaudeResultFileInstruction, buildClaudeResultRecoveryInstruction, parseStructuredAiResult, parseStructuredAnalysisValue, parseStructuredIntentResult } from '../lib/lark-ai-result.mjs'
@@ -203,11 +208,46 @@ describe('Codex non-interactive command', () => {
 
   it('Claude readiness probe 只读、不指定模型（与任务命令同一模型来源）', () => {
     const command = buildClaudeReadinessCommand()
-    assert.equal(command.cmd, 'claude')
+    assert.equal(command.cmd, process.env.LARK_CLAUDE_BIN || TEST_CLAUDE_BIN)
     assert.deepEqual(command.args.slice(command.args.indexOf('--permission-mode'), command.args.indexOf('--permission-mode') + 2), ['--permission-mode', 'plan'])
     assert.equal(command.args.includes('--model'), false)
     assert.equal(command.args.includes('--dangerously-skip-permissions'), false)
     assert.match(command.args.at(-1), /CLAUDE_MODEL_READY$/)
+  })
+
+  // 10-24 沙箱试跑事故：claude 路径没有覆盖开关，PATH 里的假 claude 一失效就落到真 claude。
+  it('claude 路径：LARK_CLAUDE_BIN 覆盖；node --test 里没显式指定就用必失败的路径，任务 / 探针 / 预检都起不来真 claude；spawn 报错的 spawnargs 截断', async () => {
+    assert.equal(resolveClaudeBinary({}), 'claude')
+    assert.equal(resolveClaudeBinary({ LARK_CLAUDE_BIN: '/x/claude' }), '/x/claude')
+    assert.equal(resolveClaudeBinary({ LARK_CLAUDE_BIN: '/x/claude', NODE_TEST_CONTEXT: 'child-v8' }), '/x/claude')
+    assert.equal(resolveClaudeBinary({ NODE_TEST_CONTEXT: 'child-v8' }), TEST_CLAUDE_BIN)
+    assert.equal(existsSync(TEST_CLAUDE_BIN), false)
+    const saved = process.env.LARK_CLAUDE_BIN
+    delete process.env.LARK_CLAUDE_BIN
+    try {
+      assert.ok(process.env.NODE_TEST_CONTEXT, '本文件跑在 node --test 下')
+      assert.equal(resolveAiExecutorBinary('claude'), TEST_CLAUDE_BIN)
+      assert.equal(resolveAiExecutorBinary('cursor'), 'cursor-agent')
+      for (const resultKind of ['task', 'intent', 'triage', 'analysis']) {
+        assert.equal(buildAiExecutorCommand({ executor: 'claude', promptText: 'x', cwd: '/tmp/repo', resultKind }).cmd, TEST_CLAUDE_BIN, resultKind)
+      }
+      assert.equal(buildClaudeReadinessCommand().cmd, TEST_CLAUDE_BIN)
+      assert.throws(() => preflightAiExecutor('claude', { localConfig: {}, probeModel: true }), /CLI 不可用：.*ENOENT/)
+      const prompt = `修一下${'很长的群消息正文'.repeat(400)}`
+      const error = await execAiExecutor({ executor: 'claude', promptText: prompt, cwd: tmpdir(), localConfig: {} }).then(() => assert.fail('不该跑起来'), (e) => e)
+      assert.equal(error.code, 'ENOENT')
+      assert.equal(error.path, TEST_CLAUDE_BIN)
+      assert.equal(error.spawnargs.length, 1)
+      assert.match(error.spawnargs[0], /^-p .*…（已截断，原 \d+ 字）$/)
+      assert.equal(error.spawnargs[0].length, 200 + '…（已截断，原 0000 字）'.length)
+      const short = Object.assign(new Error('x'), { spawnargs: ['-p', 'hi'] })
+      assert.deepEqual(trimSpawnArgs(short).spawnargs, ['-p', 'hi'])
+      assert.deepEqual(trimSpawnArgs(Object.assign(new Error('y'), { spawnargs: ['a'.repeat(200)] })).spawnargs, ['a'.repeat(200)])
+      assert.equal(trimSpawnArgs(null), null)
+    } finally {
+      if (saved == null) delete process.env.LARK_CLAUDE_BIN
+      else process.env.LARK_CLAUDE_BIN = saved
+    }
   })
 
   it('Codex 分析阶段使用只读沙箱和独立分析 Schema', () => {
@@ -934,6 +974,7 @@ describe('结果文件自纠偏与续会话（falive #31 / 升级计划第 1 批
     child.stdin = new PassThrough()
     child.kill = () => {}
     calls.push({ cmd, args })
+    child.pid = 1000 + calls.length
     const resumeAt = args.indexOf('--resume')
     const resultPath = args.join(' ').match(/(\/\S+result\.json)/)?.[1]
     setImmediate(() => {
@@ -951,10 +992,13 @@ describe('结果文件自纠偏与续会话（falive #31 / 升级计划第 1 批
   it('claude 任务正常退出却没写 result.json：续同一会话只补写一次，补写成功即按正常结果返回', async () => {
     const calls = []
     const auditLogPath = join(mkdtempSync(join(tmpdir(), 'lark-heal-')), 'audit.log')
+    const spawned = []
     const out = await execAiExecutor({
-      executor: 'claude', promptText: '修一下', cwd: tmpdir(), auditLogPath, localConfig: {}, spawnImpl: fakeSpawn(calls),
+      executor: 'claude', promptText: '修一下', cwd: tmpdir(), auditLogPath, localConfig: {}, spawnImpl: fakeSpawn(calls), onSpawn: (info) => spawned.push(info),
     })
     assert.equal(calls.length, 2)
+    // 每起一个子进程都报 pid（自修工单记下来，worker 被 SIGKILL 后 recover 杀孤儿）
+    assert.deepEqual(spawned, [{ pid: 1001, cmd: calls[0].cmd }, { pid: 1002, cmd: calls[1].cmd }])
     assert.equal(calls[0].args.includes('--resume'), false)
     assert.deepEqual(calls[1].args.slice(calls[1].args.indexOf('--resume'), calls[1].args.indexOf('--resume') + 2), ['--resume', 'sess-1'])
     assert.match(calls[1].args.at(-1), /不要重跑任务/)

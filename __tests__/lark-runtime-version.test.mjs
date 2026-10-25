@@ -16,7 +16,9 @@ import {
   createRuntimeVersion,
   listSourceFiles,
   readWorkerHeartbeat,
+  heartbeatActivity,
   versionWarnings,
+  workerDraining,
   writeWorkerHeartbeat,
 } from '../lib/lark-runtime-version.mjs'
 
@@ -94,7 +96,12 @@ describe('lark-runtime-version', () => {
       assert.notEqual(observed.diskCodeHash, observed.codeHash)
       const warnings = versionWarnings(observed)
       assert.equal(warnings.length, 1)
-      assert.match(warnings[0], /lark-bot restart/)
+      assert.match(warnings[0], /需 `lark-bot restart`$/)
+      // 10-24 沙箱试跑：排空中 gateway 自己的提示仍写「需 lark-bot restart」，与「会自动 restart」矛盾。
+      const draining = versionWarnings(observed, { draining: true })
+      assert.equal(draining.length, 1)
+      assert.match(draining[0], /尚未生效，worker 已在排空，在飞任务跑完、自检绿会自动 restart$/)
+      assert.doesNotMatch(draining[0], /需 `lark-bot restart`/)
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
@@ -111,7 +118,8 @@ describe('lark-runtime-version', () => {
       const observed = version.observe()
       assert.equal(observed.configStale, true)
       assert.equal(observed.codeStale, false)
-      assert.equal(versionWarnings(observed).length, 1)
+      assert.deepEqual(versionWarnings(observed).map((w) => w.split('：')[1]), ['需 `lark-bot restart`'])
+      assert.deepEqual(versionWarnings(observed, { draining: true }).map((w) => w.split('：')[1]), ['worker 已在排空，在飞任务跑完、自检绿会自动 restart'])
       // 只改配置也要有改动时间（排空重启等人存完盘再校验），取配置文件的 mtime
       assert.equal(observed.diskChangedAt, new Date(statSync(configPath).mtimeMs).toISOString())
     } finally {
@@ -177,6 +185,17 @@ describe('lark-runtime-version', () => {
 
       clock += 10 * 60_000
       assert.equal(readWorkerHeartbeat({ runtimeDir, expectedCodeHash: 'aaaaaaaaaaaa', now: () => clock }).heartbeatStale, true)
+
+      // 10-24 沙箱试跑：自修工单在跑时心跳的 inFlight 是 0，排空 / 体检都显示「在飞 0」。自修算一个在飞，并带上工单 id。
+      const selfFix = { id: 'sf-20261024-abcdef12', since: '2026-10-24T01:00:00.000Z' }
+      assert.deepEqual(heartbeatActivity({ tasks: 2, selfFix, draining: true }), { inFlight: 3, selfFix, draining: true })
+      assert.deepEqual(heartbeatActivity({ tasks: 0 }), { inFlight: 0, selfFix: null, draining: false })
+      assert.deepEqual(heartbeatActivity({ tasks: 1, selfFix: null, draining: false }), { inFlight: 1, selfFix: null, draining: false })
+      // 排空要以活着的心跳为准：心跳停了不算排空
+      assert.equal(workerDraining({ draining: true, heartbeatStale: false }), true)
+      assert.equal(workerDraining({ draining: true, heartbeatStale: true }), false)
+      assert.equal(workerDraining({ draining: false, heartbeatStale: false }), false)
+      assert.equal(workerDraining(null), false)
 
       // 心跳文件必须落在 *-state.json 命名上，否则它自己会让 codeHash 每分钟漂移。
       assert.equal(listSourceFiles(root).some((f) => f.includes('lark-worker-state')), false)

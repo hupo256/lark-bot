@@ -43,6 +43,7 @@ import {
   createSelfFixRunner,
   defaultRunMutate,
   defaultRunTests,
+  killOrphanExec,
   outsideAllowedDirs,
   parseRootCauseLayer,
   runCommand,
@@ -290,7 +291,8 @@ describe('工单落盘与文案', () => {
 })
 
 describe('执行器（临时 git 仓 + 假执行器）', () => {
-  const runner = (repo, extra = {}) => createSelfFixRunner({ dir: repo.dir, root: repo.root, runTests: ok('测试 3 个：通过 3'), runMutate: ok('变异 2 个：抓到 2'), log: quiet, now: () => NOON, ...extra })
+  const MUTATE_OK = { ok: true, checked: true, summary: '变异存活 0（2 个变异点：抓到 2，豁免 0）' }
+  const runner = (repo, extra = {}) => createSelfFixRunner({ dir: repo.dir, root: repo.root, runTests: ok('测试 3 个：通过 3'), runMutate: async () => MUTATE_OK, log: quiet, now: () => NOON, ...extra })
 
   it('验收全过 → 本地提交、ready、现场保留、私信带 apply 指令；执行器拿到 worktree / claude 实施模式 / 40 分钟', async () => {
     const repo = makeRepo()
@@ -305,21 +307,36 @@ describe('执行器（临时 git 仓 + 假执行器）', () => {
       assert.equal(ticket.layer, 'harness')
       assert.deepEqual(ticket.ai, { status: 'done', summary: '[harness] 结果文件路径拼错', blockers: [], checks: ['node scripts/test-all.mjs 绿'] })
       assert.deepEqual(ticket.changedFiles, ['__tests__/a.test.mjs', 'docs/self-fix-log.md', 'lib/a.mjs'])
-      assert.deepEqual(ticket.verdict, { stage: 'done', tests: { ok: true, summary: '测试 3 个：通过 3' }, mutate: { ok: true, summary: '变异 2 个：抓到 2' } })
+      assert.deepEqual(ticket.verdict, { stage: 'done', tests: { ok: true, summary: '测试 3 个：通过 3' }, mutate: MUTATE_OK })
       assert.deepEqual(ticket.history.map((item) => item.status), ['pending', 'running', 'ready'])
       assert.equal(ticket.attempts, 1)
       assert.equal(calls[0].cwd, path)
       assert.deepEqual([calls[0].executor, calls[0].resultKind, calls[0].timeoutMs, calls[0].readOnly], ['claude', 'task', SELF_FIX_TIMEOUT_MS, undefined])
       assert.equal(SELF_FIX_TIMEOUT_MS, 40 * 60_000)
       assert.equal(calls[0].auditLogPath, join(repo.dir, `${id}.log`))
+      // 执行器每起一个子进程就把 pid 记进工单（worker 被 SIGKILL 后 recover 靠它杀孤儿）
+      calls[0].onSpawn({ pid: 4242, cmd: 'claude' })
+      calls[0].onSpawn({ pid: undefined, cmd: 'claude' })
+      assert.equal(readTicket({ dir: repo.dir, id }).execPid, 4242)
       assert.match(calls[0].promptText, new RegExp(`当前目录 ${path}`))
       assert.equal(g(path, ['status', '--porcelain']).stdout, '')
       assert.equal(g(path, ['rev-parse', 'HEAD']).stdout.trim(), ticket.commit)
-      assert.match(g(path, ['log', '-1', '--format=%s']).stdout, /^fix\(self-fix\): \[harness\] 结果文件路径拼错（自修工单 sf-/)
+      assert.match(g(path, ['log', '-1', '--format=%s']).stdout.trim(), /^fix\(self-fix\): \[harness\] 结果文件路径拼错（自修工单 sf-.*，worker 验收：全量单测绿、变异存活 0）$/)
       assert.equal(g(repo.root, ['rev-parse', '--abbrev-ref', 'HEAD']).stdout.trim(), 'main')
       assert.equal(notes.length, 1)
       assert.equal(notes[0].opts.idempotencyKey, `self-fix-${id}-ready`)
       assert.match(notes[0].text, new RegExp(`lark-bot self-fix apply ${id}`))
+      assert.match(notes[0].text, /变异：变异存活 0（2 个变异点/)
+
+      // 10-24 沙箱试跑：改动行一个可变异点都没有也算过，私信却写「变异存活 0」。如实写没做变异检查。
+      const { id: id2 } = open(repo, { fingerprint: fp('odd failure without operators') })
+      const unchecked = { ok: true, checked: false, summary: '改动行没有可变异的运算符（未做变异检查）' }
+      const notes2 = []
+      const t2 = await runner(repo, { exec: fakeExec({ files: { 'docs/self-fix-log.md': '| y |\n' } }), runMutate: async () => unchecked, notify: async (text) => { notes2.push(text) } }).runTicket(readTicket({ dir: repo.dir, id: id2 }))
+      assert.equal(t2.status, 'ready')
+      assert.match(g(join(repo.base, `lark-bot-${id2}`), ['log', '-1', '--format=%s']).stdout.trim(), /worker 验收：全量单测绿、改动行没有可变异的运算符，未做变异检查）$/)
+      assert.match(notes2[0], /变异：改动行没有可变异的运算符（未做变异检查）/)
+      assert.doesNotMatch(notes2[0], /存活 0/)
     } finally {
       repo.cleanup()
     }
@@ -419,10 +436,40 @@ describe('执行器（临时 git 仓 + 假执行器）', () => {
       assert.equal(readTicket({ dir: repo.dir, id: id2 }).status, 'pending')
       assert.equal(existsSync(join(repo.base, `lark-bot-${id2}`)), false)
 
-      // 上个进程跑到一半：留下 running 工单和现场
-      updateTicket({ dir: repo.dir, id: id2, patch: { status: 'running', attempts: 1 } })
-      g(repo.root, ['worktree', 'add', '-q', '-b', readTicket({ dir: repo.dir, id: id2 }).branch, join(repo.base, `lark-bot-${id2}`)])
-      runner(repo, { exec: fakeExec(), notify: async () => { throw new Error('lark down') } })
+      // 上个进程跑到一半（worker 被 SIGKILL）：留下 running 工单、现场，和还活着的执行器进程组（10-24 沙箱试跑：成了孤儿）
+      const orphanPath = join(repo.base, `lark-bot-${id2}`)
+      const orphan = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)', `当前目录 ${orphanPath}`], { detached: true, stdio: 'ignore' })
+      const decoy = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)', 'not-the-ticket'], { detached: true, stdio: 'ignore' })
+      const exited = (child) => new Promise((resolve) => child.once('exit', (code, sig) => resolve(sig)))
+      const orphanExit = exited(orphan)
+      try {
+        // 防 pid 复用误杀：进程组里没有命令行含工单 worktree 路径的进程就不杀
+        assert.equal(killOrphanExec({ pid: decoy.pid, worktreePath: orphanPath }), false)
+        assert.equal(killOrphanExec({ pid: 1, worktreePath: orphanPath }), false)
+        assert.equal(killOrphanExec({ pid: undefined, worktreePath: orphanPath }), false)
+        assert.equal(killOrphanExec({ pid: orphan.pid, worktreePath: '' }), false)
+        assert.equal(killOrphanExec({ pid: orphan.pid, worktreePath: orphanPath, kill: () => { throw new Error('ESRCH') } }), false)
+        // pid 守卫独立于 ps 核对：pid 1（kill(-1) = 杀全部）/ 非整数，哪怕 ps 报出了匹配的进程也绝不发信号
+        const kills = []
+        const spy = (pid, sig) => { kills.push([pid, sig]) }
+        const fakePs = (pgid) => () => [{ pid: 7, pgid, command: `claude ${orphanPath}` }]
+        assert.equal(killOrphanExec({ pid: 1, worktreePath: orphanPath, ps: fakePs(1), kill: spy }), false)
+        assert.equal(killOrphanExec({ pid: undefined, worktreePath: orphanPath, ps: fakePs(undefined), kill: spy }), false)
+        assert.equal(killOrphanExec({ pid: 2, worktreePath: orphanPath, ps: fakePs(2), kill: spy }), true)
+        assert.deepEqual(kills, [[-2, 'SIGKILL']])
+        updateTicket({ dir: repo.dir, id: id2, patch: { status: 'running', attempts: 1, execPid: orphan.pid } })
+        g(repo.root, ['worktree', 'add', '-q', '-b', readTicket({ dir: repo.dir, id: id2 }).branch, orphanPath])
+        const recoverLogs = []
+        runner(repo, { exec: fakeExec(), log: (line) => recoverLogs.push(line), notify: async () => { throw new Error('lark down') } })
+        assert.equal(await orphanExit, 'SIGKILL')
+        assert.ok(recoverLogs.some((line) => line.includes(`杀掉上次遗留的执行器进程组 ${orphan.pid}`)), recoverLogs.join('\n'))
+        assert.equal(decoy.exitCode, null, '无关进程不能被杀')
+        assert.equal(decoy.signalCode, null)
+      } finally {
+        for (const child of [orphan, decoy]) {
+          try { process.kill(-child.pid, 'SIGKILL') } catch { /* 已退出 */ }
+        }
+      }
       assert.equal(readTicket({ dir: repo.dir, id: id2 }).status, 'pending')
       assert.equal(existsSync(join(repo.base, `lark-bot-${id2}`)), false)
       assert.equal(g(repo.root, ['branch', '--list', readTicket({ dir: repo.dir, id: id2 }).branch]).stdout, '')
@@ -450,9 +497,11 @@ describe('执行器（临时 git 仓 + 假执行器）', () => {
       assert.equal(r.maybeStart({ inFlight: 1 }), null)
       assert.equal(r.maybeStart({ draining: true }), null)
       assert.equal(r.maybeStart({ shuttingDown: true }), null)
-      assert.deepEqual([r.busy(), r.inFlightCount(), r.current()], [false, 0, null])
+      assert.deepEqual([r.busy(), r.inFlightCount(), r.current(), r.status()], [false, 0, null, null])
       assert.equal(r.maybeStart({ inFlight: 0 }), a.id)
       assert.deepEqual([r.busy(), r.inFlightCount()], [true, 1])
+      // 心跳带上自修状态（10-24 沙箱试跑：自修中 status / doctor 只看到「在飞 0」）
+      assert.deepEqual(r.status(), { id: a.id, since: new Date(NOON).toISOString() })
       assert.equal(r.maybeStart({}), null)
       const version = { codeStale: true, diskCodeHash: 'd', diskConfigHash: 'c' }
       assert.equal(planDrainRestart({ version, inFlight: 0 + r.inFlightCount(), state: { draining: true }, now: NOON }).action, 'wait-inflight')
@@ -460,7 +509,7 @@ describe('执行器（临时 git 仓 + 假执行器）', () => {
       assert.equal(calls.length, 1)
       release()
       await r.current()
-      assert.deepEqual([r.busy(), r.inFlightCount()], [false, 0])
+      assert.deepEqual([r.busy(), r.inFlightCount(), r.status()], [false, 0, null])
       assert.equal(readTicket({ dir: repo.dir, id: a.id }).status, 'reported')
       assert.equal(planDrainRestart({ version, inFlight: 0 + r.inFlightCount(), state: { draining: true }, now: NOON }).action, 'verify')
       assert.equal(r.maybeStart({}), b.id)
@@ -495,7 +544,7 @@ describe('验收命令', () => {
     assert.equal((await aborted).ok, false)
     const missing = await runCommand({ cmd: '/nonexistent/bin', cwd: tmpdir() })
     assert.equal(missing.ok, false)
-    assert.match(missing.tail, /ENOENT/)
+    assert.equal(missing.tail, 'spawn /nonexistent/bin ENOENT')
     const big = await runCommand({ args: ['-e', 'process.stdout.write("x".repeat(5000) + "END")'], cwd: tmpdir() })
     assert.equal(big.tail.length, 4000)
     assert.match(big.tail, /END$/)
@@ -511,11 +560,18 @@ describe('验收命令', () => {
       script('test-all.mjs', 'process.exit(2)')
       assert.deepEqual(await defaultRunTests({ cwd: dir }), { ok: false, summary: 'exit 2' })
       script('mutate.mjs', 'console.log(process.argv.slice(2).join(" ")); console.log("\\n变异 2 个：抓到 1，豁免 0，存活 1；用时 3 秒\\n  存活 lib/a.mjs:1:1  === → !==  x"); process.exit(1)')
-      assert.deepEqual(await defaultRunMutate({ cwd: dir, base: 'abc123' }), { ok: false, summary: '变异 2 个：抓到 1，豁免 0，存活 1；用时 3 秒；存活 lib/a.mjs:1:1  === → !==  x' })
+      assert.deepEqual(await defaultRunMutate({ cwd: dir, base: 'abc123' }), { ok: false, checked: true, summary: '变异存活 1（2 个变异点：抓到 1，豁免 0）；存活 lib/a.mjs:1:1  === → !==  x' })
+      script('mutate.mjs', 'console.log("\\n变异 3 个：抓到 2，豁免 1，存活 0；用时 3 秒")')
+      assert.deepEqual(await defaultRunMutate({ cwd: dir, base: 'abc123' }), { ok: true, checked: true, summary: '变异存活 0（3 个变异点：抓到 2，豁免 1）' })
       script('mutate.mjs', 'console.log(process.argv.slice(2).join(" ") === "--diff abc123 --lanes 1" ? "没有可变异的改动行" : "bad args")')
-      assert.deepEqual(await defaultRunMutate({ cwd: dir, base: 'abc123' }), { ok: true, summary: '没有可变异的改动行' })
+      assert.deepEqual(await defaultRunMutate({ cwd: dir, base: 'abc123' }), { ok: true, checked: false, summary: '改动行没有可变异的运算符（未做变异检查）' })
       script('mutate.mjs', 'process.exit(2)')
-      assert.deepEqual(await defaultRunMutate({ cwd: dir, base: 'abc123' }), { ok: false, summary: 'exit 2' })
+      assert.deepEqual(await defaultRunMutate({ cwd: dir, base: 'abc123' }), { ok: false, checked: false, summary: 'exit 2' })
+      // 只有「退出 0 且明说没有可变异的改动行」才算未做变异检查；别的都如实报退出码
+      script('mutate.mjs', 'console.log("没有可变异的改动行"); process.exit(2)')
+      assert.deepEqual(await defaultRunMutate({ cwd: dir, base: 'abc123' }), { ok: false, checked: false, summary: 'exit 2' })
+      script('mutate.mjs', '')
+      assert.deepEqual(await defaultRunMutate({ cwd: dir, base: 'abc123' }), { ok: true, checked: false, summary: 'exit 0' })
       // 测试命令带宽松预算参数（不卡 18 秒）
       script('test-all.mjs', 'console.log(process.argv.slice(2).join(" ") === "--budget-ms 120000" ? "测试 1 个：通过 1" : "bad args")')
       assert.equal((await defaultRunTests({ cwd: dir })).summary, '测试 1 个：通过 1')
