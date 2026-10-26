@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, it } from 'node:test'
 
+import { ledgerSummary, loadLedger } from '../lib/lark-ledger.mjs'
 import { larkBotRoot } from '../lib/lark-paths.mjs'
 import { normalizeRepoProfile, registerRepoProfiles, resetRepoProfiles } from '../lib/lark-repo-profile.mjs'
 import { buildAnalysisPrompt, buildIntentClassificationPrompt, buildTaskPrompt } from '../lib/lark-worker-prompts.mjs'
@@ -40,7 +41,13 @@ const TASK_KINDS = {
 
 const countOf = (text, needle) => text.split(needle).length - 1
 // 量字数时把 lark-bot 检出路径换成定长占位：预算量的是规则，不随检出在哪个目录变（10-23：worktree 路径长 9 个字就超 1 字）。
-const sizeOf = (text) => text.split(larkBotRoot).join('<lark-bot>').length
+// 代答提示里的对接台账读的是本机 runtime/lark-ledger/falive.json（路径在模块加载时定死，测试换不了目录），同样换成占位：
+// 量的是规则不是运行期数据（10-26：台账涨到 50 行，question 提示 12239 字把本测试带红，排空重启自检因此一直不过；同 10-15 分类器）。
+const liveLedger = ledgerSummary(loadLedger('falive'))
+const sizeOf = (text) => {
+  const masked = text.split(larkBotRoot).join('<lark-bot>')
+  return (liveLedger ? masked.split(liveLedger).join('<ledger>') : masked).length
+}
 
 describe('提示词规则预算', () => {
   afterEach(() => resetRepoProfiles())
