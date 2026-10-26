@@ -31,6 +31,7 @@ import {
   splitStatusBlock,
   stripCalloutExtras,
   stripNonIssues,
+  stripOwnerDecisions,
   tableMismatches,
   validateStatusData,
 } from '../lib/lark-daily-ledger.mjs'
@@ -317,6 +318,10 @@ describe('走查不进日报（aven 2026-10-20）', () => {
     ['合不合 pre 也不是问题（aven 2026-10-21）：标签里带「未合 pre」整行删，正文里的分句删', () => {
       assert.equal(stripNonIssues(['- **aven（本地已做、未合 pre）**：更正一期问题清单', '- **eric**：修正成功码判断；今天没合 pre', '<p><b>aven：</b>负责 30 项，30 项 ✅</p>'].join('\n')),
         ['- **eric**：修正成功码判断。', '<p><b>aven：</b>负责 30 项，30 项 ✅</p>'].join('\n'))
+    }],
+    ['等你决定的只进私信（10-26）：以「等你决定 / 等你定」开头的行剥掉，正文里提到的不动', () => {
+      const doc = ['## 今天', '- **aven**：修搜索', '', '等你决定的：要不要回复 Encone？', '- **等你定**：x', '', '## 测试 Bug', '- 这条等你决定后再改'].join('\n')
+      assert.equal(stripOwnerDecisions(doc), ['## 今天', '- **aven**：修搜索', '', '## 测试 Bug', '- 这条等你决定后再改'].join('\n'))
     }],
   ]))
 })

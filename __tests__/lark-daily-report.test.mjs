@@ -104,6 +104,10 @@ describe('事实采集与日报生成（IO 注入）', () => {
         assert.match(prompt, /脚本定的数字（只能引用，不能改）：总体进度 \*\*50\.0%\*\*/)
         assert.match(prompt, /# 完整版正文/)
         const docPrompt = buildDailyDocPrompt(facts, profile.dailyReport)
+        // 10-26：疑似任务（等你决定的）只进私信核对单，两份提示都不给模型
+        const withSuspected = { ...facts, suspected: [{ id: 's1', summary: '要不要回复 Encone' }] }
+        assert.doesNotMatch(buildDailyReportPrompt(withSuspected, {}), /要不要回复 Encone|等你决定/)
+        assert.doesNotMatch(buildDailyDocPrompt(withSuspected, profile.dailyReport), /要不要回复 Encone|等你决定/)
         assert.match(docPrompt, /<callout emoji="📝"/)
         assert.match(docPrompt, /## 总体进度：待脚本填/)
         assert.match(docPrompt, /所有状态以 origin\/pre（2a074a7）的真实代码为准/)
@@ -456,6 +460,11 @@ describe('完整版：没测的先测完（aven 2026-10-21）', () => {
       const note = buildReviewNote({ date: '2026-10-21', ledger: [{ name: '二', added: ['#9 x'], unexplained: [], resolved: [] }, { name: '三', added: ['新事项'], unexplained: [], resolved: [] }] })
       assert.match(note, /\*\*三节今天新加的行\*\*.*\n- 新事项/)
       assert.doesNotMatch(note, /#9 x/)
+    }],
+    ['私信核对单列出等你决定的疑似任务（10-26 起不进群简报 / 云文档）', () => {
+      const note = buildReviewNote({ date: '2026-10-26', suspected: [{ id: 's1', summary: '要不要回复 Encone 并结掉' }] })
+      assert.match(note, /\*\*等你决定的\*\*（1 条疑似任务）：\n- 要不要回复 Encone 并结掉/)
+      assert.equal(buildReviewNote({ date: '2026-10-26', suspected: [] }), '')
     }],
   ]))
 })
