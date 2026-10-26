@@ -107,8 +107,9 @@ describe('C15 快照按日期（aven 2026-10-20 review）', () => {
     ['发群：已发的跳过；出口闸 / 只私聊拦下的记账、算终态，重试不再触发私发', async () => {
       const delivery = openDailyDelivery({ dir, date: '2026-10-20', mode: 'resume' })
       const calls = []
-      const sendCard = async ({ chatId }) => {
+      const sendCard = async ({ chatId, keepShort }) => {
         calls.push(chatId)
+        assert.equal(keepShort, false)
         if (chatId === 'oc_private') return { ok: false, gated: '只私聊不发群', reason: '只私聊不发群' }
         return chatId === 'oc_bad' ? { ok: false, reason: 'webhook 19001' } : { ok: true }
       }

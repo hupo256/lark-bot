@@ -59,6 +59,28 @@ describe('发件簿（阶段 3）', () => {
         rmSync(dir, { recursive: true, force: true })
       }
     }],
+    ['sendGroupCard keepShort=false（日报）：超长也原样发，不转文档（10-26 日报只剩标题）', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'lark-outbox-long-'))
+      process.env.LARK_OUTBOX_DIR = dir
+      try {
+        const long = `# 日报\n\n${'进度'.repeat(400)}`
+        const sentCards = []
+        const docs = []
+        const createDoc = async (args) => { docs.push(args); return { ok: true, url: 'https://doc/x' } }
+        const sendHook = async ({ card }) => { sentCards.push(card); return { ok: true } }
+        const kept = await sendGroupCard({ webhook: { url: 'u' }, chatId: 'oc_long', phase: 'daily_report', body: long, keepShort: false, logPrefix: 't', sendHook, createDoc })
+        assert.equal(kept.ok, true)
+        assert.equal(sentCards[0].elements[0].content, long)
+        assert.equal(docs.length, 0)
+        // 默认仍兜底：超长转文档、群里留第一行 + 链接。
+        await sendGroupCard({ webhook: { url: 'u' }, chatId: 'oc_long', phase: 'noted', body: `${long}!`, logPrefix: 't', sendHook, createDoc })
+        assert.equal(docs.length, 1)
+        assert.equal(sentCards[1].elements[0].content, '# 日报\n完整内容：https://doc/x')
+      } finally {
+        delete process.env.LARK_OUTBOX_DIR
+        rmSync(dir, { recursive: true, force: true })
+      }
+    }],
     ['node --test 子进程里没指定目录：不落盘、列表为空', () => {
       assert.equal(recordOutbox({ chatId: 'oc_real', phase: 'ack', text: '不该写进 runtime' }), null)
       assert.deepEqual(listOutbox({ chatId: 'oc_real' }), [])
