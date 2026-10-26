@@ -427,7 +427,7 @@ describe('只私聊的群 privateOnlyChats（aven 10-20：融合群全是话题�
 })
 
 describe('出口闸拦下 = 没发（第 0 批）', () => {
-  it('同内容第二次发返回 ok:false + gated，调用方不得当已发', async () => {
+  it('同内容第二次发返回 ok:false + gated，调用方不得当已发；本机脚本 @ 人要账号走同一道闸', async () => {
     const { mkdtempSync, rmSync } = await import('node:fs')
     const { tmpdir } = await import('node:os')
     const { join } = await import('node:path')
@@ -446,6 +446,51 @@ describe('出口闸拦下 = 没发（第 0 批）', () => {
       assert.match(second.gated, /同内容/)
       assert.match(second.reason, /出口闸拦下/)
       assert.equal(sent.length, 1)
+      // 本机脚本在仓库群 @ 人要测试账号（aven 2026-10-26）：同一出口闸，跳过只私聊的群、未登记的群拒发
+      const { deliverExternalAsk } = await import('../lib/lark-external-ask.mjs')
+      registerRepoProfiles({ repos: { falive: { root: '/tmp/falive-react', baseRef: 'main', chatIds: ['oc_fusion', 'oc_php'], privateOnlyChats: ['oc_fusion'], notifyChatId: 'oc_console', title: 'Falive' } } })
+      const profile = repoProfile('falive')
+      const hooks = []
+      const deps = { webhookFor: () => ({ url: 'https://x' }), sendWebhookMessage: async (args) => { hooks.push(args); return { ok: true } } }
+      const stone = { openId: 'ou_stone', owner: 'HTStone.z' }
+      try {
+        await runSteps([
+          ['不给 chatId：跳过只私聊的融合群，发 PHP 群；正文没写到的人补在行首成 @', async () => {
+            const sent = await deliverExternalAsk({ profile, body: 'Bug-4988 能给个能看到商城列表的 pre 测试账号吗？', mentions: [stone], deps })
+            assert.equal(sent.ok, true)
+            assert.equal(sent.chatId, 'oc_php')
+            assert.match(hooks[0].card.elements[0].content, /^<at id=ou_stone><\/at> Bug-4988/)
+          }],
+          ['同内容再发被出口闸拦下（409），不刷屏', async () => {
+            const again = await deliverExternalAsk({ profile, body: 'Bug-4988 能给个能看到商城列表的 pre 测试账号吗？', mentions: [stone], deps })
+            assert.equal(again.ok, false)
+            assert.equal(again.status, 409)
+            assert.equal(hooks.length, 1)
+          }],
+          ['正文里已写 @owner 的就地换成 @，不再补行首', async () => {
+            await deliverExternalAsk({ profile, body: '麻烦 @HTStone.z 给个账号，Bug-4990', mentions: [stone], deps })
+            assert.equal(hooks[1].card.elements[0].content, '麻烦 <at id=ou_stone></at> 给个账号，Bug-4990')
+          }],
+          ['指定只私聊的群：不发群，回 privateOnly 由调用方写进汇报', async () => {
+            const sent = await deliverExternalAsk({ profile, chatId: 'oc_fusion', body: 'Bug-4991 要账号', mentions: [stone], deps })
+            assert.equal(sent.ok, false)
+            assert.equal(sent.privateOnly, true)
+            assert.equal(hooks.length, 2)
+          }],
+          ['未登记的群、空正文拒发；拿不到仓库 profile 或是默认仓 404', async () => {
+            assert.equal((await deliverExternalAsk({ profile: null, body: 'x', deps })).status, 404)
+            assert.equal((await deliverExternalAsk({ profile: { ...profile, isDefault: true }, body: 'x', deps })).status, 404)
+            const none = await deliverExternalAsk({ profile: { ...profile, chatIds: ['oc_fusion'] }, body: 'x', deps })
+            assert.equal(none.status, 400, '只剩只私聊的群：没有能发的群')
+            assert.match(none.reason, /\(none\)$/)
+            assert.equal((await deliverExternalAsk({ profile, chatId: 'oc_other', body: 'x', deps })).status, 400)
+            assert.equal((await deliverExternalAsk({ profile, body: '  ', deps })).status, 400)
+            assert.equal(hooks.length, 2)
+          }],
+        ])
+      } finally {
+        resetRepoProfiles()
+      }
     } finally {
       if (prev == null) delete process.env.LARK_OUTBOX_DIR
       else process.env.LARK_OUTBOX_DIR = prev

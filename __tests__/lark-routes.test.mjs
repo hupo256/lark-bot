@@ -148,9 +148,14 @@ describe('gateway 路由（第 0 批：按 id 取任务、续租、坏 body 400�
       assert.equal(store.get('w1').closureReason, 'completed_elsewhere')
       assert.equal((await fetch(`${base}/lark/tasks/w1/close`, { method: 'POST', headers, body: '{}' })).status, 409)
     }],
-    ['POST /notify：没密钥 401；没有外部群 profile（拿不到控制台群）404，不乱发', async () => {
+    ['POST /notify、/group-ask：没密钥 401；没有外部群 profile（拿不到控制台群）404，不乱发', async () => {
       assert.equal((await fetch(`${base}/lark/notify`, { method: 'POST', body: '{}' })).status, 401)
       assert.equal((await fetch(`${base}/lark/notify`, { method: 'POST', headers, body: JSON.stringify({ repo: 'falive', markdown: 'x' }) })).status, 404)
+      // 群里 @ 人要账号（10-26）同样：没密钥 401，拿不到仓库 profile 404
+      assert.equal((await fetch(`${base}/lark/group-ask`, { method: 'POST', body: '{}' })).status, 401)
+      const ask = await fetch(`${base}/lark/group-ask`, { method: 'POST', headers, body: JSON.stringify({ repo: 'falive', markdown: 'x' }) })
+      assert.equal(ask.status, 404)
+      assert.equal((await ask.json()).reason, 'repo not found')
     }],
     ['POST /intake 坏 body 400，任务不会被落成 ignored', async () => {
       store.upsert({ id: 't2', status: 'received', createdAt: '2026-01-01T00:00:00Z', text: 'x', intake: { required: true } })
