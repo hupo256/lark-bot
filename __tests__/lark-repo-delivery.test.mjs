@@ -582,7 +582,8 @@ describe('群文本不回落原话 / 回复义务 / 没 notifyChatId 不发（av
       const base = { chatId: 'oc_falive', repo: 'falive', operator: 'ou_ache', ackedInGroup: true, addressedToBot: true, topic: 't-1', groupReply: '修好了，pre 可以复测' }
       const noReply = await deliverRepoOutcome({ task: { ...base, id: 'c2', summary: 'Ache：直播预告重复了', groupReply: '' }, status: 'done', result: '已完成，待发布。\n1. 去重修好了。', deps })
       assert.equal(hooks.length, 0, '没写群回复：群里不直接贴结论原文（不发「✅ + 对方原话」，也不发兜底）')
-      assert.match(noReply.note, /群里没发（执行器没写群回复，补写也没成）。没问题就回「就这样回」，我按原文发群：\n去重修好了。/)
+      assert.match(noReply.note, /群里没发（执行器没写群回复，补写也没成）。没问题就回「就这样回」，我把上面这段原样发群。/)
+      assert.equal(noReply.note.split('去重修好了。').length, 2, '草稿就是上面的结论：同一条私信里不再贴第二遍')
       assert.doesNotMatch(noReply.note, /不会再补话|这条没写群回复/)
       assert.equal(getObligation({ id: 'c2', chatId: 'oc_falive' }).state, 'held')
       await deliverRepoOutcome({ task: { ...base, id: 'g1' }, status: 'done', result: 'x', deps })
