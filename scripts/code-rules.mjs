@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// 同步副本：来源 ~/.ai-rules/skills/prd-to-commit/scripts/code-rules.mjs（~/.ai-rules@cdae09b），除这两行外与权威版本逐字一致。
+// 同步副本：来源 ~/.ai-rules/skills/prd-to-commit/scripts/code-rules.mjs（~/.ai-rules@e85e276），除这两行外与权威版本逐字一致。
 // 不要在本仓直接改：先改权威版本并提交，再整文件复制到这里、更新上一行的 sha，跑 __tests__/lark-pure.test.mjs。
 // 独立代码规则扫描：只扫本次改动，只报 error 级、只看代码与 diff 就能判定、误报低的规则。零依赖，单文件。
 // 规则从 docs_tdd 冻结引擎的 verify-code-rules.mjs 抽出，规则 ID 与 message 原意不变，便于追溯。
@@ -191,14 +191,19 @@ function run({ base, files }) {
     .filter((file) => existsSync(resolve(root, file)) && statSync(resolve(root, file)).isFile())
     .sort()
 
+  // 新路径 → 旧路径：移动/改名的文件按旧路径比对，否则整份被当成新增
+  const renames = new Map(split(git(['diff', '--name-status', '-M', diffBase]))
+    .filter((line) => line.startsWith('R')).map((line) => line.split('\t')).map(([, from, to]) => [to, from]))
   const findings = []
   for (const file of changedFiles) {
     const content = readFileSync(resolve(root, file), 'utf8')
     const isNew = untracked.has(file)
-    const diff = isNew || !isTextTarget(file) ? '' : git(['diff', '-U0', '--no-ext-diff', diffBase, '--', file])
+    const from = renames.get(file)
+    const diffPaths = from ? ['-M', diffBase, '--', from, file] : [diffBase, '--', file]
+    const diff = isNew || !isTextTarget(file) ? '' : git(['diff', '-U0', '--no-ext-diff', ...diffPaths])
     const added = !isTextTarget(file) ? [] : isNew ? content.split('\n').map((text, index) => ({ line: index + 1, text })) : parseAddedLines(diff)
     // base 版本只有 300 行规则要用
-    const baseContent = isNew || !/\.tsx$/.test(file) ? '' : (git(['show', `${diffBase}:${file}`], { allowFailure: true }) ?? '')
+    const baseContent = isNew || !/\.tsx$/.test(file) ? '' : (git(['show', `${diffBase}:${from ?? file}`], { allowFailure: true }) ?? '')
     findings.push(...scanFile({ file, content, added, baseContent, changed: isNew || diff.trim() !== '' }))
   }
   return { ok: findings.length === 0, base, baseResolved, changedFiles, findings }
