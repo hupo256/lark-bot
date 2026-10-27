@@ -82,12 +82,23 @@ describe('发件簿（阶段 3）', () => {
             assert.equal(content, '# Falive Web 日报 2026-10-26\n完整内容：https://doc/x', `${phase} 是 to_doc：留第一行 + 链接`)
           }
         }
+        // to_doc 转出去的文档标题：任务标题；任务没有可读标题时用任务 id，没有任务用群 id。
+        const titles = []
+        const capture = async (args) => { titles.push(args.title); return { ok: true, url: 'https://doc/t' } }
+        const okHook = async () => ({ ok: true })
+        await sendGroupCard({ webhook: { url: 'u' }, task: { id: 'om_titled', chatId: 'oc_t1', summary: '直播间排行榜' }, phase: 'done', body: long, logPrefix: 't', sendHook: okHook, createDoc: capture })
+        await sendGroupCard({ webhook: { url: 'u' }, task: { id: 'om_untitled', chatId: 'oc_t2' }, phase: 'done', body: long, logPrefix: 't', sendHook: okHook, createDoc: capture })
+        await sendGroupCard({ webhook: { url: 'u' }, chatId: 'oc_t3', phase: 'noted', body: long, logPrefix: 't', sendHook: okHook, createDoc: capture })
+        assert.deepEqual(titles, ['直播间排行榜（完整内容）', 'om_untitled（完整内容）', 'oc_t3（完整内容）'])
         // 日报必须原样到达（10-26 教训钉死）。
         assert.equal(GROUP_PHASES.daily_report.overflow, 'as_is')
         // 短正文任何 phase 都原样发。
         const shortCards = []
         await sendGroupCard({ webhook: { url: 'u' }, chatId: 'oc_short', phase: 'noted', body: '收到，记下了', logPrefix: 't', sendHook: async ({ card }) => { shortCards.push(card); return { ok: true } } })
         assert.equal(shortCards[0].elements[0].content, '收到，记下了')
+        // as_is 正文缺失：发空串，不能把字面量 undefined 发进群。
+        await sendGroupCard({ webhook: { url: 'u' }, chatId: 'oc_empty', phase: 'daily_report', body: undefined, logPrefix: 't', sendHook: async ({ card }) => { shortCards.push(card); return { ok: true } } })
+        assert.equal(shortCards[1].elements[0].content, '')
         // 表外 phase：不发、不记账、返回原因。
         let called = false
         const unknown = await sendGroupCard({ webhook: { url: 'u' }, chatId: 'oc_unknown', phase: 'weekly_report', body: 'x', logPrefix: 't', sendHook: async () => { called = true; return { ok: true } } })
