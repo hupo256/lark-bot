@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { classifyProblems, isActiveState, judgeReaction, parseArgs, problem, shouldSkipControl, summarizeSweep, sweepProblems } from '../tools/verify-page.mjs'
+import { classifyProblems, isActiveState, judgeReaction, markSuspectTabs, parseArgs, problem, shouldSkipControl, summarizeSweep, sweepProblems } from '../tools/verify-page.mjs'
 import { DEFAULT_BROWSER_PATTERN } from '../lib/lark-report-render.mjs'
 import { VERIFY_PAGE_TOOL, pageToolOf } from '../lib/lark-verify-page.mjs'
 import { stopVerifyServer } from '../lib/lark-verify-page-stop.mjs'
@@ -106,6 +106,7 @@ describe('页面验证工具：点击走查', () => {
       const base = { url: 'http://x/', popups: 0, dialogs: 0, requests: 3, aria: '-/-/-/-/-', html: '<button>a</button>', mutations: 0 }
       assert.match(judgeReaction({ before: base, after: { ...base, url: 'http://x/room/1' } }).why, /跳转/)
       assert.match(judgeReaction({ before: base, after: { ...base, popups: 1 } }).why, /新窗口/)
+      assert.match(judgeReaction({ before: { ...base, choosers: 0 }, after: { ...base, choosers: 1 } }).why, /文件选择框/, '「添加图片」打开系统文件框，DOM 不变也算反应')
       assert.match(judgeReaction({ before: base, after: { ...base, dialogs: 1 } }).why, /弹出层/)
       assert.match(judgeReaction({ before: base, after: { ...base, requests: 4 } }).why, /请求 1 个/)
       assert.match(judgeReaction({ before: base, after: { ...base, aria: 'true/-/-/-/-' } }).why, /状态/)
@@ -135,7 +136,15 @@ describe('页面验证工具：点击走查', () => {
       const items = sweepProblems({ path: '/tasks', controls })
       assert.deepEqual(items.map((item) => item.key), ['deadControl:/tasks 签到规则 ›'])
       assert.match(items[0].text, /点了没反应：「签到规则 ›」（button）/)
-      assert.deepEqual(summarizeSweep({ controls }), { total: 4, reacted: 1, dead: 1, skipped: 1, lost: 1 })
+      assert.deepEqual(summarizeSweep({ controls }), { total: 4, reacted: 1, dead: 1, skipped: 1, lost: 1, suspect: 0 })
+      // 同组兄弟有反应、它没反应 → 疑似当前 tab，不进问题（直播间「广场」tab 没写 aria-selected）
+      const tabs = markSuspectTabs([
+        { id: 0, tag: 'button', text: '广场', outcome: 'dead', why: '', parentKey: 'DIV#.tabs@5' },
+        { id: 1, tag: 'button', text: '私聊', outcome: 'reacted', why: '自身内容变化', parentKey: 'DIV#.tabs@5' },
+        { id: 2, tag: 'button', text: '孤零零', outcome: 'dead', why: '', parentKey: 'DIV#.other@1' },
+      ])
+      assert.deepEqual(tabs.map((item) => item.outcome), ['suspect', 'reacted', 'dead'])
+      assert.deepEqual(sweepProblems({ path: '/room/1', controls: tabs }).map((item) => item.key), ['deadControl:/room/1 孤零零'])
       const out = classifyProblems({ result: page(items), site: page(items) })
       assert.equal(out.items[0].tag, '［pre 上也有］', 'pre 同页也点了没反应 → 不是本次改动带来的')
       assert.equal(parseArgs(['check', '--click-sweep', '/']).clickSweep, true)

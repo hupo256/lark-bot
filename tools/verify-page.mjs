@@ -333,6 +333,7 @@ export const shouldSkipControl = ({ text = '', inForm = false }) => {
 export const judgeReaction = ({ before, after }) => {
   if (after.url !== before.url) return { reacted: true, why: `跳转 ${after.url}` }
   if (after.popups > before.popups) return { reacted: true, why: '打开新窗口' }
+  if ((after.choosers ?? 0) > (before.choosers ?? 0)) return { reacted: true, why: '打开文件选择框' }
   if (after.dialogs > before.dialogs) return { reacted: true, why: '弹出层出现' }
   if (after.requests > before.requests) return { reacted: true, why: `发起请求 ${after.requests - before.requests} 个` }
   if (after.aria !== before.aria) return { reacted: true, why: `状态 ${before.aria} → ${after.aria}` }
@@ -343,13 +344,25 @@ export const judgeReaction = ({ before, after }) => {
   return { reacted: false, why: '' }
 }
 // 已选中的 tab / 筛选项再点一次本来就不该有变化（首页标签「全部」），不算死控件。
-export const isActiveState = (aria = '') => /\b(true|active|on|checked|selected)\b/.test(aria)
+export const isActiveState = (aria = '') => /\b(true|active|on|checked|selected|page)\b/.test(aria)
+// 同一组按钮（同父级）里别的点了有反应、它没反应：大概率是当前选中的 tab（没写 aria-selected，工具分不出）。降级为「疑似」，不算死控件，
+// 但提示给 tab 加 aria-selected / aria-pressed，下次就能准确判。
+export const markSuspectTabs = (controls) => {
+  const reactedParents = new Set(controls.filter((item) => item.outcome === 'reacted' && item.parentKey).map((item) => item.parentKey))
+  for (const item of controls) {
+    if (item.outcome === 'dead' && item.parentKey && reactedParents.has(item.parentKey)) {
+      item.outcome = 'suspect'
+      item.why = '同组里别的按钮点了有反应，它没反应——多半是当前选中的 tab；请给 tab 加 aria-selected，否则分不清是不是死控件'
+    }
+  }
+  return controls
+}
 // 走查结果 → 问题条目：只有「点了没反应」算问题，key 带页面路径 + 控件文字，和 pre 同页比对。
 export const sweepProblems = ({ path, controls }) =>
   controls.filter((item) => item.outcome === 'dead').map((item) => problem('deadControl', `${path} ${item.text}`, `点了没反应：「${item.text}」（${item.tag}）`))
 export const summarizeSweep = (sweep) => {
   const count = (outcome) => sweep.controls.filter((item) => item.outcome === outcome).length
-  return { total: sweep.controls.length, reacted: count('reacted'), dead: count('dead'), skipped: count('skipped'), lost: count('lost') }
+  return { total: sweep.controls.length, reacted: count('reacted'), dead: count('dead'), skipped: count('skipped'), lost: count('lost'), suspect: count('suspect') }
 }
 
 const SWEEP_COLLECT = ({ selector, max }) => {
@@ -369,7 +382,9 @@ const SWEEP_COLLECT = ({ selector, max }) => {
     const raw = (el.getAttribute('aria-label') || el.innerText || el.getAttribute('title') || '').replace(/\s+/g, ' ').trim().slice(0, 40)
     const firstClass = String(el.className && el.className.baseVal !== undefined ? el.className.baseVal : el.className || '').split(/\s+/)[0]
     el.setAttribute('data-sweep', String(out.length))
-    out.push({ id: out.length, tag, text: raw || `无文字的 ${tag}${firstClass ? `.${firstClass}` : ''}`, inForm: Boolean(el.closest('form')) && el.getAttribute('type') !== 'button' })
+    const parent = el.parentElement
+    const parentKey = parent ? `${parent.tagName}#${parent.id}.${String(parent.className && parent.className.baseVal !== undefined ? parent.className.baseVal : parent.className || '').slice(0, 60)}@${[...parent.children].length}` : ''
+    out.push({ id: out.length, tag, text: raw || `无文字的 ${tag}${firstClass ? `.${firstClass}` : ''}`, inForm: Boolean(el.closest('form')) && el.getAttribute('type') !== 'button', parentKey })
   }
   window.__sweepMut = 0
   if (!window.__sweepObserver) {
@@ -380,7 +395,7 @@ const SWEEP_COLLECT = ({ selector, max }) => {
 }
 const SWEEP_SNAP = (id) => {
   const el = document.querySelector(`[data-sweep="${id}"]`)
-  const aria = el ? ['aria-pressed', 'aria-expanded', 'aria-selected', 'aria-checked', 'data-state'].map((name) => el.getAttribute(name) ?? '-').join('/') : '-'
+  const aria = el ? ['aria-pressed', 'aria-expanded', 'aria-selected', 'aria-checked', 'data-state', 'aria-current', 'data-active'].map((name) => el.getAttribute(name) ?? '-').join('/') : '-'
   // 弹出层也含 toast（role=status / alert）：「分享 = 复制链接」的钮唯一可见反应就是一条「已复制」提示。
   const dialogs = [...document.querySelectorAll('[role="dialog"], dialog[open], [role="menu"], [role="listbox"], [role="status"], [role="alert"]')].filter((node) => node.getClientRects().length).length
   // 页面级状态签名：所有带状态属性的元素（侧栏 data-sidebar、折叠 aria-expanded、tab aria-selected…）的取值串。
@@ -396,10 +411,13 @@ const clickSweep = async ({ page, context, base, path }) => {
   const controls = []
   let requests = 0
   let popups = 0
+  let choosers = 0
   const onRequest = () => { requests += 1 }
   const onPopup = (popup) => { popups += 1; popup.close().catch(() => {}) }
+  const onChooser = () => { choosers += 1 } // 「添加图片 / 视频」打开的是系统文件框，DOM 不变
   page.on('request', onRequest)
   context.on('page', onPopup)
+  page.on('filechooser', onChooser)
   const settle = async () => {
     await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {})
     await sleep(300)
@@ -408,19 +426,54 @@ const clickSweep = async ({ page, context, base, path }) => {
     await page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: PAGE_TIMEOUT_MS }).catch(() => {})
     await settle()
   }
+  // 回到原页后 DOM 顺序可能变（懒加载的 tab 内容、列表顺序），剩下没点的按「文字」在新收集里对上，对不上才算没找到。
+  const rematch = (oldList, fresh, from) => {
+    const used = new Set(fresh.slice(0, 0))
+    return oldList.map((item, index) => {
+      if (index < from) return item
+      const hit = fresh.find((cand) => cand.text === item.text && !used.has(cand.id))
+      if (!hit) return { ...item, id: -1 }
+      used.add(hit.id)
+      return { ...item, id: hit.id, parentKey: hit.parentKey }
+    })
+  }
   const started = Date.now()
   let list = await page.evaluate(SWEEP_COLLECT, { selector: SWEEP_SELECTOR, max: SWEEP_MAX }).catch(() => [])
   let truncated = false
   for (let index = 0; index < list.length; index += 1) {
     if (Date.now() - started > SWEEP_BUDGET_MS) { truncated = true; break }
-    const item = list[index]
+    let item = list[index]
+    const recollect = async (from = index + 1) => {
+      let fresh = await page.evaluate(SWEEP_COLLECT, { selector: SWEEP_SELECTOR, max: SWEEP_MAX }).catch(() => null)
+      // 回到原页时内容明显少了（pre 同一接口 4 次 / 秒限流，刚打开过的页再开可能回「重试」态）：缓 2.5 秒再开一次，最多两次。
+      for (let retry = 0; fresh && fresh.length < list.length * 0.6 && retry < 2; retry += 1) {
+        await sleep(2_500)
+        await reopen()
+        fresh = await page.evaluate(SWEEP_COLLECT, { selector: SWEEP_SELECTOR, max: SWEEP_MAX }).catch(() => fresh)
+      }
+      if (process.env.VERIFY_SWEEP_DEBUG) console.error(JSON.stringify({ recollect: fresh ? fresh.map((cand) => cand.text) : null, remaining: list.slice(from).map((cand) => cand.text) }))
+      if (fresh) list = rematch(list, fresh, from)
+    }
     const skip = shouldSkipControl(item)
     if (skip) { controls.push({ ...item, outcome: 'skipped', why: skip }); continue }
-    const locator = page.locator(`[data-sweep="${item.id}"]`).first()
-    if (!(await locator.count())) { controls.push({ ...item, outcome: 'lost', why: '页面变了，没找到' }); continue }
+    let locator = page.locator(`[data-sweep="${item.id}"]`).first()
+    if (item.id < 0 || !(await locator.count())) {
+      // 上一个点击让 React 整块重渲染（如「重试」重拉列表），旧节点连同 data-sweep 一起没了：按当前 DOM 重新收集、按文字对回来。
+      await recollect(index)
+      item = list[index]
+      locator = page.locator(`[data-sweep="${item.id}"]`).first()
+      if (item.id < 0 || !(await locator.count())) {
+        // 还没有：多半是点了别的 tab 把它换走了（他人主页「帖子」tab 换掉了回放列表），回到原页的默认态再找一次。
+        await reopen()
+        await recollect(index)
+        item = list[index]
+        locator = page.locator(`[data-sweep="${item.id}"]`).first()
+        if (item.id < 0 || !(await locator.count())) { controls.push({ ...item, outcome: 'lost', why: '页面变了，重开也没找到' }); continue }
+      }
+    }
     await page.evaluate(() => { window.__sweepMut = 0 }).catch(() => {})
     await sleep(500) // 点击前本底：页面自己在动的量
-    const before = { ...(await page.evaluate(SWEEP_SNAP, item.id).catch(() => null)), requests, popups }
+    const before = { ...(await page.evaluate(SWEEP_SNAP, item.id).catch(() => null)), requests, popups, choosers }
     if (!before.html) { controls.push({ ...item, outcome: 'lost', why: '点前已不在页面上' }); continue }
     if (isActiveState(before.aria)) { controls.push({ ...item, outcome: 'skipped', why: '已是选中态（再点本来就不该变）' }); continue }
     await page.evaluate(() => { window.__sweepMut = 0 }).catch(() => {})
@@ -433,26 +486,28 @@ const clickSweep = async ({ page, context, base, path }) => {
     }
     await sleep(700)
     const snap = await page.evaluate(SWEEP_SNAP, item.id).catch(() => null)
-    const after = { ...(snap || { aria: '-', html: null, dialogs: 0, mutations: 0, url: page.url(), stateSig: before.stateSig }), requests, popups }
+    const after = { ...(snap || { aria: '-', html: null, dialogs: 0, mutations: 0, url: page.url(), stateSig: before.stateSig }), requests, popups, choosers }
     const verdict = judgeReaction({ before, after })
     controls.push({ ...item, outcome: verdict.reacted ? 'reacted' : 'dead', why: verdict.why })
     // 调口径用：VERIFY_SWEEP_DEBUG=1 把每个控件点击前后的快照打到 stderr（本底 / 变化量 / 弹层数）。
     if (process.env.VERIFY_SWEEP_DEBUG) console.error(JSON.stringify({ text: item.text, verdict, before: { ...before, html: before.html?.slice(0, 120), stateSig: before.stateSig?.length }, after: { ...after, html: after.html?.slice(0, 120), stateSig: after.stateSig?.length } }))
     if (after.url !== before.url) {
       await reopen()
-      list = await page.evaluate(SWEEP_COLLECT, { selector: SWEEP_SELECTOR, max: SWEEP_MAX }).catch(() => list)
+      await recollect()
     } else if (after.dialogs > before.dialogs || verdict.reacted) {
       await page.keyboard.press('Escape').catch(() => {})
       await sleep(200)
       const still = await page.evaluate(() => [...document.querySelectorAll('[role="dialog"], dialog[open]')].some((node) => node.getClientRects().length)).catch(() => false)
       if (still) {
         await reopen()
-        list = await page.evaluate(SWEEP_COLLECT, { selector: SWEEP_SELECTOR, max: SWEEP_MAX }).catch(() => list)
+        await recollect()
       }
     }
   }
   page.off('request', onRequest)
   context.off('page', onPopup)
+  page.off('filechooser', onChooser)
+  markSuspectTabs(controls)
   return { controls, truncated, ms: Date.now() - started }
 }
 
@@ -625,7 +680,9 @@ const report = ({ result, site }) => {
   for (const item of result.notes) lines.push(`  · ${item}`)
   if (result.sweep) {
     const sum = summarizeSweep(result.sweep)
-    lines.push(`  点击走查（${(result.sweep.ms / 1000).toFixed(0)}s）：可点控件 ${sum.total} 个 → 有反应 ${sum.reacted}、没反应 ${sum.dead}、跳过 ${sum.skipped}（可能有副作用 / 表单内，按清单手点）、没点到 ${sum.lost}`)
+    lines.push(`  点击走查（${(result.sweep.ms / 1000).toFixed(0)}s）：可点控件 ${sum.total} 个 → 有反应 ${sum.reacted}、没反应 ${sum.dead}、疑似当前 tab ${sum.suspect}、跳过 ${sum.skipped}（可能有副作用 / 表单内，按清单手点）、没点到 ${sum.lost}`)
+    const suspect = result.sweep.controls.filter((item) => item.outcome === 'suspect')
+    if (suspect.length) lines.push(`    疑似当前 tab（没 aria-selected，分不清）：${suspect.map((item) => `「${item.text}」`).join('')}`)
     const reacted = result.sweep.controls.filter((item) => item.outcome === 'reacted')
     if (reacted.length) lines.push(`    有反应：${reacted.slice(0, 30).map((item) => `「${item.text}」${item.why.replace(/^跳转 .*?\/\/[^/]+/, '跳转 ')}`).join('；')}${reacted.length > 30 ? `；另 ${reacted.length - 30} 个` : ''}`)
     const skipped = result.sweep.controls.filter((item) => item.outcome === 'skipped')
