@@ -88,9 +88,9 @@ describe('截图有没有打开（10-21 #62）', () => {
         rmSync(dir, { recursive: true, force: true })
       }
     }],
-    ['只把带本地路径的图片附件算进截图核对：文件、没下载下来的图片不算（变异补测 10-24）', async () => {
+    ['只把带本地路径的图片附件算进截图核对：文件、没下载下来的图片、群里之前的消息顺带并进来的图都不算（变异补测 10-24；#89）', async () => {
       const { imageAttachmentPaths } = await import('../lib/lark-run-report.mjs')
-      const task = { attachments: [{ type: 'image', localPath: '/att/1.jpg' }, { type: 'file', localPath: '/att/a.pdf' }, { type: 'image', imageKey: 'img_x', downloadError: '403' }, { type: 'image', localPath: '/att/2.jpg' }] }
+      const task = { attachments: [{ type: 'image', localPath: '/att/1.jpg', origin: '本条' }, { type: 'file', localPath: '/att/a.pdf' }, { type: 'image', imageKey: 'img_x', downloadError: '403' }, { type: 'image', localPath: '/att/ctx.jpg', origin: '群里之前的消息 · HTStone.z 10-27 11:57' }, { type: 'image', localPath: '/att/2.jpg', origin: '被引用消息 · Ace' }] }
       assert.deepEqual(imageAttachmentPaths(task), ['/att/1.jpg', '/att/2.jpg'])
       assert.deepEqual(imageAttachmentPaths({}), [])
     }],
