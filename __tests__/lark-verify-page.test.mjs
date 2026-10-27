@@ -12,7 +12,7 @@ import { runSteps } from './support/steps.mjs'
 const page = (problems, extra = {}) => ({ path: '/', status: 200, problems, ...extra })
 
 describe('页面验证工具：问题来源标注', () => {
-  it('问题来源标注：pre 也有 / 本地新出现 / 已修好，回落 mock 与坏图按 pre 判，不比对时不打标签', () => runSteps([
+  it('问题来源标注：pre 也有 / 本地新出现 / 已修好，回落 mock 与坏图按 pre 判，不比对时不打标签；点击走查（Bug-5030）：反应判定 / 跳过口径 / 只有没反应的进问题', () => runSteps([
     ['两边都有的标「pre 上也有」，只在本地的标「本地新出现」，pre 有本地没有的列为已修好', () => {
       const shared = problem('biz', 'GET /api/x -1', '接口返回错误码：GET /api/x → code -1')
       const local = problem('pageError', 'boom', '页面报错：boom')
@@ -51,50 +51,7 @@ describe('页面验证工具：问题来源标注', () => {
       assert.equal(out.fresh, 2, '期望没出现永远算本地问题，pre 上没有新功能是正常的')
       assert.equal(classifyProblems({ result: page([want]), site: null }).items[0].tag, '')
     }],
-  ]))
-})
-
-describe('页面验证工具：参数与接入', () => {
-  it('参数解析、证据认工具调用、验证规则给命令、收尾停服务不抛', () => runSteps([
-    ['参数：路径补前导斜杠、--expect 可重复、不认识的参数报错', () => {
-      const opts = parseArgs(['check', '--cwd', '/tmp/w', '--login', '--expect', '甲', '--expect', '乙', '--no-compare', 'room/260', '/tasks'])
-      assert.equal(opts.cmd, 'check')
-      assert.equal(opts.login, true)
-      assert.equal(opts.noCompare, true)
-      assert.deepEqual(opts.expect, ['甲', '乙'])
-      assert.deepEqual(opts.paths, ['/room/260', '/tasks'])
-      assert.throws(() => parseArgs(['check', '--bogus']), /不认识的参数/)
-    }],
-    ['证据核对认工具调用（不认会把真用工具验过的降成「待验证」）；只 start 不算看过页面', () => {
-      assert.match(`${pageToolOf(null)} check --cwd /w /room/1`, DEFAULT_BROWSER_PATTERN)
-      assert.doesNotMatch(`${pageToolOf(null)} start --cwd /w`, DEFAULT_BROWSER_PATTERN)
-      assert.equal(pageToolOf({ pageTool: 'node /x/tool.mjs' }), 'node /x/tool.mjs')
-    }],
-    ['自己验证规则给出工具命令，不再让模型现写 Playwright 脚本', () => {
-      const rule = buildSelfVerifyRule({ env: 'pre', localDev: 'pnpm dev:pre', siteUrl: 'https://falivepre.fdsser.com/' })
-      assert.ok(rule.includes(VERIFY_PAGE_TOOL))
-      assert.match(rule, /页面工具 start --cwd/)
-      assert.match(rule, /页面工具 check --cwd/)
-      assert.match(rule, /不要自己写 Playwright 脚本/)
-      assert.doesNotMatch(rule, /npm i playwright/)
-    }],
-    ['收尾停服务：调工具 stop；没起过服务不打日志；出错不抛（不影响收尾）', () => {
-      const calls = []
-      const logs = []
-      stopVerifyServer('/w', { spawn: (...args) => { calls.push(args); return { stdout: '已停掉 /w 的本地服务（端口 3391，任务结束）' } }, log: (line) => logs.push(line) })
-      assert.deepEqual(calls[0][1], [VERIFY_PAGE_TOOL, 'stop', '--cwd', '/w'])
-      assert.equal(logs.length, 1)
-      stopVerifyServer('/w', { spawn: () => ({ stdout: '这个工作区没有在跑的本地服务' }), log: (line) => logs.push(line) })
-      assert.equal(logs.length, 1)
-      assert.doesNotThrow(() => stopVerifyServer('/w', { spawn: () => { throw new Error('x') }, log: () => {} }))
-      stopVerifyServer(null, { spawn: () => { throw new Error('不该调') } })
-    }],
-  ]))
-})
-
-// 点击走查（aven 2026-10-27，Bug-5030）：判「点了没反应」的口径决定报不报死控件，松了漏（喇叭钮再漏一次）、紧了误报（轮播页全报）。
-describe('页面验证工具：点击走查', () => {
-  it('反应判定：跳转 / 新窗口 / 弹层 / 请求 / aria / 自身内容 / 明显超过本底的 DOM 变化算有反应，纯本底抖动不算；副作用词与表单内跳过；只有没反应的进问题并可与 pre 比对', () => runSteps([
+    // 点击走查（aven 2026-10-27，Bug-5030）：判「点了没反应」的口径决定报不报死控件，松了漏（喇叭钮再漏一次）、紧了误报（轮播页全报）。并进本条用例是测试棘轮（lark-test-budget）的要求。
     ['什么都没变 → 没反应；页面本底在动（轮播）但点击后没超过本底两倍 → 仍算没反应', () => {
       const base = { url: 'http://x/', popups: 0, dialogs: 0, requests: 3, aria: '-/-/-/-/-', html: '<button>a</button>', mutations: 0 }
       assert.equal(judgeReaction({ before: base, after: { ...base } }).reacted, false)
@@ -148,6 +105,44 @@ describe('页面验证工具：点击走查', () => {
       const out = classifyProblems({ result: page(items), site: page(items) })
       assert.equal(out.items[0].tag, '［pre 上也有］', 'pre 同页也点了没反应 → 不是本次改动带来的')
       assert.equal(parseArgs(['check', '--click-sweep', '/']).clickSweep, true)
+    }],
+  ]))
+})
+
+describe('页面验证工具：参数与接入', () => {
+  it('参数解析、证据认工具调用、验证规则给命令、收尾停服务不抛', () => runSteps([
+    ['参数：路径补前导斜杠、--expect 可重复、不认识的参数报错', () => {
+      const opts = parseArgs(['check', '--cwd', '/tmp/w', '--login', '--expect', '甲', '--expect', '乙', '--no-compare', 'room/260', '/tasks'])
+      assert.equal(opts.cmd, 'check')
+      assert.equal(opts.login, true)
+      assert.equal(opts.noCompare, true)
+      assert.deepEqual(opts.expect, ['甲', '乙'])
+      assert.deepEqual(opts.paths, ['/room/260', '/tasks'])
+      assert.throws(() => parseArgs(['check', '--bogus']), /不认识的参数/)
+    }],
+    ['证据核对认工具调用（不认会把真用工具验过的降成「待验证」）；只 start 不算看过页面', () => {
+      assert.match(`${pageToolOf(null)} check --cwd /w /room/1`, DEFAULT_BROWSER_PATTERN)
+      assert.doesNotMatch(`${pageToolOf(null)} start --cwd /w`, DEFAULT_BROWSER_PATTERN)
+      assert.equal(pageToolOf({ pageTool: 'node /x/tool.mjs' }), 'node /x/tool.mjs')
+    }],
+    ['自己验证规则给出工具命令，不再让模型现写 Playwright 脚本', () => {
+      const rule = buildSelfVerifyRule({ env: 'pre', localDev: 'pnpm dev:pre', siteUrl: 'https://falivepre.fdsser.com/' })
+      assert.ok(rule.includes(VERIFY_PAGE_TOOL))
+      assert.match(rule, /页面工具 start --cwd/)
+      assert.match(rule, /页面工具 check --cwd/)
+      assert.match(rule, /不要自己写 Playwright 脚本/)
+      assert.doesNotMatch(rule, /npm i playwright/)
+    }],
+    ['收尾停服务：调工具 stop；没起过服务不打日志；出错不抛（不影响收尾）', () => {
+      const calls = []
+      const logs = []
+      stopVerifyServer('/w', { spawn: (...args) => { calls.push(args); return { stdout: '已停掉 /w 的本地服务（端口 3391，任务结束）' } }, log: (line) => logs.push(line) })
+      assert.deepEqual(calls[0][1], [VERIFY_PAGE_TOOL, 'stop', '--cwd', '/w'])
+      assert.equal(logs.length, 1)
+      stopVerifyServer('/w', { spawn: () => ({ stdout: '这个工作区没有在跑的本地服务' }), log: (line) => logs.push(line) })
+      assert.equal(logs.length, 1)
+      assert.doesNotThrow(() => stopVerifyServer('/w', { spawn: () => { throw new Error('x') }, log: () => {} }))
+      stopVerifyServer(null, { spawn: () => { throw new Error('不该调') } })
     }],
   ]))
 })
