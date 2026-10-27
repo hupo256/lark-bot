@@ -104,22 +104,31 @@ describe('C15 快照按日期（aven 2026-10-20 review）', () => {
       assert.equal(after.isSent('oc_a'), false)
       assert.equal(after.doc(), null)
     }],
-    ['发群：已发的跳过；出口闸 / 只私聊拦下的记账、算终态，重试不再触发私发', async () => {
-      const delivery = openDailyDelivery({ dir, date: '2026-10-20', mode: 'resume' })
-      const calls = []
-      const sendCard = async ({ chatId, keepShort }) => {
-        calls.push(chatId)
-        assert.equal(keepShort, false)
-        if (chatId === 'oc_private') return { ok: false, gated: '只私聊不发群', reason: '只私聊不发群' }
-        return chatId === 'oc_bad' ? { ok: false, reason: 'webhook 19001' } : { ok: true }
+    ['发群（走真实出口，只替换网络层）：已发的跳过；只私聊拦下的记账、算终态，重试不再触发私发；群里收到的是完整原文', async () => {
+      registerRepoProfiles({ repos: { falive: { root: dir, baseRef: 'main', chatIds: ['oc_a', 'oc_private', 'oc_bad', 'oc_none'], privateOnlyChats: ['oc_private'], notifyChatId: 'oc_console' } } })
+      try {
+        const delivery = openDailyDelivery({ dir, date: '2026-10-20', mode: 'resume' })
+        const hooks = []
+        const privates = []
+        const sendHook = async ({ url, card }) => {
+          hooks.push({ chatId: url.split('/').pop(), content: card.elements[0].content })
+          return url.endsWith('oc_bad') ? { ok: false, reason: 'webhook 19001' } : { ok: true }
+        }
+        const sendPrivate = async (args) => { privates.push(args); return { ok: true } }
+        const text = `# Falive Web 日报 2026-10-20\n\n${'- **aven**：顶栏搜索改成边输入边搜\n'.repeat(40)}\n完整版（云文档）：https://doc/1`
+        const args = { profile: { key: 'falive' }, targets: ['oc_a', 'oc_private', 'oc_bad', 'oc_none'], text, delivery, sendHook, sendPrivate, webhookFor: (profile, chatId) => (chatId === 'oc_none' ? null : { url: `https://hook/${chatId}` }) }
+        const first = await sendDailyToGroups(args)
+        assert.deepEqual(first.map((item) => item.ok), [true, true, false, false])
+        assert.match(first[1].gated, /只私聊不发群/)
+        assert.equal(hooks[0].content, text, '超长日报原样到群，不转文档（10-26 教训）')
+        assert.equal(privates.length, 1, '只私聊群：原话私发负责人一次')
+        const second = await sendDailyToGroups(args)
+        assert.deepEqual(hooks.map((hook) => hook.chatId), ['oc_a', 'oc_bad', 'oc_bad'])
+        assert.deepEqual(second.map((item) => item.skipped || null), ['already sent', 'already sent', null, null])
+        assert.equal(privates.length, 1, '重试不再私发')
+      } finally {
+        resetRepoProfiles()
       }
-      const args = { profile: { key: 'falive' }, targets: ['oc_a', 'oc_private', 'oc_bad', 'oc_none'], text: 't', delivery, sendCard, webhookFor: (profile, chatId) => (chatId === 'oc_none' ? null : { url: `https://hook/${chatId}` }) }
-      const first = await sendDailyToGroups(args)
-      assert.deepEqual(first.map((item) => item.ok), [true, true, false, false])
-      assert.equal(first[1].gated, '只私聊不发群')
-      const second = await sendDailyToGroups(args)
-      assert.deepEqual(calls, ['oc_a', 'oc_private', 'oc_bad', 'oc_bad'])
-      assert.deepEqual(second.map((item) => item.skipped || null), ['already sent', 'already sent', null, null])
     }],
   ], hooks))
 })
@@ -159,14 +168,15 @@ describe('C15 重试 / 重发：runDailyReport 端到端（aven 2026-10-20 revie
           log.full += 1
           return full
         }
-        return '## 今天\n- **henry**：资料'
+        // 真实大小的短版（10-26 那份 540 字就被出口转成了文档）：群里必须收到完整原文。
+        return `## 今天\n- **henry**：资料\n${'- **aven**：顶栏搜索改成边输入边搜，并加上搜索历史；首页任务中心接上真实接口\n'.repeat(12)}`
       },
       createLarkDoc: async () => {
         log.docs += 1
         return { ok: true, url: `https://doc/${log.docs}`, documentId: `d${log.docs}` }
       },
       sendWebhookMessage: async ({ url, card }) => {
-        log.hooks.push({ url, body: JSON.stringify(card) })
+        log.hooks.push({ url, body: JSON.stringify(card), content: card.elements[0].content })
         return url.endsWith('oc_b') && failB ? { ok: false, reason: 'webhook 19001' } : { ok: true }
       },
       sendUserMarkdown: async (args) => {
@@ -186,6 +196,8 @@ describe('C15 重试 / 重发：runDailyReport 端到端（aven 2026-10-20 revie
       assert.equal(first.ok, false)
       assert.match(first.text, /今日 \+1/)
       assert.equal(log.hooks.filter((hook) => hook.url.endsWith('oc_a')).length, 1)
+      assert.ok(first.text.length > 500)
+      assert.equal(log.hooks.find((hook) => hook.url.endsWith('oc_a')).content, first.text, '群里收到的就是生成的日报全文（10-26：超长被转成文档、只剩标题）')
       assert.equal(log.privates.filter((item) => /日报核对/.test(item.markdown)).length, 1)
       // oc_a 已收到今天的数字 → 今天的快照落了，但不当今天的基线
       assert.equal(JSON.parse(readFileSync(join(reportDir, CODE_STATUS_SNAPSHOT), 'utf8')).history['2026-10-20'].done, 2)

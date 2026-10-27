@@ -159,7 +159,8 @@ describe('triggerDailyReportFromChat（第 1 批：建系统任务）', () => {
     runtimeDir: dir,
     now: () => at('21:07'),
     webhookFor: () => ({ url: 'x' }),
-    sendGroupCard: async ({ body }) => { said.push(body); return { ok: true } },
+    // 只替换网络层，走真实出口（10-27：测试不许替换整个出口）。
+    sendWebhookMessage: async ({ card }) => { said.push(card.elements[0].content); return { ok: true } },
   })
 
   it('群里要日报：没发过建任务，已发过 / 在跑时提示，force 照建', () => runSteps([

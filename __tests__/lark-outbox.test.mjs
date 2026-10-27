@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
 import { hashText, listOutbox, localHHMM, pruneOutbox, recordOutbox, shouldSend } from '../lib/lark-outbox.mjs'
+import { GROUP_TEXT_MAX } from '../lib/lark-detail-doc.mjs'
+import { GROUP_PHASES, groupPhasePolicy, validatePhaseTable } from '../lib/lark-group-phases.mjs'
+import { larkBotRoot } from '../lib/lark-paths.mjs'
 import { sendGroupCard } from '../lib/lark-repo-delivery.mjs'
 import { runSteps } from './support/steps.mjs'
 
@@ -59,26 +62,79 @@ describe('发件簿（阶段 3）', () => {
         rmSync(dir, { recursive: true, force: true })
       }
     }],
-    ['sendGroupCard keepShort=false（日报）：超长也原样发，不转文档（10-26 日报只剩标题）', async () => {
-      const dir = mkdtempSync(join(tmpdir(), 'lark-outbox-long-'))
+    ['出口内容契约（10-27）：每种群消息用真实大小的正文走真实出口，群里收到什么按出口规则表定——as_is 原样到达，to_doc 留第一行 + 文档链接；表外 phase 拒发', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'lark-outbox-contract-'))
       process.env.LARK_OUTBOX_DIR = dir
       try {
-        const long = `# 日报\n\n${'进度'.repeat(400)}`
-        const sentCards = []
-        const docs = []
-        const createDoc = async (args) => { docs.push(args); return { ok: true, url: 'https://doc/x' } }
-        const sendHook = async ({ card }) => { sentCards.push(card); return { ok: true } }
-        const kept = await sendGroupCard({ webhook: { url: 'u' }, chatId: 'oc_long', phase: 'daily_report', body: long, keepShort: false, logPrefix: 't', sendHook, createDoc })
-        assert.equal(kept.ok, true)
-        assert.equal(sentCards[0].elements[0].content, long)
-        assert.equal(docs.length, 0)
-        // 默认仍兜底：超长转文档、群里留第一行 + 链接。
-        await sendGroupCard({ webhook: { url: 'u' }, chatId: 'oc_long', phase: 'noted', body: `${long}!`, logPrefix: 't', sendHook, createDoc })
-        assert.equal(docs.length, 1)
-        assert.equal(sentCards[1].elements[0].content, '# 日报\n完整内容：https://doc/x')
+        // 10-26 日报缩水的那份正文量级：标题、数字行、两节列表、完整版链接，540 字以上。
+        const long = ['# Falive Web 日报 2026-10-26', '', '总体进度 **92.6%**，已接通 **50 / 54**，今日 -2。', '', '## 今天', ...Array.from({ length: 6 }, (_, i) => `- **成员${i}**：${'顶栏搜索改成边输入边搜，并加上搜索历史；首页任务中心接上真实接口；'.repeat(2)}`), '', '## 测试 Bug', '- 共 102 个，今天新增 14', '', '完整版（云文档）：https://doc/full'].join('\n')
+        assert.ok(long.length > GROUP_TEXT_MAX, `样例 ${long.length} 字要超过出口上限 ${GROUP_TEXT_MAX}`)
+        for (const [phase, policy] of Object.entries(GROUP_PHASES)) {
+          const cards = []
+          const docs = []
+          const sent = await sendGroupCard({ webhook: { url: 'u' }, chatId: `oc_${phase}`, phase, body: long, logPrefix: 't', sendHook: async ({ card }) => { cards.push(card); return { ok: true } }, createDoc: async (args) => { docs.push(args); return { ok: true, url: 'https://doc/x' } } })
+          assert.equal(sent.ok, true, phase)
+          const content = cards[0].elements[0].content
+          if (policy.overflow === 'as_is') {
+            assert.equal(content, long, `${phase} 是 as_is：群里必须收到完整原文`)
+            assert.equal(docs.length, 0, `${phase} 是 as_is：不许转文档`)
+          } else {
+            assert.equal(content, '# Falive Web 日报 2026-10-26\n完整内容：https://doc/x', `${phase} 是 to_doc：留第一行 + 链接`)
+          }
+        }
+        // 日报必须原样到达（10-26 教训钉死）。
+        assert.equal(GROUP_PHASES.daily_report.overflow, 'as_is')
+        // 短正文任何 phase 都原样发。
+        const shortCards = []
+        await sendGroupCard({ webhook: { url: 'u' }, chatId: 'oc_short', phase: 'noted', body: '收到，记下了', logPrefix: 't', sendHook: async ({ card }) => { shortCards.push(card); return { ok: true } } })
+        assert.equal(shortCards[0].elements[0].content, '收到，记下了')
+        // 表外 phase：不发、不记账、返回原因。
+        let called = false
+        const unknown = await sendGroupCard({ webhook: { url: 'u' }, chatId: 'oc_unknown', phase: 'weekly_report', body: 'x', logPrefix: 't', sendHook: async () => { called = true; return { ok: true } } })
+        assert.equal(unknown.ok, false)
+        assert.match(unknown.reason, /不在出口规则表/)
+        assert.equal(called, false)
+        assert.deepEqual(listOutbox({ chatId: 'oc_unknown' }), [])
       } finally {
         delete process.env.LARK_OUTBOX_DIR
         rmSync(dir, { recursive: true, force: true })
+      }
+    }],
+    ['出口规则表（10-27）：每种 phase 每列必填、值合法、不许表外列；坏表逐条报出', () => {
+      assert.deepEqual(validatePhaseTable(GROUP_PHASES), [])
+      const errors = validatePhaseTable({ weekly: { overflow: 'to_doc', dedupe: 'content_24h' }, odd: { overflow: 'cut', dedupe: 'content_24h', privateOnly: 'forward_owner', mood: 'x' } })
+      assert.deepEqual(errors, [
+        'weekly 缺列 privateOnly（合法值：caller_reports / forward_owner）',
+        'odd.overflow = cut 不合法（合法值：to_doc / as_is）',
+        'odd 多了表外的列 mood：先在 POLICY_COLUMNS 登记',
+      ])
+      assert.equal(groupPhasePolicy('weekly_report'), null)
+      assert.equal(groupPhasePolicy('toString'), null, '原型链上的名字不算登记')
+    }],
+    ['出口规则表覆盖全部发群调用（10-27）：源码里每个 sendGroupCard( 调用都写字面量 phase，且都在表里', () => {
+      const files = [...readdirSync(join(larkBotRoot, 'lib')).filter((name) => name.endsWith('.mjs')).map((name) => join(larkBotRoot, 'lib', name)), ...readdirSync(larkBotRoot).filter((name) => name.endsWith('.mjs')).map((name) => join(larkBotRoot, name))]
+      const calls = []
+      for (const file of files) {
+        const source = readFileSync(file, 'utf8')
+        for (const match of source.matchAll(/sendGroupCard\(\{/g)) {
+          const window = source.slice(match.index, match.index + 800)
+          const phase = window.match(/\bphase: '([a-z_]+)'/)?.[1] || null
+          calls.push({ file: file.slice(larkBotRoot.length + 1), phase })
+        }
+      }
+      assert.ok(calls.length >= 8, `只扫到 ${calls.length} 处发群调用，扫描规则失效了`)
+      for (const call of calls) {
+        assert.ok(call.phase, `${call.file} 有一处 sendGroupCard 调用没写字面量 phase：出口规则表管不到它`)
+        assert.ok(groupPhasePolicy(call.phase), `${call.file} 用了 phase ${call.phase}，出口规则表（lib/lark-group-phases.mjs）里没有`)
+      }
+      // 测试只许替换网络层（sendHook / sendWebhookMessage），不许替换整个出口：日报以前注入假出口，出口规则从没在日报上跑过（10-26）。
+      for (const file of files) {
+        const source = readFileSync(file, 'utf8')
+        assert.doesNotMatch(source, /deps\.sendGroupCard|sendCard\s*=\s*sendGroupCard/, `${file.slice(larkBotRoot.length + 1)} 留了可替换的发群出口：只开放 sendHook`)
+      }
+      const testDir = join(larkBotRoot, '__tests__')
+      for (const name of readdirSync(testDir).filter((item) => item.endsWith('.mjs'))) {
+        assert.doesNotMatch(readFileSync(join(testDir, name), 'utf8'), /\bsendGroupCard\s*:|\bsendCard\s*[:=]/, `__tests__/${name} 替换了整个发群出口：只许替换 sendHook / sendWebhookMessage`)
       }
     }],
     ['node --test 子进程里没指定目录：不落盘、列表为空', () => {
