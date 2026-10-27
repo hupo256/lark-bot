@@ -159,12 +159,6 @@
   },
   {
     "file": "lib/lark-task-runner.mjs",
-    "code": "else if (branchCleanup && !branchCleanup.deleted) console.warn(`[lark-worker] ⚠ ${task.id} 任务分支 ${workContext.hotfixBranch} 未删：${branchCleanup.reason}`)",
-    "op": "&& → ||",
-    "reason": "纯日志：只决定是否多打一行「任务分支未删」的 console.warn，分支清理结果已原样记进审计 integration.branchCleanup"
-  },
-  {
-    "file": "lib/lark-task-runner.mjs",
     "code": "outbox: task.chatId ? listOutbox({ chatId: task.chatId, sinceMs: Date.parse(task.claimedAt || task.createdAt || '') || 0 }) : [],",
     "op": "|| → &&",
     "reason": "等价（本行三处 || → &&）：变异只会让 listOutbox 预筛的 sinceMs 变成 createdAt 或 0（放宽预筛；领取时刻必在创建之后）；collectFailureEvidence 自己按同一口径（claimedAt || createdAt）再筛一遍发件记录，旁证结果不变"
@@ -193,5 +187,30 @@
     "op": ">= → >",
     "col": 58,
     "reason": "等价：fastLaneMs 恰为 0 时，>= 走真分支得 fastLaneMs（即 0），> 走假分支得 0，结果相同；其它值两种写法一致"
+  },
+  {
+    "file": "lib/lark-daily-report.mjs",
+    "code": "3. 待对接目录：\\`${facts.docPaths.pendingDir || '（未配置）'}\\`（各方卡点与编号 A5-2 / O10 / H1 的权威来源，是 origin/pre 与负责人工作分支合并后的最新版）。${facts.docPaths.pendingConflicts?.length ? `其中 ${facts.docPaths.pendingConflicts.join('、')} 合并有冲突，只取了最后提交较新的一版，另一边改的行可能没进来：这几份里的结论按「待确认」处理，并在三节加一行「待对接文档合并冲突：文件名（aven 手动合）」。` : ''}",
+    "op": "|| → &&",
+    "col": 39,
+    "reason": "原有的「（未配置）」兜底，10-27 只改了同一行后面的文案（三处合并 → 两处），行为没动"
+  },
+  {
+    "file": "lib/lark-merge-back.mjs",
+    "code": "log.warn(`[lark-worker] ⚠ 合回 ${profile.baseRef} 重试异常（忽略）：${String(error?.message || error).slice(0, 160)}`)",
+    "op": "|| → &&",
+    "reason": "纯日志：重试异常只打一行 warn，取 error.message 还是 error 本身只影响日志措辞"
+  },
+  {
+    "file": "lib/lark-merge-back.mjs",
+    "code": "log.warn(`[lark-worker] ⚠ 合回通知没发出去：${String(error?.message || error).slice(0, 120)}`)",
+    "op": "|| → &&",
+    "reason": "纯日志：合回通知没发出去只打一行 warn，取 error.message 还是 error 本身只影响日志措辞"
+  },
+  {
+    "file": "lib/lark-worker-git.mjs",
+    "code": "return { ok: false, pending: true, reason: String(error?.message || error).slice(0, 160) }",
+    "op": "|| → &&",
+    "reason": "只影响 fetch 失败时 reason 的措辞（Error 对象转字符串多一个 Error: 前缀），pending 判定与后续流程不变"
   }
 ]

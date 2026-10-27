@@ -25,7 +25,7 @@ const register = () => registerRepoProfiles({
   },
 })
 
-const fakeGit = ({ heads = {}, ancestor = true, log = 'abc1234 fix: x\n' } = {}) => {
+const fakeGit = ({ heads = {}, ancestor = true, log = 'abc1234 fix: x\n', codeLog = log } = {}) => {
   const calls = []
   const git = async (_cwd, args) => {
     const cmd = args.join(' ')
@@ -36,7 +36,7 @@ const fakeGit = ({ heads = {}, ancestor = true, log = 'abc1234 fix: x\n' } = {})
       return { ok: true, stdout: hit ? `${hit[1]}\n` : '', stderr: '' }
     }
     if (cmd.startsWith('merge-base')) return { ok: ancestor, stdout: '', stderr: '' }
-    if (cmd.startsWith('log')) return { ok: true, stdout: log, stderr: '' }
+    if (cmd.startsWith('log')) return { ok: true, stdout: cmd.includes(':(exclude)docs') ? codeLog : log, stderr: '' }
     return { ok: true, stdout: '', stderr: '' }
   }
   return { git, calls }
@@ -155,6 +155,18 @@ describe('盯所有部署', () => {
       assert.match(promise.text, /对 Encone 说过[\s\S]*源任务 om_src）：「[^」]*部署完我再测一遍告诉你」/)
       assert.equal((await check({ buildTime, now: '2026-10-23T10:55:00Z' })).deployed, false)
       assert.equal(store.list().length, 2)
+    }],
+    ['只改 docs/ 的提交（bot 回填文档 / 复测结论）不建整体复测、复测正文只列改了代码的提交；全是文档提交时承诺单照建（10-27）', async () => {
+      saveSweepState('falive', { lastDeploy: { buildTime: 1000, head: 'h1' } }, { runtimeDir })
+      const mixed = fakeGit({ heads: { 0: 'h1', 4999: 'h2' }, log: 'abc1234 fix: x\nddd0001 feat(bot): 复测结论\n', codeLog: 'abc1234\n' }).git
+      const out = await check({ buildTime: 5000, now: 6000, git: mixed })
+      assert.match(store.get(out.taskId).text, /abc1234 fix: x/)
+      assert.doesNotMatch(store.get(out.taskId).text, /ddd0001/)
+      appendFileSync(join(outboxDir, `${GROUP}.jsonl`), `${JSON.stringify({ at: new Date(5500).toISOString(), chatId: GROUP, taskId: 'om_docs', phase: 'done', to: ENCONE, text: PROMISE_1023 })}\n`)
+      const docsOnly = fakeGit({ heads: { 0: 'h2', 8999: 'h3' }, log: 'ddd0002 feat(bot): 回填\n', codeLog: '' }).git
+      const second = await check({ buildTime: 9000, now: 9500, git: docsOnly })
+      assert.equal(second.taskId, null, '全是文档提交 → 不建整体复测')
+      assert.equal(second.promiseTaskIds.length, 1, '答应过的复测照建')
     }],
     ['没有新提交（同一份代码重新构建）：不建整体复测，只记部署点', async () => {
       saveSweepState('falive', { lastDeploy: { buildTime: 1000, head: 'h2' } }, { runtimeDir })

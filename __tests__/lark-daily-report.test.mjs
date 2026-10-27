@@ -362,7 +362,7 @@ describe('待对接文档最新视图', () => {
     return dir
   }
 
-  it('合并三分支的待对接文档视图：真 git 合并 / 集成分支缺失 / 注入 git 取较新', () => runSteps([
+  it('合并多分支的待对接文档视图：真 git 合并 / 某个分支缺失 / 注入 git 取较新', () => runSteps([
     ['三分支合并：各改的行都保留，只在一边有的文件也带上；真冲突回落取较新并标 conflict', () => {
       const dir = realRepo()
       try {
@@ -384,7 +384,7 @@ describe('待对接文档最新视图', () => {
         rmSync(dir, { recursive: true, force: true })
       }
     }],
-    ['集成分支不存在：照样合并其余分支', () => {
+    ['某个分支不存在：照样合并其余分支', () => {
       const dir = realRepo()
       try {
         const out = buildDocsView({ root: dir, refs: ['pre', 'work', 'no-such-branch'], relDir: 'docs/p', outDir: join(dir, 'view') })

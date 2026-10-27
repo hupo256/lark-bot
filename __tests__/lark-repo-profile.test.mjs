@@ -69,6 +69,12 @@ describe('repo profile 归一与注册', () => {
       assert.equal(tempBranchNameFor(falive, { project: 'FALIVE', suffix: 'abcd1234' }), 'lark/falive-abcd1234')
       assert.equal(falive.ownership.table, '/tmp/falive-react/docs/table.md')
       assert.equal(normalizeRepoProfile('xx', { ...faliveRaw, baseRef: 'origin/main' }).fetchBase, true)
+      // 合回负责人工作分支（10-27）：只认对象；没配 / 配成别的类型 = 不合回
+      const mergeBackOf = (mergeBack) => normalizeRepoProfile('xx', { ...faliveRaw, mergeBack }).mergeBack
+      assert.deepEqual(mergeBackOf({ upstream: 'origin/pre' }), { upstream: 'origin/pre' })
+      assert.deepEqual(mergeBackOf({}), { upstream: null })
+      assert.equal(mergeBackOf(undefined), null)
+      assert.equal(mergeBackOf('origin/pre'), null)
     }],
     ['缺 root / baseRef、projectKey 或群重复都在注册期报错', () => {
       assert.throws(() => normalizeRepoProfile('a', { baseRef: 'main' }), /root 必填/)

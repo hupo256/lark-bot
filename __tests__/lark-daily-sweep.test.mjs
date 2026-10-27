@@ -6,19 +6,18 @@ import { describe, it } from 'node:test'
 import { runSteps } from './support/steps.mjs'
 
 import {
-  buildDeployEmail,
   buildSweepTask,
   enqueueDailySweep,
   extractOwnerTodos,
   handlePushPre,
   loadSweepState,
   parsePushPreDirective,
-  pendingSweepBranches,
-  pushToPre,
+  pushBaseForMr,
   saveSweepState,
   sweepPushHint,
 } from '../lib/lark-daily-sweep.mjs'
 import { buildRepoNote } from '../lib/lark-repo-delivery.mjs'
+import { queuePendingMerge } from '../lib/lark-merge-back-state.mjs'
 import { createTaskStore } from '../lib/lark-task-store.mjs'
 import { registerRepoProfiles, repoProfile, resetRepoProfiles } from '../lib/lark-repo-profile.mjs'
 
@@ -60,8 +59,8 @@ const register = (extra = {}) => registerRepoProfiles({
   repos: {
     falive: {
       root: '/tmp/falive-react',
-      baseRef: 'feature/phase-3-api',
-      integrationBranch: 'lark/falive-integration',
+      baseRef: 'feature/phase-5-test',
+      mergeBack: { upstream: 'origin/pre' },
       chatIds: ['oc_falive'],
       notifyChatId: 'ou_aven',
       ownership: { me: 'aven', meOpenIds: ['ou_aven'] },
@@ -142,134 +141,107 @@ describe('日报清扫：抽负责人待办', () => {
 })
 
 describe('日报清扫：结果私信', () => {
-  it('清单不截成 6 行、合进集成分支才提示「推 pre」；没合回集成分支提示推 pre 会带上这条分支', () => runSteps([
-    ['清单不截成 6 行；有改动且已合进集成分支才提示回「推 pre」', () => {
+  it('清单不截成 6 行、合进工作分支才提示「推 pre」；还没合进提示合上后再推', () => runSteps([
+    ['清单不截成 6 行；有改动且已合进工作分支才提示回「推 pre」（推工作分支、发 pre 的 MR）', () => {
       register()
       const body = ['2026-10-14 日报 aven 待办 9 条：清掉 6 条，剩 3 条。', '清掉：A、B、C、D、E、F', '- G：等 Encone', '- H：等运维', '- I：你要做：发邮件', '- J：没做完：时间不够', '- K：等产品'].join('\n')
-      const task = { id: 'sweep-falive-20261014', source: 'daily-sweep', repo: 'falive', chatId: 'ou_aven', changedFiles: ['a.md'], branch: 'lark/falive-20261014', integration: { mergedBack: true, branch: 'lark/falive-integration' } }
+      const task = { id: 'sweep-falive-20261014', source: 'daily-sweep', repo: 'falive', chatId: 'ou_aven', changedFiles: ['a.md'], branch: 'feature/phase-5-test', integration: { mergedBack: true, branch: 'feature/phase-5-test' } }
       const note = buildRepoNote({ task, status: 'done', profile: repoProfile('falive'), result: body })
       assert.match(note, /- K：等产品/, '清单不截成 6 行')
-      assert.match(note, /回「推 pre」/)
-      assert.doesNotMatch(note, /你合这一条分支就够/)
+      assert.match(note, /改动已合进 feature\/phase-5-test。回「推 pre」我就推 feature\/phase-5-test 并发 pre 的 MR/)
       assert.equal(sweepPushHint({ ...task, changedFiles: [] }), null)
     }],
-    ['没合回集成分支：提示推 pre 会带上这条分支，不再叫负责人手动合', () => {
+    ['还没合进工作分支（排队 / 冲突）：提示合上后再推，不说推 pre 会带上它', () => {
       register()
-      const unmerged = { id: 'sweep-falive-20261014', source: 'daily-sweep', repo: 'falive', chatId: 'ou_aven', changedFiles: ['a.md'], branch: 'lark/falive-20261014', integration: { mergedBack: false, branch: 'lark/falive-integration', mergeReason: '冲突' } }
+      const unmerged = { id: 'sweep-falive-20261014', source: 'daily-sweep', repo: 'falive', chatId: 'ou_aven', changedFiles: ['a.md'], branch: 'lark/falive-20261014', integration: { mergedBack: null, pending: true, branch: 'feature/phase-5-test', mergeReason: '主目录暂存区有内容（你正在提交）' } }
       const unmergedNote = buildRepoNote({ task: unmerged, status: 'done', profile: repoProfile('falive'), result: '2026-10-14 日报 aven 待办 1 条：清掉 1 条，剩 0 条。' })
-      assert.match(unmergedNote, /改动在分支 lark\/falive-20261014（没合进集成分支）。回「推 pre」我会把它一起合进 pre/, '没合回集成分支：提示推 pre 会带上这条分支')
-      assert.doesNotMatch(unmergedNote, /要你手动合/, '不再叫负责人手动合')
+      assert.match(unmergedNote, /改动在分支 lark\/falive-20261014，还没合进你的工作分支（合上了我会私信你）。合上后回「推 pre」/)
+      assert.doesNotMatch(unmergedNote, /一起合进 pre/)
+    }],
+    ['非清扫任务的完成卡：合上 / 排队 / 冲突三种写法', () => {
+      register()
+      const note = (integration) => buildRepoNote({ task: { id: 't', repo: 'falive', chatId: 'oc_falive', changedFiles: ['a.md'], branch: integration.mergedBack ? 'feature/phase-5-test' : 'lark/falive-t', integration }, status: 'done', profile: repoProfile('falive'), result: '改好了' })
+      assert.match(note({ mergedBack: true, branch: 'feature/phase-5-test' }), /已合进 feature\/phase-5-test/)
+      assert.match(note({ mergedBack: null, pending: true, branch: 'feature/phase-5-test', mergeReason: '主目录不在 feature/phase-5-test 上（在 x）' }), /改动在分支 lark\/falive-t，等合进 feature\/phase-5-test（主目录不在/)
+      assert.match(note({ mergedBack: false, branch: 'feature/phase-5-test', mergeReason: '合进 feature/phase-5-test 有冲突：a.md' }), /⚠ 没合进 feature\/phase-5-test：合进 feature\/phase-5-test 有冲突：a\.md。分支 lark\/falive-t 要你手动合/)
     }],
   ], hooks))
 })
 
 describe('推 pre', () => {
-  const fakeGit = ({ conflictOn = null, headAfter = 'h2' } = {}) => {
+  const fakeGit = ({ ahead = 'abc1234 fix: x\ndef5678 docs: y\n', pushOk = true, fetchOk = true } = {}) => {
     const calls = []
     const git = async (cwd, args) => {
       calls.push(args.join(' '))
       const cmd = args.join(' ')
-      if (cmd === 'rev-parse origin/pre') return { ok: true, stdout: 'h1\n', stderr: '' }
-      if (cmd === 'rev-parse HEAD') return { ok: true, stdout: `${headAfter}\n`, stderr: '' }
-      if (cmd.startsWith('merge --no-ff') && conflictOn && cmd.endsWith(conflictOn)) return { ok: false, stdout: '', stderr: 'CONFLICT' }
-      if (cmd.startsWith('diff --name-only')) return { ok: true, stdout: 'docs/a.md\n', stderr: '' }
-      if (cmd.startsWith('log --no-merges')) return { ok: true, stdout: 'abc1234 fix: x\ndef5678 docs: y\n', stderr: '' }
+      if (cmd === 'fetch origin pre') return { ok: fetchOk, stdout: '', stderr: fetchOk ? '' : 'network down' }
+      if (cmd.startsWith('log --no-merges')) return { ok: true, stdout: ahead, stderr: '' }
+      if (cmd.startsWith('push')) return pushOk
+        ? { ok: true, stdout: '', stderr: 'remote:\nremote: View merge request for feature/phase-5-test:\nremote:   http://mgit.example.com/web/falive-react/-/merge_requests/131\nremote:\n' }
+        : { ok: false, stdout: '', stderr: '! [rejected] feature/phase-5-test -> feature/phase-5-test (non-fast-forward)' }
       return { ok: true, stdout: '', stderr: '' }
     }
     return { git, calls }
   }
 
-  it('只认整句「推 pre」；推完回部署邮件正文，待部署提交从上次部署点算起（#84：不再记 lastPush）', () => runSteps([
+  it('只认整句「推 pre」；回复带 MR 链接，还排队没合进工作分支的 bot 改动一并说明', () => runSteps([
     ['只认整句「推 pre」', () => {
       assert.equal(parsePushPreDirective('推 pre'), true)
       assert.equal(parsePushPreDirective(' 推PRE '), true)
       assert.equal(parsePushPreDirective('先别推 pre'), false)
       assert.equal(parsePushPreDirective('推 pre 吗'), false)
     }],
-    ['推完回部署邮件正文；待部署提交从盯部署记下的上次部署点算起（#84：不再记 lastPush）', async () => {
+    ['推完回 MR 链接与提交数；排队中的 bot 改动写明这次没带上；失败 / 没新提交各有说法', async () => {
       register()
       const runtimeDir = mkdtempSync(join(tmpdir(), 'lark-sweep-state-'))
       try {
-        saveSweepState('falive', { lastDeploy: { buildTime: 1, head: 'deployed1' } }, { runtimeDir })
-        let seen = null
-        const reply = await handlePushPre({ deps: { runtimeDir, pushToPre: async ({ logFrom }) => { seen = logFrom; return { ok: true, head: 'abcdef1234', base: 'h1', commits: ['abc1234 fix: 关注接口扁平', 'bbb2222 docs: 回填'], pushedAt: '2026-10-14T16:00:00.000Z' } } } })
-        assert.equal(seen, 'deployed1', '待部署提交从盯部署记下的上次部署点算起')
-        assert.match(reply, /已推 pre（abcdef12，待部署 2 个提交）/)
-        assert.match(reply, /主题：falive pre 前端部署申请/)
-        assert.match(reply, /- fix: 关注接口扁平/)
+        const push = (result) => handlePushPre({ deps: { runtimeDir, pushBaseForMr: async () => result } })
+        const ok = await push({ ok: true, commits: ['abc1234 fix: 关注接口扁平', 'bbb2222 docs: 回填'], mrUrl: 'http://mgit/x/-/merge_requests/131' })
+        assert.match(ok, /^✅ 已推 feature\/phase-5-test（2 个提交），发往 pre 的 MR：http:\/\/mgit\/x\/-\/merge_requests\/131。/)
+        assert.doesNotMatch(ok, /没带上/)
+        assert.match(await push({ ok: true, commits: ['a b'], mrUrl: null }), /推送输出里没拿到链接，去 GitLab 看/)
+        queuePendingMerge('falive', { taskId: 't1', branch: 'lark/falive-t1', summary: '改 t1' }, { runtimeDir })
+        assert.match(await push({ ok: true, commits: ['a b'], mrUrl: 'u' }), /还有 1 个 bot 改动没合进 feature\/phase-5-test，这次没带上：改 t1$/)
+        assert.match(await push({ ok: false, reason: '推送 feature/phase-5-test 失败：rejected' }), /^⛔ 没推：推送 feature\/phase-5-test 失败：rejected/)
+        assert.match(await push({ ok: true, nothingNew: true }), /^feature\/phase-5-test 没有 pre 之外的提交，不用推。/)
         assert.equal(loadSweepState('falive', { runtimeDir }).lastPush, undefined, '不再记 lastPush')
       } finally {
         rmSync(runtimeDir, { recursive: true, force: true })
       }
     }],
-    ['部署邮件最多列 15 个提交：正好 15 个全列、不写「另 0 个」；16 个列前 15 个并写「另 1 个提交」（变异补测 10-24）', () => {
-      const commits = (n) => Array.from({ length: n }, (_, i) => `h${i + 1}abcd feat: 提交 ${i + 1}`)
-      const email = (n) => buildDeployEmail({ profile: { key: 'falive' }, head: 'abcdef1234', commits: commits(n), pushedAt: '2026-10-24T08:00:00.000Z' })
-      const fifteen = email(15)
-      assert.match(fifteen, /- feat: 提交 15\n部署完回个邮件/)
-      assert.doesNotMatch(fifteen, /另 \d+ 个提交/)
-      const sixteen = email(16)
-      assert.match(sixteen, /- feat: 提交 15\n- …另 1 个提交\n部署完回个邮件/)
-      assert.doesNotMatch(sixteen, /提交 16/)
+  ], hooks))
+
+  it('pushBaseForMr 正常路径：先 fetch，推工作分支并带 MR push option，从推送输出取 MR 链接', () => runSteps([
+    ['推 feature/phase-5-test，push option 建发往 pre 的 MR，不碰 pre 分支本身', async () => {
+      register()
+      const { git, calls } = fakeGit()
+      const out = await pushBaseForMr({ profile: repoProfile('falive'), git })
+      assert.deepEqual(out, { ok: true, commits: ['abc1234 fix: x', 'def5678 docs: y'], mrUrl: 'http://mgit.example.com/web/falive-react/-/merge_requests/131' })
+      assert.equal(calls[0], 'fetch origin pre')
+      assert.ok(calls.includes('log --no-merges --format=%h %s origin/pre..feature/phase-5-test'))
+      assert.ok(calls.includes('push -o merge_request.create -o merge_request.target=pre origin feature/phase-5-test'), calls.join('\n'))
+      assert.ok(!calls.some((cmd) => /HEAD:pre|worktree|merge /.test(cmd)), '不直接推 pre、不建临时 worktree、不合并')
     }],
   ], hooks))
 
-  it('pushToPre 正常路径：合并顺序与回收 worktree、带上没合回的清扫分支、logFrom 起点', () => runSteps([
-    ['先合 baseRef 再合集成分支，推 HEAD:pre，最后回收临时 worktree', async () => {
+  it('pushBaseForMr 不推送：fetch 失败、没有 pre 之外的提交；推送被拒报原因', () => runSteps([
+    ['fetch 失败 → 不推', async () => {
       register()
-      const { git, calls } = fakeGit()
-      const out = await pushToPre({ profile: repoProfile('falive'), git, now: new Date('2026-10-14T16:00:00Z') })
-      assert.equal(out.ok, true)
-      assert.deepEqual(out.commits, ['abc1234 fix: x', 'def5678 docs: y'])
-      const merges = calls.filter((cmd) => cmd.startsWith('merge --no-ff'))
-      assert.match(merges[0], /feature\/phase-3-api$/, '先合 baseRef')
-      assert.match(merges[1], /lark\/falive-integration$/, '再合集成分支')
-      assert.ok(calls.includes('push origin HEAD:pre'), '推 HEAD:pre')
-      assert.match(calls.at(-1), /^worktree remove --force/, '最后回收临时 worktree')
-    }],
-    ['没合回集成分支的清扫分支：近 48 小时、有改动才带上，并排在 baseRef / 集成分支之后合', async () => {
-      register()
-      const now = new Date('2026-10-14T20:00:00Z')
-      const store = { list: () => [
-        { source: 'daily-sweep', repo: 'falive', branch: 'lark/falive-20261014', changedFiles: ['a.md'], integration: { mergedBack: false }, updatedAt: '2026-10-14T19:00:00Z' },
-        { source: 'daily-sweep', repo: 'falive', branch: 'lark/falive-20261010', changedFiles: ['a.md'], integration: { mergedBack: false }, updatedAt: '2026-10-10T19:00:00Z' },
-        { source: 'daily-sweep', repo: 'falive', branch: 'lark/falive-merged', changedFiles: ['a.md'], integration: { mergedBack: true }, updatedAt: '2026-10-14T19:00:00Z' },
-        { source: 'lark', repo: 'falive', branch: 'lark/falive-other', changedFiles: ['a.md'], updatedAt: '2026-10-14T19:00:00Z' },
-      ] }
-      const extraRefs = pendingSweepBranches({ store, profile: repoProfile('falive'), now })
-      assert.deepEqual(extraRefs, ['lark/falive-20261014'], '没合回集成分支的清扫分支：近 48 小时、有改动才带上')
-      const { git, calls } = fakeGit()
-      await pushToPre({ profile: repoProfile('falive'), extraRefs, git })
-      assert.match(calls.filter((cmd) => cmd.startsWith('merge --no-ff')).at(-1), /lark\/falive-20261014$/, '排在 baseRef / 集成分支之后合')
-    }],
-    ['logFrom（上次部署点）是新头的祖先 → 提交从它算起；不是祖先 → 退回本次推送起点', async () => {
-      register()
-      const { git, calls } = fakeGit()
-      await pushToPre({ profile: repoProfile('falive'), logFrom: 'dep1', git })
-      assert.ok(calls.includes('log --no-merges --format=%h %s dep1..h2'), calls.join('\n'))
-      const notAncestor = async (cwd, args) => (args[0] === 'merge-base' ? { ok: false, stdout: '', stderr: '' } : git(cwd, args))
-      calls.length = 0
-      await pushToPre({ profile: repoProfile('falive'), logFrom: 'stale', git: notAncestor })
-      assert.ok(calls.includes('log --no-merges --format=%h %s h1..h2'), calls.join('\n'))
-    }],
-  ], hooks))
-
-  it('pushToPre 不推送：冲突 abort 并报冲突文件、没有新提交', () => runSteps([
-    ['冲突 → abort、不推送，告诉负责人冲突文件', async () => {
-      register()
-      const { git, calls } = fakeGit({ conflictOn: 'lark/falive-integration' })
-      const out = await pushToPre({ profile: repoProfile('falive'), git })
-      assert.equal(out.ok, false, '冲突 → 不推送')
-      assert.match(out.reason, /有冲突，没推：docs\/a\.md/)
-      assert.ok(calls.includes('merge --abort'), '冲突 → abort')
+      const { git, calls } = fakeGit({ fetchOk: false })
+      const out = await pushBaseForMr({ profile: repoProfile('falive'), git })
+      assert.equal(out.ok, false); assert.match(out.reason, /fetch origin pre 失败：network down/)
       assert.ok(!calls.some((cmd) => cmd.startsWith('push')))
     }],
-    ['没有新提交 → 不推送', async () => {
+    ['没有 pre 之外的提交 → 不推', async () => {
       register()
-      const { git, calls } = fakeGit({ headAfter: 'h1' })
-      const out = await pushToPre({ profile: repoProfile('falive'), git })
-      assert.equal(out.nothingNew, true, '没有新提交 → 不推送')
+      const { git, calls } = fakeGit({ ahead: '' })
+      assert.deepEqual(await pushBaseForMr({ profile: repoProfile('falive'), git }), { ok: true, nothingNew: true })
       assert.ok(!calls.some((cmd) => cmd.startsWith('push')))
+    }],
+    ['推送被拒（远端分支分叉）→ ok=false 带 git 原因', async () => {
+      register()
+      const out = await pushBaseForMr({ profile: repoProfile('falive'), git: fakeGit({ pushOk: false }).git })
+      assert.equal(out.ok, false); assert.match(out.reason, /推送 feature\/phase-5-test 失败：! \[rejected\]/)
     }],
   ], hooks))
 })

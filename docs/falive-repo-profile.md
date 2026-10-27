@@ -8,7 +8,7 @@
 | 决策 | 结论 |
 |---|---|
 | 实例形态 | **单实例多仓**：同一套 gateway / worker，按 `repos.<key>` profile 路由；不起第二套 launchd 实例 |
-| falive 基线 | `feature/phase-3-api`（aven 的本地集成分支，不 fetch）；bot 分支 `lark/falive-<id>` 只本地 commit，做完 no-ff 合进 `lark/falive-integration` 后**自动删除**（2026-10-16；冲突 / 失败的保留），aven 把集成分支合回 feature |
+| falive 基线 | `feature/phase-5-test`（aven 主目录 `~/github/falive-react` 检出的本地开发分支，不 fetch）。2026-10-27 起取消集成分支：开任务前把 `origin/pre` 同步进它，bot 分支 `lark/falive-<id>` 从它开、只本地 commit，做完直接 no-ff 合进主目录的 `feature/phase-5-test` 后**自动删除**；主目录暂存区有内容 / 不在该分支 / 未提交改动和要合的文件重叠时排队，worker 每 2 分钟重试，结果私信；冲突交 aven 手动合（`lib/lark-merge-back.mjs`，配置 `mergeBack.upstream`）。上 pre 走 aven 的 MR，或私信「推 pre」让 bot 推该分支并发 pre 的 MR |
 | 别人负责的功能 | bot **跳过并 @ 负责人**（功能总表「前端」列），aven 本人点名要做的当次放行 |
 | 外部群触发 | **只认 @bot**（2026-10-23）：没 @bot 的一律不建任务、不分类、不记台账；@ aven 本人的也不管（是他的事他会再 @bot）。这些消息由 @bot 时读上下文带进来 |
 | 群消息读取权限 | 用户身份 `im` scope 已提交企业管理员审批，待批 |
@@ -29,7 +29,7 @@ falive 群（外部群，无应用机器人）
 Gateway ingest：chatIds → repo profile → project=FALIVE, task.repo=falive
   │  @aven / @所有人 → Sonnet 只读意图分类 → bug / 需求才入队
   ▼
-Worker：profile.root 上 git worktree add（基线 feature/phase-3-api）→ lark/falive-<id>
+Worker：profile.root 上 git worktree add（基线 feature/phase-5-test，开任务前先同步 origin/pre）→ lark/falive-<id>
   │  规则 profile=falive（CLAUDE.md 固定前提 + 硬规则 required，add-module / msw-policy / coding-quality 按信号）
   │  Opus 5.5 high 只读分析（含 ownership 判定）→ Opus 5.5 medium 实施 → biome / 相关测试 / tsc
   │  别人负责 → no_change_needed(other_owner) + @ 负责人
@@ -44,7 +44,8 @@ webhook 发出的卡片没有 `message_id`，不能作为「回复卡片」的�
 | 键 | 说明 | falive 当前值 |
 |---|---|---|
 | `root` | 业务仓绝对路径（必填） | `/Users/aven/github/falive-react` |
-| `baseRef` / `fetchBase` | 临时 worktree 基线；远端 ref 才 fetch | `feature/phase-3-api` / `false` |
+| `baseRef` / `fetchBase` | 临时 worktree 基线；远端 ref 才 fetch | `feature/phase-5-test` / `false` |
+| `mergeBack.upstream` | 合回负责人工作分支：开任务前把它同步进 baseRef，任务做完合回主目录的 baseRef（不配 = 只提交到任务分支、不合回） | `origin/pre` |
 | `projectKey` | 任务的 `project` 值（大写，缺省 = key 大写） | `FALIVE` |
 | `branchPrefix` | 临时分支前缀（缺省 `lark/<key>`） | `lark/falive` |
 | `worktreesDir` | 临时 worktree 目录（缺省 `<root>/../.lark-<key>`） | `~/github/.lark-falive` |
@@ -139,7 +140,8 @@ lark-bot restart && lark-bot status           # worker 日志应出现 repo fali
 curl -s -X POST http://127.0.0.1:3005/lark/tasks \
   -H "x-lark-gateway-secret: $(cat ~/.config/fameex-lark/gateway-secret)" -H 'Content-Type: application/json' \
   -d '{"id":"manual-falive-001","source":"lark","repo":"falive","operator":"ou_91861d6da6cf6822e08045ba1868241e","text":"修复：…"}'
-git -C ~/github/falive-react branch --list 'lark/falive-*'   # 集成分支 + 合回失败 / 未完成而保留的任务分支
+git -C ~/github/falive-react branch --list 'lark/falive-*'   # 排队等合 / 冲突 / 未完成而保留的任务分支
+cat runtime/lark-merge-back/falive.json                     # 排队等合进 feature/phase-5-test 的任务、上游同步冲突
 ```
 
 审计在 `runtime/lark-audits/FALIVE/`，附件在 `runtime/lark-attachments/FALIVE/`。

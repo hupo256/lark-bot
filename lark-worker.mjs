@@ -23,6 +23,7 @@ import { createRuntimeVersion, versionWarnings, writeWorkerHeartbeat } from './l
 import { createDrainRestart } from './lib/lark-drain-restart.mjs'
 import { createDoctorMonitor } from './lib/lark-doctor.mjs'
 import { createWorktreeReaper } from './lib/lark-worktree-reaper.mjs'
+import { createMergeBackRetrier } from './lib/lark-merge-back.mjs'
 import { computeCodeHash, readWorkerHeartbeat } from './lib/lark-runtime-version.mjs'
 import { sendBotMarkdown } from './lib/lark-cli.mjs'
 import { larkRuntimeDir } from './lib/lark-repo.mjs'
@@ -197,11 +198,19 @@ export async function runLarkWorker({
     : []
   for (const timer of reaperTimers) timer.unref?.()
   console.log(`[lark-worker] 分支回收：${reaperEnabled ? '开（每小时，已合入的任务分支 + 临时 worktree）' : '关'}`)
+  // 合回负责人工作分支的重试（lib/lark-merge-back.mjs）：主目录暂不能合时排队的任务分支每 2 分钟试一次，结果私信负责人。
+  const mergeBackTick = createMergeBackRetrier({
+    profiles: listRepoProfiles(),
+    notify: drainNotifyChatId ? (text) => sendBotMarkdown({ chatId: drainNotifyChatId, markdown: text, logPrefix: 'merge-back' }) : async () => {},
+  })
+  const mergeBackTimer = setInterval(() => mergeBackTick().catch((error) => console.error('[lark-worker] 合回重试 tick 异常（忽略）：', String(error).slice(0, 160))), Number(process.env.LARK_MERGE_BACK_EVERY_MS || 2 * 60_000))
+  mergeBackTimer.unref?.()
   const gracefulShutdown = async (signal) => {
     if (shuttingDown) return
     shuttingDown = true
     if (logTimer) clearInterval(logTimer)
     clearInterval(heartbeatTimer)
+    clearInterval(mergeBackTimer)
     const entries = [...inFlight.values()]
     console.log(`[lark-worker] 收到 ${signal}，优雅退出：交还 ${entries.length} 个在飞任务并中断 AI`)
     await Promise.allSettled(

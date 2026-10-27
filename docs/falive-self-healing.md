@@ -56,7 +56,7 @@
 | `tool_missing` | `spawnSync <cli> ENOENT`（10-14 cursor-agent / pi 各连报 12 次） | 该执行器标为不可用 1 小时，回落 claude；私信一条 |
 | `transient_api` | 环 1.1 三次都没过 | 5 分钟后重排队一次 |
 | `timeout` / `idle` | exec timed out / no events | 不重跑；私信附审计里最后一个工具调用（人一眼能看出卡在哪） |
-| `git` | 冲突 / worktree 脏 / 分支不存在 | 合一次 `lark/falive-integration` 后重排队一次；再失败私信 |
+| `git` | 冲突 / worktree 脏 / 分支不存在 | 重排队一次（临时 worktree 重建）；再失败私信（10-27 集成分支已取消） |
 | `quality_gate` | 规范硬闸 / tsc / 测试红 | 不重跑（已经是定向纠正后的结果），私信附清单 |
 | `unknown` | 其余 | 进 3.2 |
 

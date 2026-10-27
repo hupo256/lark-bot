@@ -63,8 +63,8 @@ describe('reapRepo（真实 git）', () => {
     return res.stdout.trim()
   }
   const branchExists = (name) => spawnSync('git', ['-C', repo, 'show-ref', '--verify', '--quiet', `refs/heads/${name}`]).status === 0
-  const profile = () => ({ key: 'falive', isDefault: false, root: repo, branchPrefix: 'lark/falive', integrationBranch: 'lark/falive-integration', baseRef: 'dev', tempWorktreeDir: wtDir })
-  // 在临时目录开一个任务分支 + worktree，提交一个文件；merge=true 时合进集成分支
+  const profile = () => ({ key: 'falive', isDefault: false, root: repo, branchPrefix: 'lark/falive', baseRef: 'dev', tempWorktreeDir: wtDir })
+  // 在临时目录开一个任务分支 + worktree，提交一个文件；merge=true 时 --no-ff 合进 baseRef（bot 合回负责人工作分支）
   const taskBranch = (id, { merge = true } = {}) => {
     const branch = `lark/falive-${id}`
     const path = join(wtDir, `lark-falive-${id}`)
@@ -72,7 +72,7 @@ describe('reapRepo（真实 git）', () => {
     writeFileSync(join(path, `${id}.txt`), `${id}\n`)
     run(path, ['add', '-A'])
     run(path, ['commit', '-m', `task ${id}`])
-    if (merge) run(join(wtDir, 'integration'), ['merge', '--no-ff', '-m', `merge ${id}`, branch])
+    if (merge) run(repo, ['merge', '--no-ff', '-m', `merge ${id}`, branch])
     return { branch, path }
   }
 
@@ -88,7 +88,6 @@ describe('reapRepo（真实 git）', () => {
     writeFileSync(join(repo, 'base.txt'), 'base\n')
     run(repo, ['add', '-A'])
     run(repo, ['commit', '-m', 'base'])
-    run(repo, ['worktree', 'add', '-b', 'lark/falive-integration', join(wtDir, 'integration'), 'dev'])
   }
   // 每段一个独立 sandbox，段后即删（原 beforeEach 建、describe 级 after 只删最后一个）
   const hooks = {
@@ -99,13 +98,13 @@ describe('reapRepo（真实 git）', () => {
   }
 
   it('真实 git 回收：删干净现场、脏现场存补丁、该留的都留、认 baseRef 合入、拉不到任务整轮跳过', () => runSteps([
-    ['已合入的干净现场：删 worktree + 分支，集成分支不动', () => {
+    ['已合入的干净现场：删 worktree + 分支，baseRef 不动', () => {
       const { branch, path } = taskBranch('aaa')
       const results = reapRepo({ profile: profile(), tasks: [{ id: 't1', branch, status: 'done' }], backupDir, now: NOW })
       assert.deepEqual(results.map((item) => [item.branch, item.done]), [[branch, true]])
       assert.equal(existsSync(path), false)
       assert.equal(branchExists(branch), false)
-      assert.equal(branchExists('lark/falive-integration'), true)
+      assert.equal(branchExists('dev'), true)
     }],
     ['已结单的脏现场：补丁存下、可还原内容，再删', () => {
       const { branch, path } = taskBranch('bbb')
@@ -140,7 +139,7 @@ describe('reapRepo（真实 git）', () => {
       }
       assert.equal(readFileSync(join(failed.path, 'base.txt'), 'utf8'), 'half done\n')
     }],
-    ['已合进 baseRef（人类快进合入开发分支）但集成分支没有：也算已合入', () => {
+    ['快进合进 baseRef（人类手动合入开发分支）：也算已合入', () => {
       const { branch } = taskBranch('ddd', { merge: false })
       run(repo, ['merge', '--ff-only', branch])
       reapRepo({ profile: profile(), tasks: [{ id: 't4', branch, status: 'failed' }], backupDir, now: NOW })

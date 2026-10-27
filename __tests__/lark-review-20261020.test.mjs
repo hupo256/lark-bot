@@ -16,7 +16,8 @@ import { findCompletionContradiction, findUnverifiedPreClaim, schemaVerifyVerdic
 import { buildTaskPrompt, buildValidationRequirements } from '../lib/lark-worker-prompts.mjs'
 import { registerRepoProfiles, resetRepoProfiles } from '../lib/lark-repo-profile.mjs'
 import { buildDocIntakeText, changedDocPaths, docArchiveDirs, planDocIntakeCommit, restoreKeptDocs } from '../lib/lark-doc-archive.mjs'
-import { integrationReport, readableBranchAfterMerge, shouldUseIntegrationBranch } from '../lib/lark-task-finish.mjs'
+import { integrationReport, readableBranchAfterMerge } from '../lib/lark-task-finish.mjs'
+import { usesMergeBack } from '../lib/lark-merge-back.mjs'
 import { resolveScopeGate } from '../lib/lark-scope-contract.mjs'
 import { allowsDocsOnlyDone, assessDoneResult, buildLintFixPrompt, isDocsOnlyDiff } from '../lib/lark-quality-gate.mjs'
 import { requestsPreCheck } from '../lib/lark-message.mjs'
@@ -206,25 +207,31 @@ describe('C5 / C8 / C9 文档存档', () => {
   ]))
 })
 
-describe('C6 / #19 集成分支', () => {
-  it('合回后 task.branch 改指集成分支并带 mergedSha、WIP 改道后不走集成分支、gitTail 首尾各留一半', () => runSteps([
-    ['合回且任务分支已删 → task.branch 改指集成分支；摘要带 mergedSha', () => {
-      const merged = { branch: 'lark/falive-integration', ok: true, mergeBack: { ok: true, merged: true, head: 'abc123' }, branchCleanup: { deleted: true } }
-      assert.equal(readableBranchAfterMerge(merged), 'lark/falive-integration', '合回且任务分支已删 → task.branch 改指集成分支')
+describe('C6 / #19 合回负责人工作分支（10-27 取代集成分支）', () => {
+  it('合回后 task.branch 改指 baseRef 并带 mergedSha、排队 / 冲突的摘要、WIP 改道后不合回、gitTail 首尾各留一半', () => runSteps([
+    ['合回且任务分支已删 → task.branch 改指 baseRef；摘要带 mergedSha', () => {
+      const merged = { branch: 'feature/phase-5-test', mergeBack: { ok: true, merged: true, head: 'abc123', branchCleanup: { deleted: true } } }
+      assert.equal(readableBranchAfterMerge(merged), 'feature/phase-5-test', '合回且任务分支已删 → task.branch 改指 baseRef')
       assert.deepEqual(integrationReport(merged, { taskBranch: 'lark/falive-t1' }), {
-        branch: 'lark/falive-integration', synced: true, syncReason: null, mergedBack: true, mergeReason: null, mergedSha: 'abc123', taskBranch: 'lark/falive-t1', taskBranchDeleted: true,
+        branch: 'feature/phase-5-test', mergedBack: true, pending: false, mergeReason: null, mergedSha: 'abc123', taskBranch: 'lark/falive-t1', taskBranchDeleted: true,
       }, '摘要带 mergedSha')
-      assert.equal(readableBranchAfterMerge({ ...merged, branchCleanup: { deleted: false } }), undefined, '分支没删就不改')
-      assert.equal(readableBranchAfterMerge({ ...merged, mergeBack: { ok: false, reason: '冲突' }, branchCleanup: null }), undefined)
-      assert.equal(integrationReport({ branch: 'i', ok: false, reason: '冲突' }).mergedSha, null)
+      assert.equal(readableBranchAfterMerge({ branch: 'b', mergeBack: { ok: true, branchCleanup: { deleted: false } } }), undefined, '分支没删就不改')
+      assert.equal(readableBranchAfterMerge({ branch: 'b', mergeBack: { ok: false, conflicts: ['a'], reason: '冲突' } }), undefined)
+      assert.equal(integrationReport({ branch: 'b', sync: { ok: true } }), null, '只同步、没提交 → 不回写摘要')
       assert.equal(integrationReport(null), null)
     }],
-    ['WIP 改道后不走集成分支（不覆盖改道基线）', () => {
-      const profile = { integrationBranch: 'lark/falive-integration' }
-      assert.equal(shouldUseIntegrationBranch({ workContext: { hotfixBranch: 'lark/falive-t1' }, profile }), true)
-      assert.equal(shouldUseIntegrationBranch({ workContext: { hotfixBranch: 'lark/falive-t1' }, profile, reroutedWip: { hotfixBranch: 'x' } }), false, 'WIP 改道后不走集成分支')
-      assert.equal(shouldUseIntegrationBranch({ workContext: {}, profile }), false)
-      assert.equal(shouldUseIntegrationBranch({ workContext: { hotfixBranch: 'x' }, profile: {} }), false)
+    ['排队 → pending、mergedBack 为空；冲突 → mergedBack=false 带原因', () => {
+      const pending = integrationReport({ branch: 'b', mergeBack: { ok: false, pending: true, reason: '主目录暂存区有内容（你正在提交）' } }, { taskBranch: 't' })
+      assert.equal(pending.pending, true); assert.equal(pending.mergedBack, null); assert.match(pending.mergeReason, /暂存区/)
+      const conflict = integrationReport({ branch: 'b', mergeBack: { ok: false, conflicts: ['a.md'], reason: '合进 b 有冲突：a.md' } })
+      assert.equal(conflict.pending, false); assert.equal(conflict.mergedBack, false); assert.equal(conflict.mergedSha, null)
+    }],
+    ['WIP 改道后不合回（不覆盖改道基线）；没配 mergeBack / 没有任务分支也不合回', () => {
+      const profile = { mergeBack: { upstream: 'origin/pre' } }
+      assert.equal(usesMergeBack({ workContext: { hotfixBranch: 'lark/falive-t1' }, profile }), true)
+      assert.equal(usesMergeBack({ workContext: { hotfixBranch: 'lark/falive-t1' }, profile, reroutedWip: { hotfixBranch: 'x' } }), false, 'WIP 改道后不合回')
+      assert.equal(usesMergeBack({ workContext: {}, profile }), false)
+      assert.equal(usesMergeBack({ workContext: { hotfixBranch: 'x' }, profile: { mergeBack: null } }), false)
     }],
     ['gitTail 超长时首尾各留一半，结论行不丢', () => {
       const text = `error: start ${'x'.repeat(400)} Automatic merge failed`
