@@ -260,7 +260,7 @@
         "string",
         "null"
       ],
-      "description": "群消息里放不下的细节（curl、复现步骤、逐项证据、长清单），写成 markdown 正文；bot 建成 Lark 文档，群里只附「详细见：链接」。没有填 null"
+      "description": "群消息里放不下的细节（curl、复现步骤、逐项证据、长清单），写成 markdown 正文；bot 建成 Lark 文档，群里只附「详细见：链接」。顶层字段，和 report 平级，不要放进 report。没有填 null"
     },
     "followUpDoc": {
       "type": [

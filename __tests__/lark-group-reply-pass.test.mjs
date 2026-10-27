@@ -37,6 +37,13 @@ describe('群里答应过下文的补写群回复', () => {
       assert.equal(aiRun.result.groupReply, '查到了：pre 前端旧版本')
       assert.equal(aiRun.result.summary, result.summary, '其余字段照旧')
       assert.deepEqual([calls[0].resumeSessionId, calls[0].cwd, calls[0].executor], ['s1', '/w', 'claude'])
+      // detailDoc（#88）：原结果里有的，补写没给也留下；补写把它嵌在 report 里的照样取出
+      const kept = { result: { ...result, detailDoc: ' 原 curl ' }, sessionId: 's', executor: 'claude' }
+      await runGroupReplyPass({ task, aiRun: kept, exec: async () => ({ result: { groupReply: '补写' } }) })
+      assert.equal(kept.result.detailDoc, '原 curl')
+      const fromPass = { result: { ...result }, sessionId: 's', executor: 'claude' }
+      await runGroupReplyPass({ task, aiRun: fromPass, exec: async () => ({ result: { report: { answer: 'b', items: [], detailDoc: '补写 curl' } } }) })
+      assert.equal(fromPass.result.detailDoc, '补写 curl')
       for (const run of [{ sessionId: null, executor: 'claude' }, { sessionId: 's', executor: 'codex' }]) {
         const other = { result: { ...result }, ...run }
         assert.equal(await runGroupReplyPass({ task, aiRun: other, exec: async () => { throw new Error('不该调') } }), false)

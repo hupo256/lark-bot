@@ -658,10 +658,23 @@ describe('黄金对话', () => {
     assert.deepEqual((await check(new Date(Date.now() + 70 * MIN))).promiseTaskIds, [])
   }])
 
+  replays1023.push(['S25 对方要复现 curl，执行器把 detailDoc 写进了 report 里 → 细节照样发出（建成文档附链接，建不成原样接在后面），群里不会只剩「整理在文档里了」（10-27 #88）', async () => {
+    const id = await say({ from: ENCONE, text: '请给我提供一下 bug-4970 的 curl 信息' })
+    await classify(id, { decision: 'question', deliverable: 'answer', reply: '好的，我把登录的请求 curl 和返回结果整理一下发你' })
+    await work(id, {
+      status: 'done', groupReply: null, preChecks: PRE_OK,
+      report: { subject: null, answer: 'Bug-4970 的复现 curl 和实测结果整理在文档里了：旧账号登录还是回「用户不存在」。', items: [],
+        detailDoc: "## 复现 curl\n\ncurl -X POST 'https://falivepre.fdsser.com/go-api/api/auth/login' -d '{\"username\":\"16517528005\"}'" },
+    })
+    const group = groupTexts()
+    assert.equal(group.length, 2, transcript().join('\n'))
+    assert.match(group[1], /整理在文档里了[\s\S]*go-api\/api\/auth\/login/, '文档内容（或链接）跟着答案发出')
+  }])
+
   for (const [title, steps] of [
     ['10-20 真机事故重放与结构化回复（S1 / S3 / S3c / S4 / S6 / S2 / S5 / S7 / S8）', replays1020],
     ['10-21 / 10-22 入口、放行与核验闸（S9 / S10 / S11 / S12 / S14 / S13 / S3b / S3d / S15）', replays1022],
-    ['10-23 台账接续、归属、行数上限、补写群回复、文档并入、部署复测（S16 – S24）', replays1023],
+    ['10-23 台账接续、归属、行数上限、补写群回复、文档并入、部署复测、细节文档（S16 – S25）', replays1023],
   ]) {
     it(`黄金对话剧本：${title}`, () => runSteps(steps, hooks))
   }
