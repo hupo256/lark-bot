@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { classifyProblems, parseArgs, problem } from '../tools/verify-page.mjs'
+import { classifyProblems, isActiveState, judgeReaction, parseArgs, problem, shouldSkipControl, summarizeSweep, sweepProblems } from '../tools/verify-page.mjs'
 import { DEFAULT_BROWSER_PATTERN } from '../lib/lark-report-render.mjs'
 import { VERIFY_PAGE_TOOL, pageToolOf } from '../lib/lark-verify-page.mjs'
 import { stopVerifyServer } from '../lib/lark-verify-page-stop.mjs'
@@ -88,6 +88,57 @@ describe('页面验证工具：参数与接入', () => {
       assert.equal(logs.length, 1)
       assert.doesNotThrow(() => stopVerifyServer('/w', { spawn: () => { throw new Error('x') }, log: () => {} }))
       stopVerifyServer(null, { spawn: () => { throw new Error('不该调') } })
+    }],
+  ]))
+})
+
+// 点击走查（aven 2026-10-27，Bug-5030）：判「点了没反应」的口径决定报不报死控件，松了漏（喇叭钮再漏一次）、紧了误报（轮播页全报）。
+describe('页面验证工具：点击走查', () => {
+  it('反应判定：跳转 / 新窗口 / 弹层 / 请求 / aria / 自身内容 / 明显超过本底的 DOM 变化算有反应，纯本底抖动不算；副作用词与表单内跳过；只有没反应的进问题并可与 pre 比对', () => runSteps([
+    ['什么都没变 → 没反应；页面本底在动（轮播）但点击后没超过本底两倍 → 仍算没反应', () => {
+      const base = { url: 'http://x/', popups: 0, dialogs: 0, requests: 3, aria: '-/-/-/-/-', html: '<button>a</button>', mutations: 0 }
+      assert.equal(judgeReaction({ before: base, after: { ...base } }).reacted, false)
+      assert.match(judgeReaction({ before: base, after: { ...base, mutations: 1 } }).why, /DOM 变化 1 处（本底 0）/, '静止页面点后加一个 toast DIV 就算有反应（广场「分享」）')
+      assert.equal(judgeReaction({ before: { ...base, mutations: 10 }, after: { ...base, mutations: 18 } }).reacted, false, '本底 10，点击后 18 ≤ 10*2+2，算抖动')
+      assert.equal(judgeReaction({ before: { ...base, mutations: 10 }, after: { ...base, mutations: 23 } }).reacted, true, '超过本底两倍 + 2 才算反应')
+    }],
+    ['各维度任一变化都算有反应，why 说清是哪种', () => {
+      const base = { url: 'http://x/', popups: 0, dialogs: 0, requests: 3, aria: '-/-/-/-/-', html: '<button>a</button>', mutations: 0 }
+      assert.match(judgeReaction({ before: base, after: { ...base, url: 'http://x/room/1' } }).why, /跳转/)
+      assert.match(judgeReaction({ before: base, after: { ...base, popups: 1 } }).why, /新窗口/)
+      assert.match(judgeReaction({ before: base, after: { ...base, dialogs: 1 } }).why, /弹出层/)
+      assert.match(judgeReaction({ before: base, after: { ...base, requests: 4 } }).why, /请求 1 个/)
+      assert.match(judgeReaction({ before: base, after: { ...base, aria: 'true/-/-/-/-' } }).why, /状态/)
+      assert.match(judgeReaction({ before: base, after: { ...base, html: '<button>b</button>' } }).why, /自身内容变化/, '喇叭钮换图标就是这种')
+      assert.match(judgeReaction({ before: base, after: { ...base, html: null } }).why, /消失/)
+      assert.match(judgeReaction({ before: { ...base, stateSig: 'expanded|' }, after: { ...base, stateSig: 'collapsed|' } }).why, /页面状态变化/, '侧栏收展只改一个 data-sidebar 属性，靠状态签名识别')
+    }],
+    ['跳过口径：发布 / 关注 / 退出等副作用词、表单内的不点；普通按钮不跳过', () => {
+      assert.match(shouldSkipControl({ text: '发布帖子' }), /发布/)
+      assert.match(shouldSkipControl({ text: '退出登录' }), /退出/)
+      assert.equal(shouldSkipControl({ text: '提交', inForm: true }), '表单内')
+      assert.equal(shouldSkipControl({ text: '静音' }), '')
+      assert.equal(shouldSkipControl({ text: '签到规则 ›' }), '', '规则说明钮不是签到动作，要点（含「签到」但有「规则」豁免）')
+      assert.match(shouldSkipControl({ text: '签到' }), /签到/, '真正的签到钮仍跳过')
+      assert.equal(isActiveState('true/-/-/-/-'), true, '已按下的 tab 再点不算死控件')
+      assert.equal(isActiveState('-/-/-/-/active'), true)
+      assert.equal(isActiveState('-/-/-/-/-'), false)
+      assert.equal(isActiveState('false/-/-/-/inactive'), false, 'inactive 不含整词 active')
+    }],
+    ['只有 dead 的进问题，key 带页面 + 文字，kind 可与 pre 同页比对；汇总按结果计数', () => {
+      const controls = [
+        { id: 0, tag: 'button', text: '静音', outcome: 'reacted', why: '自身内容变化' },
+        { id: 1, tag: 'button', text: '签到规则 ›', outcome: 'dead', why: '' },
+        { id: 2, tag: 'button', text: '发布', outcome: 'skipped', why: '含「发布」' },
+        { id: 3, tag: 'a', text: '无文字的 a.x', outcome: 'lost', why: '点不到' },
+      ]
+      const items = sweepProblems({ path: '/tasks', controls })
+      assert.deepEqual(items.map((item) => item.key), ['deadControl:/tasks 签到规则 ›'])
+      assert.match(items[0].text, /点了没反应：「签到规则 ›」（button）/)
+      assert.deepEqual(summarizeSweep({ controls }), { total: 4, reacted: 1, dead: 1, skipped: 1, lost: 1 })
+      const out = classifyProblems({ result: page(items), site: page(items) })
+      assert.equal(out.items[0].tag, '［pre 上也有］', 'pre 同页也点了没反应 → 不是本次改动带来的')
+      assert.equal(parseArgs(['check', '--click-sweep', '/']).clickSweep, true)
     }],
   ]))
 })

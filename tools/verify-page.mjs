@@ -11,12 +11,18 @@
  * 固定检查：回落 mock（浏览器 console + SSR 日志两边，出现即是假数据）、页面脚本报错、失败请求（网络失败 / HTTP ≥400 /
  * 业务码为负或 ±700 登录失效）、--expect 的文字是否出现、--wait 的元素是否出来。
  * 不往工作区写任何文件（状态 / 日志 / 截图都在 /tmp/lark-verify），不触发提交前的工作树指纹漂移。
+ * 点击走查（aven 2026-10-27，起因 Bug-5030：首页喇叭钮画了 16 天没接行为，两轮「全面自测」都没点过）：`--click-sweep` 时对页面上
+ * 每个可见、未禁用的 button / role=button|tab|menuitem / summary / 没有 href 的 a 依次点一下，看点击后有没有任何反应
+ * （跳转、新窗口、发请求、弹出层、aria 状态、自身内容、明显超过本底的 DOM 变化）；都没有的记为「点了没反应」（deadControl），
+ * 和 pre 同页比对后同样标「pre 上也有 / 本地新出现」。带 href 的链接不点（有 href 就不是死控件）；文字含发布 / 关注 / 退出等
+ * 副作用词、或在表单里的不点，只列为「跳过」。跳转走了就回到原页重新收集；每页最多 80 个控件、120 秒。
  *
  * 用法：
  *   node verify-page.mjs start  --cwd <工作区>
  *   node verify-page.mjs check  --cwd <工作区> [--login] [--expect 文字]... [--wait CSS] [--viewport 1440x900] [--no-compare] <路径>...
  *     （默认同时打开已部署的 pre 同一页比对，问题标「本地新出现 / pre 上也有」；坏图另按同一路径直接请求 pre 判是不是数据问题）
  *   node verify-page.mjs check  --base https://falivepre.fdsser.com [--login] ... <路径>...   （已部署的直接查 pre 站点）
+ *   node verify-page.mjs check  ... --click-sweep <路径>...   （点击走查：把页面上每个可点控件点一遍，点了没反应的报「死控件」；见下）
  *   node verify-page.mjs stop   --cwd <工作区>
  *   node verify-page.mjs status
  * 登录用 pre 测试号（VERIFY_MAIL / VERIFY_PWD 可覆盖），portal 登录拿 token 后写进 localStorage，与前端登录成功写的槽位一致。
@@ -66,6 +72,7 @@ export const parseArgs = (argv) => {
     else if (arg === '--viewport') out.viewport = next()
     else if (arg === '--port') out.port = Number(next())
     else if (arg === '--no-compare') out.noCompare = true
+    else if (arg === '--click-sweep') out.clickSweep = true
     else if (arg.startsWith('--')) throw new Error(`不认识的参数 ${arg}`)
     else out.paths.push(arg.startsWith('/') ? arg : `/${arg}`)
   }
@@ -307,13 +314,155 @@ const API_TYPES = new Set(['xhr', 'fetch'])
 // 一条问题：key 用来跟 pre 站点比对（接口按「方法 + 路径」、资源按路径、错误码按「接口 + 码」，不带查询串和域名），text 给人看。
 export const problem = (kind, key, text, extra = {}) => ({ kind, key: `${kind}:${key}`, text, ...extra })
 
+/* ---------------------------- 点击走查 ---------------------------- */
+
+const SWEEP_MAX = 80
+const SWEEP_BUDGET_MS = 120_000
+const SWEEP_SELECTOR = 'button, [role="button"], [role="tab"], [role="menuitem"], summary, a:not([href]), a[href=""], a[href="#"], a[href^="javascript:"]'
+// 点了会留下痕迹的（写接口、退出、跳第三方）不点：只报「跳过」，由人按清单手点。
+export const SWEEP_SKIP_RE = /退出|登出|注销|发布|发帖|提交|送礼|送出|关注|预约|签到|补签|兑换|删除|举报|充值|发送|点赞|收藏|评论|确认|确定|继续|Google|登录|注册|上传|保存|修改|开播|关播|购买|复制/
+// 说明性控件（「签到规则」「关注说明」）只是打开解释，不是动作本身，要点。
+export const SWEEP_EXPLAIN_RE = /规则|说明|帮助|详情|了解|更多|教程|›|»/
+export const shouldSkipControl = ({ text = '', inForm = false }) => {
+  if (inForm) return '表单内'
+  if (SWEEP_EXPLAIN_RE.test(text)) return ''
+  const hit = text.match(SWEEP_SKIP_RE)
+  return hit ? `含「${hit[0]}」` : ''
+}
+// 点击前后的快照比较（纯函数，单测钉住）：任一维度变了就算有反应；DOM 变化要明显超过点击前的本底（轮播 / 跑马灯一直在动）。
+export const judgeReaction = ({ before, after }) => {
+  if (after.url !== before.url) return { reacted: true, why: `跳转 ${after.url}` }
+  if (after.popups > before.popups) return { reacted: true, why: '打开新窗口' }
+  if (after.dialogs > before.dialogs) return { reacted: true, why: '弹出层出现' }
+  if (after.requests > before.requests) return { reacted: true, why: `发起请求 ${after.requests - before.requests} 个` }
+  if (after.aria !== before.aria) return { reacted: true, why: `状态 ${before.aria} → ${after.aria}` }
+  if (after.html !== before.html) return { reacted: true, why: after.html === null ? '自身消失（内容切换）' : '自身内容变化' }
+  if ((after.stateSig ?? '') !== (before.stateSig ?? '')) return { reacted: true, why: '页面状态变化（展开 / 收起 / 选中等属性）' }
+  // 点击前页面是静止的（本底 0）→ 点后有任何 DOM 变化都算（toast 只是加一个 DIV）；页面本身在动 → 要明显超过本底。
+  if (before.mutations === 0 ? after.mutations > 0 : after.mutations > before.mutations * 2 + 2) return { reacted: true, why: `DOM 变化 ${after.mutations} 处（本底 ${before.mutations}）` }
+  return { reacted: false, why: '' }
+}
+// 已选中的 tab / 筛选项再点一次本来就不该有变化（首页标签「全部」），不算死控件。
+export const isActiveState = (aria = '') => /\b(true|active|on|checked|selected)\b/.test(aria)
+// 走查结果 → 问题条目：只有「点了没反应」算问题，key 带页面路径 + 控件文字，和 pre 同页比对。
+export const sweepProblems = ({ path, controls }) =>
+  controls.filter((item) => item.outcome === 'dead').map((item) => problem('deadControl', `${path} ${item.text}`, `点了没反应：「${item.text}」（${item.tag}）`))
+export const summarizeSweep = (sweep) => {
+  const count = (outcome) => sweep.controls.filter((item) => item.outcome === outcome).length
+  return { total: sweep.controls.length, reacted: count('reacted'), dead: count('dead'), skipped: count('skipped'), lost: count('lost') }
+}
+
+const SWEEP_COLLECT = ({ selector, max }) => {
+  const visible = (el) => {
+    const rect = el.getBoundingClientRect()
+    if (!rect.width || !rect.height) return false
+    const style = getComputedStyle(el)
+    if (style.visibility === 'hidden' || style.display === 'none' || style.pointerEvents === 'none') return false
+    return !el.closest('[aria-hidden="true"]')
+  }
+  for (const el of document.querySelectorAll('[data-sweep]')) el.removeAttribute('data-sweep')
+  const out = []
+  for (const el of document.querySelectorAll(selector)) {
+    if (out.length >= max) break
+    if (el.matches('[disabled], [aria-disabled="true"]') || !visible(el)) continue
+    const tag = el.tagName.toLowerCase()
+    const raw = (el.getAttribute('aria-label') || el.innerText || el.getAttribute('title') || '').replace(/\s+/g, ' ').trim().slice(0, 40)
+    const firstClass = String(el.className && el.className.baseVal !== undefined ? el.className.baseVal : el.className || '').split(/\s+/)[0]
+    el.setAttribute('data-sweep', String(out.length))
+    out.push({ id: out.length, tag, text: raw || `无文字的 ${tag}${firstClass ? `.${firstClass}` : ''}`, inForm: Boolean(el.closest('form')) && el.getAttribute('type') !== 'button' })
+  }
+  window.__sweepMut = 0
+  if (!window.__sweepObserver) {
+    window.__sweepObserver = new MutationObserver((records) => { window.__sweepMut += records.length })
+    window.__sweepObserver.observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true })
+  }
+  return out
+}
+const SWEEP_SNAP = (id) => {
+  const el = document.querySelector(`[data-sweep="${id}"]`)
+  const aria = el ? ['aria-pressed', 'aria-expanded', 'aria-selected', 'aria-checked', 'data-state'].map((name) => el.getAttribute(name) ?? '-').join('/') : '-'
+  // 弹出层也含 toast（role=status / alert）：「分享 = 复制链接」的钮唯一可见反应就是一条「已复制」提示。
+  const dialogs = [...document.querySelectorAll('[role="dialog"], dialog[open], [role="menu"], [role="listbox"], [role="status"], [role="alert"]')].filter((node) => node.getClientRects().length).length
+  // 页面级状态签名：所有带状态属性的元素（侧栏 data-sidebar、折叠 aria-expanded、tab aria-selected…）的取值串。
+  // 侧栏收展这类只改一个属性的反应，靠它识别，不会被跑马灯 / 倒计时的 DOM 本底淹没。
+  const stateSig = [...document.querySelectorAll('[data-sidebar], [data-state], [aria-expanded], [aria-pressed], [aria-selected], [aria-checked], [open], [hidden]')]
+    .map((node) => `${node.getAttribute('data-sidebar') ?? ''}|${node.getAttribute('data-state') ?? ''}|${node.getAttribute('aria-expanded') ?? ''}|${node.getAttribute('aria-pressed') ?? ''}|${node.getAttribute('aria-selected') ?? ''}|${node.getAttribute('aria-checked') ?? ''}|${node.hasAttribute('open') ? 1 : 0}|${node.hasAttribute('hidden') ? 1 : 0}`)
+    .join(';') + `#${document.documentElement.className}#${document.body.className}`
+  return { aria, html: el ? el.outerHTML.slice(0, 4000) : null, dialogs, mutations: window.__sweepMut, url: location.href, stateSig }
+}
+
+const clickSweep = async ({ page, context, base, path }) => {
+  const pageUrl = `${base}${path}`
+  const controls = []
+  let requests = 0
+  let popups = 0
+  const onRequest = () => { requests += 1 }
+  const onPopup = (popup) => { popups += 1; popup.close().catch(() => {}) }
+  page.on('request', onRequest)
+  context.on('page', onPopup)
+  const settle = async () => {
+    await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {})
+    await sleep(300)
+  }
+  const reopen = async () => {
+    await page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: PAGE_TIMEOUT_MS }).catch(() => {})
+    await settle()
+  }
+  const started = Date.now()
+  let list = await page.evaluate(SWEEP_COLLECT, { selector: SWEEP_SELECTOR, max: SWEEP_MAX }).catch(() => [])
+  let truncated = false
+  for (let index = 0; index < list.length; index += 1) {
+    if (Date.now() - started > SWEEP_BUDGET_MS) { truncated = true; break }
+    const item = list[index]
+    const skip = shouldSkipControl(item)
+    if (skip) { controls.push({ ...item, outcome: 'skipped', why: skip }); continue }
+    const locator = page.locator(`[data-sweep="${item.id}"]`).first()
+    if (!(await locator.count())) { controls.push({ ...item, outcome: 'lost', why: '页面变了，没找到' }); continue }
+    await page.evaluate(() => { window.__sweepMut = 0 }).catch(() => {})
+    await sleep(500) // 点击前本底：页面自己在动的量
+    const before = { ...(await page.evaluate(SWEEP_SNAP, item.id).catch(() => null)), requests, popups }
+    if (!before.html) { controls.push({ ...item, outcome: 'lost', why: '点前已不在页面上' }); continue }
+    if (isActiveState(before.aria)) { controls.push({ ...item, outcome: 'skipped', why: '已是选中态（再点本来就不该变）' }); continue }
+    await page.evaluate(() => { window.__sweepMut = 0 }).catch(() => {})
+    try {
+      await locator.scrollIntoViewIfNeeded({ timeout: 3_000 })
+      await locator.click({ timeout: 4_000, noWaitAfter: true })
+    } catch (error) {
+      controls.push({ ...item, outcome: 'lost', why: `点不到：${String(error?.message || error).split('\n')[0].slice(0, 80)}` })
+      continue
+    }
+    await sleep(700)
+    const snap = await page.evaluate(SWEEP_SNAP, item.id).catch(() => null)
+    const after = { ...(snap || { aria: '-', html: null, dialogs: 0, mutations: 0, url: page.url(), stateSig: before.stateSig }), requests, popups }
+    const verdict = judgeReaction({ before, after })
+    controls.push({ ...item, outcome: verdict.reacted ? 'reacted' : 'dead', why: verdict.why })
+    // 调口径用：VERIFY_SWEEP_DEBUG=1 把每个控件点击前后的快照打到 stderr（本底 / 变化量 / 弹层数）。
+    if (process.env.VERIFY_SWEEP_DEBUG) console.error(JSON.stringify({ text: item.text, verdict, before: { ...before, html: before.html?.slice(0, 120), stateSig: before.stateSig?.length }, after: { ...after, html: after.html?.slice(0, 120), stateSig: after.stateSig?.length } }))
+    if (after.url !== before.url) {
+      await reopen()
+      list = await page.evaluate(SWEEP_COLLECT, { selector: SWEEP_SELECTOR, max: SWEEP_MAX }).catch(() => list)
+    } else if (after.dialogs > before.dialogs || verdict.reacted) {
+      await page.keyboard.press('Escape').catch(() => {})
+      await sleep(200)
+      const still = await page.evaluate(() => [...document.querySelectorAll('[role="dialog"], dialog[open]')].some((node) => node.getClientRects().length)).catch(() => false)
+      if (still) {
+        await reopen()
+        list = await page.evaluate(SWEEP_COLLECT, { selector: SWEEP_SELECTOR, max: SWEEP_MAX }).catch(() => list)
+      }
+    }
+  }
+  page.off('request', onRequest)
+  context.off('page', onPopup)
+  return { controls, truncated, ms: Date.now() - started }
+}
+
 const checkPage = async ({ context, base, path, opts, log, firstLoad }) => {
   const page = await context.newPage()
   const found = new Map() // 同一个问题只记一次
   const add = (item) => {
     if (!found.has(item.key)) found.set(item.key, item)
   }
-  const info = { consoleErrors: [], thirdParty: [], notes: [] }
+  const info = { consoleErrors: [], thirdParty: [], notes: [], sweep: null }
   let apiCount = 0
   let memberInfoOk = false // 登录检查时用户信息接口成功返回 = 登录态真的生效
   const origin = new URL(base).origin
@@ -395,6 +544,11 @@ const checkPage = async ({ context, base, path, opts, log, firstLoad }) => {
     if (opts.wait) await page.waitForSelector(opts.wait, { timeout: 15_000 }).catch(() => add(problem('expect', opts.wait, `没等到元素 ${opts.wait}`)))
     const text = await page.locator('body').innerText().catch(() => '')
     for (const want of opts.expect) if (!text.includes(want)) add(problem('expect', want, `页面上没看到「${want}」`))
+    if (opts.clickSweep) {
+      info.sweep = await clickSweep({ page, context, base, path })
+      for (const item of sweepProblems({ path, controls: info.sweep.controls })) add(item)
+      if (info.sweep.truncated) info.notes.push(`点击走查超过 ${SWEEP_BUDGET_MS / 1000} 秒，只点了前 ${info.sweep.controls.length} 个控件`)
+    }
   }
   if (status && opts.login && !memberInfoOk) add(problem('login', path, '登录可能没生效：这一页没有用户信息接口（Member/info）成功返回，登录态下的检查结果不可信'))
   // SSR 侧的回落只在服务端日志里（console.warn 打在 dev 进程）：取本次打开期间新增的日志。
@@ -414,7 +568,7 @@ const checkPage = async ({ context, base, path, opts, log, firstLoad }) => {
 }
 
 // 期望类（--expect / --wait）和页面打不开只看本地：新功能在 pre 上本来就没有，比对没意义。
-const COMPARABLE = new Set(['mock', 'hydration', 'pageError', 'request', 'resource', 'biz'])
+const COMPARABLE = new Set(['mock', 'hydration', 'pageError', 'request', 'resource', 'biz', 'deadControl'])
 
 // 图片等资源跟着内容走，两边打开时显示的帖子 / 直播可能不同，按「这次两边是否都失败」比会误判。
 // 本地新出现的坏资源，直接拿同一路径去 pre 请求一次：pre 上也打不开 = 数据问题（图本身不存在）；pre 上正常才算本地新问题。
@@ -461,7 +615,7 @@ export const classifyProblems = ({ result, site }) => {
 const report = ({ result, site }) => {
   const { items, fixedOnLocal, total, fresh } = classifyProblems({ result, site })
   const lines = [`== ${result.path}  HTTP ${result.status || '-'}  ${(result.ms / 1000).toFixed(1)}s  接口请求 ${result.apiCount} 次${result.title ? `  标题「${result.title}」` : ''}`]
-  if (!items.length) lines.push('  ✅ 没有回落 mock、页面报错、失败请求')
+  if (!items.length) lines.push(`  ✅ 没有回落 mock、页面报错、失败请求${result.sweep ? '、死控件' : ''}`)
   for (const item of items.slice(0, 20)) lines.push(`  ⚠️ ${item.tag}${item.text}${item.note}`)
   if (items.length > 20) lines.push(`  ⚠️ 另有 ${items.length - 20} 条同类问题`)
   for (const item of fixedOnLocal.slice(0, 10)) lines.push(`  ✔ pre 上有、本地已没有：${item.text}`)
@@ -469,6 +623,16 @@ const report = ({ result, site }) => {
   for (const item of result.consoleErrors.slice(0, 5)) lines.push(`  · console error：${item}`)
   for (const item of result.thirdParty.slice(0, 3)) lines.push(`  · 第三方请求失败（不算问题）：${item}`)
   for (const item of result.notes) lines.push(`  · ${item}`)
+  if (result.sweep) {
+    const sum = summarizeSweep(result.sweep)
+    lines.push(`  点击走查（${(result.sweep.ms / 1000).toFixed(0)}s）：可点控件 ${sum.total} 个 → 有反应 ${sum.reacted}、没反应 ${sum.dead}、跳过 ${sum.skipped}（可能有副作用 / 表单内，按清单手点）、没点到 ${sum.lost}`)
+    const reacted = result.sweep.controls.filter((item) => item.outcome === 'reacted')
+    if (reacted.length) lines.push(`    有反应：${reacted.slice(0, 30).map((item) => `「${item.text}」${item.why.replace(/^跳转 .*?\/\/[^/]+/, '跳转 ')}`).join('；')}${reacted.length > 30 ? `；另 ${reacted.length - 30} 个` : ''}`)
+    const skipped = result.sweep.controls.filter((item) => item.outcome === 'skipped')
+    if (skipped.length) lines.push(`    跳过：${skipped.slice(0, 20).map((item) => `「${item.text}」`).join('')}${skipped.length > 20 ? ` 另 ${skipped.length - 20} 个` : ''}`)
+    const lost = result.sweep.controls.filter((item) => item.outcome === 'lost')
+    if (lost.length) lines.push(`    没点到：${lost.slice(0, 10).map((item) => `「${item.text}」${item.why}`).join('；')}`)
+  }
   if (result.shot) lines.push(`  截图：${result.shot}${site?.shot ? `（pre 同页：${site.shot}）` : ''}`)
   console.log(lines.join('\n'))
   return { total, fresh }
@@ -476,6 +640,8 @@ const report = ({ result, site }) => {
 
 const newContext = async ({ browser, base, login, viewport, firstLoad }) => {
   const context = await browser.newContext({ viewport, locale: 'zh-CN' })
+  // 剪贴板权限：无头浏览器里 navigator.clipboard.writeText 没权限会一直挂起，「分享 = 复制链接」的钮连失败 toast 都不出，点击走查会误报成死控件。
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new URL(base).origin }).catch(() => {})
   if (!login) return { context, notes: [] }
   const page = await context.newPage()
   const notes = []
