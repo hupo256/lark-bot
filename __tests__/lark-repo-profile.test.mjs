@@ -184,7 +184,8 @@ describe('repo profile 归一与注册', () => {
       assert.deepEqual(report({ at: '19:00', people: null }).people, {})
       const sweep = (value) => report({ at: '19:00', sweep: value }).sweep
       assert.equal(sweep(null), null)
-      assert.deepEqual(sweep({}), { preSiteUrl: null, timeoutMs: 90 * 60_000, effort: 'high' })
+      assert.deepEqual(sweep({}), { preSiteUrl: null, timeoutMs: 90 * 60_000, effort: 'high', onDeploy: [] })
+      assert.deepEqual(sweep({ onDeploy: ['python3', ' ', '/b/deployed.py'] }).onDeploy, ['python3', '/b/deployed.py'], '部署后命令：argv 去空项')
       assert.equal(sweep({ timeoutMinutes: -5 }).timeoutMs, 90 * 60_000, '负数回落 90 分钟')
       assert.equal(sweep({ timeoutMinutes: 0 }).timeoutMs, 90 * 60_000, '0 回落 90 分钟')
       assert.equal(sweep({ timeoutMinutes: 30 }).timeoutMs, 30 * 60_000)

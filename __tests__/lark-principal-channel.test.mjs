@@ -7,6 +7,7 @@ import {
   anchorHead,
   buildPrincipalInstructionTask,
   decidePrincipalAction,
+  isDeployNotice,
   isReleaseHeldReply,
   latestReceiptAt,
   resolvePrincipalAnchor,
@@ -115,5 +116,8 @@ describe('放行被扣下的群回复（教训 #56）', () => {
   it('以放行说法开头的短句才算；带别的要求 / 回滚 / 发布不算', () => {
     for (const text of ['就这样回，哪里拿不准了', '就这样回', '照发', '发吧', '直接发', '可以发', '就按这个回', '按原文发群里']) assert.equal(isReleaseHeldReply(text), true, text)
     for (const text of ['回复一下 Encone 他问的那个', '改成「都通了」再发', '回滚这条', '发布到 pre', '回头再说', '', '就这样回'.padEnd(41, '。')]) assert.equal(isReleaseHeldReply(text), false, text)
+    // 单独一句部署口令不当指示（10-28）；问句、带别的要求的照旧走指示任务
+    for (const text of ['已部署', '已部署。', 'pre 已部署', '部署好了', '部署完了', '已发部署', '部署邮件已发']) assert.equal(isDeployNotice(text), true, text)
+    for (const text of ['已部署了吗', '已部署，复测一下签到', '还没部署', '部署后再测', '']) assert.equal(isDeployNotice(text), false, text)
   })
 })

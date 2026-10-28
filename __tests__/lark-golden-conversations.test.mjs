@@ -612,7 +612,7 @@ describe('黄金对话', () => {
     }
     let deployed = false
     let buildTime = Date.now() - 60 * MIN
-    const check = (now = new Date()) => checkDeployAndRetest({ store, profile, now, deps: { runtimeDir, git, probePreBuildTime: async () => buildTime } })
+    const check = (now = new Date()) => checkDeployAndRetest({ store, profile, now, deps: { runtimeDir, git, probePreBuild: async () => ({ buildTime }) } })
     // bot 第一次启动：只记基线，不建复测（不会对上线前的旧承诺补测）
     assert.equal((await check()).baseline, true)
     assert.equal(store.list().filter((task) => task.id.startsWith('retest-')).length, 0)
@@ -662,10 +662,25 @@ describe('黄金对话', () => {
     assert.match(group[1], /整理在文档里了[\s\S]*go-api\/api\/auth\/login/, '文档内容（或链接）跟着答案发出')
   }])
 
+  replays1023.push(['S26 刚答完一条外部同事的问题，aven 在控制台单说一句「已部署」→ 不锚到那条建指示任务、群里不出声，控制台回一句部署已自动探测（10-28 真机）', async () => {
+    const { saveSweepState } = await import('../lib/lark-daily-sweep.mjs')
+    registerRepoProfiles({ repos: { falive: { ...PROFILE, dailyReport: { at: '19:00', sweep: { preSiteUrl: 'https://pre.example/' } } } } })
+    saveSweepState('falive', { lastDeploy: { buildTime: Date.parse('2026-10-28T10:45:41Z'), head: '83403dac81cd9ab41d1b2b51eb6fb3e4779656c8' } })
+    const id = await say({ from: ENCONE, text: '请帮我核实一下现在 web 端调用权益兑换接口，请求头是否有传 X-Hc-Uid 字段' })
+    await classify(id, { decision: 'question', deliverable: 'answer', reply: '收到，我查下兑换接口的请求头，结果回群里' })
+    await work(id, { status: 'done', preChecks: PRE_OK, groupReply: '有带。web 调权益兑换时请求头每次都带 X-Hc-Uid，值是浏览器本地生成的设备标识。' })
+    const tasksBefore = store.list().length
+    const groupBefore = groupTexts().length
+    await dm('已部署')
+    assert.equal(store.list().length, tasksBefore, '不建指示任务')
+    assert.equal(groupTexts().length, groupBefore, '群里不出声')
+    assert.match(consoleTexts().at(-1), /自动探测[\s\S]*83403dac/, transcript().join('\n'))
+  }])
+
   for (const [title, steps] of [
     ['10-20 真机事故重放与结构化回复（S1 / S3 / S3c / S4 / S6 / S2 / S5 / S7 / S8）', replays1020],
     ['10-21 / 10-22 入口、放行与核验闸（S9 / S10 / S11 / S12 / S14 / S13 / S3b / S3d / S15）', replays1022],
-    ['10-23 台账接续、归属、行数上限、补写群回复、文档并入、部署复测、细节文档（S16 – S25）', replays1023],
+    ['10-23 台账接续、归属、行数上限、补写群回复、文档并入、部署复测、细节文档、部署口令（S16 – S26）', replays1023],
   ]) {
     it(`黄金对话剧本：${title}`, () => runSteps(steps, hooks))
   }
