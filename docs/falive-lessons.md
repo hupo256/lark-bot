@@ -120,6 +120,7 @@ aven 10-21：出一件补一件不行，补丁之间互相牵连，要从架构�
 | 89 | 10-27 | 首页 UI 走查任务的结果里附「任务带的 3 张截图执行器一张都没打开看」，那 3 张是群里前文 HTStone / Encone / World 发的图，和走查无关 | 截图核对把任务附件全算进去；前文顺带并入的图（origin「群里之前的消息 · …」）本来就只是上下文，不是任务材料 | `imageAttachmentPaths`（`lib/lark-run-report.mjs`）排除「群里之前的消息」来源的图 | `lark-report-render` 截图核对用例 | bot 逻辑错 | I6 |
 | 90 | 10-28 | 页脚删两列的结论发群成「@Aven 页脚运营位删除：通了 0 项，没通 1 项 / ⚠️ 待验证 …；这次没实测」，其实执行器已用页面工具实测过；+84 区号的说明也带了「通了 0 项，没通 0 项」。aven：这类不涉及接口 / 流程的不写计数，任何时候都不要写「这次没实测」，没测过的代码不提交、不算完成 | 证据识别只认 `verify-page.mjs check` 连写，执行器写 `T=…/verify-page.mjs; node $T check` 没认出；认不出时只把条目降级、照常提交发群；计数行不看条目数总是写 | `DEFAULT_BROWSER_PATTERN` 允许路径和 check 隔开；自称实测却没跑 → 续会话补测（`buildClaimPassPrompt`），还没有就不提交、按失败私聊（`claimGateVerdict`）；降级不再加备注；计数项不到 2 项只写对象 | `lark-report-render` / `lark-schema-verify` 用例、黄金对话 S8 | bot 逻辑错 | I6 |
 | 91 | 10-28 | 产研群 10-22 的老话题里 aven 13:57 @bot「请给出详细信息，@相关人员」，20 多分钟 bot 没动静 | 话题补抓每轮最多 5 个、按最近活动排序；当天有 5 个新话题一直在热，排第 6 的冷话题即便满了 30 分钟也永远轮不到 | `pickThreadsToPoll`（`lib/lark-chat-poller.mjs`）改按上次拉取时间轮转，合格条件不变 | `lark-chat-poller` 轮转用例（变异验证：改回旧排序必红） | bot 逻辑错 | I6 |
+| 92 | 10-28 | Bug-5048「隐藏勋章 tab」任务停在待确认时，私聊结果末尾带了「任务带的 10 张截图执行器一张都没打开看，结论可能漏了截图里的信息…发群前请过一眼」，aven：这类话以后都不要 | #62 的截图核对提示给每条带图任务固定加一行，结论本身没错时纯属噪音，还让人怀疑结论 | 删掉 #62 的机制（`unopenedImagesNote` / `imageAttachmentPaths` / `collectRunEvidence` 的 watchFiles），#62 的需求口径规则保留；`ownerNotes` 通道保留 | 删去对应单测与黄金对话 S13（删功能连测试一起删）；affected 测试全绿 | 噪音 | — |
 
 ## 分类与有效期（2026-10-17 起）
 

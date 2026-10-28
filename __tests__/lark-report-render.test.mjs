@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
@@ -68,7 +68,7 @@ describe('结构化群回复', () => {
       assert.equal(applyRunEvidence(report, null), report)
       assert.equal(normalizeReport(down).items[1].mark, 'unverified', '网关再校验时认 unverified')
     }],
-    ['从会话记录数探针 / 浏览器调用（按 tool_use id 去重，两个阶段两份会话都算）', () => {
+    ['从会话记录数探针 / 浏览器调用（按 tool_use id 去重，两个阶段两份会话都算）', async () => {
       const dir = mkdtempSync(join(tmpdir(), 'lark-evidence-'))
       try {
         const use = (id, command) => JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name: 'Bash', input: { command } }] } })
@@ -77,8 +77,15 @@ describe('结构化群回复', () => {
         // 页面工具：路径先赋给变量再 check 也算（10-28 页脚任务真测过被判没实测）；只 start / stop 不算
         writeFileSync(join(dir, 'c.jsonl'), [use('p1', 'T=/x/tools/verify-page.mjs; node $T start --cwd .; node $T check --cwd . --expect 关注我们 /'), use('p2', 'node /x/tools/verify-page.mjs stop --cwd .'), use('p3', 'node /x/tools/verify-page.mjs check /room/1')].join('\n'))
         assert.equal(collectRunEvidence({ sessionFiles: [join(dir, 'c.jsonl')] }).browserCalls, 2)
-        assert.deepEqual(collectRunEvidence({ sessionFiles: [join(dir, 'a.jsonl'), join(dir, 'b.jsonl')], probeCommand: 'node scripts/pre-probe.mjs' }), { probeCalls: 1, browserCalls: 1, unopenedFiles: [] })
+        assert.deepEqual(collectRunEvidence({ sessionFiles: [join(dir, 'a.jsonl'), join(dir, 'b.jsonl')], probeCommand: 'node scripts/pre-probe.mjs' }), { probeCalls: 1, browserCalls: 1 })
         assert.equal(collectRunEvidence({ sessionFiles: [join(dir, 'missing.jsonl')] }), null)
+        // runner 入口：按会话 id 找落盘记录，探针命令取自仓库 verify 配置（变异补测 10-28）
+        const { runEvidenceFor } = await import('../lib/lark-run-report.mjs')
+        const { claudeProjectKey } = await import('../lib/lark-task-runner-support.mjs')
+        mkdirSync(join(dir, 'projects', claudeProjectKey('/repo')), { recursive: true })
+        copyFileSync(join(dir, 'a.jsonl'), join(dir, 'projects', claudeProjectKey('/repo'), 's1.jsonl'))
+        assert.equal(runEvidenceFor({ aiRun: { sessionId: 's1' }, cwd: '/repo', verify: { probeCommand: 'node scripts/pre-probe.mjs' }, claudeHome: dir }).probeCalls, 1)
+        assert.equal(runEvidenceFor({ aiRun: {}, cwd: '/repo', claudeHome: dir }), null)
       } finally {
         rmSync(dir, { recursive: true, force: true })
       }
@@ -86,30 +93,8 @@ describe('结构化群回复', () => {
   ]))
 })
 
-describe('截图有没有打开（10-21 #62）', () => {
-  it('按会话记录里的 Read / 命令路径数出没打开的截图；提示只在有没打开的时候出', () => runSteps([
-    ['按会话记录里的 Read / 命令路径数出没打开的截图；提示只在有没打开的时候出', async () => {
-      const { unopenedImagesNote } = await import('../lib/lark-run-report.mjs')
-      const dir = mkdtempSync(join(tmpdir(), 'lark-evidence-img-'))
-      try {
-        const use = (id, name, input) => JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name, input }] } })
-        writeFileSync(join(dir, 's.jsonl'), [use('t1', 'Read', { file_path: '/att/1.jpg' }), use('t2', 'Bash', { command: 'file /att/3.jpg' })].join('\n'))
-        const evidence = collectRunEvidence({ sessionFiles: [join(dir, 's.jsonl')], watchFiles: ['/att/1.jpg', '/att/2.jpg', '/att/3.jpg'] })
-        assert.deepEqual(evidence.unopenedFiles, ['/att/2.jpg'])
-        assert.match(unopenedImagesNote({ evidence, total: 3 }), /3 张截图有 1 张执行器没打开看/)
-        assert.match(unopenedImagesNote({ evidence: { unopenedFiles: ['/a', '/b'] }, total: 2 }), /一张都没打开看/)
-        assert.equal(unopenedImagesNote({ evidence: { unopenedFiles: [] }, total: 3 }), null)
-        assert.equal(unopenedImagesNote({ evidence: null, total: 3 }), null, '读不到会话记录不提示')
-      } finally {
-        rmSync(dir, { recursive: true, force: true })
-      }
-    }],
-    ['只把带本地路径的图片附件算进截图核对：文件、没下载下来的图片、群里之前的消息顺带并进来的图都不算（变异补测 10-24；#89）', async () => {
-      const { imageAttachmentPaths } = await import('../lib/lark-run-report.mjs')
-      const task = { attachments: [{ type: 'image', localPath: '/att/1.jpg', origin: '本条' }, { type: 'file', localPath: '/att/a.pdf' }, { type: 'image', imageKey: 'img_x', downloadError: '403' }, { type: 'image', localPath: '/att/ctx.jpg', origin: '群里之前的消息 · HTStone.z 10-27 11:57' }, { type: 'image', localPath: '/att/2.jpg', origin: '被引用消息 · Ace' }] }
-      assert.deepEqual(imageAttachmentPaths(task), ['/att/1.jpg', '/att/2.jpg'])
-      assert.deepEqual(imageAttachmentPaths({}), [])
-    }],
+describe('回写组装', () => {
+  it('核验闸拦下：回写带上是哪道闸拦的', () => runSteps([
     ['核验闸拦下：回写带上是哪道闸拦的（投递据此写「改动没提交（闸：原因）」），没给闸名记 null（变异补测 10-24）', async () => {
       const { buildGateFailureReport } = await import('../lib/lark-run-report.mjs')
       const report = buildGateFailureReport({ verify: { ok: false, status: 'failed', text: '终检没过', gate: 'final-verification', reason: 'Biome 非零' } })

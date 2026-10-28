@@ -346,15 +346,6 @@ describe('黄金对话', () => {
     assert.doesNotMatch(last, /12 小时内/)
   }])
 
-  replays1022.push(['S13 任务带了截图、执行器一张没打开 → 私聊里固定提示「截图没看」（10-21 #62：漏看原型，回头问产品做不做）', async () => {
-    const { unopenedImagesNote } = await import('../lib/lark-run-report.mjs')
-    const id = await say({ from: AVEN, text: '新的 UI 来了，请同步更新一下' })
-    await classify(id, { decision: 'requirement', reply: '收到，按新稿改新闻详情页' })
-    const note = unopenedImagesNote({ evidence: { unopenedFiles: ['/a.jpg', '/b.jpg'] }, total: 2 })
-    await work(id, { status: 'done', report: { subject: '新闻详情页新稿', answer: null, items: [{ mark: 'not_usable', name: '作者行', note: '还没部署', evidence: 'code' }] } }, { changedFiles: ['src/modules/news/NewsDetailPage.tsx'], ownerNotes: [note] })
-    assert.match(consoleTexts().join('\n'), /⚠ 任务带的 2 张截图执行器一张都没打开看/, transcript().join('\n'))
-  }])
-
   replays1022.push(['S3b aven 交代的改动没过核验闸 → 执行器写好的回答不丢，私聊里带草稿可放行', async () => {
     const id = await say({ from: AVEN, text: '把预约按钮文案改成「立即预约」' })
     await classify(id, { decision: 'requirement', reply: '收到，我去改预约按钮文案，改完说一声' })
