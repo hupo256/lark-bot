@@ -291,7 +291,7 @@ describe('黄金对话', () => {
     }, { changedFiles: [], runEvidence: { probeCalls: 1, browserCalls: 0 } })
     const group = groupTexts()
     assert.equal(group.length, 2, transcript().join('\n'))
-    assert.match(group[1], /front\/lives 复测：通了 1 项，没通 1 项\n- ⚠️ 待验证 \/lives 滚到底续拉：20 张变 25 张；这次没实测\n- ✅ 通了 第 2 页接口/)
+    assert.match(group[1], /front\/lives 复测：通了 1 项，没通 1 项\n- ⚠️ 待验证 \/lives 滚到底续拉：20 张变 25 张\n- ✅ 通了 第 2 页接口/)
   }])
 
   // 10-21 / 10-22 入口、放行与核验闸（S9 / S10 / S11 / S12 / S14 / S13 / S3b / S3d / S15）

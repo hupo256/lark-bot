@@ -193,7 +193,7 @@
         "answer",
         "items"
       ],
-      "description": "群里的人看到的内容（结构化，代码按它渲染：第一行数字由条目算，全部 ok 才显示「都通了」）。有 report 时 groupReply 填 null；群里无事可说填 null",
+      "description": "群里的人看到的内容（结构化，代码按它渲染：第一行数字由条目算，全部 ok 才显示「都通了」，计数项不到 2 项时只写对象）。有 report 时 groupReply 填 null；群里无事可说填 null",
       "properties": {
         "subject": {
           "type": [

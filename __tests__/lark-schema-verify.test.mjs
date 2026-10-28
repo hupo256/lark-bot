@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { runSteps } from './support/steps.mjs'
-import { buildVerifyPassPrompt, decodeGitPath, interfaceChanges, parseUnifiedDiff, resolveSchemaVerifyGate, runVerifyPass, scopedInterfaceFiles } from '../lib/lark-schema-verify.mjs'
+import { buildClaimPassPrompt, buildVerifyPassPrompt, claimGateVerdict, decodeGitPath, interfaceChanges, parseUnifiedDiff, resolveSchemaVerifyGate, runVerifyPass, scopedInterfaceFiles } from '../lib/lark-schema-verify.mjs'
 import { buildVerifyRule } from '../lib/lark-completion-rule.mjs'
 import { resolveScopeGate } from '../lib/lark-scope-contract.mjs'
 
@@ -87,6 +87,23 @@ describe('接口实测闸只按真实 diff 触发（#66）', () => {
     assert.equal(await runVerifyPass({ task: { id: 't' }, aiRun: { executor: 'codex', sessionId: 's' }, verify, changes: [], exec }), false)
     assert.equal(await runVerifyPass({ task: { id: 't' }, aiRun: { executor: 'claude', result: {} }, verify, changes: [], exec }), false)
     assert.equal(await runVerifyPass({ task: { id: 't' }, aiRun: { executor: 'claude', sessionId: 's', result: {} }, verify, changes: [], exec: async () => { throw new Error('boom') } }), false, '跑挂了照常交付')
+    // 自称实测但会话里没跑（aven 10-28）：同一个补测，提示换成 buildClaimPassPrompt；还是没跑，改了代码的不提交
+    const claims = [{ name: '页脚两列', evidence: 'browser' }, { name: 'getRoomInfo', evidence: 'pre' }]
+    const claimPrompt = buildClaimPassPrompt({ verify, items: claims })
+    assert.match(claimPrompt, /「页脚两列」（页面）、「getRoomInfo」（pre 接口）/)
+    assert.match(claimPrompt, /只测不改/)
+    assert.match(claimPrompt, /verify-page\.mjs check --cwd/)
+    assert.match(claimPrompt, /不要先赋给变量/)
+    const passCalls = []
+    assert.equal(await runVerifyPass({ task: { id: 't' }, aiRun: { executor: 'claude', sessionId: 's9', result: {} }, verify, changes: [], promptText: claimPrompt, why: 'x', exec: async (opts) => { passCalls.push(opts); return { sessionId: 's10', result: {} } } }), true)
+    assert.equal(passCalls[0].promptText, claimPrompt, '给了 promptText 就用它')
+    const gate = claimGateVerdict({ claims, changedFiles: ['src/kernel/shell/SiteFooter.tsx'], taskId: 'om_1' })
+    assert.equal(gate.status, 'failed')
+    assert.deepEqual([gate.change.committed, gate.change.gate], [false, 'unverified-claim'])
+    assert.match(gate.note, /「页脚两列」、「getRoomInfo」自称实测.*改动没提交.*om_1/)
+    assert.equal(claimGateVerdict({ claims: [], changedFiles: ['a'], taskId: 't' }), null, '都测过放行')
+    assert.equal(claimGateVerdict({ claims, readOnly: true, changedFiles: ['a'], taskId: 't' }), null, '只读任务照常交付（条目降待验证）')
+    assert.equal(claimGateVerdict({ claims, changedFiles: [], taskId: 't' }), null, '没改文件没东西可提交')
   })
 })
 

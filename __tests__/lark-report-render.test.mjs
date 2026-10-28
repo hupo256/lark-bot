@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
-import { applyRunEvidence, collectRunEvidence, normalizeReport, renderReport } from '../lib/lark-report-render.mjs'
+import { applyRunEvidence, collectRunEvidence, normalizeReport, renderReport, unverifiedClaims } from '../lib/lark-report-render.mjs'
 import { runSteps } from './support/steps.mjs'
 
 // 结构化群回复（10-21 架构加固 P6）：第一行数字由条目算，不会再出现「都通了」又列问题；实测声明按会话记录核实。
@@ -13,10 +13,19 @@ const item = (mark, name, extra = {}) => ({ mark, name, note: '', evidence: 'non
 describe('结构化群回复', () => {
   it('结构化群回复：首行按条目算、代答只列保留项且不截断、结构不对回 null、待发布按通了收', () => runSteps([
     ['第一行由条目算：全 ok 才「都通了」；有没通的按「通了 a 项，没通 b 项」并排在前面', () => {
-      assert.equal(renderReport(normalizeReport({ subject: 'front/lives 复测', answer: null, items: [item('ok', '第 2 页', { note: '不再报错，第 3 页为空说明到底了' })] })),
-        'front/lives 复测：都通了\n- ✅ 通了 第 2 页：不再报错，第 3 页为空说明到底了')
+      assert.equal(renderReport(normalizeReport({ subject: 'front/lives 复测', answer: null, items: [item('ok', '第 2 页', { note: '不再报错' }), item('ok', '第 3 页', { note: '为空说明到底了' })] })),
+        'front/lives 复测：都通了\n- ✅ 通了 第 2 页：不再报错\n- ✅ 通了 第 3 页：为空说明到底了')
       const mixed = renderReport(normalizeReport({ subject: '直播详情页', answer: null, items: [item('ok', '礼物'), item('not_usable', 'getRoomInfo', { note: '非主播回 500' }), item('na', '分享')] }))
       assert.equal(mixed, '直播详情页：通了 1 项，没通 1 项\n- ⚠️ 接了但还不能用 getRoomInfo：非主播回 500\n- ✅ 通了 礼物\n- ➖ 不涉及接口 分享')
+    }],
+    ['计数项不到 2 项不写计数，第一行只写对象（aven 2026-10-28：「通了 0 项，没通 1 项」「通了 0 项，没通 0 项」是噪音）', () => {
+      assert.equal(renderReport(normalizeReport({ subject: '页脚运营位删除', answer: null, items: [item('ok', '页脚删除两列', { note: '本地连 pre 看过首页' })] })),
+        '页脚运营位删除\n- ✅ 通了 页脚删除两列：本地连 pre 看过首页')
+      assert.equal(renderReport(normalizeReport({ subject: '+84 区号', answer: null, items: [item('na', '+84 手机号', { note: '后端配置' }), item('na', '收码测试账号')] })),
+        '+84 区号\n- ➖ 不涉及接口 +84 手机号：后端配置\n- ➖ 不涉及接口 收码测试账号')
+      assert.equal(renderReport(normalizeReport({ subject: '分享', answer: null, items: [item('not_usable', '复制链接', { note: '500' }), item('na', '海报')] })),
+        '分享\n- ⚠️ 接了但还不能用 复制链接：500\n- ➖ 不涉及接口 海报', '一项没通 + 说明项：也只有 1 个计数项')
+      assert.equal(renderReport(normalizeReport({ subject: null, answer: null, items: [item('ok', '单项')] })), '- ✅ 通了 单项', '没有对象也不留空行')
     }],
     ['代答：第一行是答案，只列给出的保留项', () => {
       assert.equal(renderReport(normalizeReport({ subject: null, answer: '头像用 getRoomInfo 的 userData.avatar', items: [] })), '头像用 getRoomInfo 的 userData.avatar')
@@ -48,10 +57,14 @@ describe('结构化群回复', () => {
     }],
   ]))
   it('实测声明核对：本轮会话没跑探针 / 浏览器就降成待验证，调用按 tool_use id 去重计数', () => runSteps([
-    ['声称 pre / 浏览器实测但本轮会话里没跑 → 那一项降成「待验证」；读不到会话记录不降', () => {
-      const report = normalizeReport({ subject: '签到复测', answer: null, items: [item('ok', '签到', { evidence: 'pre' }), item('ok', '滚到底', { evidence: 'browser' }), item('ok', '文案', { evidence: 'code' })] })
+    ['声称 pre / 浏览器实测但本轮会话里没跑 → 那一项降成「待验证」、不加「这次没实测」（aven 10-28）；读不到会话记录不降', () => {
+      const report = normalizeReport({ subject: '签到复测', answer: null, items: [item('ok', '签到', { evidence: 'pre' }), item('ok', '滚到底', { evidence: 'browser', note: '滚到底续拉正常' }), item('ok', '文案', { evidence: 'code' })] })
+      assert.deepEqual(unverifiedClaims(report, { probeCalls: 1, browserCalls: 0 }).map((x) => x.name), ['滚到底'])
+      assert.deepEqual(unverifiedClaims(report, { probeCalls: 0, browserCalls: 2 }).map((x) => x.name), ['签到'])
+      assert.deepEqual(unverifiedClaims(report, null), [], '读不到会话记录不核')
       const down = applyRunEvidence(report, { probeCalls: 1, browserCalls: 0 })
-      assert.equal(renderReport(down), '签到复测：通了 2 项，没通 1 项\n- ⚠️ 待验证 滚到底：这次没实测\n- ✅ 通了 签到\n- ✅ 通了 文案')
+      assert.equal(renderReport(down), '签到复测：通了 2 项，没通 1 项\n- ⚠️ 待验证 滚到底：滚到底续拉正常\n- ✅ 通了 签到\n- ✅ 通了 文案')
+      assert.doesNotMatch(renderReport(down), /没实测/)
       assert.equal(applyRunEvidence(report, null), report)
       assert.equal(normalizeReport(down).items[1].mark, 'unverified', '网关再校验时认 unverified')
     }],
@@ -61,6 +74,9 @@ describe('结构化群回复', () => {
         const use = (id, command) => JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name: 'Bash', input: { command } }] } })
         writeFileSync(join(dir, 'a.jsonl'), [use('t1', "node scripts/pre-probe.mjs '[]'"), use('t1', "node scripts/pre-probe.mjs '[]'"), use('t2', 'cd /tmp && node -e "require(\'playwright\')"')].join('\n'))
         writeFileSync(join(dir, 'b.jsonl'), use('t3', 'git diff'))
+        // 页面工具：路径先赋给变量再 check 也算（10-28 页脚任务真测过被判没实测）；只 start / stop 不算
+        writeFileSync(join(dir, 'c.jsonl'), [use('p1', 'T=/x/tools/verify-page.mjs; node $T start --cwd .; node $T check --cwd . --expect 关注我们 /'), use('p2', 'node /x/tools/verify-page.mjs stop --cwd .'), use('p3', 'node /x/tools/verify-page.mjs check /room/1')].join('\n'))
+        assert.equal(collectRunEvidence({ sessionFiles: [join(dir, 'c.jsonl')] }).browserCalls, 2)
         assert.deepEqual(collectRunEvidence({ sessionFiles: [join(dir, 'a.jsonl'), join(dir, 'b.jsonl')], probeCommand: 'node scripts/pre-probe.mjs' }), { probeCalls: 1, browserCalls: 1, unopenedFiles: [] })
         assert.equal(collectRunEvidence({ sessionFiles: [join(dir, 'missing.jsonl')] }), null)
       } finally {
