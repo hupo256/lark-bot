@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { afterEach, describe, it } from 'node:test'
 import { runSteps } from './support/steps.mjs'
 
-import { chatListMessageToEvent, flattenThreadReplies, isPollableMessage, nextDelayMs, parseKernSleepTime, startChatPoller, toEpochMs } from '../lib/lark-chat-poller.mjs'
+import { chatListMessageToEvent, flattenThreadReplies, isPollableMessage, nextDelayMs, parseKernSleepTime, pickThreadsToPoll, startChatPoller, toEpochMs } from '../lib/lark-chat-poller.mjs'
 import { extractInlineFileAttachments, hasDocAttachment, normalizeMessage, parseTextAndAttachments, resolveMessageTrigger } from '../lib/lark-message.mjs'
 import { DEFAULT_POLL, registerRepoProfiles, resetRepoProfiles } from '../lib/lark-repo-profile.mjs'
 import { pickEarlierDoc, pickRecentContext, pickThreadContext } from '../lib/lark-chat-context.mjs'
@@ -288,6 +288,30 @@ describe('先发文档、后单独 @bot：从之前的群消息补上文档（�
 
 describe('老消息上新开的话题（2026-10-15 aven 在 Encone 15 分钟前的消息上建话题 @Aven.Bot）；跨系统睡眠的失败不计数（2026-10-16 夜合盖，Power Nap 半醒时轮询超时，体检连报「轮询连续失败」）', () => {
   it('老消息上新开的话题靠长窗口回看捞到；解析 kern.sleeptime，入睡过的那轮失败只记 sleepInterrupted', () => runSteps([
+    ['补抓话题按上次拉取时间轮转：5 个以上热话题时冷话题不被饿死（10-28 产研群老话题里的 @bot 半小时没处理）', () => {
+      const now = Date.parse('2026-10-28T10:20:00Z')
+      const min = 60_000
+      const threads = {
+        // 5 个当天热话题，刚拉过
+        ...Object.fromEntries([1, 2, 3, 4, 5].map((i) => [`hot${i}`, { lastActivityMs: now - i * 10 * min, lastPolledMs: now - 20_000 }])),
+        cold: { lastActivityMs: now - 150 * min, lastPolledMs: now - 31 * min }, // 冷、满 30 分钟 → 合格且最久没拉
+        coldRecent: { lastActivityMs: now - 150 * min, lastPolledMs: now - 10 * min }, // 冷、没满 30 分钟 → 不合格
+        expired: { lastActivityMs: now - 6 * 24 * 60 * min, lastPolledMs: 0 }, // 超过 5 天 → 不合格
+      }
+      const picked = pickThreadsToPoll({ threads, nowMs: now }).map(([id]) => id)
+      assert.equal(picked[0], 'cold', '最久没拉的冷话题排第一')
+      assert.equal(picked.length, 5)
+      assert.ok(!picked.includes('coldRecent') && !picked.includes('expired'))
+      // 下一轮：cold 刚拉过，轮到上轮没拉到的热话题
+      threads.cold.lastPolledMs = now
+      for (const id of picked) threads[id].lastPolledMs = now
+      const next = pickThreadsToPoll({ threads, nowMs: now + 20_000 }).map(([id]) => id)
+      assert.ok(next.includes('hot5'), '上轮挤掉的热话题这轮拉到')
+      // 有未了结任务的冷话题也合格
+      assert.ok(pickThreadsToPoll({ threads: { t: { lastActivityMs: now - 150 * min, lastPolledMs: now - min } }, nowMs: now, hasOpenTask: () => true }).length === 1)
+      // 同样没拉过时按最近活动排
+      assert.deepEqual(pickThreadsToPoll({ threads: { a: { lastActivityMs: now - 20 * min }, b: { lastActivityMs: now - 5 * min } }, nowMs: now }).map(([id]) => id), ['b', 'a'])
+    }],
     ['增量窗口看不到 host；每 threadScanEveryMs 回看一次长窗口，捞到展开的话题回复', async () => {
       registerRepoProfiles({ repos: { falive: { root: '/tmp/falive-react', baseRef: 'main', chatIds: ['oc_falive'], notifyChatId: 'ou_aven' } } })
       const dir = mkdtempSync(join(tmpdir(), 'lark-poller-thread-'))
