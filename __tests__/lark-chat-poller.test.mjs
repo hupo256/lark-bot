@@ -294,8 +294,8 @@ describe('老消息上新开的话题（2026-10-15 aven 在 Encone 15 分钟前�
       const threads = {
         // 5 个当天热话题，刚拉过
         ...Object.fromEntries([1, 2, 3, 4, 5].map((i) => [`hot${i}`, { lastActivityMs: now - i * 10 * min, lastPolledMs: now - 20_000 }])),
-        cold: { lastActivityMs: now - 150 * min, lastPolledMs: now - 31 * min }, // 冷、满 30 分钟 → 合格且最久没拉
-        coldRecent: { lastActivityMs: now - 150 * min, lastPolledMs: now - 10 * min }, // 冷、没满 30 分钟 → 不合格
+        cold: { lastActivityMs: now - 150 * min, lastPolledMs: now - 4 * min }, // 冷、满 3 分钟 → 合格且最久没拉
+        coldRecent: { lastActivityMs: now - 150 * min, lastPolledMs: now - 2 * min }, // 冷、没满 3 分钟 → 不合格
         expired: { lastActivityMs: now - 6 * 24 * 60 * min, lastPolledMs: 0 }, // 超过 5 天 → 不合格
       }
       const picked = pickThreadsToPoll({ threads, nowMs: now }).map(([id]) => id)
