@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { appendFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
@@ -9,6 +9,7 @@ import { loadSweepState, saveSweepState } from '../lib/lark-daily-sweep.mjs'
 import { createTaskStore } from '../lib/lark-task-store.mjs'
 import { registerRepoProfiles, repoProfile, resetRepoProfiles } from '../lib/lark-repo-profile.mjs'
 import { runSteps } from './support/steps.mjs'
+import { diffSeoFails, parseSeoFails, runSeoCheck, seoRetestNote } from '../lib/lark-seo-watch.mjs'
 
 const GROUP = 'oc_falive'
 const ENCONE = 'ou_encone'
@@ -129,8 +130,8 @@ describe('盯所有部署', () => {
     rmSync(runtimeDir, { recursive: true, force: true })
   }
   const hooks = { before: setup, after: teardown }
-  const check = ({ buildTime, sha = null, now, git = fakeGit({ heads: { 0: 'h1', [buildTime - 1]: 'h2' } }).git, profile = repoProfile('falive'), runOnDeploy: hook }) =>
-    checkDeployAndRetest({ store, profile, now: new Date(now), deps: { runtimeDir, outboxDir, git, probePreBuild: async () => ({ buildTime, sha }), ...(hook ? { runOnDeploy: hook } : {}) } })
+  const check = ({ buildTime, sha = null, now, git = fakeGit({ heads: { 0: 'h1', [buildTime - 1]: 'h2' } }).git, profile = repoProfile('falive'), runOnDeploy: hook, seo, send }) =>
+    checkDeployAndRetest({ store, profile, now: new Date(now), deps: { runtimeDir, outboxDir, git, probePreBuild: async () => ({ buildTime, sha }), ...(hook ? { runOnDeploy: hook } : {}), ...(seo ? { runSeoCheck: async () => seo } : {}), ...(send ? { send } : {}) } })
 
   it('盯部署：首次只记基线不补建，构建变新按提交建复测与承诺单，无新提交只记部署点', () => runSteps([
     ['今天的形状：state 只有旧 lastPush、发件簿有 10:28 的承诺 → 合入后首次只记基线，14:37 这次不补建；之后的部署也不再捡这句', async () => {
@@ -174,6 +175,42 @@ describe('盯所有部署', () => {
       const second = await check({ buildTime: 9000, now: 9500, git: docsOnly })
       assert.equal(second.taskId, null, '全是文档提交 → 不建整体复测')
       assert.equal(second.promiseTaskIds.length, 1, '答应过的复测照建')
+    }],
+    ['SEO 爬虫检查（10-29 #96）：bot 先跑、和上次比；已知卡点不变不让复测再报，有变化才写；只改文档的部署有变化单独私信；跑挂不更新基准', async () => {
+      // 纯函数：取 ❌ 行（去汇总行）；比对时抹掉路径里的样本编号、状态码照比
+      assert.deepEqual(parseSeoFails('SEO 检查 x\n❌ /hc：状态码 503\n⚠️ /sitemap.xml：没有文章\n\n❌ 1 项不通过\n'), ['/hc：状态码 503'])
+      assert.deepEqual(diffSeoFails({ prev: ['/sitemap.xml：/hc/news/98 访问是 503'], fails: ['/sitemap.xml：/hc/news/16 访问是 503'] }), { added: [], resolved: [] })
+      assert.deepEqual(diffSeoFails({ prev: ['/hc：状态码 503'], fails: ['/hc：状态码 500'] }).added, ['/hc：状态码 500'])
+      assert.equal(await runSeoCheck({ profile: { root: runtimeDir }, siteUrl: 'https://pre.example.com/' }), null, '业务仓没有检查脚本 → 不跑')
+      assert.equal(await runSeoCheck({ profile: {}, siteUrl: 'https://pre.example.com/' }), null, '没配业务仓 → 不跑')
+      mkdirSync(join(runtimeDir, 'scripts'), { recursive: true }); writeFileSync(join(runtimeDir, 'scripts', 'seo-check.mjs'), '')
+      const run = (out) => runSeoCheck({ profile: { root: runtimeDir }, siteUrl: 'https://pre.example.com/', exec: async (_f, args) => ({ args, ...out }) })
+      assert.deepEqual(await run({ ok: false, stdout: '❌ /hc：x\n', stderr: '' }), { fails: ['/hc：x'] }, '有 ❌ 退出码 1 = 检查不通过，不是跑挂')
+      assert.deepEqual(await run({ ok: false, stdout: '', stderr: 'boom' }), { error: 'boom' })
+      assert.deepEqual(await run({ ok: true, stdout: '✅ 全部通过', stderr: '' }), { fails: [] })
+      assert.match(seoRetestNote({ seo: { fails: ['a'] }, prev: ['a', 'b'], siteUrl: 'https://x/' }), /有变化：已消失 b。summary 写一行/, '只有消失也算变化')
+      const known = ['/hc：503：SSR 取不到正文', '/hc/news/99：状态码 503']
+      const sent = []
+      const send = async (msg) => sent.push(msg.markdown)
+      const H = 3600_000
+      const deployAt = (n) => ({ buildTime: n * H, now: n * H + 60_000, git: fakeGit({ heads: { 0: `h${n - 1}`, [n * H - 1]: `h${n}` } }).git })
+      saveSweepState('falive', { lastDeploy: { buildTime: H, head: 'h1' }, lastSeo: { fails: known, buildTime: H } }, { runtimeDir })
+      const same = await check({ ...deployAt(2), seo: { fails: ['/hc：503：SSR 取不到正文', '/hc/news/16：状态码 503'] }, send })
+      assert.match(store.get(same.taskId).text, /和上次一样的 2 个已知问题，没变化，不用再查、summary 不写/)
+      const changed = await check({ ...deployAt(3), seo: { fails: ['/hc/help：个人 / 功能页没有 noindex'] }, send })
+      const text = store.get(changed.taskId).text
+      assert.match(text, /有变化：新增 \/hc\/help：个人 \/ 功能页没有 noindex；已消失 \/hc：503/)
+      assert.match(text, /新增的算一项不通过/)
+      assert.deepEqual(loadSweepState('falive', { runtimeDir }).lastSeo.fails, ['/hc/help：个人 / 功能页没有 noindex'], '基准换成这次')
+      await check({ ...deployAt(4), seo: { error: 'node 崩了' }, send })
+      assert.match(store.list().find((t) => t.text.includes('node 崩了')).text, /bot 没跑成（node 崩了）：在业务仓手动跑 `pnpm quality:seo --base https:\/\/pre.example.com`/)
+      assert.deepEqual(loadSweepState('falive', { runtimeDir }).lastSeo.fails, ['/hc/help：个人 / 功能页没有 noindex'], '跑挂不更新基准')
+      const docsOnly = (n) => ({ ...deployAt(n), git: fakeGit({ heads: { 0: `h${n - 1}`, [n * H - 1]: `h${n}` }, log: 'ddd0002 feat(bot): 回填\n', codeLog: '' }).git })
+      const quiet = await check({ ...docsOnly(5), seo: { fails: [] }, send })
+      assert.equal(quiet.taskId, null)
+      assert.deepEqual(sent.length, 1); assert.match(sent[0], /SEO 爬虫检查已恢复，全部通过/)
+      await check({ ...docsOnly(6), seo: { fails: [] }, send })
+      assert.equal(sent.length, 1, '没变化不私信')
     }],
     ['没有新提交（同一份代码重新构建）：不建整体复测，只记部署点', async () => {
       saveSweepState('falive', { lastDeploy: { buildTime: 1000, head: 'h2' } }, { runtimeDir })
