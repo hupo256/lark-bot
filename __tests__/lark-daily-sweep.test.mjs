@@ -14,10 +14,12 @@ import {
   parsePushPreDirective,
   pushBaseForMr,
   saveSweepState,
+  sweepProfiles,
   sweepPushHint,
 } from '../lib/lark-daily-sweep.mjs'
 import { buildRepoNote } from '../lib/lark-repo-delivery.mjs'
-import { queuePendingMerge } from '../lib/lark-merge-back-state.mjs'
+import { isDocsOnlyConflict, loadMergeBackState, queuePendingMerge, recordConflict } from '../lib/lark-merge-back-state.mjs'
+import { handleResolveMerge, parseResolveMergeDirective } from '../lib/lark-merge-resolve.mjs'
 import { createTaskStore } from '../lib/lark-task-store.mjs'
 import { registerRepoProfiles, repoProfile, resetRepoProfiles } from '../lib/lark-repo-profile.mjs'
 
@@ -164,6 +166,7 @@ describe('日报清扫：结果私信', () => {
       assert.match(note({ mergedBack: true, branch: 'feature/phase-5-test' }), /已合进 feature\/phase-5-test/)
       assert.match(note({ mergedBack: null, pending: true, branch: 'feature/phase-5-test', mergeReason: '主目录不在 feature/phase-5-test 上（在 x）' }), /改动在分支 lark\/falive-t，等合进 feature\/phase-5-test（主目录不在/)
       assert.match(note({ mergedBack: false, branch: 'feature/phase-5-test', mergeReason: '合进 feature/phase-5-test 有冲突：a.md' }), /⚠ 没合进 feature\/phase-5-test：合进 feature\/phase-5-test 有冲突：a\.md。分支 lark\/falive-t 要你手动合/)
+      assert.match(note({ mergedBack: false, resolvable: true, branch: 'feature/phase-5-test', mergeReason: '合进 feature/phase-5-test 有冲突：docs/a.md' }), /。分支 lark\/falive-t 保留，只冲突在文档，回「帮我合」我按意思合/)
     }],
   ], hooks))
 })
@@ -184,7 +187,7 @@ describe('推 pre', () => {
     return { git, calls }
   }
 
-  it('只认整句「推 pre」；回复带 MR 链接，还排队没合进工作分支的 bot 改动一并说明', () => runSteps([
+  it('只认整句「推 pre」；回复带 MR 链接，还排队没合进工作分支的 bot 改动一并说明；「帮我合」建合并任务', () => runSteps([
     ['只认整句「推 pre」', () => {
       assert.equal(parsePushPreDirective('推 pre'), true)
       assert.equal(parsePushPreDirective(' 推PRE '), true)
@@ -207,6 +210,30 @@ describe('推 pre', () => {
         assert.equal(loadSweepState('falive', { runtimeDir }).lastPush, undefined, '不再记 lastPush')
       } finally {
         rmSync(runtimeDir, { recursive: true, force: true })
+      }
+    }],
+    ['「帮我合」（10-29 #94）：只认整句；只冲突在文档的各建合并任务（带 supersedes、说清怎么取舍），代码冲突留给人；重复回不重复建', () => {
+      registerRepoProfiles({ repos: { other: { root: '/tmp/other', baseRef: 'main' } } })
+      assert.deepEqual(sweepProfiles(), [], '没开清扫的仓不算')
+      register()
+      assert.equal(parseResolveMergeDirective(' 帮我合 '), true); assert.equal(parseResolveMergeDirective('帮我合一下吗'), false)
+      const dir = mkdtempSync(join(tmpdir(), 'lark-resolve-'))
+      const deps = { runtimeDir: dir }
+      try {
+        const store = createTaskStore({ tasksDir: join(dir, 'tasks'), leaseMs: 1000 })
+        assert.match(handleResolveMerge({ store, deps }), /^没有只冲突在文档、等我合的分支。/)
+        recordConflict('falive', { taskId: 'd1', branch: 'lark/falive-d1', summary: '复测 d1', files: ['"docs/delivery/pending/对接.md"', 'docs/README.md'], supersedes: ['lark/falive-d0'] }, deps)
+        recordConflict('falive', { taskId: 'c1', branch: 'lark/falive-c1', summary: '改 c1', files: ['docs/a.md', 'src/a.ts'] }, deps)
+        const reply = handleResolveMerge({ store, deps })
+        assert.match(reply, /^好，1 条开始合：复测 d1。合进 feature\/phase-5-test 后私信你取舍。\n\n有代码冲突的还要你手动合：lark\/falive-c1$/)
+        const task = store.get('resolve-falive-d1')
+        assert.deepEqual([task.source, task.summary, task.supersedes], ['daily-sweep', '合回冲突：复测 d1', ['lark/falive-d1', 'lark/falive-d0']])
+        assert.match(task.text, /aven 回了「帮我合」/); assert.equal(isDocsOnlyConflict([]), false, '没有冲突文件不算')
+        assert.match(task.text, /以当前文件（HEAD）的结构、编号和口径为准/); assert.match(task.text, /git diff \$\(git merge-base HEAD lark\/falive-d1\) lark\/falive-d1/)
+        assert.deepEqual(loadMergeBackState('falive', deps).conflicts.map((item) => item.branch), ['lark/falive-c1'], '只取走文档冲突')
+        assert.match(handleResolveMerge({ store, deps }), /^没有只冲突在文档、等我合的分支。\n\n有代码冲突的还要你手动合：lark\/falive-c1$/)
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
       }
     }],
   ], hooks))

@@ -218,6 +218,7 @@ describe('C6 / #19 合回负责人工作分支（10-27 取代集成分支）', (
       assert.equal(readableBranchAfterMerge({ branch: 'b', mergeBack: { ok: true, branchCleanup: { deleted: false } } }), undefined, '分支没删就不改')
       assert.equal(readableBranchAfterMerge({ branch: 'b', mergeBack: { ok: false, conflicts: ['a'], reason: '冲突' } }), undefined)
       assert.equal(integrationReport({ branch: 'b', sync: { ok: true } }), null, '只同步、没提交 → 不回写摘要')
+      assert.equal(integrationReport({ branch: 'b', mergeBack: { ok: false, conflicts: ['docs/a.md'], reason: '冲突', resolvable: true } }).resolvable, true, '只冲突在文档 → 摘要带 resolvable（私信提示「帮我合」）')
       assert.equal(integrationReport(null), null)
     }],
     ['排队 → pending、mergedBack 为空；冲突 → mergedBack=false 带原因', () => {

@@ -289,6 +289,12 @@ describe('#7：私聊「推 pre」只认负责人', () => {
       assert.equal(posted.length, 0, '非负责人私聊「推 pre」不回消息')
       assert.equal(store.list().length, 0, '非负责人私聊「推 pre」不处理')
     }],
+    ['真实 ingest：负责人私聊「帮我合」直接回结果、不建普通任务（10-29 #94）', async () => {
+      registerRepoProfiles({ repos: { falive: { ...faliveRaw, dailyReport: { at: '19:00', sweep: {} } } } })
+      await ingestLarkEvent({ raw: consoleEvent({ id: 'om_rv_resolve', text: '帮我合' }), config, store })
+      assert.match(JSON.stringify(posted), /没有只冲突在文档、等我合的分支/)
+      assert.equal(store.has('om_rv_resolve'), false)
+    }],
     ['auto 白名单：bot 在的群 @ 能建任务、不在的群不建；私聊不查群成员（不起 chat-list）（变异补测 10-24）', async () => {
       delete process.env.LARK_INSTANCE_MODE // fameex 默认仓
       const auto = { ...config, allowedChatIds: 'auto' }

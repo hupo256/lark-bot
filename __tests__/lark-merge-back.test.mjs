@@ -135,7 +135,7 @@ describe('合回负责人工作分支（aven 2026-10-27，取代集成分支）�
         cleanup()
       }
     }],
-    ['排队重试：暂不能合排队并只提醒一次、条件满足自动合并删分支、冲突移出队列交人、上游冲突同一 sha 只报一次、私信聚合成一条', async () => {
+    ['排队重试：暂不能合排队并只提醒一次、条件满足自动合并删分支、冲突移出队列交人（只冲突在文档可回「帮我合」，合并任务合回删原分支）、上游冲突同一 sha 只报一次、私信聚合成一条', async () => {
       const { mergeBackAfterTask, retryMergeBack, createMergeBackRetrier, syncBeforeTask } = await import('../lib/lark-merge-back.mjs')
       const { loadMergeBackState, queuePendingMerge, recordSyncResult } = await import('../lib/lark-merge-back-state.mjs')
       const { root, g, rootCommit, commitOn, exists, cleanup } = makeRepo()
@@ -157,8 +157,23 @@ describe('合回负责人工作分支（aven 2026-10-27，取代集成分支）�
         // 冲突：移出队列、分支保留
         commitOn('lark/falive-r2', 'r1.txt', 'other\n', rootCommit)
         queuePendingMerge('falive', { taskId: 'r2', branch: 'lark/falive-r2', summary: '改 r2' }, deps)
-        assert.match(retryMergeBack({ profile, deps })[0], /^⚠ 没合进 feature\/base：改 r2（合进 feature\/base 有冲突：r1\.txt）。分支 lark\/falive-r2 保留/)
+        const retryLine = retryMergeBack({ profile, deps })[0]
+        assert.match(retryLine, /^⚠ 没合进 feature\/base：改 r2（合进 feature\/base 有冲突：r1\.txt）。分支 lark\/falive-r2 保留/)
         assert.equal(exists('lark/falive-r2'), true); assert.deepEqual(loadMergeBackState('falive', deps).pending, [])
+        assert.match(retryLine, /要你手动合$/, '代码冲突不提示「帮我合」')
+        assert.deepEqual(loadMergeBackState('falive', deps).conflicts.map((item) => [item.branch, item.files]), [['lark/falive-r2', ['r1.txt']]], '冲突记账')
+        // 只冲突在 docs/（10-29 #94）：提示回「帮我合」；合并任务合回后连被它取代的原分支一起删（原分支不是祖先也删）
+        commitOn('lark/falive-d0', 'docs/x.md', 'base\n'); mergeBackAfterTask({ profile, task: { id: 'd0' }, branch: 'lark/falive-d0', deps })
+        commitOn('lark/falive-d1', 'docs/x.md', 'bot\n', rootCommit)
+        const docsConflict = mergeBackAfterTask({ profile, task: { id: 'd1', summary: '复测 d1' }, branch: 'lark/falive-d1', deps })
+        assert.deepEqual([docsConflict.ok, docsConflict.resolvable], [false, true])
+        commitOn('lark/falive-resolve-d1', 'docs/x.md', 'base + bot\n')
+        assert.equal(mergeBackAfterTask({ profile, task: { id: 'resolve-d1', supersedes: ['lark/falive-d1'] }, branch: 'lark/falive-resolve-d1', deps }).ok, true)
+        assert.deepEqual([exists('lark/falive-d1'), exists('lark/falive-resolve-d1'), g(['show', 'feature/base:docs/x.md'])], [false, false, 'base + bot'])
+        queuePendingMerge('falive', { taskId: 'd2', branch: 'lark/falive-d2', summary: '复测 d2' }, deps); commitOn('lark/falive-d2', 'docs/x.md', 'other\n', rootCommit)
+        assert.match(retryMergeBack({ profile, deps })[0], /分支 lark\/falive-d2 保留，只冲突在文档，回「帮我合」我按意思合/)
+        g(['branch', '-D', 'lark/falive-r2']); retryMergeBack({ profile, deps })
+        assert.deepEqual(loadMergeBackState('falive', deps).conflicts.map((item) => item.branch), ['lark/falive-d2'], '手动删掉的分支清出冲突记账')
         // 分支已被手动处理掉：静默移出队列
         queuePendingMerge('falive', { taskId: 'gone', branch: 'lark/falive-gone', summary: 'x' }, deps)
         assert.deepEqual(retryMergeBack({ profile, deps }), []); assert.deepEqual(loadMergeBackState('falive', deps).pending, [])
