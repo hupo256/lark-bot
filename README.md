@@ -85,6 +85,8 @@ launchd 直接运行本仓代码。**改完代码不会自动生效**，要执�
 运行态（均 gitignore）：任务队列 `runtime/lark-tasks/`，附件 `runtime/lark-attachments/<PR>/<messageId>/`，审计 `runtime/lark-audits/<PR>/`。
 
 > CLI、plist 和 shim 里写死了 `/Users/aven/...`，本仓目前只面向这一台机器。换机器或换路径时，要同步改 `scripts/lark-bot`、`scripts/lark-bot-shim`、`runtime/*.plist`，或者用 `LARK_BOT_ROOT` 覆盖。
+>
+> 2026-10-29 起准备把两条线迁到一台 Mac mini 常驻服务器并改为服务整个前端团队，现状盘点 / 计划 / 迁移手册见 [docs/mac-mini-migration-2026-10-29.md](./docs/mac-mini-migration-2026-10-29.md)。
 
 ## 依赖
 

@@ -15,4 +15,5 @@
 | [falive-lessons.md](./falive-lessons.md) | **出错 → 规则或闸** 沉淀台账：每次 bot 出错落成规则或机械闸，附验证方式；只有规则没有闸的单列 |
 | [falive-self-healing.md](./falive-self-healing.md) | **自愈 / 纠偏策略**：执行中自纠 → 失败后自诊 → 运行态体检三环，每环的已有 / 已落地 / 待做清单、护栏与验收 |
 | [mutation-testing.md](./mutation-testing.md) | **变异测试**：故意改坏代码看测试能否发现；`scripts/mutate.mjs` 用法（合并前 `--diff` 必跑）、存活怎么处理、豁免清单 |
+| [mac-mini-migration-2026-10-29.md](./mac-mini-migration-2026-10-29.md) | **Mac mini 服务器化迁移 + 团队化交接**（2026-10-29）：笔记本上两条线 + bugpoll 的现状盘点、运行数据、目标架构、分阶段计划、待拍板决策、可复制的迁移手册；在 mini 上继续前先读 |
 | [runtime-and-scheduling.md](./runtime-and-scheduling.md) | 长连接健壮性、规则链告警、附件保留期、bug 表项目群路由与按 worktree 并行调度 |
