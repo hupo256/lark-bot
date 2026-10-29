@@ -79,6 +79,9 @@ describe('结构化群回复', () => {
         assert.equal(collectRunEvidence({ sessionFiles: [join(dir, 'c.jsonl')] }).browserCalls, 2)
         assert.deepEqual(collectRunEvidence({ sessionFiles: [join(dir, 'a.jsonl'), join(dir, 'b.jsonl')], probeCommand: 'node scripts/pre-probe.mjs' }), { probeCalls: 1, browserCalls: 1 })
         assert.equal(collectRunEvidence({ sessionFiles: [join(dir, 'missing.jsonl')] }), null)
+        // 直连接口也算实测（10-29 OL 换域名直连 www.falive.com 被判没实测）；只是 grep 里带网址不算
+        writeFileSync(join(dir, 'd.jsonl'), [use('h1', 'for p in /api/preload/lives /go-api/health; do curl -s -m 15 "https://www.falive.com$p"; done'), use('h2', 'wget -qO- http://x.test/a'), use('h3', 'grep -n "https://www.falive.com" build/service-hosts.ts')].join('\n'))
+        assert.deepEqual(collectRunEvidence({ sessionFiles: [join(dir, 'd.jsonl')] }), { probeCalls: 2, browserCalls: 0 })
         // runner 入口：按会话 id 找落盘记录，探针命令取自仓库 verify 配置（变异补测 10-28）
         const { runEvidenceFor } = await import('../lib/lark-run-report.mjs')
         const { claudeProjectKey } = await import('../lib/lark-task-runner-support.mjs')
