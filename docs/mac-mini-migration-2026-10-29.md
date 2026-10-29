@@ -251,9 +251,9 @@ fameex 实例切到 falive 线代码（默认仓 = fameex、完整模式）；�
 
 | # | 决策 | 建议 | 不选建议的代价 |
 |---|---|---|---|
-| D1 | mini 的 macOS 用户名 | **`aven`**，所有路径与笔记本一致，阶段 ① 零改代码 | 用别的名：阶段 ② 的路径可移植要提前到阶段 ①，多 1–3 天 |
+| D1 | mini 的 macOS 用户名 | **`aven`**，所有路径与笔记本一致，阶段 ① 零改代码。**✅ aven 10-29 已定：用 `aven`** | 用别的名：阶段 ② 的路径可移植要提前到阶段 ①，多 1–3 天 |
 | D2 | 外部群轮询 / 发文档用谁的 Lark 身份 | 向管理员申请一个专用账号（如「前端 Bot」），拉进外部群和控制台群；申请前**先沿用 aven 的 token** | 一直是 aven：bot 说的每句话法律上都是 aven 说的；aven 换密码 / 离线 bot 就断 |
-| D3 | bot 分支能不能 push | **允许 push 到 bot 命名空间 `lark/*`**（永不推 protected 分支）+ 自动开 MR 给负责人；在此之前团队用 `git remote add mini ssh://…` fetch bot 分支 | 不许：团队成员看不到 bot 产出，只有能 SSH 上 mini 的人能拿；merge-back 永远做不了 |
+| D3 | bot 分支能不能 push | **允许 push 到 bot 命名空间 `lark/*`**（永不推 protected 分支）+ 自动开 MR 给负责人；在此之前团队用 `git remote add mini ssh://…` fetch bot 分支。**✅ aven 10-29 已定：按建议放开 `lark/*` push + MR**（阶段 3c 落地；落地前仍不 push） | 不许：团队成员看不到 bot 产出，只有能 SSH 上 mini 的人能拿；merge-back 永远做不了 |
 | D4 | Claude 鉴权 | 阶段 ①② 维持 `local`（aven 账号，需屏幕共享登录一次）；阶段 ③ 团队用量上来后切 `proxy`（`claude.env` 网关 key）或团队账号 | 多人用量压在 aven 个人额度上，429 变多 |
 | D5 | 团队名册与归属来源 | 名册写在配置 `team.principals`（5 人：aven / Henry / Adrian / Eric / Broker；fameex 侧再加 Kai.b / hurley / noodles / grace 等活跃提交者）；归属 falive 读功能总表「前端」列，fameex 读 bug 表负责人字段 | 不定名册：T1–T4 没法做 |
 | D6 | 代码线 | 阶段 ① 两条线原样；阶段 ④ 合成 falive 线一套代码（见 §5） | 一直两套：每个通用修复要搬两次 |
@@ -348,7 +348,7 @@ git fetch mini 'refs/heads/lark/*:refs/remotes/mini/lark/*'
 3. 阶段 ① 按 §8 做，**不改代码**（除 C1 的两处配置）；切换完成后在本文 §6 阶段 1 表格里逐行填验收结果。
 4. 阶段 ② 的代码改动开分支 `lark/server-portable`，合并前 `node scripts/test-all.mjs` + `node scripts/mutate.mjs --diff feature/falive-repo-profile`；CLI 契约变了同步 shim（AGENTS.md）。
 5. 阶段 ③ 每批一个分支 `lark/team-3a` … `lark/team-3d`，先写黄金对话再改代码；新教训继续记 `docs/falive-lessons.md`（类别列用「环境 / 逻辑 / 噪音」）。
-6. **不要做**：在 mini 上 `git push` 任何业务仓（D3 定前）；把 `runtime/*.local.json`、凭据、`~/.lark-bugpoll` 的 json 进仓；两实例同时跑在同一端口 / 同一 `runtime/`；在笔记本和 mini 同时起同一条线（长连接会双收、轮询会双发）。
+6. **不要做**：在 mini 上 `git push` 任何业务仓（D3 已定放开 `lark/*`，但要等阶段 3c 的推送白名单代码落地，之前仍不推）；把 `runtime/*.local.json`、凭据、`~/.lark-bugpoll` 的 json 进仓；两实例同时跑在同一端口 / 同一 `runtime/`；在笔记本和 mini 同时起同一条线（长连接会双收、轮询会双发）。
 
 ## 附录 A · 运行态 keep / drop
 
