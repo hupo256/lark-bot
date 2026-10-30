@@ -9,7 +9,7 @@ import { describe, it } from 'node:test'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { DEFAULT_SETTLE_MS, RESTART_OVERDUE_MS, checkConfigFile, createDrainRestart, pickFailingTests, planDrainRestart, runCommand, runSelfTests } from '../lib/lark-drain-restart.mjs'
+import { SELF_TEST_RETRY_MS, DEFAULT_SETTLE_MS, RESTART_OVERDUE_MS, checkConfigFile, createDrainRestart, pickFailingTests, planDrainRestart, runCommand, runSelfTests } from '../lib/lark-drain-restart.mjs'
 import { runSteps } from './support/steps.mjs'
 
 const fresh = { codeStale: false, configStale: false, codeHash: 'a', diskCodeHash: 'a', diskConfigHash: 'c', diskChangedAt: null }
@@ -105,6 +105,52 @@ describe('createDrainRestart（驱动器）', () => {
       assert.equal((await drain.tick({ inFlight: 0 })).action, 'start-drain')
       assert.equal((await drain.tick({ inFlight: 0 })).action, 'verify')
       assert.equal(calls.tests, 2)
+    }],
+    ['自检超时不算红：先照常干活、5 分钟后再试；绿了就重启；同一版连续 3 次超时才按红处理并私信（10-30：机器忙时 bot 卡在旧代码）', async () => {
+      let clock = 1_000_000_000
+      const version = makeVersion()
+      const calls = { tests: 0, restarts: 0, notes: [] }
+      let result = { ok: false, timedOut: true, summary: '超时（300000ms）', failing: [] }
+      const drain = createDrainRestart({
+        version, now: () => clock, log: () => {},
+        runTests: () => { calls.tests += 1; return result },
+        requestRestart: () => { calls.restarts += 1; return 1 },
+        notify: async (text) => { calls.notes.push(text) },
+      })
+      version.set(stale(DEFAULT_SETTLE_MS + 5, clock))
+      await drain.tick({ inFlight: 0 })
+      assert.equal((await drain.tick({ inFlight: 0 })).action, 'verify')
+      assert.equal(drain.isDraining(), false, '超时后照常领任务')
+      assert.deepEqual([calls.tests, calls.restarts, calls.notes.length], [1, 0, 0], '超时不私信、不记红')
+      assert.equal((await drain.tick({ inFlight: 0 })).action, 'wait-retry')
+      clock += SELF_TEST_RETRY_MS + 1
+      assert.equal((await drain.tick({ inFlight: 0 })).action, 'start-drain', '到点重新排空')
+      assert.equal((await drain.tick({ inFlight: 0 })).action, 'verify')
+      assert.equal(calls.tests, 2)
+      // 第 3 次还超时 → 按红处理、私信一次、同一版不再试
+      clock += SELF_TEST_RETRY_MS + 1
+      await drain.tick({ inFlight: 0 })
+      assert.equal((await drain.tick({ inFlight: 0 })).action, 'verify')
+      assert.deepEqual([calls.tests, calls.notes.length], [3, 1])
+      assert.match(calls.notes[0], /连续 3 次自检超时/)
+      assert.equal((await drain.tick({ inFlight: 0 })).action, 'skip-failed')
+      // 换一版、这次绿 → 重启，超时计数清零
+      result = { ok: true, summary: 'tests 1 pass 1 fail 0', failing: [] }
+      version.set({ ...stale(DEFAULT_SETTLE_MS + 5, clock), diskCodeHash: 'f' })
+      await drain.tick({ inFlight: 0 })
+      assert.equal((await drain.tick({ inFlight: 0 })).action, 'verify')
+      assert.equal(calls.restarts, 1)
+      assert.equal(drain.state.timeouts, 0)
+      // 真跑：测试卡住 → runSelfTests 回 timedOut（驱动器靠它区分超时与红）
+      const dir = mkdtempSync(join(tmpdir(), 'lark-selftest-'))
+      try {
+        mkdirSync(join(dir, '__tests__'))
+        writeFileSync(join(dir, '__tests__', 'slow.test.mjs'), "import { it } from 'node:test'\nit('slow', () => new Promise((r) => setTimeout(r, 5000)))\n")
+        const run = await runSelfTests({ root: dir, timeoutMs: 300 })
+        assert.deepEqual([run.ok, run.timedOut], [false, true])
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
     }],
     ['只改配置不跑单测、做配置自检：绿则重启；红则不重启、私信一次、同一版不再重试（10-24：以前只改配置直接放行，坏配置会让 gateway 起不来）', async () => {
       for (const configOk of [true, false]) {
