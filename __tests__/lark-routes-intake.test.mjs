@@ -121,6 +121,15 @@ describe('分类回写：被动闸先于并单、疑似单不并单、幂等重�
       assert.equal(store.get('om_rvw_q').text, 'queued-body')
       assert.deepEqual(posted.map((item) => item.url), ['https://hook/console'], '只私聊负责人一句疑似')
     }],
+    ['同话题工单正在跑：@ bot 的新消息并进去、跑完带补充再跑一轮，不另开工单（aven 10-30：一件事三条「卡住了」）', async () => {
+      store.upsert({ id: 'om_rvw_run', source: 'lark', repo: 'rvwfix', chatId: GROUP, text: 'running-body', topic: 'T-run', status: 'running', createdAt: at })
+      received('om_rvw_more')
+      const out = await intake('om_rvw_more', { decision: 'bug', confidence: 'high', forMe: true, summary: 's', reason: 'r', continues: 'om_rvw_run', items: [] })
+      assert.deepEqual([out.mergedInto, out.mode], ['om_rvw_run', 'rerun_after_done'])
+      assert.equal(store.get('om_rvw_more').status, 'superseded')
+      assert.equal(store.get('om_rvw_run').rerunAfterDone, true)
+      assert.match(store.get('om_rvw_run').text, /running-body[\s\S]*同主题补充[\s\S]*t-om_rvw_more/)
+    }],
     ['手工建任务：非默认仓没给 chatId 时不默认投外部群；连 notifyChatId 都没有就 400', async () => {
       const res = await fetch(`${base}/lark/tasks`, { method: 'POST', headers, body: JSON.stringify({ id: 'rvw_manual', repo: 'rvwnonotify', text: 'x' }) })
       assert.equal(res.status, 400)

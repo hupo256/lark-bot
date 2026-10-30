@@ -98,6 +98,13 @@ describe('结构化群回复', () => {
 
 describe('回写组装', () => {
   it('核验闸拦下：回写带上是哪道闸拦的', () => runSteps([
+    ['回写网关的附带字段带上根因层 / 任务态（投递区分「缺材料」与「查到根因等对方修」，aven 10-30）', async () => {
+      const { buildReportExtras } = await import('../lib/lark-run-report.mjs')
+      const extras = buildReportExtras({ aiResult: { status: 'blocked', rootCauseLayer: 'backend-data', taskState: 'awaiting_owner_fix' } })
+      assert.deepEqual([extras.rootCauseLayer, extras.taskState], ['backend-data', 'awaiting_owner_fix'])
+      const plain = buildReportExtras({ aiResult: { status: 'done' } })
+      assert.deepEqual([plain.rootCauseLayer, plain.taskState], [null, null])
+    }],
     ['核验闸拦下：回写带上是哪道闸拦的（投递据此写「改动没提交（闸：原因）」），没给闸名记 null（变异补测 10-24）', async () => {
       const { buildGateFailureReport } = await import('../lib/lark-run-report.mjs')
       const report = buildGateFailureReport({ verify: { ok: false, status: 'failed', text: '终检没过', gate: 'final-verification', reason: 'Biome 非零' } })

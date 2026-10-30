@@ -295,7 +295,9 @@ describe('细节进文档、引用只概括（aven 2026-10-22）', () => {
     assert.equal(docs.length, 1)
     hooks.length = 0
     await deliverRepoOutcome({ task: { id: 'd2', chatId: 'oc_falive', repo: 'falive', owner: 'Ache', summary: 'Encone（portal 后端）发来 Bug-4944 直播间介绍 intro 的接口变更说明：createRoom / updateLive 新增可选参数' }, status: 'blocked', result: '已阻塞，需外部材料 / 权限后才能继续。\n1. x\n2. 待补充：主播测试号', deps })
-    assert.match(hooks[0].card.elements[0].content, /「Encone（portal 后端）发来 Bug-4944 直播间介绍 intro 的接口变更说明」这边卡住了/)
+    // 10-30 起不再引任务摘要（分类器写的「谁让 bot 干什么」），没有问题标题就只写条目
+    assert.match(hooks[0].card.elements[0].content, /需要你们帮忙：\n- 主播测试号/)
+    assert.doesNotMatch(hooks[0].card.elements[0].content, /Encone（portal 后端）发来|卡住了/)
   })
 })
 
@@ -309,15 +311,16 @@ describe('阻塞时群里 @ 责任人要材料（整改 #12）', () => {
     ['blocked → 群里一段 @ + 条目；私聊注明群里已回；疑似任务不发', async () => {
       register()
       assert.deepEqual(extractBlockers('已阻塞，需外部材料 / 权限后才能继续。\n1. 录播详情接口没有。\n2. 待补充：R2 单条详情接口；pre 灌点播数据'), ['R2 单条详情接口', 'pre 灌点播数据'])
-      const text = buildRepoBlockedGroupText({ task: { summary: '录播 tab 接详情' }, mentions: [{ owner: 'Ache', openId: 'ou_ache', items: [] }], blockers: ['R2 单条详情接口'] })
-      assert.equal(text, '@Ache 「录播 tab 接详情」这边卡住了，需要你们帮忙：\n- R2 单条详情接口')
+      const subject = { subject: '录播 tab 接详情', answer: null, items: [] }
+      const text = buildRepoBlockedGroupText({ task: { summary: '录播 tab 接详情', report: subject }, mentions: [{ owner: 'Ache', openId: 'ou_ache', items: [] }], blockers: ['R2 单条详情接口'] })
+      assert.equal(text, '@Ache 「录播 tab 接详情」需要你们帮忙：\n- R2 单条详情接口')
       const hooks = []
       const sent = []
       const deps = { sendMarkdown: async (a) => { sent.push(a); return { ok: true } }, sendWebhookMessage: async (a) => { hooks.push(a); return { ok: true } }, webhookFor: () => ({ url: 'u' }) }
-      const out = await deliverRepoOutcome({ task: { id: 'b1', chatId: 'oc_falive', repo: 'falive', summary: '录播 tab 接详情', owner: 'Ache' }, status: 'blocked', result: '已阻塞，需外部材料 / 权限后才能继续。\n1. 没有详情接口。\n2. 待补充：R2 单条详情接口', deps })
+      const out = await deliverRepoOutcome({ task: { id: 'b1', chatId: 'oc_falive', repo: 'falive', summary: '录播 tab 接详情', report: subject, owner: 'Ache' }, status: 'blocked', result: '已阻塞，需外部材料 / 权限后才能继续。\n1. 没有详情接口。\n2. 待补充：R2 单条详情接口', deps })
       assert.equal(out.ok, true)
-      assert.match(hooks[0].card.elements[0].content, /^<at id=ou_ache><\/at> 「录播 tab 接详情」这边卡住了/)
-      assert.match(sent[0].markdown, /⏸ 停下来了.*\n要：R2 单条详情接口\n.*\n群里已回：「@Ache 「录播 tab 接详情」这边卡住了，需要你们帮忙：」/s)
+      assert.match(hooks[0].card.elements[0].content, /^<at id=ou_ache><\/at> 「录播 tab 接详情」需要你们帮忙/)
+      assert.match(sent[0].markdown, /⏸ 停下来了.*\n要：R2 单条详情接口\n.*\n群里已回：「@Ache 「录播 tab 接详情」需要你们帮忙：」/s)
       await deliverRepoOutcome({ task: { id: 'b2', chatId: 'oc_falive', repo: 'falive', summary: 's', suspected: true }, status: 'waiting_confirmation', result: 'x', deps })
       assert.equal(hooks.length, 1, '疑似任务不往群里要材料')
     }],
@@ -328,11 +331,36 @@ describe('阻塞时群里 @ 责任人要材料（整改 #12）', () => {
       const deps = { sendMarkdown: async () => ({ ok: true }), sendWebhookMessage: async (a) => { hooks.push(a); return { ok: true } }, webhookFor: () => ({ url: 'u' }) }
       const result = '已阻塞，需外部材料 / 权限后才能继续。\n1. 缺账号。\n2. 待补充：缺一个嗨聊老账号；要 Ache、Encone 或测试 HTStone.z 给一个能在 pre 用的'
       await deliverRepoOutcome({ task: { id: 'b3', chatId: 'oc_falive', repo: 'falive', summary: '复测 Bug-4927', operator: 'ou_ache' }, status: 'blocked', result, deps })
-      assert.match(hooks[0].card.elements[0].content, /^<at id=ou_ache><\/at> <at id=ou_encone><\/at> 「复测 Bug-4927」这边卡住了/)
+      assert.match(hooks[0].card.elements[0].content, /^<at id=ou_ache><\/at> <at id=ou_encone><\/at> 需要你们帮忙/)
       const profile = repoProfile('falive')
       assert.deepEqual(blockedAskMentions({ task: { operator: 'ou_william' }, profile, blockers: ['给一个老账号'] }), [{ owner: null, openId: 'ou_william', items: ['给一个老账号'] }])
-      assert.equal(buildRepoBlockedGroupText({ task: { summary: 's' }, mentions: [{ owner: null, openId: 'ou_william' }], blockers: ['x'] }), '<at id=ou_william></at> 「s」这边卡住了，需要你们帮忙：\n- x')
+      assert.equal(buildRepoBlockedGroupText({ task: { summary: 's' }, mentions: [{ owner: null, openId: 'ou_william' }], blockers: ['x'] }), '<at id=ou_william></at> 需要你们帮忙：\n- x')
       assert.deepEqual(blockedAskMentions({ task: {}, profile, blockers: ['Achelous 接口'] }), [], '名字要整词匹配')
+    }],
+
+    ['查到根因在对方（awaiting_owner_fix / backend-*）→「查到根因在你们那边，请处理」，不说卡住（aven 10-30）', () => {
+      const mentions = [{ owner: 'Arthur', openId: 'ou_arthur' }]
+      for (const task of [{ taskState: 'awaiting_owner_fix' }, { rootCauseLayer: 'backend-data' }, { rootCauseLayer: 'cross-boundary' }])
+        assert.equal(buildRepoBlockedGroupText({ task: { summary: 'aven 转发 Kaiser 报的 online 问题并交给 bot', ...task }, mentions, blockers: ['task 8 一直 taskStatus 0'] }), '@Arthur 查到根因在你们那边，请处理：\n- task 8 一直 taskStatus 0')
+      assert.match(buildRepoBlockedGroupText({ task: { rootCauseLayer: 'frontend-logic', taskState: 'diagnosing' }, mentions, blockers: ['x'] }), /需要你们帮忙/)
+    }],
+
+    ['一个可 @ 的人都没有 → 不发群，私聊附要发的原话；中间轮（interim）不发群、私聊注明再跑一轮（aven 10-30）', async () => {
+      register()
+      const hooks = []
+      const sent = []
+      const deps = { sendMarkdown: async (a) => { sent.push(a); return { ok: true } }, sendWebhookMessage: async (a) => { hooks.push(a); return { ok: true } }, webhookFor: () => ({ url: 'u' }) }
+      const result = '已阻塞，需外部材料 / 权限后才能继续。\n1. 缺数据。\n2. 待补充：缺 online 接口实际返回'
+      const noOne = await deliverRepoOutcome({ task: { id: 'n1', chatId: 'oc_falive', repo: 'falive', summary: 's' }, status: 'blocked', result, deps })
+      assert.equal(hooks.length, 0)
+      assert.equal(noOne.groupOutcome.privateOnly, true)
+      assert.match(sent[0].markdown, /群里没发（没有可 @ 的对象，没发群），要回可以转发这段：\n需要你们帮忙：\n- 缺 online 接口实际返回/)
+      for (const [status, extra] of [['blocked', { owner: 'Ache' }], ['done', { groupReply: '修好了', addressedToBot: true }]]) {
+        const out = await deliverRepoOutcome({ task: { id: `i-${status}`, chatId: 'oc_falive', repo: 'falive', summary: 's', ...extra }, status, result, interim: true, deps })
+        assert.equal(out.groupOutcome, null, `${status} 中间轮不发群`)
+        assert.match(out.note, /^⏩ 话题里又有补充，带上补充再跑一轮；这轮的结论先不发群。/)
+      }
+      assert.equal(hooks.length, 0)
     }],
   ], resetHooks))
 })
@@ -550,7 +578,7 @@ describe('群文本不回落原话 / 回复义务 / 没 notifyChatId 不发（av
       await deliverRepoOutcome({ task, status: 'blocked', result: '已阻塞，需外部材料 / 权限后才能继续。\n1. 没有详情接口。\n2. 待补充：R2 单条详情接口', deps: mkDeps(hooks, sent) })
       assert.equal(hooks.length, 1)
       const content = hooks[0].card.elements[0].content
-      assert.match(content, /「@Aven\.Bot 录播详情接一下」这边卡住了/)
+      assert.match(content, /「@Aven\.Bot 录播详情接一下」需要你们帮忙/)
       assert.doesNotMatch(content, /私聊|先别理|内部还没定/)
       assert.equal(buildRepoBlockedGroupText({ task, blockers: ['x'] }).includes('私聊'), false)
       // done 没写群回复：群里什么都不发（原来回落 summary = 私聊原话进群）

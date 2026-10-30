@@ -316,6 +316,26 @@ describe('状态回写写前核对（第 0 批：await 期间被换代 / 结单�
       assert.equal(store.get('run').status, 'running')
       assert.equal(store.get('run').epoch, 0)
       assert.equal(store.get('run').rerunAfterDone, true)
+      // 10-30：阻塞也带补充重跑，清掉挂起锚点；外部群任务这一轮按中间轮投递（interim，不发群）
+      registerRepoProfiles({ repos: { falive: { root: '/tmp/falive-react', baseRef: 'main', chatIds: ['oc_falive'], notifyChatId: 'ou_aven' } } })
+      const delivered = []
+      const deliverRepo = async (args) => { delivered.push(args); return { ok: true, messageId: 'om_d' } }
+      store.upsert({ id: 'blk', ...running({ repo: 'falive', chatId: 'oc_falive', rerunAfterDone: true }) })
+      await handleStatusUpdate({ ...stubs, deliverRepo, store, id: 'blk', status: 'blocked', result: '已阻塞', epoch: 0, sendMessage })
+      assert.deepEqual([store.get('blk').status, store.get('blk').epoch, store.get('blk').parkedAt], ['queued', 1, null])
+      assert.deepEqual(delivered.map((item) => [item.status, item.interim]), [['blocked', true]])
+      store.upsert({ id: 'blk2', ...running({ repo: 'falive', chatId: 'oc_falive' }) })
+      await handleStatusUpdate({ ...stubs, deliverRepo, store, id: 'blk2', status: 'blocked', result: '已阻塞', epoch: 0, sendMessage })
+      assert.equal(store.get('blk2').status, 'blocked', '没有补充就照常挂起')
+      // 根因层 / 任务态落到任务上（投递据此说「查到根因在你们那边」）；非法值落 null
+      store.upsert({ id: 'rc', ...running({ repo: 'falive', chatId: 'oc_falive' }) })
+      await handleStatusUpdate({ ...stubs, deliverRepo, store, id: 'rc', status: 'blocked', result: '已阻塞', epoch: 0, sendMessage, rootCauseLayer: 'backend-data', taskState: 'awaiting_owner_fix' })
+      assert.deepEqual([store.get('rc').rootCauseLayer, store.get('rc').taskState], ['backend-data', 'awaiting_owner_fix'])
+      store.upsert({ id: 'rc2', ...running({ repo: 'falive', chatId: 'oc_falive' }) })
+      await handleStatusUpdate({ ...stubs, deliverRepo, store, id: 'rc2', status: 'blocked', result: '已阻塞', epoch: 0, sendMessage, rootCauseLayer: 'nonsense', taskState: 'bogus' })
+      assert.deepEqual([store.get('rc2').rootCauseLayer, store.get('rc2').taskState], [null, null])
+      assert.equal(delivered[1].interim, false)
+      resetRepoProfiles()
     })],
     ['外部群任务 done：台账触及条目标 applied 并记分支，只读查询（status）不推进；人话消息按本代 epoch 登记回执；没有台账条目照常投递（变异补测 10-24）', () => withStore(async (store) => {
       registerRepoProfiles({ repos: { falive: { root: '/tmp/falive-react', baseRef: 'main', chatIds: ['oc_falive'], notifyChatId: 'ou_aven' } } })
