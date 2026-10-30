@@ -14,7 +14,8 @@ import { buildAnalysisPrompt, buildIntentClassificationPrompt, buildTaskPrompt }
 // 10-20：膨胀的主因是同一段规则被几个分支各带一份（代答提示「完成口径」×3、「环境实测」×2，12.5k 早已超标却没量到），
 // 所以每种任务都量，并直接断言共用规则块只出现一次；首轮 / 续会话共用一个上限，留约 1.4k 余量给迭代期加规则。
 const CLASSIFIER_RULE_BUDGET = 4800
-const TASK_PROMPT_BUDGET = 12000
+// 10-30 aven 定 12000 → 14000：bug 类首轮已顶满 12000（10-20 设计的约 1.4k 余量用完），恢复约 2k 余量；加规则仍先合并旧规则。
+const TASK_PROMPT_BUDGET = 14000
 // 第 1 批：分析提示骨架有预算；事故编号（PR-0xxxx）不得写进任何提示正文。
 const ANALYSIS_PROMPT_BUDGET = 4000
 
