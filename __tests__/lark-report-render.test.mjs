@@ -14,18 +14,25 @@ describe('结构化群回复', () => {
   it('结构化群回复：首行按条目算、代答只列保留项且不截断、结构不对回 null、待发布按通了收', () => runSteps([
     ['第一行由条目算：全 ok 才「都通了」；有没通的按「通了 a 项，没通 b 项」并排在前面', () => {
       assert.equal(renderReport(normalizeReport({ subject: 'front/lives 复测', answer: null, items: [item('ok', '第 2 页', { note: '不再报错' }), item('ok', '第 3 页', { note: '为空说明到底了' })] })),
-        'front/lives 复测：都通了\n- ✅ 通了 第 2 页：不再报错\n- ✅ 通了 第 3 页：为空说明到底了')
+        'front/lives 复测：都通了\n- ✅ 第 2 页：不再报错\n- ✅ 第 3 页：为空说明到底了')
       const mixed = renderReport(normalizeReport({ subject: '直播详情页', answer: null, items: [item('ok', '礼物'), item('not_usable', 'getRoomInfo', { note: '非主播回 500' }), item('na', '分享')] }))
-      assert.equal(mixed, '直播详情页：通了 1 项，没通 1 项\n- ⚠️ 接了但还不能用 getRoomInfo：非主播回 500\n- ✅ 通了 礼物\n- ➖ 不涉及接口 分享')
+      assert.equal(mixed, '直播详情页：通了 1 项，没通 1 项\n- ⚠️ getRoomInfo：非主播回 500\n- ✅ 礼物\n- ➖ 分享')
     }],
-    ['计数项不到 2 项不写计数，第一行只写对象（aven 2026-10-28：「通了 0 项，没通 1 项」「通了 0 项，没通 0 项」是噪音）', () => {
+    ['计数项不到 2 项不写计数，第一行只写对象（aven 2026-10-28：「1 项没通」「0 项没通」是噪音）', () => {
       assert.equal(renderReport(normalizeReport({ subject: '页脚运营位删除', answer: null, items: [item('ok', '页脚删除两列', { note: '本地连 pre 看过首页' })] })),
-        '页脚运营位删除\n- ✅ 通了 页脚删除两列：本地连 pre 看过首页')
+        '页脚运营位删除\n- ✅ 页脚删除两列：本地连 pre 看过首页')
       assert.equal(renderReport(normalizeReport({ subject: '+84 区号', answer: null, items: [item('na', '+84 手机号', { note: '后端配置' }), item('na', '收码测试账号')] })),
-        '+84 区号\n- ➖ 不涉及接口 +84 手机号：后端配置\n- ➖ 不涉及接口 收码测试账号')
+        '+84 区号\n- ➖ +84 手机号：后端配置\n- ➖ 收码测试账号')
       assert.equal(renderReport(normalizeReport({ subject: '分享', answer: null, items: [item('not_usable', '复制链接', { note: '500' }), item('na', '海报')] })),
-        '分享\n- ⚠️ 接了但还不能用 复制链接：500\n- ➖ 不涉及接口 海报', '一项没通 + 说明项：也只有 1 个计数项')
-      assert.equal(renderReport(normalizeReport({ subject: null, answer: null, items: [item('ok', '单项')] })), '- ✅ 通了 单项', '没有对象也不留空行')
+        '分享\n- ⚠️ 复制链接：500\n- ➖ 海报', '一项没通 + 说明项：也只有 1 个计数项')
+      assert.equal(renderReport(normalizeReport({ subject: null, answer: null, items: [item('ok', '单项')] })), '- ✅ 单项', '没有对象也不留空行')
+    }],
+    ['标签只留符号；代答且条目状态一样时不加标签；全没通写「N 项没通」（aven 10-30：每行重复「⚠️ 接了但还不能用」不像人话）', () => {
+      const backend = (name) => item('not_usable', name, { note: '后端问题' })
+      assert.equal(renderReport(normalizeReport({ subject: null, answer: '这 3 个都不用 web 改。', items: [backend('Bug-5139'), backend('Bug-5141')] })), '这 3 个都不用 web 改。\n- Bug-5139：后端问题\n- Bug-5141：后端问题')
+      assert.equal(renderReport(normalizeReport({ subject: null, answer: 'a', items: [backend('x'), item('ok', 'y')] })), 'a\n- ⚠️ x：后端问题\n- ✅ y', '状态不一样仍带符号')
+      assert.equal(renderReport(normalizeReport({ subject: '复测', answer: null, items: [backend('a'), item('not_done', 'b')] })), '复测：2 项没通\n- ⚠️ a：后端问题\n- ❌ b')
+      assert.doesNotMatch(renderReport(normalizeReport({ subject: '复测', answer: null, items: [backend('a'), item('ok', 'b')] })), /接了但还不能用|通了 0 项/)
     }],
     ['代答：第一行是答案，只列给出的保留项', () => {
       assert.equal(renderReport(normalizeReport({ subject: null, answer: '头像用 getRoomInfo 的 userData.avatar', items: [] })), '头像用 getRoomInfo 的 userData.avatar')
@@ -34,11 +41,11 @@ describe('结构化群回复', () => {
       assert.equal(normalizeReport(null), null)
       assert.equal(normalizeReport({ subject: 'x', answer: null, items: [] }), null)
       const odd = normalizeReport({ subject: '预约 Tab', answer: null, items: [item('ok', '参数'), item('pending', 'Tab 显示', { note: '还没部署 pre' })] })
-      assert.equal(renderReport(odd), '预约 Tab：通了 1 项，没通 1 项\n- ⚠️ 接了但还不能用 Tab 显示：还没部署 pre\n- ✅ 通了 参数', '10-21 真机：pending 被丢就成了「都通了」')
+      assert.equal(renderReport(odd), '预约 Tab：通了 1 项，没通 1 项\n- ⚠️ Tab 显示：还没部署 pre\n- ✅ 参数', '10-21 真机：pending 被丢就成了「都通了」')
     }],
     ['发布 / 部署不归开发：10-22 短暂有过的 awaiting_deploy 按「通了」收，群里不出现「待发布」（aven 2026-10-22）', () => {
       const report = normalizeReport({ subject: '我要直播', answer: null, items: [item('awaiting_deploy', '开播记录列表'), item('not_usable', '取推流地址', { note: '要主播测试号' }), item('ok', '直播分类')] })
-      assert.equal(renderReport(report), '我要直播：通了 2 项，没通 1 项\n- ⚠️ 接了但还不能用 取推流地址：要主播测试号\n- ✅ 通了 开播记录列表\n- ✅ 通了 直播分类')
+      assert.equal(renderReport(report), '我要直播：通了 2 项，没通 1 项\n- ⚠️ 取推流地址：要主播测试号\n- ✅ 开播记录列表\n- ✅ 直播分类')
       assert.doesNotMatch(renderReport(report), /待发布|部署/)
     }],
     ['代答答案不截断：多行原样保留、条目写成字符串也列出、条目不限条数（10-22 复现 curl 被切在密码中间）', () => {
@@ -63,7 +70,7 @@ describe('结构化群回复', () => {
       assert.deepEqual(unverifiedClaims(report, { probeCalls: 0, browserCalls: 2 }).map((x) => x.name), ['签到'])
       assert.deepEqual(unverifiedClaims(report, null), [], '读不到会话记录不核')
       const down = applyRunEvidence(report, { probeCalls: 1, browserCalls: 0 })
-      assert.equal(renderReport(down), '签到复测：通了 2 项，没通 1 项\n- ⚠️ 待验证 滚到底：滚到底续拉正常\n- ✅ 通了 签到\n- ✅ 通了 文案')
+      assert.equal(renderReport(down), '签到复测：通了 2 项，没通 1 项\n- ⚠️ 待验证 滚到底：滚到底续拉正常\n- ✅ 签到\n- ✅ 文案')
       assert.doesNotMatch(renderReport(down), /没实测/)
       assert.equal(applyRunEvidence(report, null), report)
       assert.equal(normalizeReport(down).items[1].mark, 'unverified', '网关再校验时认 unverified')

@@ -186,7 +186,7 @@ describe('黄金对话', () => {
     await classify(id, { decision: 'api_reply', deliverable: 'verification', reply: '收到，front/lives 已更新，这就复测第 2 页，结果发群里' })
     await work(id, {
       status: 'done', completionClaim: 'all_done', preChecks: PRE_OK,
-      groupReply: '直播列表第 2 页：都通了\n- ✅ 通了 直播列表翻页：pre 按顺序拉第 1、2、3 页都正常，第 2 页不再报错，也没有被限流',
+      groupReply: '直播列表第 2 页：都通了\n- ✅ 直播列表翻页：pre 按顺序拉第 1、2、3 页都正常，第 2 页不再报错，也没有被限流',
     }, { changedFiles: ['docs/delivery/pending/对接-收尾-后台-2026-10-20.md'] })
     const group = groupTexts()
     assert.equal(group.length, 2, transcript().join('\n'))
@@ -200,7 +200,7 @@ describe('黄金对话', () => {
     await classify(id, { decision: 'requirement', reply: '收到，我去 pre 的 /lives 滚到底，看第 2 页有没有接上，看完报结果' })
     const { verify } = await work(id, {
       status: 'done', completionClaim: 'all_done', preChecks: PRE_OK,
-      groupReply: '/lives 滚到底续拉：都通了\n- ✅ 通了 /lives 滚到底续拉：pre 浏览器实际滚到底，卡片从 20 张变成 25 张',
+      groupReply: '/lives 滚到底续拉：都通了\n- ✅ /lives 滚到底续拉：pre 浏览器实际滚到底，卡片从 20 张变成 25 张',
     }, { changedFiles: ['docs/delivery/pending/README.md'] })
     assert.equal(verify.ok, true, `核验闸拦下：${verify.reason}`)
     assert.deepEqual(['verification', true, false], [store.get(id).contract.deliverable, store.get(id).contract.browser, store.get(id).contract.readOnly], '任务契约：复测、给浏览器、在 worktree 里跑')
@@ -213,7 +213,7 @@ describe('黄金对话', () => {
   replays1020.push(['S3c 复测一个文件都没改（空 diff）→ 不判失败，结论照发（10-20 前空 diff 一律判不可信）', async () => {
     const id = await say({ from: AVEN, text: '去 pre 上复测一下签到' })
     await classify(id, { decision: 'requirement', reply: '收到，我去 pre 复测签到，测完报结果' })
-    const { verify } = await work(id, { status: 'done', completionClaim: 'all_done', preChecks: PRE_OK, groupReply: '签到复测：都通了\n- ✅ 通了 签到：pre 实测 code 0' }, { changedFiles: [] })
+    const { verify } = await work(id, { status: 'done', completionClaim: 'all_done', preChecks: PRE_OK, groupReply: '签到复测：都通了\n- ✅ 签到：pre 实测 code 0' }, { changedFiles: [] })
     assert.equal(verify.ok, true, `核验闸拦下：${verify.reason}`)
     assert.equal(groupTexts().length, 2, transcript().join('\n'))
   }])
@@ -223,7 +223,7 @@ describe('黄金对话', () => {
     await classify(id, { decision: 'requirement', reply: '收到，我去 pre 滚到底看，看完报结果' })
     await work(id, {
       status: 'done', completionClaim: 'all_done', preChecks: PRE_OK,
-      groupReply: '/lives 滚到底续拉：都通了\n- ✅ 通了 front/lives 分页接口：第 1、2 页 code 0 有数据，第 3 页为空说明到底了',
+      groupReply: '/lives 滚到底续拉：都通了\n- ✅ front/lives 分页接口：第 1、2 页 code 0 有数据，第 3 页为空说明到底了',
     }, { changedFiles: ['docs/delivery/pending/README.md'] })
     assert.equal(groupTexts().length, 2, transcript().join('\n'))
     assert.doesNotMatch(groupTexts().join('\n'), /拿不准/)
@@ -267,7 +267,7 @@ describe('黄金对话', () => {
     const instructId = await dm('再测一下，看清楚第 3 页')
     assert.equal(store.get(instructId).privateOrigin.anchorId, id, '私聊指示挂在 Encone 那条上')
     await classify(instructId, { decision: 'api_reply', deliverable: 'verification', reply: '收到，再测一遍' })
-    await work(instructId, { status: 'no_change_needed', preChecks: PRE_OK, groupReply: 'front/lives 复测：都通了\n- ✅ 通了 第 2 页：code 0，第 3 页为空说明到底了' })
+    await work(instructId, { status: 'no_change_needed', preChecks: PRE_OK, groupReply: 'front/lives 复测：都通了\n- ✅ 第 2 页：code 0，第 3 页为空说明到底了' })
     const group = groupTexts()
     assert.equal(group.length, 2, transcript().join('\n'))
     assert.match(group[1], /front\/lives 复测：都通了/)
@@ -291,7 +291,7 @@ describe('黄金对话', () => {
     }, { changedFiles: [], runEvidence: { probeCalls: 1, browserCalls: 0 } })
     const group = groupTexts()
     assert.equal(group.length, 2, transcript().join('\n'))
-    assert.match(group[1], /front\/lives 复测：通了 1 项，没通 1 项\n- ⚠️ 待验证 \/lives 滚到底续拉：20 张变 25 张\n- ✅ 通了 第 2 页接口/)
+    assert.match(group[1], /front\/lives 复测：通了 1 项，没通 1 项\n- ⚠️ 待验证 \/lives 滚到底续拉：20 张变 25 张\n- ✅ 第 2 页接口/)
   }])
 
   // 10-21 / 10-22 入口、放行与核验闸（S9 / S10 / S11 / S12 / S14 / S13 / S3b / S3d / S15）
@@ -362,7 +362,7 @@ describe('黄金对话', () => {
     const id = await say({ from: AVEN, text: '去 pre 上复测一下签到' })
     await classify(id, { decision: 'requirement', reply: '收到，我去 pre 复测签到，测完报结果' })
     const failing = { name: 'code-rules', applies: () => true, check: () => ({ ok: false, status: 'failed', text: '规则扫描 error 1 处', reason: '规则扫描 error 1 处' }) }
-    const { verify } = await work(id, { status: 'done', preChecks: PRE_OK, groupReply: '签到复测：都通了\n- ✅ 通了 签到：pre 实测 code 0' }, { changedFiles: ['src/x.ts'], gates: [failing] })
+    const { verify } = await work(id, { status: 'done', preChecks: PRE_OK, groupReply: '签到复测：都通了\n- ✅ 签到：pre 实测 code 0' }, { changedFiles: ['src/x.ts'], gates: [failing] })
     assert.equal(verify.ok, false)
     assert.equal(store.get(id).change.committed, false)
     assert.equal(groupTexts().length, 2, transcript().join('\n'))
