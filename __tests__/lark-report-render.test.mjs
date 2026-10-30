@@ -27,12 +27,12 @@ describe('结构化群回复', () => {
         '分享\n- ⚠️ 复制链接：500\n- ➖ 海报', '一项没通 + 说明项：也只有 1 个计数项')
       assert.equal(renderReport(normalizeReport({ subject: null, answer: null, items: [item('ok', '单项')] })), '- ✅ 单项', '没有对象也不留空行')
     }],
-    ['标签只留符号；代答且条目状态一样时不加标签；全没通写「N 项没通」（aven 10-30：每行重复「⚠️ 接了但还不能用」不像人话）', () => {
+    ['标签只留符号；代答且条目状态一样时不加标签；一项都没通不写统计（aven 10-30：「⚠️ 接了但还不能用」重复、「N 项没通」都不是人话）', () => {
       const backend = (name) => item('not_usable', name, { note: '后端问题' })
       assert.equal(renderReport(normalizeReport({ subject: null, answer: '这 3 个都不用 web 改。', items: [backend('Bug-5139'), backend('Bug-5141')] })), '这 3 个都不用 web 改。\n- Bug-5139：后端问题\n- Bug-5141：后端问题')
       assert.equal(renderReport(normalizeReport({ subject: null, answer: 'a', items: [backend('x'), item('ok', 'y')] })), 'a\n- ⚠️ x：后端问题\n- ✅ y', '状态不一样仍带符号')
-      assert.equal(renderReport(normalizeReport({ subject: '复测', answer: null, items: [backend('a'), item('not_done', 'b')] })), '复测：2 项没通\n- ⚠️ a：后端问题\n- ❌ b')
-      assert.doesNotMatch(renderReport(normalizeReport({ subject: '复测', answer: null, items: [backend('a'), item('ok', 'b')] })), /接了但还不能用|通了 0 项/)
+      assert.equal(renderReport(normalizeReport({ subject: '复测', answer: null, items: [backend('a'), item('not_done', 'b')] })), '复测\n- ⚠️ a：后端问题\n- ❌ b')
+      assert.doesNotMatch(renderReport(normalizeReport({ subject: '复测', answer: null, items: [backend('a'), item('ok', 'b')] })), /接了但还不能用|通了 0 项|项没通/)
     }],
     ['代答：第一行是答案，只列给出的保留项', () => {
       assert.equal(renderReport(normalizeReport({ subject: null, answer: '头像用 getRoomInfo 的 userData.avatar', items: [] })), '头像用 getRoomInfo 的 userData.avatar')
