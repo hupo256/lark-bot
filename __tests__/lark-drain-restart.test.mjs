@@ -11,6 +11,7 @@ import { describe, it } from 'node:test'
 
 import {
   DEFAULT_SETTLE_MS,
+  SELF_TEST_RETRY_MS,
   RESTART_OVERDUE_MS,
   checkConfigFile,
   createDrainRestart,
@@ -142,6 +143,38 @@ describe('createDrainRestart（驱动器）', () => {
     version.set({ ...fresh })
     assert.equal((await drain.tick({ inFlight: 0 })).action, 'cancel-drain')
     assert.equal(drain.isDraining(), false)
+  })
+
+  it('自检超时不算红：先照常干活、5 分钟后再试；绿了就重启；同一版连续 3 次超时才按红处理并私信（falive 10-30 教训 #100：机器忙时 bot 卡在旧代码）', async () => {
+    const clock = { now: 1_000_000_000 }
+    const version = makeVersion()
+    let result = { ok: false, timedOut: true, summary: '超时（300000ms）', failing: [] }
+    let tests = 0
+    const { drain, calls } = makeDrain({ clock, version, runTests: () => { tests += 1; return result } })
+    version.set(stale(DEFAULT_SETTLE_MS + 5, clock.now))
+    assert.equal((await drain.tick({ inFlight: 0 })).action, 'start-drain')
+    assert.equal((await drain.tick({ inFlight: 0 })).action, 'verify')
+    assert.equal(drain.isDraining(), false, '超时后照常领任务')
+    assert.deepEqual([tests, calls.restarts, calls.notes.length], [1, 0, 0], '超时不私信、不记红')
+    assert.equal((await drain.tick({ inFlight: 0 })).action, 'wait-retry')
+    clock.now += SELF_TEST_RETRY_MS + 1
+    assert.equal((await drain.tick({ inFlight: 0 })).action, 'start-drain', '到点重新排空')
+    assert.equal((await drain.tick({ inFlight: 0 })).action, 'verify')
+    assert.equal(tests, 2)
+    // 第 3 次还超时 → 按红处理、私信一次、同一版不再试
+    clock.now += SELF_TEST_RETRY_MS + 1
+    assert.equal((await drain.tick({ inFlight: 0 })).action, 'start-drain')
+    assert.equal((await drain.tick({ inFlight: 0 })).action, 'verify')
+    assert.deepEqual([tests, calls.notes.length], [3, 1])
+    assert.match(calls.notes[0].text, /连续 3 次自检超时/)
+    assert.equal((await drain.tick({ inFlight: 0 })).action, 'skip-failed')
+    // 换一版、这次绿 → 重启，超时计数清零
+    result = { ok: true, summary: 'ℹ tests 1 ℹ pass 1 ℹ fail 0', failing: [] }
+    version.set({ ...stale(DEFAULT_SETTLE_MS + 5, clock.now), diskCodeHash: 'f' })
+    assert.equal((await drain.tick({ inFlight: 0 })).action, 'start-drain')
+    assert.equal((await drain.tick({ inFlight: 0 })).action, 'verify')
+    assert.equal(calls.restarts, 1)
+    assert.equal(drain.state.timeouts, 0)
   })
 
   it('测试红 → 不重启、私信一次（带幂等键）、退出排空继续领任务；同一版磁盘不再重跑；再改一版重新测', async () => {

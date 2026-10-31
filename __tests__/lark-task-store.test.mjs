@@ -94,6 +94,42 @@ describe('createTaskStore', () => {
     assert.equal(store.claimNext().id, 'mentioned-bug')
   })
 
+  it('分类器瞬时失败（超时 / 限流 / 5xx）不落 intake_failed：放回 received 延后重分类，到点前领不到；两次重试用完才算失败；非瞬时错误第一次就终态（falive 教训 #37）', () => {
+    const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+    const seedAndClaim = (id) => {
+      store.upsert({ id, status: 'received', intake: { required: true }, createdAt: new Date().toISOString() })
+      return store.claimById(id)
+    }
+    const due = () => { store.get('flaky').intake.notBefore = new Date(Date.now() - 1).toISOString() }
+    const first = seedAndClaim('flaky')
+    const r1 = store.resolveIntake({ id: 'flaky', epoch: first.epoch, error: 'claude exec timed out after 120000ms' })
+    assert.deepEqual([r1.ok, r1.actionable, r1.retried], [true, false, true])
+    assert.equal(r1.task.status, 'received')
+    assert.equal(r1.task.intake.required, true, '仍待分类')
+    assert.equal(r1.task.intake.retries, 1)
+    assert.ok(Date.parse(r1.task.intake.notBefore) > Date.now(), '延后到 notBefore')
+    assert.equal(store.claimNext(), null, '到点前 claimNext 领不到')
+    assert.equal(store.claimById('flaky'), null, '到点前 claimById 领不到')
+    store.upsert({ id: 'plain-queued', status: 'queued', createdAt: new Date().toISOString() })
+    assert.equal(store.claimById('plain-queued')?.status, 'running', '没有 notBefore 的普通 queued 任务照常按 id 领')
+    assert.equal(store.claimById('plain-queued'), null, '已 running 的不能再领')
+    assert.equal(store.claimById('no-such-task'), null)
+    due()
+    const second = store.claimById('flaky')
+    assert.ok(second, '到点可领')
+    const r2 = store.resolveIntake({ id: 'flaky', epoch: second.epoch, error: 'HTTP 429 rate limited' })
+    assert.equal(r2.retried, true)
+    assert.equal(r2.task.intake.retries, 2)
+    due()
+    const third = store.claimById('flaky')
+    const r3 = store.resolveIntake({ id: 'flaky', epoch: third.epoch, error: 'ETIMEDOUT' })
+    assert.equal(r3.retried, undefined, '次数用完不再重试')
+    assert.equal(r3.task.status, 'intake_failed')
+    assert.equal(r3.task.intake.required, false)
+    const perm = seedAndClaim('perm')
+    assert.equal(store.resolveIntake({ id: 'perm', epoch: perm.epoch, error: 'schema invalid: decision missing' }).task.status, 'intake_failed', '非瞬时错误第一次就终态')
+  })
+
   it('普通消息/低置信度结果静默 ignored；分类异常单列 intake_failed', () => {
     const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
     const seedAndClaim = (id) => {
@@ -118,9 +154,10 @@ describe('createTaskStore', () => {
     assert.equal(lowOutcome.task.status, 'ignored')
 
     const failed = seedAndClaim('failed')
-    const failedOutcome = store.resolveIntake({ id: failed.id, epoch: failed.epoch, error: 'classifier timeout' })
+    // 10-31 起超时 / 限流类瞬时错误会延后重分类（见下一条），这里用非瞬时错误验「分类异常单列」。
+    const failedOutcome = store.resolveIntake({ id: failed.id, epoch: failed.epoch, error: 'classifier returned invalid json' })
     assert.equal(failedOutcome.task.status, 'intake_failed')
-    assert.equal(failedOutcome.task.intake.error, 'classifier timeout')
+    assert.equal(failedOutcome.task.intake.error, 'classifier returned invalid json')
   })
 
   it('前置分类拒绝 stale epoch 与非等待分类任务', () => {

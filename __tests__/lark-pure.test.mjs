@@ -14,6 +14,8 @@ import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it, mock } from 'node:test'
 
+import { waitUntil } from './support/steps.mjs'
+
 import { handleStatusUpdate, resolveReceiptOutcome, retryPendingReceipts, sendQueuedReceipt } from '../lib/lark-status.mjs'
 import {
   buildBugStatusFilter,
@@ -1934,6 +1936,29 @@ describe('任务回执持久化重试', () => {
     assert.equal(store.get('t').lastDeliveredReceipt.idempotencyKey, 't-e2-done')
   })
 
+  it('结果卡送达结算同键 pending 时，发送期间被回写重试改成的 result_pending_receipt 一并落回 done，不永久卡住（falive 10-24 变异补测发现）', async () => {
+    // 上一轮：回写失败 + 回执失败 → done_pending_writeback 且存了同代 pending；worker 同代重发 done，
+    // 发卡期间回写重试定时器成功，因有 pending 把状态原地改成 result_pending_receipt。
+    const store = freshStore()
+    store.upsert({
+      id: 't', status: 'done_pending_writeback', epoch: 0, project: 'PR-99999', summary: 'fix', chatId: 'oc_x', createdAt: '2026-01-01T00:00:00Z',
+      pendingReceipt: { status: 'done', result: '完成', epoch: 0, idempotencyKey: 't-e0-done', attempts: 1, gaveUp: false },
+    })
+    const outcome = await handleStatusUpdate({
+      config: { project: 'PR-99999' },
+      store,
+      id: 't',
+      status: 'done',
+      result: '完成',
+      epoch: 0,
+      sendMessage: async () => { store.get('t').status = 'result_pending_receipt'; return { ok: true, messageId: 'om_done' } },
+    })
+    assert.deepEqual(outcome, { ok: true })
+    assert.equal(store.get('t').pendingReceipt, undefined)
+    assert.equal(store.get('t').status, 'done', '两个重试器都不再管它，必须当场落回本次状态')
+    assert.equal(store.get('t').lastDeliveredReceipt?.idempotencyKey, 't-e0-done')
+  })
+
   it('达到上限后保持 pending 并停止自动重试', () => {
     assert.deepEqual(resolveReceiptOutcome({ ok: false, attempts: 2, max: 3 }), {
       attempts: 3,
@@ -1969,7 +1994,7 @@ describe('任务回执持久化重试', () => {
       store,
       sendMessage: () => new Promise((resolve) => { releaseSend = resolve }),
     })
-    while (!releaseSend) await new Promise((resolve) => setImmediate(resolve))
+    await waitUntil(() => releaseSend, { what: 'sendMessage 被调用' })
     store.get('t').pendingReceipt = {
       status: 'done',
       result: '新完成',
@@ -2009,7 +2034,7 @@ describe('任务回执持久化重试', () => {
       epoch: 1,
       sendMessage: () => new Promise((resolve) => { releaseSend = resolve }),
     })
-    while (!releaseSend) await new Promise((resolve) => setImmediate(resolve))
+    await waitUntil(() => releaseSend, { what: 'sendMessage 被调用' })
     store.retry('t')
     releaseSend({ ok: true, messageId: 'om_old' })
     const outcome = await updating

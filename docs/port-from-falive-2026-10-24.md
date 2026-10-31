@@ -212,3 +212,29 @@ aven 10-24 下午定：「刻意没搬的」里的排空重启和自愈环 2 这
 | 10 | 只改配置时排空日志打的是代码哈希「a2ec… → a2ec…」 | 改了什么打什么：「代码 a → b」「配置 c → c2」，两样都改两样都打 | `lark-drain-restart.test.mjs` |
 | 10 | `LARK_DOCTOR_FIRST_MS=20000` 显示「0 分钟后首次」 | 不足 1 分钟按秒（向上取整） | `lark-doctor.test.mjs` |
 | 10 | worker 发私信的日志前缀是 `[lark-gateway]` | `sendChatMessage` / `runLarkCliWithRetry` 加 `logTag`（缺省不变），worker 的排空 / 自修 / 体检私信传 `[lark-worker]` | `lark-pure.test.mjs` |
+
+## 第三批：10-24 之后的通用修复与工具同步（10-31，分支 `lark/port-batch-3`）
+
+aven 10-31 定：falive 已完整走完一个项目，再 check 一次。全面对比 `659f3d6..`（100 个提交）与两线独有模块后，结论见本节；中等体量能力
+（bug 表记录分享链接读取、页面验证工具 `--click-sweep`、预取口径分级、治理闸、黄金对话框架、完成口径矛盾检查）**没搬**，等 Mac mini 计划的 D6
+（两条线是否合成一套代码）拍板后再定——合代码就白送，不合再按 bug-record → prefetch → verify-page → 治理闸 的顺序搬。
+判断标准不变：fameex 群里 @bot 修 bug 用得上、且不需要新配通知通道。
+
+| # | 能力 | 来源（falive） | 落在哪 | 配置 | 怎么验（真机） |
+|---|---|---|---|---|---|
+| 49 | lark-cli 子进程在 `close`（stdio 读完）上结算，不在 `exit`：机器有负载时进程先退出、stdout 还没读完，原来拿到截断输出——发消息成功却解析不出 message_id（回执锚不到任务）、`+chat-list` 读成空（项目群解析失败） | 87d073a（10-24 变异补测发现） | `lib/lark-cli.mjs` `spawnLarkCli` | 无 | worker.log 不再出现「message_id null」类回执锚定失败；`__tests__/lark-port-batch3.test.mjs` 用延迟写 stdout 的假 lark-cli 复现 |
+| 50 | 人工 `retry` 重下失败附件按下载键过滤与回填：文件附件用 `fileKey`、图片用 `imageKey`（与 `downloadAttachments` 同口径）。原先只认 imageKey，对接文档 / 日志类文件附件下载失败后 retry 永远不重下 | 8fde83d | `lib/lark-routes.mjs` retry 路由；新导出 `attachmentResourceKey` / `failedAttachmentsOf` / `mergeRedownloadedAttachments` | 无 | `lark-bot retry <id>` 后任务 JSON 里文件附件有 `localPath` |
+| 51 | 结果卡送达结算同键 pending 时，发送期间被回写重试定时器改成的 `result_pending_receipt` 一并落回本次状态。原来删了 pending 却不改状态，两个重试器（一个要 pending、一个要 done_pending_writeback）都不再管它，任务永久卡住 | f88cd17 | `lib/lark-status.mjs` `handleStatusUpdate` | 无 | `lark-bot status` 不再出现长期 `result_pending_receipt` 且无 pendingReceipt 的任务 |
+| 52 | 前置意图分类瞬时失败（超时 / 断网 / 限流 / 5xx）不落终态 `intake_failed`：放回 `received`、按 60s / 180s 延后重分类（`intake.notBefore`，到点前 claimNext / claimById 领不到），两次用完才算失败；非瞬时错误第一次就终态。审计状态 `intake_retry`，worker.log 一行 ⚠ | 教训 #37，`lib/lark-intake-retry.mjs` | `lib/lark-intake-retry.mjs`（新）；`lib/lark-task-store.mjs` `resolveIntake` / `claimNext` / `claimById`；`lib/lark-task-runner.mjs` 分类 catch | 无（`INTAKE_RETRY_DELAYS_MS` 常量） | claude 超时时 worker.log「分类失败（…），第 1 次自动重试排在 …」，`/lark/health` 的 `intake_failed` 计数不再因一次超时 +1 |
+| 53 | 排空重启自检超时 ≠ 红：超时先恢复领任务、5 分钟后再排空重试，同一版磁盘连续 3 次超时才按红处理并私信（文案「连续 3 次自检超时（机器一直很忙，或有用例卡死）」）；换一版清零。原来机器负载高时全量单测跑满 5 分钟被判红，bot 一直停在旧代码要人手动 restart | 教训 #100，b7370d6 | `lib/lark-drain-restart.mjs`：`SELF_TEST_RETRY_MS` / `SELF_TEST_MAX_TIMEOUTS`、plan 新动作 `wait-retry`、`runSelfTests` / `selfCheck` 回 `timedOut`、驱动器 state 加 `retryKey / retryAfter / timeouts` | 无 | 机器忙时 worker.log「自检超时（第 1 次，多半是机器忙），先照常干活，5 分钟后再试」而不是「自检红」 |
+| 54 | 变异工具升级：无参数 / `--help` / 未知参数只打用法（原来误跑全 lib 几千个变异点），全 lib 要 `--all`；`--only <清单.json>` 只复跑指定变异点（补测后验证）；自降优先级；超时整组杀进程不留孤儿；豁免条目可带 `col`（同一行多处同算子只豁免一处）；新增 `__tests__/lark-mutate.test.mjs`（变异点识别 / 注入可逆 / diff 取行 / 豁免匹配 / **豁免清单校验**：每条对得上现存代码、算子合法、原因写清，过期条目当场报出） | 2842977 / b6a7aa3 / 3a2faa1 | `scripts/mutate.mjs`（整文件同步）、`__tests__/lark-mutate.test.mjs`、`__tests__/support/steps.mjs`（`runSteps` / `eachCase` / `waitUntil`，falive 的分段执行器） | 无 | `node scripts/mutate.mjs` 只打用法；`--diff fameex-stable` 行为不变 |
+| 55 | 测试进程默认不调真实 lark-cli：`node --test`（`NODE_TEST_CONTEXT`）下没显式 `LARK_CLI_BIN` 就用 `/usr/bin/false`（falive 发现有测试每跑一次真访问 Lark 约 2 秒）；`lark-pure` 两处无上限 `while (!x) await setImmediate` 改 `waitUntil`（代码改坏时不再无限空转，变异扫描曾因此留下孤儿进程一小时） | 2842977 | `lib/lark-cli.mjs` `larkCliBin`；`__tests__/lark-pure.test.mjs` | 无 | 跑测试时 `lark-cli` 进程不出现 |
+| 56 | `scripts/code-rules.mjs` 同步副本追到权威版本 `~/.ai-rules@e85e276`（原钉 `cdae09b`，17 行漂移；`lark-pure` 的一致性测试在 fameex-stable 上已经红了一条） | 0e8162b | `scripts/code-rules.mjs` | 无 | `node scripts/code-rules.mjs --self-test`；`lark-pure` 全绿 |
+
+看过、**不适用 fameex** 的：cadf73d 主题候选排序（falive 外部群按主题归并，fameex 分类器不带候选）；5c200ed / e2ac9d1（外部群 @名字 / intake-resolve）；
+f57ab5d / 2f38e8a / ad37d9f / 5b9bdd0（本就是从 fameex 搬过去的）；9cceeeb 提示词预算（fameex 没有预算测试）。
+
+与 falive 版的差别：#52 的审计状态名、日志文案照搬；#53 fameex 驱动器的 `calls.notes` 是对象（带幂等键），测试断言用 `.text`；#54 fameex 的 `mutation-accepted.json` 只有 1 条，新校验测试照样过。
+
+验证（10-31）：`node scripts/test-all.mjs` 610 / 610 绿（基线 fameex-stable 604 条、1 红 = #56 那条漂移）；`node scripts/mutate.mjs --diff fameex-stable` 35 个变异点抓到 33、豁免 2（两处 `<` → `<=` 的毫秒边界，已登记原因）、存活 0。
+上线：合进 `fameex-stable` 后由排空重启自动生效（代码改了会跑全量单测再 restart）；不用改配置。

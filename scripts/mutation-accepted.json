@@ -4,5 +4,17 @@
     "code": "for (let i = start + 1; i < lines.length && out.length < limit; i += 1) {",
     "op": "< → <=",
     "reason": "多走的一步 i === lines.length 时 lines[i] 是 undefined，/^✖ /.test(undefined) 恒为假直接 continue，输出不变（等价变异）"
+  },
+  {
+    "file": "lib/lark-drain-restart.mjs",
+    "code": "if (state.retryKey === diskKeyOf(version) && state.retryAfter && now < state.retryAfter) return { action: 'wait-retry', reason: '自检上次超时，等会儿再试' }",
+    "op": "< → <=",
+    "reason": "等价：只在 now 恰好等于 retryAfter 那一毫秒有区别，多等一轮主循环（几秒）再重试没有业务含义"
+  },
+  {
+    "file": "lib/lark-task-store.mjs",
+    "code": "const intakeDeferred = (task, now = Date.now()) => task.status === 'received' && Boolean(task.intake?.notBefore) && now < Date.parse(task.intake.notBefore)",
+    "op": "< → <=",
+    "reason": "等价：只在 now 恰好等于 notBefore 那一毫秒有区别，延后重分类的截止毫秒不影响行为"
   }
 ]
