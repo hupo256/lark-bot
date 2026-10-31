@@ -8,7 +8,7 @@
 | 决策 | 结论 |
 |---|---|
 | 实例形态 | **单实例多仓**：同一套 gateway / worker，按 `repos.<key>` profile 路由；不起第二套 launchd 实例 |
-| falive 基线 | `feature/phase-5-test`（aven 主目录 `~/github/falive-react` 检出的本地开发分支，不 fetch）。2026-10-27 起取消集成分支：开任务前把 `origin/pre` 同步进它，bot 分支 `lark/falive-<id>` 从它开、只本地 commit，做完直接 no-ff 合进主目录的 `feature/phase-5-test` 后**自动删除**；主目录暂存区有内容 / 不在该分支 / 未提交改动和要合的文件重叠时排队，worker 每 2 分钟重试，结果私信；冲突交 aven 手动合（`lib/lark-merge-back.mjs`，配置 `mergeBack.upstream`）。上 pre 走 aven 的 MR，或私信「推 pre」让 bot 推该分支并发 pre 的 MR |
+| falive 基线 | `feature/phase-6-ol`（aven 主目录 `~/github/falive-react` 检出的本地开发分支，基于 `origin/online`，不 fetch；10-31 项目上线后取代 `feature/phase-5-test`）。2026-10-27 起取消集成分支：开任务前把 `origin/online`（10-31 前是 `origin/pre`）同步进它，bot 分支 `lark/falive-<id>` 从它开、只本地 commit，做完直接 no-ff 合进主目录的 `feature/phase-6-ol` 后**自动删除**；主目录暂存区有内容 / 不在该分支 / 未提交改动和要合的文件重叠时排队，worker 每 2 分钟重试，结果私信；冲突交 aven 手动合（`lib/lark-merge-back.mjs`，配置 `mergeBack.upstream`）。上 pre 走 aven 的 MR，或私信「推 pre」让 bot 推该分支并发 pre 的 MR |
 | 别人负责的功能 | bot **跳过并 @ 负责人**（功能总表「前端」列），aven 本人点名要做的当次放行 |
 | 外部群触发 | **只认 @bot**（2026-10-23）：没 @bot 的一律不建任务、不分类、不记台账；@ aven 本人的也不管（是他的事他会再 @bot）。这些消息由 @bot 时读上下文带进来 |
 | 群消息读取权限 | 用户身份 `im` scope 已提交企业管理员审批，待批 |
@@ -29,7 +29,7 @@ falive 群（外部群，无应用机器人）
 Gateway ingest：chatIds → repo profile → project=FALIVE, task.repo=falive
   │  @aven / @所有人 → Sonnet 只读意图分类 → bug / 需求才入队
   ▼
-Worker：profile.root 上 git worktree add（基线 feature/phase-5-test，开任务前先同步 origin/pre）→ lark/falive-<id>
+Worker：profile.root 上 git worktree add（基线 feature/phase-6-ol，开任务前先同步 origin/online）→ lark/falive-<id>
   │  规则 profile=falive（CLAUDE.md 固定前提 + 硬规则 required，add-module / msw-policy / coding-quality 按信号）
   │  Opus 5.5 high 只读分析（含 ownership 判定）→ Opus 5.5 medium 实施 → biome / 相关测试 / tsc
   │  别人负责 → no_change_needed(other_owner) + @ 负责人
@@ -44,8 +44,8 @@ webhook 发出的卡片没有 `message_id`，不能作为「回复卡片」的�
 | 键 | 说明 | falive 当前值 |
 |---|---|---|
 | `root` | 业务仓绝对路径（必填） | `/Users/aven/github/falive-react` |
-| `baseRef` / `fetchBase` | 临时 worktree 基线；远端 ref 才 fetch | `feature/phase-5-test` / `false` |
-| `mergeBack.upstream` | 合回负责人工作分支：开任务前把它同步进 baseRef，任务做完合回主目录的 baseRef（不配 = 只提交到任务分支、不合回） | `origin/pre` |
+| `baseRef` / `fetchBase` | 临时 worktree 基线；远端 ref 才 fetch | `feature/phase-6-ol` / `false` |
+| `mergeBack.upstream` | 合回负责人工作分支：开任务前把它同步进 baseRef，任务做完合回主目录的 baseRef（不配 = 只提交到任务分支、不合回） | `origin/online`（10-31 起；上 pre 仍是「推 pre」发 MR） |
 | `projectKey` | 任务的 `project` 值（大写，缺省 = key 大写） | `FALIVE` |
 | `branchPrefix` | 临时分支前缀（缺省 `lark/<key>`） | `lark/falive` |
 | `worktreesDir` | 临时 worktree 目录（缺省 `<root>/../.lark-<key>`） | `~/github/.lark-falive` |
@@ -130,7 +130,7 @@ gateway 内置：对每个配了 `chatIds` 的非默认仓，用用户身份 `la
 
 ## 7. 日报（已实现，`lib/lark-daily-report.mjs`）
 
-每天 `profile.dailyReport.at`（19:00）由 gateway 调度，当天只发一次（状态落盘防重启重发）。脚本确定性采集：aven 的工作 = 本地 `feature/phase-3-api` 当天提交 + 工作区未提交数；其他人 = `origin/pre`（先 fetch）当天提交按 `people` 别名归到人名，Merge 只计次；功能总表按状态 / 负责人统计并与上次快照 diff 出「今日升级」；交付路线图「可交付分三档」原文；bot 当天的任务结果。再交给 Opus 5.5（plan 模式、只读、cwd 在仓库可翻文档）按固定模板写：整体 / 今日完成（按人）/ 未完成与卡点 / 今日 pre 无提交 / 需要支持。正文与事实存 `runtime/lark-daily-report/falive/<日期>.md`。投递：用户身份发不进外部群（230027），群走各群自定义机器人 webhook 的富文本（`sendTo`），试运行期以 bot 身份私聊负责人发 Markdown。**云文档版**（`docTemplate`）：按仓库里的交接报告模板写当天完整版（全量功能表 / API 缺什么有问题 / 其它没做的 / 一句话现状），用户身份 `docs +create --doc-format markdown` 建成 Lark 云文档，短消息末尾带链接；完整版 md 也落在 `runtime/lark-daily-report/falive/`。2026-10-13 两种都已跑通。手动补跑 `lark-bot daily-report falive`（照 profile 投递，会发群）；试跑加 `--private`（或 `--to <id>`）只私聊、不发群。
+每天 `profile.dailyReport.at`（19:00）由 gateway 调度，当天只发一次（状态落盘防重启重发）。脚本确定性采集：aven 的工作 = 本地 baseRef（`feature/phase-6-ol`）当天提交 + 工作区未提交数；其他人 = `origin/pre`（先 fetch）当天提交按 `people` 别名归到人名，Merge 只计次；功能总表按状态 / 负责人统计并与上次快照 diff 出「今日升级」；交付路线图「可交付分三档」原文；bot 当天的任务结果。再交给 Opus 5.5（plan 模式、只读、cwd 在仓库可翻文档）按固定模板写：整体 / 今日完成（按人）/ 未完成与卡点 / 今日 pre 无提交 / 需要支持。正文与事实存 `runtime/lark-daily-report/falive/<日期>.md`。投递：用户身份发不进外部群（230027），群走各群自定义机器人 webhook 的富文本（`sendTo`），试运行期以 bot 身份私聊负责人发 Markdown。**云文档版**（`docTemplate`）：按仓库里的交接报告模板写当天完整版（全量功能表 / API 缺什么有问题 / 其它没做的 / 一句话现状），用户身份 `docs +create --doc-format markdown` 建成 Lark 云文档，短消息末尾带链接；完整版 md 也落在 `runtime/lark-daily-report/falive/`。2026-10-13 两种都已跑通。手动补跑 `lark-bot daily-report falive`（照 profile 投递，会发群）；试跑加 `--private`（或 `--to <id>`）只私聊、不发群。
 
 ## 8. 试跑与运维
 
@@ -141,7 +141,7 @@ curl -s -X POST http://127.0.0.1:3005/lark/tasks \
   -H "x-lark-gateway-secret: $(cat ~/.config/fameex-lark/gateway-secret)" -H 'Content-Type: application/json' \
   -d '{"id":"manual-falive-001","source":"lark","repo":"falive","operator":"ou_91861d6da6cf6822e08045ba1868241e","text":"修复：…"}'
 git -C ~/github/falive-react branch --list 'lark/falive-*'   # 排队等合 / 冲突 / 未完成而保留的任务分支
-cat runtime/lark-merge-back/falive.json                     # 排队等合进 feature/phase-5-test 的任务、上游同步冲突
+cat runtime/lark-merge-back/falive.json                     # 排队等合进 feature/phase-6-ol 的任务、上游同步冲突
 ```
 
 审计在 `runtime/lark-audits/FALIVE/`，附件在 `runtime/lark-attachments/FALIVE/`。
