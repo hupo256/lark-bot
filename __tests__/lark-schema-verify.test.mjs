@@ -153,6 +153,13 @@ describe('请求侧按源码是否引用请求入口判，不只认 schema / que
       assert.match(writeRule, /PROBE_ALLOW_WRITE=1 PROBE_MAIL=t@probe\.test/)
       assert.match(writeRule, /破坏性写接口没实测/)
     }],
+    ['配了 envSites：上下文说别的环境就去那个环境测，不拿 pre / 更早的实测顶替（10-31 uat 刚部署就拿 online 旧实测说 uat 不行）；没配不加这条', () => {
+      const rule = buildVerifyRule({ env: 'pre', probeCommand: 'node p.mjs', envSites: { pre: 'https://p.test/', uat: 'https://u.test/', online: 'https://o.test/' } })
+      assert.match(rule, /上下文说的是别的环境.*在那个环境实测再下结论：uat https:\/\/u\.test\/、online https:\/\/o\.test\//)
+      assert.doesNotMatch(rule, /pre https:\/\/p\.test/)
+      assert.match(rule, /不拿 pre、别的环境或更早的实测顶替/)
+      assert.doesNotMatch(buildVerifyRule({ env: 'pre', probeCommand: 'node p.mjs' }), /上下文说的是别的环境/)
+    }],
   ]))
 })
 
