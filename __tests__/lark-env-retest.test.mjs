@@ -58,5 +58,16 @@ describe('uat / online 部署后只读复测', () => {
       assert.match(store.get(out.taskId).text, /没取到提交列表，按 online 实际页面复测/)
       assert.match(buildEnvRetestText({ me: 'aven', env: 'online', head: 'c1a40982', commits: [], siteUrl: 'x' }), /而且是生产/)
     }],
+    ['配了该环境测试号 → 可登录、写操作只用测试号做最小一次；没配仍只读', async () => {
+      const account = { mail: 'u@probe.test', password: 'P1', portal: 'https://u.test/go-api' }
+      const text = buildEnvRetestText({ me: 'aven', env: 'uat', head: 'f5f0033c', commits: [], siteUrl: SITE, account })
+      assert.match(text, /在 uat 上复测/)
+      assert.match(text, /VERIFY_MAIL=u@probe\.test VERIFY_PWD=P1 VERIFY_PORTAL=https:\/\/u\.test\/go-api/)
+      assert.match(text, /写操作只用这个测试号、只做验证本次改动必需的最小一次/)
+      assert.doesNotMatch(text, /不登录/)
+      const { git } = fakeGit({ known: ['bbbbbbbb'] })
+      const out = await enqueueEnvRetest({ store, profile: { ...PROFILE, verify: { envAccounts: { uat: account } } }, env: 'uat', head: 'bbbbbbbb', siteUrl: SITE, git })
+      assert.match(store.get(out.taskId).text, /测试号 u@probe\.test/)
+    }],
   ], hooks))
 })

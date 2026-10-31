@@ -159,6 +159,7 @@ describe('请求侧按源码是否引用请求入口判，不只认 schema / que
       assert.doesNotMatch(rule, /pre https:\/\/p\.test/)
       assert.match(rule, /不拿 pre、别的环境或更早的实测顶替/)
       assert.doesNotMatch(buildVerifyRule({ env: 'pre', probeCommand: 'node p.mjs' }), /上下文说的是别的环境/)
+      assert.match(buildVerifyRule({ env: 'pre', probeCommand: 'node p.mjs', envSites: { uat: 'https://u.test/' }, envAccounts: { uat: { mail: 'u@probe.test', password: 'P1', portal: 'https://u.test/go-api' } } }), /uat 测试号 u@probe\.test \/ P1（页面工具命令前加 VERIFY_MAIL \/ VERIFY_PWD \/ VERIFY_PORTAL=https:\/\/u\.test\/go-api）/)
     }],
   ]))
 })
