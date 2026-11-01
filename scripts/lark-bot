@@ -366,8 +366,9 @@ restart() {
   stop
   sleep 2
   start
+  # 只恢复进程，不动档位（两档调度下 poll_on 会切「测试中」；重启不该改档，aven 11-01）
   if [ "$restore_poller" -eq 1 ]; then
-    poll_on
+    ensure_poller
     echo "• restored poller state from before restart"
   fi
   # restart 的最终验收无条件执行：即使 poller 原本关闭，也必须让 gateway/worker、

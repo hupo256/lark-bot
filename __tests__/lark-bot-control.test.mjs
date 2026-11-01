@@ -40,11 +40,14 @@ describe('lark-bot control script', () => {
       sleep() { :; }
       start() { echo start; }
       poll_on() { echo poll-on; }
+      ensure_poller() { echo ensure-poller; }
       status() { echo status; }
       restart
     `)
     assert.equal(result.status, 0, result.stderr)
-    assert.match(result.stdout, /stop\nstart\npoll-on\n.*restored poller.*\nstatus/s)
+    // 只恢复进程（ensure_poller），不走 poll_on——两档调度下 poll_on 会切「测试中」，重启不该改档（aven 11-01）
+    assert.match(result.stdout, /stop\nstart\nensure-poller\n.*restored poller.*\nstatus/s)
+    assert.doesNotMatch(result.stdout, /poll-on/)
   })
 
   it('原 poller 未运行时也执行最终严格 status', () => {
