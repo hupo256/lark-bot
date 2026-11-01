@@ -13,5 +13,6 @@
 | [task-boundaries-and-reply.md](./task-boundaries-and-reply.md) | 生命周期、话题文字/图片上下文、自动执行 / 确认边界、Figma 预取、**任务控制通道**（回复卡片=结单/重开/续跑/查状态/确认，绝不新建任务）与回复策略 |
 | [runtime-and-scheduling.md](./runtime-and-scheduling.md) | 长连接健壮性、规则链告警、附件保留期、bug 表项目群路由与按 worktree 并行调度 |
 | [upgrade-plan-context-layers-2026-11-01.md](./upgrade-plan-context-layers-2026-11-01.md) | **上下文分层升级（11-01）**：宿主隔离（不吃个人设置 / 不连账号 MCP / 硬拦 commit·push）、驾驶规则进系统层、AGENTS.md 遮蔽补救、PRD 缓存标龄、截图先看、度量（`scripts/lark-metrics.mjs`）、提示回放（`scripts/lark-replay-prompts.mjs`）、体检执行层；含真实案例回放结果 |
+| [todo-falive-offline.md](./todo-falive-offline.md) | **待办：falive bot 下线**——停服务不删目录，`~/github/lark-bot-falive` 冻结成只读存档；它的审计是 lark-bot 回放 / 度量的样本，怎么用、下线清单、什么时候才能删 |
 | [agent-context-practices-2026-11-01.md](./agent-context-practices-2026-11-01.md) | 对照《Claude Code 第二阶段 8 个卡点》的六组建议（上一份的来源分析） |
 | [port-from-falive-2026-10-24.md](./port-from-falive-2026-10-24.md) | **从 falive 实践移植回来的通用能力**：自纠偏 / 续会话 / 租约心跳 / 独立终检 / 开盖补拉等，每项附来源教训、配置键与真机验法；以及刻意没搬的 |
