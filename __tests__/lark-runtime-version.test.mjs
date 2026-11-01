@@ -199,6 +199,13 @@ describe('lark-runtime-version', () => {
 
       // 心跳文件必须落在 *-state.json 命名上，否则它自己会让 codeHash 每分钟漂移。
       assert.equal(listSourceFiles(root).some((f) => f.includes('lark-worker-state')), false)
+      // runtime/ 根下的运行态 json（bug 发现断点每分钟写）一律不算源码；runtime 下的 .mjs 入口仍算（11-01）
+      writeFileSync(join(root, 'runtime', 'lark-bug-watch.json'), '{}')
+      writeFileSync(join(root, 'runtime', 'lark-project-chats.json'), '{}')
+      writeFileSync(join(root, 'runtime', 'entry.mjs'), '')
+      const files = listSourceFiles(root)
+      assert.equal(files.some((f) => /lark-bug-watch|lark-project-chats/.test(f)), false)
+      assert.ok(files.includes('runtime/entry.mjs'))
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
