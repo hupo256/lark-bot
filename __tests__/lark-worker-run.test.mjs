@@ -46,6 +46,22 @@ describe('runAI：所有执行器在会改代码的任务上先跑只读分析',
     })
   }
 
+  it('配了页面验证工具（localConfig.verify）：实施提示带「自己验证」规则；只读单趟不带规则但视觉口径按页面工具说（从 falive 移植 11-01）', async () => {
+    const verify = { localDev: ['pnpm', 'dev'], compareBase: 'https://test.example.com' }
+    const { exec, calls } = mockExec()
+    await runAI({ localConfig: { verify } }, bugTask('claude'), workContext(), null, undefined, { exec, snapshot: stableSnapshot })
+    assert.match(calls[1].promptText, /自己验证（硬规则）/)
+    assert.doesNotMatch(calls[1].promptText, /禁止启动 dev server|不要启动 dev server/)
+    calls.length = 0
+    await runAI({ localConfig: { verify } }, bugTask('claude', { text: '状态：项目进度如何' }), workContext({ readOnly: true }), null, undefined, { exec, snapshot: stableSnapshot })
+    assert.equal(calls.length, 1)
+    assert.doesNotMatch(calls[0].promptText, /自己验证（硬规则）/, '只读查询不起 dev 服务')
+    assert.doesNotMatch(calls[0].promptText, /禁止启动 dev server|不要启动 dev server/, '配了工具就不再说禁止起服务')
+    calls.length = 0
+    await runAI({ localConfig: {} }, bugTask('claude'), workContext(), null, undefined, { exec, snapshot: stableSnapshot })
+    assert.doesNotMatch(calls[1].promptText, /自己验证（硬规则）/, '没配 verify 不变')
+  })
+
   it('只读查询（claude）仍单趟，不跑分析、不带 scope', async () => {
     const { exec, calls } = mockExec()
     const run = await runAI({ localConfig: {} }, bugTask('claude', { text: '状态：项目进度如何' }), workContext({ readOnly: true }), null, undefined, { exec, snapshot: stableSnapshot })

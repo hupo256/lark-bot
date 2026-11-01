@@ -11,7 +11,7 @@ import { eachCase, runSteps } from './support/steps.mjs'
 // （每段都跑、失败全报、每段 before / after 隔离），不许写一失败就停的循环或本地 step（aven 2026-10-24：优化不能以健壮性为代价）。
 //确实要净增，就在同一次提交里调高 TEST_CASE_BUDGET 并在提交说明里写原因。
 // 运行时间预算（全量 ≤ 18 秒）在 scripts/test-all.mjs（合并前跑），测试里量不了自己。
-const TEST_CASE_BUDGET = 601 // 10-31 从 falive 移植到 fameex 线时按当时总数钉住（第三批移植含 5 个新测试文件）；之后只许持平或变少
+const TEST_CASE_BUDGET = 604 // 11-01 +1：runAI 带 verify 的提示用例。 11-01 +2：页面验证工具 lark-verify-page.test（标注口径 / 参数与接入两条用例）。 10-31 从 falive 移植到 fameex 线时按当时总数钉住（第三批移植含 5 个新测试文件）；之后只许持平或变少
 
 const dir = dirname(fileURLToPath(import.meta.url))
 // it( 和 test( 都算（10-24 前只数 it(，lark-worktree-deps 的 test( 漏数）。

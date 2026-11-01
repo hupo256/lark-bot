@@ -256,3 +256,20 @@ aven 10-31「继续，做完它」：第三批里「等 D6 再定」的中等体
 #59 只追加 ⚠ 不扣卡。#60 的提示词预算只量 fameex 有的几类任务，不量 profile / 台账。
 
 验证（11-01）：`node scripts/test-all.mjs` 618 / 618 绿；`node scripts/mutate.mjs --diff fameex-stable`（此时 fameex-stable 已含第三批）54 个变异点抓到 53、豁免 1（`error.message || error` 的 Error 恒有 message）、存活 0。
+
+## 第五批：页面验证工具（11-01，分支 `lark/port-batch-3` 续）
+
+| # | 能力 | 来源（falive） | 落在哪 | 配置 | 怎么验（真机） |
+|---|---|---|---|---|---|
+| 61 | **页面验证工具 `tools/verify-page.mjs`**：bot 改完页面后自己在浏览器里验，不再每个任务现写 Playwright 脚本。`start --cwd <工作区>` 后台起本地 dev 服务并预热（和改代码并行）；`check --cwd … [--login] [--expect 文字] [--wait CSS] [--click-sweep] <路径>…` 逐页打开，固定查回落 mock（console + SSR 日志）/ 页面脚本报错 / 失败请求（网络失败、HTTP ≥400、业务码为负）/ 期望文字 / 死控件，截图，最后一行给结论；配了已部署站点就同页比对，问题标「本地新出现 / <站点> 上也有」，坏图另按同一路径直接请求站点判是不是数据问题；`stop` / `status`。`--click-sweep`（Bug-5030）把页面上每个可见未禁用的 button / role=button|tab|menuitem / summary / 无 href 的 a 依次点一下，没任何反应的报「点了没反应」，同组兄弟有反应的降为疑似 tab，含发布 / 关注 / 退出等副作用词或表单内的只列跳过。接入：配了 `verify` 时实施提示换成「自己验证」硬规则（页面工具命令、不要自己写 Playwright、起不来写 warnings），只读 / 分诊阶段 Bash 白名单放行工具；Worker 收尾提交 / 删 worktree 前自动 `stop`。**不配 `verify` 行为与以前完全一样**（提示仍写「不要启动 dev server」） | 10-23 / 10-27，`tools/verify-page.mjs`、`lib/lark-verify-page.mjs`、`lib/lark-verify-page-stop.mjs`、`lib/lark-completion-rule.mjs` `buildSelfVerifyRule` | `tools/verify-page.mjs`（去 falive 化：portal 登录 / AES 解密 / 登录槽位 / 站点域名 / `pnpm dev:pre` 全部改读配置）、`lib/lark-verify-page.mjs`（`VERIFY_PAGE_TOOL` / `pageToolOf` / `buildPageVerifyRule`）、`lib/lark-verify-page-stop.mjs`、`lib/lark-worker-prompts.mjs`（规则 4 与视觉口径按 `verify` 切换）、`lib/lark-worker-run.mjs`（透传 `localConfig.verify`）、`lib/lark-ai-executor.mjs`（只读白名单）、`lib/lark-task-runner.mjs`（收尾 stop） | 顶层 `verify`：`localDev`（argv 数组，缺省 `["pnpm","dev"]`，fameex 要写成 `["pnpm","--filter","@fameex/web","dev"]` 之类）、`compareBase`（已部署站点，不配就只看本地）、`compareLabel`（缺省 pre）、`appHosts`（算我方接口的后端域名正则）、`loginModule`（导出 `async login({ base }) → { slots, uid }` 的模块路径，`--login` 用）、`loginProbePath`（登录生效的用户信息接口正则）、`mockLogPattern`（回落 mock 的日志样式，缺省 `[api] X 接口不可用，回落 mock`）、`visitorKey`、`pageTool`；env `VERIFY_DEV_CMD / VERIFY_COMPARE_BASE / VERIFY_APP_HOSTS / VERIFY_LOGIN_MODULE` 可覆盖。**前置**：`~/.lark-verify` 下 `npm i playwright-core@1.61.1`，本机 `~/Library/Caches/ms-playwright` 有 chromium（或 `VERIFY_CHROMIUM` 指定） | 配上 `verify` 后群里 @bot 改一个页面：审计 `.log` 里 claude 跑了 `verify-page.mjs start` / `check`，`/tmp/lark-verify/<hash>/shots/` 有截图；任务结束 worker.log 「已停掉 … 的本地服务」 |
+
+与 falive 版的差别：登录由配置的模块提供（falive 的 portal 登录 + 响应解密是它自己的链路，fameex 不同）；比对站点、后端域名、dev 命令、mock 日志样式都进配置；`--login` 没配登录模块直接报错不猜；证据核对（`DEFAULT_BROWSER_PATTERN` 认 `verify-page.mjs check` 为浏览器实测）属 falive 的结构化群回复渲染，fameex 没有那条链路，没搬。
+fameex 线**现在没配 `verify`**，上线后行为不变；要启用先在 `runtime/lark-bot.local.json` 加 `verify.localDev` 和 `compareBase`，再 `lark-bot restart`（或等排空重启）。
+
+## 没搬 / 另议
+
+- **黄金对话测试框架**（`__tests__/lark-golden-conversations.test.mjs` 687 行 + 假 lark-cli）：falive 版整条链路绕着 repo profile / webhook 出口 / 发件簿 / 台账 / 结构化群回复，fameex 一条都没有，搬过来等于从零写一套 fameex 的端到端场景（ingest → intake → status → 卡片），而且要有 fameex 自己的事故语料做场景。建议在 Mac mini 上跑一段、积累几条真实事故后再建，不在这批里硬搬。
+- 其余 falive 专属（外部群轮询、webhook、出口规则表、台账、日报、部署盯梢、merge-back、deploy-retest / envAccounts、group-ask、detailDoc、repo-only、principal channel）仍不搬，口径同第一批。
+- 反向：fameex 独有的机械验收自修（`lark-self-fix-run` / `lark-self-fix-cli`、`lark-failure-playbook`）比 falive 版严，阶段 ④ 若合代码要先搬回 falive 线。
+
+验证（11-01，第五批后）：`node scripts/test-all.mjs` 621 / 621 绿；`node scripts/mutate.mjs --diff fameex-stable` 62 个变异点抓到 61、豁免 1、存活 0。

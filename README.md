@@ -79,7 +79,7 @@ launchd 直接运行本仓代码。**改完代码不会自动生效**，要执�
 | 业务主仓 `consumerRoot` | `LARK_BOT_CONSUMER_ROOT` | `consumerRoot` | `/Users/aven/github/fameex-web`（worktree 建在它的同级目录） |
 | PRD 缓存 `prdCacheRoot` | `LARK_BOT_PRD_CACHE` | — | `~/.prd-cache`（只读） |
 
-`runtime/lark-bot.local.json` 的常用键：`project` / `title`、`botOpenId`、`taskMentionOpenIds`、`allowedChatIds` / `allowedOpenIds`、`aiExecutor`、各执行器的模型键（`codexModel`、`piModel` 等）、`scopeBudgets`、`bugTable`。字段含义见 [docs/gateway-and-worker.md](./docs/gateway-and-worker.md) §6。
+`runtime/lark-bot.local.json` 的常用键：`project` / `title`、`botOpenId`、`taskMentionOpenIds`、`allowedChatIds` / `allowedOpenIds`、`aiExecutor`、各执行器的模型键（`codexModel`、`piModel` 等）、`scopeBudgets`、`bugTable`、`verify`（页面验证工具：本地 dev 命令 / 已部署站点 / 登录模块，见 `tools/verify-page.mjs` 文件头与 `docs/port-from-falive-2026-10-24.md` #61）。字段含义见 [docs/gateway-and-worker.md](./docs/gateway-and-worker.md) §6。
 2026-10-24 从 falive 实践移植回来的可选键（都可不配，见 [docs/port-from-falive-2026-10-24.md](./docs/port-from-falive-2026-10-24.md)）：`claudeModel` / `claudeEffort`（实施模型与强度）、`claudeAnalysisModel` / `claudeAnalysisEffort`（只读分析 / 分诊阶段单独指定）、`finalChecks`（worker 独立终检：`{ typecheck: [cmd, ...args], tests: [cmd, ...args], timeoutMs }`）、`claudeMemoryDir`（bot 的 worktree 与主仓共用的 Claude 项目记忆目录，缺省按业务主仓推导）。
 对应的环境开关：`LARK_KEEP_AWAKE=0`（关掉开盖防空闲睡眠）、`LARK_WAKE_CATCHUP=0`（关掉开盖补拉）、`LARK_TASK_BUDGET_MS`（单任务总预算，默认 150 分钟）。
 
