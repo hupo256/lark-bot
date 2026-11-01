@@ -38,6 +38,7 @@ import { createRequestHandler } from './lib/lark-routes.mjs'
 import { createRuntimeVersion } from './lib/lark-runtime-version.mjs'
 import { startKeepAwake } from './lib/lark-keep-awake.mjs'
 import { startWakeCatchup } from './lib/lark-wake-catchup.mjs'
+import { startProjectChatSync } from './lib/lark-project-chat-sync.mjs'
 import { GATEWAY_HOST, defaultGatewayPort, defaultTaskLeaseMs } from './lib/lark-constants.mjs'
 
 // 任务领取租约：worker 领走后置 running；超过此时长仍 running 视为孤儿，下次 claim 时自动重入队。
@@ -176,12 +177,16 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   }, 15 * 60 * 1000)
   parkedTimer.unref?.()
 
+  // 项目群绑定表（aven 2026-11-01）：定时拉 bot 所在群，新入群按群名线索绑定项目号、换群改绑，回群一律按 chat_id。
+  const projectChatSync = startProjectChatSync({ config })
+
   // 日志轮转：launchd 把 stdout/stderr 定向到固定文件，进程可连跑数周不重启，日志无上限。
   // 只有 plist 注入了 LARK_LOG_FILE 才生效（前台手跑不截断任何文件）。
   const logTimer = startLogRotation()
 
   const shutdown = () => {
     clearInterval(pruneTimer)
+    projectChatSync.stop()
     clearInterval(sweepTimer)
     clearInterval(writebackTimer)
     clearInterval(receiptTimer)

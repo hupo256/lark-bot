@@ -40,5 +40,23 @@
     "code": "rulesError = String(error?.message || error)",
     "op": "|| → &&",
     "reason": "只影响体检行里错误原因的展示文字（「Error: x」与「x」），等级判定只看 rulesError 是否为空；且规则上下文构建是直接调用、无法在单测里注入失败（无业务含义）"
+  },
+  {
+    "file": "lib/lark-project-chat-sync.mjs",
+    "code": "export const PROJECT_CHAT_SYNC_MS = Number(process.env.LARK_PROJECT_CHAT_SYNC_MS || 5 * 60 * 1000)",
+    "op": "|| → &&",
+    "reason": "只是同步间隔的环境变量默认值，测试不起定时器；行为由 runProjectChatSync 的用例钉住"
+  },
+  {
+    "file": "lib/lark-project-chat-sync.mjs",
+    "code": "log(`[lark-gateway] 项目群绑定：${events.map((e) => `${e.type} ${e.project || ''} ${e.chatId || ''}`.trim()).join('；')}`)",
+    "op": "|| → &&",
+    "reason": "只影响日志文字的空值占位，无业务含义"
+  },
+  {
+    "file": "lib/lark-project-chat-sync.mjs",
+    "code": ".catch((error) => console.error(`[lark-gateway] 项目群同步异常：${String(error?.message || error).slice(0, 160)}`))",
+    "op": "|| → &&",
+    "reason": "只影响异常日志文字，无业务含义"
   }
 ]
