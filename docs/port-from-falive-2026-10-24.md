@@ -238,3 +238,21 @@ f57ab5d / 2f38e8a / ad37d9f / 5b9bdd0（本就是从 fameex 搬过去的）；9c
 
 验证（10-31）：`node scripts/test-all.mjs` 610 / 610 绿（基线 fameex-stable 604 条、1 红 = #56 那条漂移）；`node scripts/mutate.mjs --diff fameex-stable` 35 个变异点抓到 33、豁免 2（两处 `<` → `<=` 的毫秒边界，已登记原因）、存活 0。
 上线：合进 `fameex-stable` 后由排空重启自动生效（代码改了会跑全量单测再 restart）；不用改配置。
+
+## 第四批：中等体量能力（10-31 → 11-01，分支 `lark/port-batch-3` 续）
+
+aven 10-31「继续，做完它」：第三批里「等 D6 再定」的中等体量能力这次也搬。仍只搬 fameex 群里 @bot 修 bug 用得上的；
+页面验证工具单独一节（#61），黄金对话框架见「没搬 / 另议」。
+
+| # | 能力 | 来源（falive） | 落在哪 | 配置 | 怎么验（真机） |
+|---|---|---|---|---|---|
+| 57 | **bug 表记录分享链接读取**：群里贴 `…larksuite.com/record/<token>` 时 bot 原来只看得到标题。分享 token 对每条记录固定——对表里的记录批量生成分享链接反查 record_id（缓存落 `runtime/lark-bug-record-links.json`），再 `+record-get` 读整条落成 markdown、问题截图最多下 4 张。**按需读**：跑任务前不预取，提示里只告诉 AI 有链接、要复现步骤 / 截图 / 备注时用工具读；只读 / 分诊阶段的 Bash 白名单也放行这条命令 | 教训 #85，`lib/lark-bug-record.mjs` | `lib/lark-bug-record.mjs`（新）、`tools/read-bug-record.mjs`（新，应用机器人身份跑 lark-cli）、`lib/lark-paths.mjs` `BUG_RECORD_TOOL`、`lib/lark-worker-prompts.mjs` 一句提示、`lib/lark-ai-executor.mjs` `extraReadOnlyCommands` | 复用 `config.bugTable`（`appToken` / `tableId` / `viewId`；列名可配 `titleField` / `screenshotField` / `bugIdField`，缺省「问题标题 / 问题截图 / Bug编号」）；没配表工具只打「没配 bug 表」 | 群里贴一条记录链接 @bot：审计 `.log` 里 claude 调了 `node …/tools/read-bug-record.mjs`，`runtime/lark-attachments/bug-records/` 出现 `bug-record-Bug-xxxx.md` |
+| 58 | **预取口径分级**：主消息（本条 / 被引用）里引用的 Figma / Lark 文档读不到 → 实施任务 fail-closed 停在实施前（不变）；**上下文（【话题其它回复】）里的读不到只记 skipped、照常跑**，提示里列出「这些链接没读到」让 AI 说明而不是硬猜；**只读任务（状态查询 / 代答）也预取但永远不拦**（别人问「PRD 里怎么定的」bot 原来根本不读 PRD）；多维表格链接、残缺半截链接按来源同样分级 | 10-22 Bug-4944 / 10-23，`lib/lark-task-prefetch.mjs`、`lib/lark-doc.mjs` `splitTaskTextByOrigin` | `lib/lark-task-prefetch.mjs`（新）、`lib/lark-doc.mjs` / `lib/lark-figma.mjs`（结果多 `skipped` / `failures`）、`lib/lark-task-runner.mjs` 两段预取合成一处调用、`lib/lark-worker-prompts.mjs` 「这些链接没读到」一句 | 无 | 群里话题回复里带半截文档链接的任务不再挂起；审计 `larkDocs.skipped` 非空 |
+| 59 | **完成结论的机械矛盾检查**：总括完成词（都对完 / 全部完成 / 搞定）+ 未完成信号（报错 / 回 5xx / 为空 / 没数据 / 待确认…）同时出现、或结论行「还剩 N 项」与条目数不符 → 完成卡追加一行 ⚠「结论自相矛盾 / 前后对不上，请人工核对」。否定说法（不再报错）、分页到底为空、uid 508 这类数字不算问题。falive 是不发群；fameex 的卡发内部群由人 review，所以只提醒不扣卡 | 教训 #56 #58，`lib/lark-completion-rule.mjs` 两个纯函数 | `lib/lark-completion-check.mjs`（新）、`lib/lark-task-runner.mjs` done 路径 `warnNotes` | 无 | 完成卡出现「⚠ 结论自相矛盾：说「都已对完」又列了「回 500」」 |
+| 60 | **治理闸四道**（原样搬，阈值按 fameex 线 10-31 实测钉住）：① gateway 纯度——`lark-gateway.mjs` 的 import 闭包里不许有同步子进程 / 模型调用，`node:child_process` 只许在 lark-cli / consumer / keep-awake / power，worker 专属模块不进闭包（为此把执行器选择拆成 `lib/lark-ai-executor-select.mjs`，ingest 改引它，闭包随之去掉 ai-executor / triage / worker-git 三个模块）；② 体量预算——lib 新文件 ≤ 600 行，老的大文件钉在当前行数只许变小（ai-executor 857 / scope-contract 690 / task-runner 686）；③ 测试条数棘轮——`it( / test(` 总数 ≤ 601 只许持平或变少，合并用例必须用 `support/steps.mjs`、调用处必须 await、不许无上限 while 空转；④ 提示词预算——实施提示 ≤ 9500（实测约 8.2k）、分析 ≤ 2600、分类器 ≤ 1500，续会话不重复任务正文与规则原文，正文里不得出现事故编号 | 升级计划第 1 / 4 批，`__tests__/lark-{gateway-purity,size-budget,test-budget,prompt-budget}.test.mjs` | 四个测试文件 + `lib/lark-ai-executor-select.mjs` | 无 | `node scripts/test-all.mjs`；往 gateway 侧 import 一个带 spawnSync 的模块会先红 |
+
+与 falive 版的差别：#57 表配置从 `dailyReport.bugTable`（profile）改读顶层 `config.bugTable`，键名 `appToken` 与 poller / 回写一致，列名可配；lark-cli 用应用机器人身份（falive 用用户身份）。
+#58 fameex 的任务正文只有【被引用消息】/【本条 @】/【话题其它回复】三种块，`splitTaskTextByOrigin` 的上下文标题正则照搬（多出来的几种 falive 块名匹配不到无害）。
+#59 只追加 ⚠ 不扣卡。#60 的提示词预算只量 fameex 有的几类任务，不量 profile / 台账。
+
+验证（11-01）：`node scripts/test-all.mjs` 618 / 618 绿；`node scripts/mutate.mjs --diff fameex-stable`（此时 fameex-stable 已含第三批）54 个变异点抓到 53、豁免 1（`error.message || error` 的 Error 恒有 message）、存活 0。

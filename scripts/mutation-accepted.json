@@ -16,5 +16,11 @@
     "code": "const intakeDeferred = (task, now = Date.now()) => task.status === 'received' && Boolean(task.intake?.notBefore) && now < Date.parse(task.intake.notBefore)",
     "op": "< → <=",
     "reason": "等价：只在 now 恰好等于 notBefore 那一毫秒有区别，延后重分类的截止毫秒不影响行为"
+  },
+  {
+    "file": "lib/lark-doc.mjs",
+    "code": ";(primaryUrls.has(url) ? failures : skipped).push({ url, reason: String(error.message || error).slice(0, 160) })",
+    "op": "|| → &&",
+    "reason": "等价：这里的 error 只来自 spawn / validateSource 抛出的 Error 对象，恒有 message；非 Error 值走不到这条 catch"
   }
 ]
