@@ -167,8 +167,8 @@ describe('bug 发现两档调度（读通知 + 对账）', () => {
       assert.deepEqual(reconcileAgainstBaseline({ baseline: second.baseline, records: [rec('r1', { status: '验退' })], readStatus }).actionable, [])
     }],
     ['文案：转测试中带项目和频率；回平时带怎么提前开', () => {
-      assert.match(formatModeSwitch({ switched: 'on', notification: { project: 'PR-1', title: 'x' }, cfg }), /PR-1「x」.*转「测试中」：读通知工作时间每 1 分钟 \/ 其他 10 分钟，对账每 15 分钟/)
-      assert.match(formatModeSwitch({ switched: 'off', cfg }), /连续 1 个工作日没有新 bug 通知.*回「平时」：读通知每 60 分钟，对账每 120 分钟.*poll-on/)
+      assert.equal(formatModeSwitch({ switched: 'on', notification: { project: 'PR-1', title: 'x' }, cfg }), '读到新 bug 通知：PR-1「x」\nbug 发现转「测试中」：\n- 读通知：工作时间每 1 分钟，其他时间每 10 分钟\n- 对账：每 15 分钟')
+      assert.equal(formatModeSwitch({ switched: 'off', cfg }), '连续 1 个工作日没有新 bug 通知，bug 发现回「平时」：\n- 读通知：每 60 分钟\n- 对账：每 120 分钟\n要提前开回：私信我「开始测试」，或 lark-bot poll-on。')
       assert.match(formatModeSwitch({ switched: 'on', cfg }), /\?「」/)
     }],
     ['状态落盘：没有文件给初始状态；损坏改名留证并标记要私信', () => {
@@ -243,7 +243,7 @@ describe('bug 发现两档调度（读通知 + 对账）', () => {
       assert.deepEqual(state.cursor, { position: 300, readFrom: 'x' })
       assert.deepEqual(Object.keys(state.baseline.statuses), ['r1', 'r2'])
       assert.deepEqual(calls.handled, [])
-      assert.match(calls.dm[0], /对账基线已建：你头上现有 2 条未结（待处理 1 \/ 验退 1）/)
+      assert.equal(calls.dm[0], 'bug 对账基线已建：你头上现有 2 条未结。\n- 待处理 1 条\n- 验退 1 条\n这些不自动开工；之后新来的、状态变了的（如被验退）才处理。\n要修其中某条，回我记录链接。')
       assert.ok(calls.saved >= 2)
     }],
     ['整轮·新通知：按项目 + 标题定位到我的记录就开工、落断点、转测试中并私信；定位不到私信不猜也照样往前走', async () => {
@@ -259,7 +259,7 @@ describe('bug 发现两档调度（读通知 + 对账）', () => {
       assert.equal(state.cursor.readFrom, '2026-11-02T06:00:00.000Z')
       assert.equal(state.mode, 'testing')
       assert.deepEqual(report.switched, ['on'])
-      assert.ok(calls.dm.some((t) => /PR-09999「找不到的」在表里没找到分给你的同名记录，没开工（不猜）/.test(t)))
+      assert.ok(calls.dm.includes('新 bug 通知：PR-09999「找不到的」\n在表里没找到分给你的同名记录，没开工（不猜）。\n回我记录链接我再接。'))
       assert.ok(calls.dm.some((t) => /项目号或标题不完整/.test(t)))
       assert.ok(calls.dm.some((t) => /转「测试中」/.test(t)))
       assert.ok(calls.dm.some((t) => /补读了 3 条/.test(t)))
@@ -280,7 +280,7 @@ describe('bug 发现两档调度（读通知 + 对账）', () => {
       }
       assert.equal(state.failures.notify, 3)
       assert.equal(dms.length, 1)
-      assert.match(dms[0], /读新 bug 通知已连续 3 次失败.*已开自修工单 sf-x/)
+      assert.equal(dms[0], '⚠ 读新 bug 通知已连续 3 次失败，期间新 bug 通知读不到。\n原因：Unexpected token < in JSON at position 0\n已开自修工单 sf-x。')
       const ok = roundDeps({})
       state = (await runWatchRound({ config: { bugTable: BUG }, cfg, state: { ...state, lastNotifyReadAt: 0, lastReconcileAt: now }, now: now + 10, deps: ok.deps })).state
       assert.equal(state.failures.notify, 0)
@@ -293,7 +293,7 @@ describe('bug 发现两档调度（读通知 + 对账）', () => {
       ext.deps.recordFailure = () => ({ external: true, selfFix: null })
       const extState = { ...state, failures: { notify: 2 }, lastNotifyReadAt: 0, lastReconcileAt: now }
       await runWatchRound({ config: { bugTable: BUG }, cfg, state: extState, now: now + 30, deps: ext.deps })
-      assert.match(ext.calls.dm[0], /外部原因：网络 \/ 登录 \/ 权限，只告警/)
+      assert.match(ext.calls.dm[0], /\n外部原因（网络 \/ 登录 \/ 权限），只告警。$/)
     }],
     ['整轮·对账：基线后状态变了的交给处理；一个工作日没新通知自动回平时并私信', async () => {
       const now = at('2026-11-03T10:00:00')
@@ -339,10 +339,10 @@ describe('bug 发现两档调度（读通知 + 对账）', () => {
         last.deps.recordFailure = () => ({ external: false, selfFix: { opened: false } })
         st = (await runWatchRound({ config: { bugTable: BUG }, cfg, state: { ...st, lastReconcileAt: 0, lastNotifyReadAt: now }, now: now + i, deps: last.deps })).state
       }
-      assert.match(last.calls.dm[0], /^⚠ 对账已连续 3 次失败，期间验退 \/ 漏掉的 bug 捞不到。原因：reconcile boom$/)
+      assert.equal(last.calls.dm[0], '⚠ 对账已连续 3 次失败，期间验退 / 漏掉的 bug 捞不到。\n原因：reconcile boom')
       const b = roundDeps({ cursorInit: { position: 1, readFrom: 'x' }, records: [rec('r1'), rec('r2'), rec('r3', { status: '验退' })] })
       await runWatchRound({ config: { bugTable: BUG }, cfg, state: initialWatchState(0), now, deps: b.deps })
-      assert.match(b.calls.dm[0], /现有 3 条未结（待处理 2 \/ 验退 1）/)
+      assert.match(b.calls.dm[0], /现有 3 条未结。\n- 待处理 2 条\n- 验退 1 条/)
     }],
     ['配置校验：watch 必须是对象；开了没配通知会话只告警', () => {
       const base = { project: 'PR-01947', bugTable: { appToken: 'a', tableId: 't', statusField: 's', assigneeField: 'r', doneValue: 'd' } }

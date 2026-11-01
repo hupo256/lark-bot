@@ -293,7 +293,7 @@ status() {
         const selfFix = worker?.selfFix && !worker.heartbeatStale ? `  自修中 ${worker.selfFix.id}（自 ${String(worker.selfFix.since || "?").slice(0, 16)}）` : "";
         console.log(`lark-worker:  ${workerState}${workerPid ? `  pid=${workerPid}` : ""}${draining ? `  排空中（在飞 ${worker.inFlight ?? "?"} 个，跑完即自动 restart）` : ""}${selfFix}`);
         let watchMode = "";
-        try { const w = JSON.parse(require("fs").readFileSync(process.env.LARK_STATUS_RUNTIME_DIR + "/lark-bug-watch.json", "utf8")); watchMode = `  ${w.mode === "testing" ? "测试中" : "平时"}（自 ${String(w.modeSince || "?").slice(5, 16)}）`; } catch {}
+        try { const w = JSON.parse(require("fs").readFileSync(process.env.LARK_STATUS_RUNTIME_DIR + "/lark-bug-watch.json", "utf8")); watchMode = `  ${w.mode === "testing" ? "测试中" : "平时"}${w.modeSince ? `（自 ${String(w.modeSince).slice(5, 16)}）` : ""}`; } catch {}
         console.log(`poller:       ${pollerState}${pollerPid ? `  pid=${pollerPid}` : ""}${watchMode}`);
         console.log("");
         console.log(`executor:     ${readiness?.executor || "--"}${readiness?.model ? `  model=${readiness.model}  reasoning=${readiness.reasoningEffort}  probe=${readiness.modelProbe}` : ""}${readiness?.executor === "claude" ? `  auth=${process.env.LARK_STATUS_CLAUDE_AUTH}` : ""}`);

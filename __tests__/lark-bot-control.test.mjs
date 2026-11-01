@@ -2,7 +2,8 @@
 
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, it } from 'node:test'
@@ -78,9 +79,12 @@ describe('lark-bot control script', () => {
   })
 
   it('status 先列进程，空行后再列 executor 与任务', () => {
-    const result = runBash(`
+    const runtime = mkdtempSync(join(tmpdir(), 'status-runtime-'))
+    const statusScript = (extra = '') => `
       export LARK_BOT_SOURCE_ONLY=1
       source ${JSON.stringify(script)}
+      RUNTIME_DIR=${JSON.stringify(runtime)}
+      ${extra}
       _pid() {
         case "$1" in
           "$GW") echo 101 ;;
@@ -92,12 +96,19 @@ describe('lark-bot control script', () => {
         printf '%s' '{"ok":true,"worker":{"pid":202,"heartbeatStale":false,"codeStale":false,"readiness":{"ok":true,"executor":"codex","model":"gpt-5.6-sol","reasoningEffort":"high","modelProbe":"passed"}},"version":{"startedAt":"2026-08-26T07:39:48.923Z"},"counts":{},"pendingReceipts":{"total":0}}'
       }
       status
-    `)
+    `
+    const result = runBash(statusScript())
     assert.equal(result.status, 0, result.stderr)
     assert.match(
       result.stdout,
       /lark-worker:  running  pid=202\npoller:       running  pid=303\n\nexecutor:     codex  model=gpt-5\.6-sol  reasoning=high  probe=passed\ntasks:/,
     )
+    // 两档调度：有状态文件就在 poller 行后标当前档（aven 11-01 B2）
+    writeFileSync(join(runtime, 'lark-bug-watch.json'), JSON.stringify({ mode: 'testing', modeSince: '2026-11-01T09:31:00.000Z' }))
+    assert.match(runBash(statusScript()).stdout, /poller:       running  pid=303  测试中（自 11-01T09:31）\n/)
+    writeFileSync(join(runtime, 'lark-bug-watch.json'), JSON.stringify({ mode: 'idle' }))
+    assert.match(runBash(statusScript()).stdout, /poller:       running  pid=303  平时\n/)
+    rmSync(runtime, { recursive: true, force: true })
   })
 
   // 挂起任务催办满 N 轮后 gateway 就闭嘴了，此后只有 status 能盘点到它们；计数与明细必须都在。

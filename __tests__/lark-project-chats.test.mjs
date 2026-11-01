@@ -20,6 +20,7 @@ import {
 import { runProjectChatSync } from '../lib/lark-project-chat-sync.mjs'
 import { listBotChats, resolveChatIdByProject, resolveDeliveryChatId } from '../lib/lark-cli.mjs'
 import { maybeHandleProjectChatDirective } from '../lib/lark-project-chat-sync.mjs'
+import { parseWatchDirective } from '../lib/lark-bug-watch.mjs'
 import { runSteps } from './support/steps.mjs'
 
 // aven 2026-11-01：项目群按 chat_id 绑定，不按群名找（群名会改、不规范）
@@ -107,10 +108,10 @@ describe('项目群绑定表（入群绑定、换群改绑、改名不影响、�
         { type: 'unmatched', chatId: 'oc_6', chatName: 'f' },
         { type: 'left', project: 'PR-1001', chatId: 'oc_1', chatName: 'a' },
       ])
-      assert.match(text, /项目群绑定表已建立.*PR-1001 → 「a」（oc_1）/)
+      assert.match(text, /^项目群绑定表已建立，之后回群一律按群 id，群改名不影响：\n- PR-1001 → 「a」\n\n/)
       assert.match(text, /按群名绑定到 PR-1002/)
-      assert.match(text, /PR-1003 换了新群.*改绑到 「c」（oc_3）.*绑定 PR-1003 oc_0/)
-      assert.match(text, /PR-1004 对上了多个群/)
+      assert.match(text, /PR-1003 换了新群，已改绑：\n- 原来：「z」（oc_0）\n- 现在：「c」\n不对就回「绑定 PR-1003 oc_0」改回。/)
+      assert.match(text, /PR-1004 对上了 2 个群，没有自动绑定：\n- 「d」（oc_4）\n- 「e」（oc_5）\n在要用的那个群里/)
       assert.match(text, /群名里看不出项目号/)
       assert.match(text, /bot 已不在 PR-1001 的绑定群/)
       assert.equal(formatProjectChatEvents([]), '')
@@ -193,10 +194,10 @@ describe('项目群绑定表（入群绑定、换群改绑、改名不影响、�
       const baseline = formatProjectChatEvents([{ type: 'bound', project: 'PR-1001', chatId: 'oc_1', chatName: '', source: 'baseline' }])
       assert.doesNotMatch(baseline, /拉进新群/)
       assert.match(baseline, /「\(无群名\)」/)
-      assert.equal(formatProjectChatEvents([{ type: 'unmatched', chatId: 'oc_6', chatName: 'f' }]).split('\n').length, 1)
+      assert.equal(formatProjectChatEvents([{ type: 'unmatched', chatId: 'oc_6', chatName: 'f' }]), 'bot 被拉进新群 「f」，群名里看不出项目号。\n是项目群的话，在群里 @我「绑定 PR-xxxxx」。')
       assert.doesNotMatch(formatProjectChatEvents([{ type: 'left', project: 'PR-1', chatId: 'oc_1', chatName: 'a' }]), /拉进新群/)
       const list = formatProjectChatList({ projects: { 'PR-2': { chatId: 'oc_2', chatName: 'b', source: 'manual' }, 'PR-1': { chatId: 'oc_1', chatName: 'a', source: 'baseline' }, 'PR-3': { chatId: 'oc_3', chatName: 'c', source: 'joined' } } })
-      assert.match(list, /项目群绑定（3 个）：\n- PR-1 → 「a」（oc_1）（初始绑定）\n- PR-2 → 「b」（oc_2）（手动绑定）\n- PR-3 → 「c」（oc_3）（入群绑定）/)
+      assert.match(list, /项目群绑定（3 个）：\n- PR-1 → 「a」（初始绑定）\n- PR-2 → 「b」（手动绑定）\n- PR-3 → 「c」（入群绑定）/)
       assert.match(formatProjectChatList({}), /还没有绑定/)
     }],
     ['指令回执：列表 / 解绑 / 改绑都接管并回话，解绑带原群名，改绑带原群，读不到群名有提示', async () => {
@@ -206,19 +207,34 @@ describe('项目群绑定表（入群绑定、换群改绑、改名不影响、�
       const config = { notifyOpenId: 'ou_me' }
       const run = (text, chatId = 'ou_dm', chatType = 'p2p') => maybeHandleProjectChatDirective({ msg: { text, chatId, chatType, senderOpenId: 'ou_me', messageId: `m-${replies.length}` }, config, ...deps })
       assert.equal(await run('项目群'), true)
-      assert.match(replies.at(-1), /PR-02233 → 「老群」/)
+      assert.match(replies.at(-1), /- PR-02233 → 「老群」（手动绑定）/)
       assert.equal(await run('绑定 PR-02233 oc_new'), true)
-      assert.match(replies.at(-1), /「\(bot 不在该群或读不到群名\)」（oc_new），原来是 老群 oc_old/)
+      assert.match(replies.at(-1), /「\(bot 不在该群或读不到群名\)」（oc_new）\n原来是「老群」oc_old\n之后回群/)
       assert.equal(await run('绑定 PR-02233 oc_new'), true)
       assert.doesNotMatch(replies.at(-1), /原来是/)
       assert.equal(await run('解绑 PR-02233'), true)
-      assert.match(replies.at(-1), /已解绑 PR-02233（原群  oc_new）/)
+      assert.match(replies.at(-1), /已解绑 PR-02233（原群「」oc_new）。\n之后/)
       assert.equal(await run('解绑 PR-02233'), true)
       assert.match(replies.at(-1), /本来就没有绑定群/)
       state = { ...state, projects: { 'PR-02234': { chatId: 'oc_bare' } } }
       await run('解绑 PR-02234')
-      assert.match(replies.at(-1), /已解绑 PR-02234（原群  oc_bare）/)
+      assert.match(replies.at(-1), /已解绑 PR-02234（原群「」oc_bare）/)
       assert.equal(await maybeHandleProjectChatDirective({ msg: { text: '项目群', chatId: 'oc_g', chatType: 'group', senderOpenId: 'ou_x', messageId: 'z' }, config: { allowedOpenIds: ['ou_x'] }, ...deps }), true, 'allowedOpenIds 里的人也能用')
+    }],
+    ['私信「开始测试 / 结束测试」切 bug 发现的档：只认负责人，回执一项一行', async () => {
+      let watchState = { mode: 'idle', modeSince: 'x', quietWorkMs: 3 }
+      const replies = []
+      const deps = { load: () => emptyProjectChats(), save: () => {}, send: async (m) => { replies.push(m.text) }, chatNameOf: async () => '', watch: { load: () => watchState, save: (next) => { watchState = next } } }
+      const msg = (text, sender = 'ou_me') => ({ text, chatId: 'ou_dm', chatType: 'p2p', senderOpenId: sender, messageId: `w-${replies.length}` })
+      assert.equal(await maybeHandleProjectChatDirective({ msg: msg('开始测试', 'ou_other'), config: { notifyOpenId: 'ou_me' }, ...deps }), false)
+      assert.equal(watchState.mode, 'idle')
+      assert.equal(await maybeHandleProjectChatDirective({ msg: msg('开始测试'), config: { notifyOpenId: 'ou_me' }, ...deps }), true)
+      assert.equal(watchState.mode, 'testing')
+      assert.equal(replies.at(-1), 'bug 发现已切到「测试中」：\n- 读通知：工作时间每 1 分钟，其他时间每 10 分钟\n- 对账：每 15 分钟')
+      assert.equal(await maybeHandleProjectChatDirective({ msg: msg('结束测试'), config: { notifyOpenId: 'ou_me' }, ...deps }), true)
+      assert.equal(watchState.mode, 'idle')
+      assert.equal(replies.at(-1), 'bug 发现已切到「平时」：\n- 读通知：每 60 分钟\n- 对账：每 120 分钟')
+      assert.deepEqual(['开始测试', 'poll-on', '结束测试', '退出测试', '开始测试吧'].map(parseWatchDirective), ['testing', 'testing', 'idle', 'idle', null])
     }],
   ], hooks))
 })

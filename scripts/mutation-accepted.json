@@ -60,7 +60,7 @@
     "reason": "只影响异常日志文字，无业务含义"
   },
   {
-    "file": "lib/lark-bug-watch-io.mjs",
+    "file": "lib/lark-bug-watch-state.mjs",
     "code": "export const watchStatePath = () => join(process.env.LARK_RUNTIME_DIR || larkRuntimeDir, 'lark-bug-watch.json')",
     "op": "|| → &&",
     "reason": "只是状态文件路径的环境变量默认值，测试一律显式传 path"
