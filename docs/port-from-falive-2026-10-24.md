@@ -9,7 +9,7 @@
 
 | # | 能力 | 来源（falive 教训 / 批次） | 落在哪 | 配置 | 怎么验（真机） |
 |---|---|---|---|---|---|
-| 1 | Claude 无头任务摘掉会断会话的工具（ScheduleWakeup / Cron* / Workflow / RemoteTrigger / Enter·ExitWorktree），结果文件指令要求全程同步、跑不完写 blocked | #31（日报发成了却报「没做成」） | `lib/lark-ai-executor.mjs` `CLAUDE_HEADLESS_DISALLOWED_TOOLS`；`lib/lark-ai-result.mjs` | 无 | 审计 `.log` 里 claude 命令行含 `--disallowedTools` |
+| 1 | Claude 无头任务摘掉会断会话的工具（ScheduleWakeup / Cron* / Workflow / RemoteTrigger / Enter·ExitWorktree），结果文件指令要求全程同步、跑不完写 blocked | #31（日报发成了却报「没做成」） | `lib/lark-claude-args.mjs` `CLAUDE_HEADLESS_DISALLOWED_TOOLS`（11-01 从 executor 拆出）；`lib/lark-ai-result.mjs` | 无 | 审计 `.log` 里 claude 命令行含 `--disallowedTools` |
 | 2 | 结果文件缺失 / 不合法 → `--resume` 续同一会话只补写 result.json（一次、5 分钟） | #31 | `execAiExecutor.recoverResultFile` | `LARK_CLAUDE_RESULT_RECOVERY_TIMEOUT_MS` | 审计里出现 `[self-heal] … 补写成功` 而不是直接 failed |
 | 3 | 实施续分析阶段的同一会话（增量提示，续不上回退完整提示） | 升级计划第 1 批 | `lib/lark-worker-run.mjs`、`buildTaskPrompt({ followUp })`；分析命令不再带 `--no-session-persistence` | 无（分析与实施模型不同时不续） | 审计 `implementation.resumedSession` 非空，第二趟耗时明显下降 |
 | 4 | 只读任务（状态查询）拿只读工具面，不带 `--dangerously-skip-permissions` | 第 0 批 #1（只读任务跑在人的主仓里） | `buildAiExecutorCommand` 任务模式 `readOnly` 分支 | 无 | 状态查询任务的审计命令行无 `--dangerously-skip-permissions`，主仓 `git status` 不变 |

@@ -1,0 +1,200 @@
+import assert from 'node:assert/strict'
+import { EventEmitter } from 'node:events'
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { PassThrough } from 'node:stream'
+import { describe, it } from 'node:test'
+
+import { bashCommandHead, formatAuditMetrics, parseAuditLog, summarizeAuditMetrics } from '../lib/lark-audit-metrics.mjs'
+import { buildAiExecutorCommand, execAiExecutor, resolveAiModelConfig } from '../lib/lark-ai-executor.mjs'
+import { parseClaudeEnvelope } from '../lib/lark-ai-result.mjs'
+import { REQUIRED_CLAUDE_FLAGS, buildExecutorChecks, collectExecutorFacts } from '../lib/lark-executor-doctor.mjs'
+import { describePrdCacheDoc, detectShadowedAgentsDoc } from '../lib/lark-work-context.mjs'
+import { buildAnalysisPrompt, buildTaskPromptParts } from '../lib/lark-worker-prompts.mjs'
+import { runAI } from '../lib/lark-worker-run.mjs'
+import { runSteps } from './support/steps.mjs'
+
+// 11-01 上下文分层升级（docs/upgrade-plan-context-layers-2026-11-01.md）S3 / S4 / S6 的纯函数：
+// AGENTS.md 遮蔽检测、PRD 缓存标龄、截图先看、审计度量、体检执行层。
+const ctx = { projectId: 'TR-99999', projectName: 'test', projectDocs: [], cwd: '/tmp/repo', hotfixBranch: 'hotfix/x', baseRef: 'origin/online' }
+const line = (event) => JSON.stringify(event)
+// 假 claude：分析阶段在事件流末尾吐 result 事件（structured_output），实施阶段写 result.json；记下每次的参数。
+const fakeClaude = (calls) => (cmd, args) => {
+  const child = new EventEmitter()
+  Object.assign(child, { stdout: new PassThrough(), stderr: new PassThrough(), stdin: new PassThrough(), kill: () => {}, pid: 4000 + calls.length })
+  calls.push({ cmd, args })
+  const resultPath = args.join(' ').match(/(\/\S+result\.json)/)?.[1]
+  setImmediate(() => {
+    child.stdout.write(`${line({ type: 'system', subtype: 'init', session_id: `s${calls.length}` })}\n`)
+    if (args.includes('--json-schema')) child.stdout.write(`${line({ type: 'result', session_id: `s${calls.length}`, structured_output: { status: 'ready', summary: 's', applicableRules: [], requirements: [], blockers: [], scope: null } })}\n`)
+    else if (resultPath) writeFileSync(resultPath, JSON.stringify({ status: 'done', summary: 'ok', checks: [], changedFiles: [], warnings: [] }))
+    child.stdout.end()
+    child.stderr.end()
+    setImmediate(() => child.emit('exit', 0))
+  })
+  return child
+}
+const argOf = (args, flag) => (args.includes(flag) ? args[args.indexOf(flag) + 1] : null)
+
+describe('上下文分层升级：遮蔽检测 / 缓存标龄 / 视觉分流 / 度量 / 体检', () => {
+  it('S3 S4 S6 纯函数', () => runSteps([
+    ['AGENTS.md 只在有不导入它的 CLAUDE.md 时算被遮蔽', () => {
+      const fs = (files) => ({ exists: (path) => path in files, read: (path) => files[path] })
+      assert.equal(detectShadowedAgentsDoc('/r', fs({ '/r/AGENTS.md': 'x', '/r/CLAUDE.md': '# CLAUDE.md' })), true)
+      assert.equal(detectShadowedAgentsDoc('/r', fs({ '/r/AGENTS.md': 'x', '/r/CLAUDE.md': '@AGENTS.md\n# CLAUDE.md' })), false)
+      assert.equal(detectShadowedAgentsDoc('/r', fs({ '/r/AGENTS.md': 'x' })), false, '只有 AGENTS.md：Claude Code 直接读它')
+      assert.equal(detectShadowedAgentsDoc('/r', fs({ '/r/CLAUDE.md': 'x' })), false)
+      assert.equal(detectShadowedAgentsDoc('/r', fs({ '/r/AGENTS.md': 'x', '/r/CLAUDE.local.md': 'mine' })), true)
+      assert.equal(detectShadowedAgentsDoc('/r', { exists: () => true, read: () => { throw new Error('EACCES') } }), true, '读不到 CLAUDE.md 按没导入算')
+    }],
+    ['PRD 缓存标抓取时间，超 7 天提示以现抓 / 现状为准；读不到 mtime 原样返回', () => {
+      const now = Date.parse('2026-11-01T00:00:00Z')
+      const stat = (days) => () => ({ mtimeMs: now - days * 86_400_000 })
+      assert.match(describePrdCacheDoc('/c/prd.md', { now, stat: stat(0) }), /抓取于 今天）$/)
+      assert.match(describePrdCacheDoc('/c/prd.md', { now, stat: stat(3) }), /抓取于 3 天前）$/)
+      assert.match(describePrdCacheDoc('/c/prd.md', { now, stat: stat(9) }), /抓取于 9 天前，可能已过期/)
+      assert.equal(describePrdCacheDoc('/c/prd.md', { now, stat: () => { throw new Error('ENOENT') } }), '/c/prd.md')
+      assert.doesNotMatch(describePrdCacheDoc('/c/prd.md', { now, stat: stat(7) }), /可能已过期/, '正好 7 天不算过期')
+    }],
+    ['带已下载截图的任务提示先 Read 截图；下载失败 / 无截图不提', () => {
+      const user = (attachments) => buildTaskPromptParts(ctx, { id: 't', text: '按截图改', attachments }, 'claude', { ruleContext: { text: '', sources: [] } }).user
+      assert.match(user([{ type: 'image', localPath: '/a/1.png' }, { type: 'image', localPath: '/a/2.png' }]), /附件里有 2 张截图：先用 Read 逐张打开/)
+      assert.doesNotMatch(user([{ type: 'image', localPath: '/a/1.png', downloadError: 'x' }]), /张截图：先用 Read/)
+      assert.doesNotMatch(user([]), /张截图：先用 Read/)
+      // claude 实施续分析会话：增量提示不带任务正文，所以分析提示本身也要带（11-01 真实回放发现漏了）
+      assert.match(buildAnalysisPrompt(ctx, { id: 't', text: 'x', attachments: [{ type: 'image', localPath: '/a/1.png' }] }, { text: '', sources: [] }), /附件里有 1 张截图：先用 Read/)
+    }],
+    ['Bash 命令头：剥 cd / 环境变量前缀；sed -n 算读、sed -i 不算', () => {
+      assert.deepEqual(bashCommandHead('cd /x && grep -rn foo src'), { word: 'grep', isReader: true })
+      assert.deepEqual(bashCommandHead('A=1 B="x y" /usr/bin/grep foo'), { word: 'grep', isReader: true })
+      assert.equal(bashCommandHead("sed -n '1,20p' a.ts").isReader, true)
+      assert.equal(bashCommandHead("sed -i '' 's/a/b/' a.ts").isReader, false)
+      assert.equal(bashCommandHead('pnpm install').isReader, false)
+    }],
+    ['审计度量：隔离事实、MCP 暴露、Bash 代读比例、截图 / bug 记录路由、缓存', () => {
+      const log = [
+        '=== 2026-10-30T00:00:00Z claude task ===',
+        line({ type: 'system', subtype: 'init', model: 'm', output_style: 'yolo-chinese', permissionMode: 'bypassPermissions', mcp_servers: [{ name: 'claude.ai Google Drive' }], skills: ['a', 'b', 'c'] }),
+        line({ type: 'assistant', message: { content: [
+          { type: 'tool_use', name: 'Bash', input: { command: 'cd /r && cat a.ts' } },
+          { type: 'tool_use', name: 'Bash', input: { command: 'pnpm test' } },
+          { type: 'tool_use', name: 'Read', input: { file_path: '/att/1.png' } },
+        ] } }),
+        'not json',
+        line({ type: 'result', usage: { cache_read_input_tokens: 90, cache_creation_input_tokens: 8, input_tokens: 2 }, total_cost_usd: 0.5, num_turns: 3, permission_denials: [{}] }),
+      ].join('\n')
+      const sessions = parseAuditLog(log)
+      assert.equal(sessions.length, 1)
+      const m = summarizeAuditMetrics([
+        { audit: { attachments: [{ type: 'image' }], task: { text: 'x' } }, sessions },
+        { audit: { attachments: [{ type: 'image' }], task: { text: 'y' } }, sessions: parseAuditLog(line({ type: 'system', subtype: 'init', output_style: 'default', mcp_servers: [] })) },
+      ])
+      assert.deepEqual(m.isolation.outputStyles, { 'yolo-chinese': 1, default: 1 })
+      assert.equal(m.isolation.mcpExposedSessions, 1)
+      assert.deepEqual([m.bash.total, m.bash.readers, m.bash.readerRatio], [2, 1, 0.5])
+      assert.deepEqual([m.routing.imageTasks, m.routing.imageRead, m.routing.imageReadRatio], [2, 1, 0.5])
+      assert.deepEqual([m.cache.readRatio, m.costUsd, m.permissionDenials], [0.9, 0.5, 1])
+      // 边角：init 之前的事件 / 非 init 的 system 事件不开会话；缺字段记 unknown / (空)；附件在 task 里也认；读非图片不算看图；用了读记录工具才算
+      const edge = parseAuditLog([
+        line({ type: 'result', usage: {} }),
+        line({ type: 'system', subtype: 'hook_started' }),
+        line({ type: 'system', subtype: 'init' }),
+        line({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Bash', input: {} }, { type: 'tool_use', name: 'Read', input: { file_path: '/a.ts' } }, { type: 'tool_use', name: 'Bash', input: { command: 'node /x/tools/read-bug-record.mjs u' } }] } }),
+        line({ type: 'result', usage: {} }),
+      ].join('\n'))
+      assert.equal(edge.length, 1)
+      assert.deepEqual([edge[0].model, edge[0].permissionMode, edge[0].result.turns], [null, null, 0])
+      const link = 'https://x.sg.larksuite.com/record/VpFkrE4D2eXDYHcPkHtlslbRgsf'
+      const bashOnly = parseAuditLog([line({ type: 'system', subtype: 'init' }), line({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Bash', input: { command: 'git log' } }, { type: 'tool_use', name: 'Read', input: { file_path: '/x/read-bug-record.mjs' } }] } })].join('\n'))
+      const e = summarizeAuditMetrics([{ audit: { task: { text: link, attachments: [{ type: 'image' }] } }, sessions: edge }, { audit: { task: { text: link } }, sessions: bashOnly }])
+      assert.deepEqual([e.isolation.models, Object.fromEntries(e.bash.topHeads)], [{ unknown: 2 }, { '(空)': 1, node: 1, git: 1 }])
+      assert.deepEqual([e.routing.imageTasks, e.routing.imageRead], [1, 0])
+      assert.deepEqual([e.routing.bugLinkTasks, e.routing.bugToolUsed], [2, 1])
+      assert.match(formatAuditMetrics(summarizeAuditMetrics([])), /MCP：挂着连接器的会话 0\/0（—）/)
+    }],
+    ['分析阶段走事件流：命令带 stream-json + eventStream；信封取最后一个 result 事件，整段 JSON 照旧，半行跳过，都没有就抛', () => {
+      const analysis = buildAiExecutorCommand({ executor: 'claude', promptText: 'a', cwd: '/tmp/repo', resultKind: 'analysis' })
+      assert.equal(analysis.args[analysis.args.indexOf('--output-format') + 1], 'stream-json')
+      assert.deepEqual([analysis.eventStream, analysis.resultMode], [true, 'stdout-structured'])
+      const stream = [line({ type: 'system', subtype: 'init', session_id: 's1' }), line({ type: 'result', structured_output: { status: 'ready' }, session_id: 's1' }), '{"type":"res'].join('\n')
+      assert.deepEqual(parseClaudeEnvelope(stream).structured_output, { status: 'ready' })
+      assert.equal(parseClaudeEnvelope(line({ structured_output: { a: 1 }, session_id: 'x' })).session_id, 'x')
+      assert.throws(() => parseClaudeEnvelope(line({ type: 'assistant' }) + '\nnot json'))
+      assert.equal(parseClaudeEnvelope(`${line({ type: 'result', session_id: 'first' })}\n{"type":"assis`).session_id, 'first', 'result 在第一行、后面是截断半行')
+    }],
+    ['execAiExecutor：claude 才带隔离 / 系统层；系统层只给分析 / 实施；分析事件流的 result 事件被解析成结构化结果', async () => {
+      const calls = []
+      const pinned = { claudeModel: 'm', claudeEffort: 'high' }
+      const analysis = await execAiExecutor({ executor: 'claude', promptText: 'a', cwd: tmpdir(), localConfig: pinned, resultKind: 'analysis', systemPromptText: 'SYS', spawnImpl: fakeClaude(calls) })
+      assert.deepEqual([analysis.result.status, analysis.sessionId], ['ready', 's1'])
+      assert.deepEqual([argOf(calls[0].args, '--setting-sources'), argOf(calls[0].args, '--append-system-prompt')], ['project', 'SYS'])
+      await execAiExecutor({ executor: 'claude', promptText: 't', cwd: tmpdir(), localConfig: pinned, systemPromptText: 'SYS', spawnImpl: fakeClaude(calls) })
+      assert.equal(argOf(calls[1].args, '--append-system-prompt'), 'SYS')
+      await execAiExecutor({ executor: 'claude', promptText: 'x', cwd: tmpdir(), localConfig: {}, resultKind: 'intent', systemPromptText: 'SYS', spawnImpl: (cmd, args) => { calls.push({ cmd, args }); throw new Error('stop') } }).catch(() => {})
+      assert.equal(calls[2].args.includes('--append-system-prompt'), false, '分类不带系统层')
+      assert.equal(calls[2].args.includes('--setting-sources'), false, '没钉模型 / 强度不隔离')
+      await execAiExecutor({ executor: 'cursor', promptText: 'x', cwd: mkdtempSync(join(tmpdir(), 'cur-')), localConfig: { ...pinned, claudeSettingSources: 'project' }, systemPromptText: 'SYS', spawnImpl: (cmd, args) => { calls.push({ cmd, args }); throw new Error('stop') } }).catch(() => {})
+      assert.equal(calls[3].args.some((a) => a === '--setting-sources' || a === '--append-system-prompt'), false, '非 claude 执行器不吃 claude 参数')
+    }],
+    ['runAI：AGENTS.md 遮蔽只对 claude 生效（codex / cursor 原生读 AGENTS.md）', async () => {
+      const calls = []
+      const exec = async (options) => {
+        calls.push(options)
+        return { executor: options.executor, result: options.resultKind === 'analysis' ? { status: 'ready', summary: 's', applicableRules: [], requirements: [], blockers: [], scope: null } : { status: 'done', summary: 'ok', checks: [], changedFiles: [], warnings: [] } }
+      }
+      const task = (aiExecutor) => ({ id: `t-${aiExecutor}`, source: 'lark', text: '修复：按钮颜色', aiExecutor, attachments: [] })
+      const deps = { exec, snapshot: () => ({ status: '', diff: '' }), detectAgentsDoc: () => true, hasGlobalRules: () => true }
+      const hardRules = /### Source: ~\/\.ai-rules\/AGENT\.md/
+      await runAI({ localConfig: {} }, task('claude'), { ...ctx, cwd: tmpdir() }, null, undefined, deps)
+      assert.match(calls[1].systemPromptText, /工作目录根的 AGENTS\.md/)
+      assert.doesNotMatch(calls[0].promptText, hardRules, 'claude 且本机 CLAUDE.md 带硬规则：不重复注入')
+      calls.length = 0
+      await runAI({ localConfig: {} }, task('claude'), { ...ctx, cwd: tmpdir() }, null, undefined, { ...deps, hasGlobalRules: () => false })
+      assert.match(calls[0].promptText, hardRules, '本机没带（换机器没软链）：照常注入')
+      calls.length = 0
+      await runAI({ localConfig: {} }, task('cursor'), { ...ctx, cwd: tmpdir() }, null, undefined, deps)
+      assert.doesNotMatch(calls[1].promptText, /工作目录根的 AGENTS\.md/)
+      assert.match(calls[0].promptText, hardRules, '非 claude 不自动加载，照常注入')
+      calls.length = 0
+      await runAI({ localConfig: {} }, task('claude'), { ...ctx, cwd: tmpdir() }, null, undefined, { ...deps, detectAgentsDoc: () => false })
+      assert.doesNotMatch(calls[1].systemPromptText, /AGENTS\.md/)
+    }],
+    ['模型配置：空配置 / 旧键兼容（resolveAiModelConfig 从 executor 拆出后仍同口径）', () => {
+      assert.deepEqual(resolveAiModelConfig(null, 'claude'), { model: null, reasoningEffort: null, provider: null, analysisModel: null, analysisEffort: null })
+      assert.deepEqual([resolveAiModelConfig({ model: 'm', reasoningEffort: 'low' }, 'claude').model, resolveAiModelConfig({ model: 'm', reasoningEffort: 'low' }, 'claude').reasoningEffort], ['m', 'low'])
+    }],
+    ['体检取数：默认 claude、CLI 失败记 null、版本去空白、非 claude 不起子进程、规则缺失记原因、没钉不隔离', () => {
+      const spawned = []
+      const spawn = (bin, args) => { spawned.push(args[0]); return args[0] === '--version' ? { status: 0, stdout: ' 2.1.289 \n' } : { status: 1, stdout: 'x' } }
+      const facts = collectExecutorFacts({ localConfig: {}, home: '/h', spawn, read: () => '{"outputStyle":"s"}' })
+      assert.deepEqual([facts.executor, facts.claudeVersion, facts.claudeHelp, facts.userSettings.outputStyle, facts.settingSources.isolated, facts.globalRulesAutoLoaded], ['claude', '2.1.289', null, 's', false, false])
+      assert.equal(facts.rulesError, null)
+      assert.deepEqual(spawned, ['--version', '--help'])
+      spawned.length = 0
+      const codex = collectExecutorFacts({ localConfig: { aiExecutor: 'codex' }, home: '/h', spawn, read: () => { throw new Error('ENOENT') } })
+      assert.deepEqual([codex.claudeVersion, codex.claudeHelp, codex.userSettings, spawned.length], [null, null, null, 0])
+      assert.equal(collectExecutorFacts({ home: '/h', spawn: () => { throw new Error('ENOENT') }, read: () => '{}' }).claudeVersion, null)
+      const noHooks = buildExecutorChecks({ executor: 'claude', claudeVersion: '1', claudeHelp: REQUIRED_CLAUDE_FLAGS.join(' '), userSettings: { hooks: {} }, settingSources: null, rulesError: null })
+      const iso = noHooks.find((c) => c.id === 'exec-isolation')
+      assert.doesNotMatch(iso.text, /hooks|会漏进去/)
+      assert.match(iso.text, /未知/)
+    }],
+    ['体检执行层：CLI 缺失 / 缺参数是 bad；没隔离是 warn 并列出会漏的个人设置；AGENTS.md 遮蔽是 info；非 claude 跳过', () => {
+      const help = REQUIRED_CLAUDE_FLAGS.join(' ')
+      const base = { executor: 'claude', claudeVersion: '2.1.289', claudeHelp: help, userSettings: { outputStyle: 'yolo-chinese', hooks: { Stop: [] } }, settingSources: { isolated: true, value: 'project' }, agentsDocShadowed: false, rulesError: null }
+      const levels = (facts) => Object.fromEntries(buildExecutorChecks(facts).map((c) => [c.id, c.level]))
+      assert.deepEqual(levels(base), { 'exec-cli': 'ok', 'exec-isolation': 'ok' })
+      assert.equal(levels({ ...base, claudeVersion: null })['exec-cli'], 'bad')
+      assert.equal(levels({ ...base, claudeHelp: '--json-schema' })['exec-flags'], 'bad')
+      const leak = buildExecutorChecks({ ...base, settingSources: { isolated: false, reason: '未钉' } }).find((c) => c.id === 'exec-isolation')
+      assert.equal(leak.level, 'warn')
+      assert.match(leak.text, /outputStyle=yolo-chinese/)
+      assert.match(leak.text, /hooks（Stop）/)
+      assert.equal(levels({ ...base, agentsDocShadowed: true })['exec-agents-md'], 'info')
+      assert.equal(levels({ ...base, rulesError: 'VERIFY-RULE-004' })['exec-rules'], 'bad')
+      assert.deepEqual(levels({ ...base, executor: 'codex' }), { 'exec-cli': 'info' })
+      assert.equal(levels({ ...base, globalRulesAutoLoaded: false })['exec-global-rules'], 'info')
+    }],
+  ]))
+})

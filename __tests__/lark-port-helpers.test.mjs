@@ -11,7 +11,7 @@ import { describe, it } from 'node:test'
 
 import { imageExtFromBytes } from '../lib/lark-cli.mjs'
 import { writeFileAtomic, writeJsonAtomic } from '../lib/lark-fs.mjs'
-import { AUTO_LOADED_RULE_LABELS, stripAutoLoadedRules } from '../lib/lark-rule-context.mjs'
+import { AUTO_LOADED_RULE_LABELS, stripAutoLoadedRules, userClaudeMdHasHardRules } from '../lib/lark-rule-context.mjs'
 import { classifyWorkerFailure, failureHead } from '../lib/lark-worker-results.mjs'
 
 describe('失败归类只看报错的固定前缀', () => {
@@ -72,6 +72,11 @@ describe('规则去重：Claude Code 自动加载的章节不再注入提示', (
     assert.equal(stripped.fingerprint, 'abc', '指纹不变，审计仍按完整规则记')
     assert.equal(ruleContext.text, 'HARD\n\nROUTER', '不改原对象')
     assert.equal(stripAutoLoadedRules({ text: 'x' }).text, 'x')
+    // 11-01：本机 ~/.claude/CLAUDE.md 不带硬规则（换机器没软链）就不剔 AGENT.md，避免两头都没有
+    assert.equal(stripAutoLoadedRules(ruleContext, { globalAutoLoaded: false }).text, 'HARD\n\nROUTER')
+    assert.equal(userClaudeMdHasHardRules({ home: '/h', read: () => '# x\n## React / TypeScript Hard Rules\n- a' }), true)
+    assert.equal(userClaudeMdHasHardRules({ home: '/h', read: () => '# x' }), false)
+    assert.equal(userClaudeMdHasHardRules({ home: '/h', read: () => { throw new Error('ENOENT') } }), false)
   })
 })
 

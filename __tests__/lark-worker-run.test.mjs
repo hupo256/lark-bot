@@ -19,8 +19,8 @@ const doneResult = { status: 'done', summary: '已修复', checks: ['biome'], ch
 // mock 执行器：按 resultKind 返回预置结果，并记录每次调用的 resultKind 与 prompt。
 const mockExec = ({ analysis = readyAnalysis(), result = doneResult } = {}) => {
   const calls = []
-  const exec = async ({ executor, resultKind = 'task', promptText }) => {
-    calls.push({ executor, resultKind, promptText })
+  const exec = async ({ executor, resultKind = 'task', promptText, systemPromptText = null }) => {
+    calls.push({ executor, resultKind, promptText, systemPromptText })
     return { executor, result: resultKind === 'analysis' ? analysis : result }
   }
   return { exec, calls }
@@ -50,8 +50,15 @@ describe('runAI：所有执行器在会改代码的任务上先跑只读分析',
     const verify = { localDev: ['pnpm', 'dev'], compareBase: 'https://test.example.com' }
     const { exec, calls } = mockExec()
     await runAI({ localConfig: { verify } }, bugTask('claude'), workContext(), null, undefined, { exec, snapshot: stableSnapshot })
-    assert.match(calls[1].promptText, /自己验证（硬规则）/)
-    assert.doesNotMatch(calls[1].promptText, /禁止启动 dev server|不要启动 dev server/)
+    // claude：「自己验证」属驾驶规则，走系统层（分析与实施共用一份），user 只放本轮
+    assert.match(calls[1].systemPromptText, /自己验证（硬规则）/)
+    assert.equal(calls[0].systemPromptText, calls[1].systemPromptText, '分析与实施同一份系统层（续会话快照安全）')
+    assert.doesNotMatch(calls[1].promptText, /自己验证（硬规则）/)
+    assert.doesNotMatch(`${calls[1].systemPromptText}\n${calls[1].promptText}`, /禁止启动 dev server|不要启动 dev server/)
+    calls.length = 0
+    await runAI({ localConfig: { verify } }, bugTask('cursor'), workContext(), null, undefined, { exec, snapshot: stableSnapshot })
+    assert.match(calls[1].promptText, /自己验证（硬规则）/, '没有系统层参数的执行器拼进同一份提示')
+    assert.equal(calls[1].systemPromptText ?? null, null)
     calls.length = 0
     await runAI({ localConfig: { verify } }, bugTask('claude', { text: '状态：项目进度如何' }), workContext({ readOnly: true }), null, undefined, { exec, snapshot: stableSnapshot })
     assert.equal(calls.length, 1)
@@ -59,7 +66,7 @@ describe('runAI：所有执行器在会改代码的任务上先跑只读分析',
     assert.doesNotMatch(calls[0].promptText, /禁止启动 dev server|不要启动 dev server/, '配了工具就不再说禁止起服务')
     calls.length = 0
     await runAI({ localConfig: {} }, bugTask('claude'), workContext(), null, undefined, { exec, snapshot: stableSnapshot })
-    assert.doesNotMatch(calls[1].promptText, /自己验证（硬规则）/, '没配 verify 不变')
+    assert.doesNotMatch(`${calls[1].systemPromptText}\n${calls[1].promptText}`, /自己验证（硬规则）/, '没配 verify 不变')
   })
 
   it('只读查询（claude）仍单趟，不跑分析、不带 scope', async () => {

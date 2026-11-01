@@ -7,10 +7,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
 import { describe, it } from 'node:test'
+import { runSteps } from './support/steps.mjs'
 
 import { parseAiExecutorDirective, resolveGatewayAiExecutor } from '../lib/lark-ingest.mjs'
 import {
+  CLAUDE_GIT_DENY_RULES,
   CLAUDE_HEADLESS_DISALLOWED_TOOLS,
+  resolveClaudeSettingSources,
   buildAiExecutorCommand,
   buildClaudeReadinessCommand,
   buildCodexReadinessCommand,
@@ -129,7 +132,8 @@ describe('Codex non-interactive command', () => {
     const command = buildAiExecutorCommand({ executor: 'claude', promptText: 'fix it', cwd: '/tmp/repo' })
     assert.deepEqual(command.args, [
       '-p', '--dangerously-skip-permissions',
-      '--disallowedTools', ...CLAUDE_HEADLESS_DISALLOWED_TOOLS,
+      '--strict-mcp-config',
+      '--disallowedTools', ...CLAUDE_HEADLESS_DISALLOWED_TOOLS, ...CLAUDE_GIT_DENY_RULES,
       '--output-format', 'stream-json', '--verbose', '--include-partial-messages', 'fix it',
     ])
     assert.equal(command.eventStream, true)
@@ -140,7 +144,7 @@ describe('Codex non-interactive command', () => {
     const command = buildAiExecutorCommand({ executor: 'claude', promptText: 'fix it', cwd: '/tmp/repo' })
     for (const tool of ['ScheduleWakeup', 'CronCreate', 'Workflow', 'RemoteTrigger', 'EnterWorktree']) assert.ok(CLAUDE_HEADLESS_DISALLOWED_TOOLS.includes(tool), tool)
     const at = command.args.indexOf('--disallowedTools')
-    assert.equal(command.args[at + 1 + CLAUDE_HEADLESS_DISALLOWED_TOOLS.length], '--output-format')
+    assert.equal(command.args[at + 1 + CLAUDE_HEADLESS_DISALLOWED_TOOLS.length + CLAUDE_GIT_DENY_RULES.length], '--output-format')
     // 只读分类 / 分诊 / 分析走 --tools 白名单，本来就没有这些工具，不重复加
     assert.equal(buildAiExecutorCommand({ executor: 'claude', promptText: 'x', cwd: '/tmp/repo', resultKind: 'intent' }).args.includes('--disallowedTools'), false)
     const resumed = buildAiExecutorCommand({ executor: 'claude', promptText: 'write result', cwd: '/tmp/repo', resumeSessionId: 'sess-1' })
@@ -159,6 +163,40 @@ describe('Codex non-interactive command', () => {
     assert.equal(analysis.args.includes('--no-session-persistence'), false)
     assert.equal(buildAiExecutorCommand({ executor: 'claude', promptText: 'x', cwd: '/tmp/repo', resultKind: 'triage' }).args.includes('--no-session-persistence'), true)
   })
+
+  it('宿主隔离 + 系统层命令行（S1 / S2）', () => runSteps([
+    ['宿主隔离 + 系统层（S1 / S2）：所有 claude 调用 --strict-mcp-config；钉了模型 / 强度才 --setting-sources project；可写任务硬拦 git commit / push，只读不加；系统层只进分析 / 实施并带 --exclude-dynamic-system-prompt-sections', () => {
+      for (const resultKind of ['intent', 'triage', 'analysis', 'task']) {
+        const command = buildAiExecutorCommand({ executor: 'claude', promptText: 'x', cwd: '/tmp/repo', resultKind, settingSources: 'project' })
+        assert.ok(command.args.includes('--strict-mcp-config'), resultKind)
+        const at = command.args.indexOf('--setting-sources')
+        assert.deepEqual(command.args.slice(at, at + 2), ['--setting-sources', 'project'], resultKind)
+      }
+      assert.equal(buildAiExecutorCommand({ executor: 'claude', promptText: 'x', cwd: '/tmp/repo' }).args.includes('--setting-sources'), false)
+      for (const rule of ['Bash(git push:*)', 'Bash(git * push*)', 'Bash(git commit:*)', 'Bash(git * commit*)']) assert.ok(CLAUDE_GIT_DENY_RULES.includes(rule), rule)
+      assert.equal(buildAiExecutorCommand({ executor: 'claude', promptText: 'x', cwd: '/tmp/repo', readOnly: true }).args.some((a) => CLAUDE_GIT_DENY_RULES.includes(a)), false)
+      const task = buildAiExecutorCommand({ executor: 'claude', promptText: 'user', cwd: '/tmp/repo', systemPromptText: 'SYS' })
+      const s = task.args.indexOf('--append-system-prompt')
+      assert.deepEqual(task.args.slice(s, s + 3), ['--append-system-prompt', 'SYS', '--exclude-dynamic-system-prompt-sections'])
+      assert.equal(task.args.at(-1), 'user')
+      assert.equal(task.args.includes('--system-prompt'), false, '不用替换式 --system-prompt（会丢默认工具指导与安全指令）')
+      const analysis = buildAiExecutorCommand({ executor: 'claude', promptText: 'a', cwd: '/tmp/repo', resultKind: 'analysis', systemPromptText: 'SYS' })
+      assert.ok(analysis.args.includes('--append-system-prompt'))
+      // --add-dir 变长参数仍须紧跟下一个 -- 选项（系统层放在它前面，不能把 prompt 吞成目录）
+      const addDir = analysis.args.indexOf('--add-dir')
+      if (addDir >= 0) assert.match(analysis.args.slice(addDir + 1).find((a) => a.startsWith('--')), /^--json-schema$/)
+      for (const resultKind of ['intent', 'triage']) assert.equal(buildAiExecutorCommand({ executor: 'claude', promptText: 'x', cwd: '/tmp/repo', resultKind, systemPromptText: 'SYS' }).args.includes('--append-system-prompt'), false, `${resultKind} 是独立小会话，不带系统层`)
+    }],
+    ['resolveClaudeSettingSources：钉了 claudeModel + claudeEffort 才隔离；显式 claudeSettingSources 优先（回滚）；都没有 = 不传', () => {
+      assert.deepEqual(resolveClaudeSettingSources({ claudeModel: 'm', claudeEffort: 'high' }).value, 'project')
+      assert.equal(resolveClaudeSettingSources({ claudeModel: 'm' }).value, null)
+      assert.equal(resolveClaudeSettingSources({}).isolated, false)
+      assert.deepEqual([resolveClaudeSettingSources({ claudeSettingSources: 'user,project,local' }).value, resolveClaudeSettingSources({ claudeSettingSources: 'user,project,local' }).isolated], ['user,project,local', false])
+      assert.equal(resolveClaudeSettingSources({ claudeSettingSources: 'project,local' }).isolated, true)
+      const probe = buildClaudeReadinessCommand({ model: 'm', settingSources: 'project' })
+      assert.ok(probe.args.includes('--strict-mcp-config') && probe.args.includes('--setting-sources'))
+    }],
+  ]))
 
   it('claudeModel / claudeEffort / claudeAnalysisModel 进命令行；缺省不传 --model（由 claude.env / 账号默认决定）', () => {
     const cfg = resolveAiModelConfig({ claudeModel: 'claude-opus-5-5', claudeEffort: 'medium', claudeAnalysisEffort: 'high' }, 'claude')

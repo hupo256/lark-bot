@@ -412,7 +412,7 @@ describe('取数与 CLI', () => {
       await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
       const run = (args, gatewayUrl) =>
         new Promise((resolve) => {
-          const env = { ...process.env, HOME: dir, LARK_BOT_ROOT: root, LARK_RUNTIME_DIR: join(dir, 'runtime'), LARK_GATEWAY_URL: gatewayUrl, LARK_GATEWAY_SECRET: 's' }
+          const env = { ...process.env, HOME: dir, LARK_BOT_ROOT: root, LARK_RUNTIME_DIR: join(dir, 'runtime'), LARK_GATEWAY_URL: gatewayUrl, LARK_GATEWAY_SECRET: 's', LARK_DOCTOR_EXECUTOR: '0' }
           execFile('bash', [join(root, 'scripts/lark-bot'), 'doctor', ...args], { env, encoding: 'utf8' }, (error, stdout, stderr) => resolve({ code: error ? error.code : 0, stdout, stderr }))
         })
       try {

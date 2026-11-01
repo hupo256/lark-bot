@@ -22,5 +22,23 @@
     "code": ";(primaryUrls.has(url) ? failures : skipped).push({ url, reason: String(error.message || error).slice(0, 160) })",
     "op": "|| → &&",
     "reason": "等价：这里的 error 只来自 spawn / validateSource 抛出的 Error 对象，恒有 message；非 Error 值走不到这条 catch"
+  },
+  {
+    "file": "lib/lark-ai-executor.mjs",
+    "code": "systemPromptText: executor === 'claude' && ['analysis', 'task'].includes(resultKind) ? systemPromptText : null,",
+    "op": "&& → ||",
+    "reason": "变异后非 claude 执行器也会拿到 systemPromptText，但 buildAiExecutorCommand 只在 claude 分支用它（codex / pi / cursor 分支不读该参数），命令行不变（等价变异）；claude 的分类 / 分诊不带系统层由 resultKind 一侧的条件保证并有测试"
+  },
+  {
+    "file": "lib/lark-ai-result.mjs",
+    "code": "if (!line.startsWith('{') || !line.includes('\"result\"')) continue",
+    "op": "|| → &&",
+    "reason": "这行只是跳过明显不是 result 事件的行的快速过滤；变异后多 JSON.parse 几行，仍由下面 event.type === 'result' 判定，返回值不变（等价变异，只影响速度）"
+  },
+  {
+    "file": "lib/lark-executor-doctor.mjs",
+    "code": "rulesError = String(error?.message || error)",
+    "op": "|| → &&",
+    "reason": "只影响体检行里错误原因的展示文字（「Error: x」与「x」），等级判定只看 rulesError 是否为空；且规则上下文构建是直接调用、无法在单测里注入失败（无业务含义）"
   }
 ]

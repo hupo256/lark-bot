@@ -8,7 +8,7 @@ import { describe, it } from 'node:test'
 const root = resolve(new URL('..', import.meta.url).pathname)
 const LINE_BUDGET = 600
 const LEGACY_SNAPSHOT = {
-  'lib/lark-ai-executor.mjs': 857,
+  'lib/lark-ai-executor.mjs': 829,
   'lib/lark-scope-contract.mjs': 690,
   'lib/lark-task-runner.mjs': 686,
 }

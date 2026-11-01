@@ -1537,6 +1537,8 @@ describe('validateConfig（启动期配置结构校验）', () => {
     notifyOpenId: 'ou_owner',
     allowedChatIds: 'auto',
     bugTable: { appToken: 'app', tableId: 'tbl', statusField: '状态', assigneeField: '负责人', doneValue: '已处理' },
+    claudeModel: 'claude-opus-5-5',
+    claudeEffort: 'high',
   }
   it('合法配置：无 error 无 warning；没配 botAppId 告警（开盖补拉认不出 @bot），类型错是 error', () => {
     const { errors, warnings } = validateConfig(base)
@@ -1544,6 +1546,13 @@ describe('validateConfig（启动期配置结构校验）', () => {
     assert.deepEqual(warnings, [])
     assert.ok(validateConfig({ ...base, botAppId: undefined }).warnings.some((w) => w.includes('botAppId')))
     assert.ok(validateConfig({ ...base, botAppId: 1 }).errors.some((e) => e.includes('botAppId')))
+    // 宿主隔离（S1）：claude 执行器没钉模型 / 强度告警（隔离不启用）；钉了、显式 claudeSettingSources、或非 claude 执行器不告警
+    const { claudeModel: _m, claudeEffort: _e, ...unpinned } = base
+    assert.ok(validateConfig(unpinned).warnings.some((w) => w.includes('未钉 claudeModel / claudeEffort')))
+    assert.ok(validateConfig({ ...base, claudeEffort: undefined }).warnings.some((w) => w.includes('未钉 claudeModel')))
+    assert.deepEqual(validateConfig({ ...unpinned, claudeSettingSources: 'user,project,local' }).warnings, [])
+    assert.deepEqual(validateConfig({ ...unpinned, aiExecutor: 'codex' }).warnings, [])
+    assert.ok(validateConfig({ ...base, claudeSettingSources: '' }).errors.some((e) => e.includes('claudeSettingSources')))
   })
   it('notifyOpenId：没配只告警（自愈消息只写日志），配了必须是 ou_ 开头的 open_id', () => {
     const missing = validateConfig({ ...base, notifyOpenId: undefined })
