@@ -93,6 +93,10 @@ const fetchPendingRecords = async ({ bug }) => {
     bug.portField || BUGTABLE_FIELD_DEFAULTS.portField,
     bug.createdField || BUGTABLE_FIELD_DEFAULTS.createdField,
     bug.screenshotField || BUGTABLE_FIELD_DEFAULTS.screenshotField,
+    bug.testResultField || BUGTABLE_FIELD_DEFAULTS.testResultField,
+    bug.retestResultField || BUGTABLE_FIELD_DEFAULTS.retestResultField,
+    bug.reopenCountField || BUGTABLE_FIELD_DEFAULTS.reopenCountField,
+    bug.remarkField || BUGTABLE_FIELD_DEFAULTS.remarkField,
   ].filter(Boolean)
 
   const all = []

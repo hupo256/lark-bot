@@ -29,6 +29,8 @@ import { activeClaims, formatClaimList, isClaimed, loadClaims, normalizeBugNo, p
 import { dedupeNote, findMentioningCommits } from '../lib/lark-bug-dedupe.mjs'
 import { commitMessage } from '../lib/lark-worker-git.mjs'
 import { handleBugRecords } from '../lark-bugtable-poller.mjs'
+import { buildBugText, REMARK_TAIL } from '../lib/lark-bugtable-parse.mjs'
+import { buildWorkerSystemPrompt } from '../lib/lark-worker-prompts.mjs'
 import { maybeHandleProjectChatDirective } from '../lib/lark-project-chat-sync.mjs'
 import { runSteps } from './support/steps.mjs'
 
@@ -438,6 +440,47 @@ describe('bug 发现两档调度（读通知 + 对账）', () => {
       await maybeHandleProjectChatDirective({ msg: msg('修完了 BUG-7561'), config, ...deps })
       assert.deepEqual(store, {})
       assert.equal(replies.at(-1), 'BUG-7561 已解除，bot 之后照常处理。')
+    }],
+    ['B4 任务正文：验退带 QA 测试 / 返工结果与重开次数（有才写），备注任何时候带且只取最后 800 字，修改范围 owned 加一句', () => {
+      const bug = { ...BUG, rejectedValue: '验退' }
+      const fields = { 问题标题: 't', 处理状态: '验退', 项目ID: 'PR-1', 测试结果: '不通过', 返工测试结果: '还是报错', 重开次数: '2', 备注: 'x'.repeat(REMARK_TAIL + 5) + 'END' }
+      const text = buildBugText({ record: { record_id: 'r1', fields }, bug })
+      assert.match(text, /\nQA 测试结果：不通过\nQA 返工测试结果（本次验退的原因，先看这个）：还是报错\n重开次数：2\n备注（只取最后 800 字）：x+END$/)
+      assert.equal(text.split('备注（只取最后 800 字）：')[1].length, REMARK_TAIL)
+      const fresh = buildBugText({ record: { record_id: 'r2', fields: { ...fields, 处理状态: '待处理', 备注: '后端说 A 字段改了' } }, bug })
+      assert.doesNotMatch(fresh, /QA 测试结果|返工测试结果|重开次数/)
+      assert.match(fresh, /\n备注：后端说 A 字段改了$/)
+      assert.match(buildBugText({ record: { record_id: 'r6', fields: { 问题标题: 't', 备注: 'y'.repeat(REMARK_TAIL) } }, bug }), /\n备注：y{800}$/, '正好 800 字不标截取')
+      const sparse = buildBugText({ record: { record_id: 'r3', fields: { 问题标题: 't', 处理状态: '验退', 返工测试结果: '仍不对' } }, bug })
+      assert.match(sparse, /QA 返工测试结果（本次验退的原因，先看这个）：仍不对$/)
+      assert.doesNotMatch(sparse, /QA 测试结果：|重开次数|备注/)
+      assert.match(buildBugText({ record: { record_id: 'r4', fields: { 问题标题: 't' } }, bug: { ...bug, fixScope: { modules: 'owned' } } }), /\n修改范围：只改负责人自己负责的模块/)
+      assert.doesNotMatch(buildBugText({ record: { record_id: 'r4', fields: { 问题标题: 't' } }, bug: { ...bug, fixScope: { modules: 'all' } } }), /修改范围/)
+      const custom = buildBugText({ record: { record_id: 'r5', fields: { 问题标题: 't', 处理状态: '验退', RT: '自定义列' , RM: '自定义备注' } }, bug: { ...bug, retestResultField: 'RT', remarkField: 'RM' } })
+      assert.match(custom, /返工测试结果（本次验退的原因，先看这个）：自定义列\n备注：自定义备注$/)
+    }],
+    ['B4 系统层带修复整体性规则；拉记录投影带验退与备注列', async () => {
+      assert.match(buildWorkerSystemPrompt(), /修 bug 要有整体性（不漏、不修一个引出另一个）：同因搜索.*影响面.*改动最小.*回归/)
+      const seen = []
+      await listBugRecords({ bug: BUG, filter: {}, defaults: { testResultField: 'TR', retestResultField: 'RR', reopenCountField: 'RC', remarkField: 'RM' }, run: async (args) => { seen.push(args); return { code: 0, stdout: '{"data":{}}' } } })
+      const ids = seen[0].filter((_, i) => seen[0][i - 1] === '--field-id')
+      assert.deepEqual(ids.slice(-4), ['TR', 'RR', 'RC', 'RM'])
+      const named = []
+      await listBugRecords({ bug: { ...BUG, testResultField: 'a', retestResultField: 'b', reopenCountField: 'c', remarkField: 'd' }, filter: {}, defaults: {}, run: async (args) => { named.push(args); return { code: 0, stdout: '{"data":{}}' } } })
+      assert.deepEqual(named[0].filter((_, i) => named[0][i - 1] === '--field-id').slice(-4), ['a', 'b', 'c', 'd'])
+    }],
+    ['B4 团队范围：默认只对账我头上的；打开后连名单里的人一起捞，名单只认 ou_', async () => {
+      assert.deepEqual(normalizeWatchConfig({}).team, { enabled: false, assignees: [] })
+      assert.deepEqual(normalizeWatchConfig({ team: { enabled: true, assignees: ['ou_a', 'x', 3] } }).team, { enabled: true, assignees: ['ou_a'] })
+      const now = at('2026-11-02T10:00:00')
+      const records = [rec('r1'), { record_id: 'r2', fields: { ...rec('r2').fields, 负责RD: [{ id: 'ou_a' }] } }, rec('r3', { mine: false })]
+      const base = { ...initialWatchState(0), cursor: { position: 1, readFrom: 'x' }, lastNotifyReadAt: now, baseline: { at: 'x', statuses: {} } }
+      const solo = roundDeps({ records })
+      await runWatchRound({ config: { bugTable: BUG }, cfg, state: base, now, deps: solo.deps })
+      assert.deepEqual(solo.calls.handled, ['r1'])
+      const team = roundDeps({ records })
+      await runWatchRound({ config: { bugTable: BUG }, cfg: normalizeWatchConfig({ enabled: true, notifyChatId: 'oc_n', utcOffsetMin: 240, team: { enabled: true, assignees: ['ou_a'] } }), state: base, now, deps: team.deps })
+      assert.deepEqual(team.calls.handled, ['r1', 'r2'])
     }],
   ], hooks))
 })
