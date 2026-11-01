@@ -58,5 +58,41 @@
     "code": ".catch((error) => console.error(`[lark-gateway] 项目群同步异常：${String(error?.message || error).slice(0, 160)}`))",
     "op": "|| → &&",
     "reason": "只影响异常日志文字，无业务含义"
+  },
+  {
+    "file": "lib/lark-bug-watch-io.mjs",
+    "code": "export const watchStatePath = () => join(process.env.LARK_RUNTIME_DIR || larkRuntimeDir, 'lark-bug-watch.json')",
+    "op": "|| → &&",
+    "reason": "只是状态文件路径的环境变量默认值，测试一律显式传 path"
+  },
+  {
+    "file": "lib/lark-bug-watch-io.mjs",
+    "code": "throw new Error(`${what} 返回不是 JSON：${String(result.stdout || '').slice(0, 160)}`)",
+    "op": "|| → &&",
+    "reason": "只影响报错文字里的空值占位"
+  },
+  {
+    "file": "lib/lark-bug-watch-io.mjs",
+    "code": "logPath = process.env.LARK_LOG_FILE || null,",
+    "op": "|| → &&",
+    "reason": "日志路径的环境变量默认值，测试显式传 logPath"
+  },
+  {
+    "file": "lib/lark-bug-watch.mjs",
+    "code": "if (!(to > from)) return 0",
+    "op": "> → >=",
+    "reason": "to === from 时继续往下算，每天重叠都是 0，结果相同（等价变异）"
+  },
+  {
+    "file": "lib/lark-bug-watch.mjs",
+    "code": "for (; dayStartMs < to; dayStartMs += DAY_MS) {",
+    "op": "< → <=",
+    "reason": "dayStartMs === to 时多算的那天开工时间晚于 to，重叠为 0（等价变异）"
+  },
+  {
+    "file": "lib/lark-bug-watch.mjs",
+    "code": "const counted = state.mode === 'testing' && gap > 0 && gap <= maxGapMs ? workMsBetween(last, now, cfg) : 0",
+    "op": "> → >=",
+    "reason": "gap 为 0 时 workMsBetween(last, last) 恒为 0（等价变异）"
   }
 ]

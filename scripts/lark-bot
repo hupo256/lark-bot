@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Friendly control for the PR-01947 Lark bot (gateway + worker + bug poller).
-# Usage: lark-bot {start|stop|restart|status|logs|poll-on|poll-off|doctor [--json]|self-fix {list|apply <id>|discard <id>}|claude-auth [local|proxy]|…}
+# Usage: lark-bot {start|stop|restart|status|logs|poll-on|poll-off|poll-stop|doctor [--json]|self-fix {list|apply <id>|discard <id>}|claude-auth [local|proxy]|…}
 set -euo pipefail
 
 REPO="/Users/aven/github/fameex-web"
@@ -150,6 +150,8 @@ start() {
     stop_core
     return 1
   fi
+  # 两档调度开着：poller 常驻（平时档也要读通知 / 对账）
+  if watch_enabled; then ensure_poller; fi
   echo "---"
   status || true
 }
@@ -161,18 +163,34 @@ stop() {
   echo "• stopped gateway + worker + poller"
 }
 
-# bug 轮询窗口：QA 期手动开、测完手动关（平时不跑）。空闲 4h 无新 bug 会自动收工。
-poll_on() {
+# bug 发现开没开两档调度（config.bugTable.watch.enabled，aven 2026-11-01 B2）
+watch_enabled() {
+  node -e 'try { const c = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); process.exit(c.bugTable?.watch?.enabled === true ? 0 : 1) } catch { process.exit(1) }' "$RUNTIME_DIR/lark-bot.local.json"
+}
+
+ensure_poller() {
   cd "$REPO" || { echo "repo not found: $REPO"; exit 1; }
   if _running "$POLLER"; then
     echo "• poller already running"
   else
     install_agent "$POLLER_LABEL" "$RUNTIME_DIR/$POLLER_LABEL.plist" "$POLLER_PLIST"
-    echo "• poller supervised by launchd → $LOGDIR/poller.log（空闲 4h 无新 bug 自动收工）"
+    echo "• poller supervised by launchd → $LOGDIR/poller.log"
   fi
 }
 
+# 两档调度开着时：poller 常驻，poll-on / poll-off 只切「测试中 / 平时」（写 runtime/lark-bug-watch.json，常驻进程下一轮读到）；
+# 读到新 bug 通知自动转测试中、连续一个工作日没有新通知自动回平时。没开时保持老行为：QA 期手动开、空闲 4h 自动收工。
+poll_on() {
+  ensure_poller
+  if watch_enabled; then node "$POLLER" --set-mode testing; fi
+}
+
 poll_off() {
+  if watch_enabled; then node "$POLLER" --set-mode idle; echo "• poller 仍常驻（平时档：读通知 60 分钟 / 对账 120 分钟）；要彻底停用 lark-bot poll-stop"; return; fi
+  poll_stop
+}
+
+poll_stop() {
   local was_running=0
   if _running "$POLLER"; then was_running=1; fi
   launchctl bootout "$DOMAIN/$POLLER_LABEL" 2>/dev/null || true
@@ -236,6 +254,7 @@ status() {
     LARK_STATUS_GATEWAY_PID="$gateway_pid" \
     LARK_STATUS_WORKER_PID="$worker_pid" \
     LARK_STATUS_POLLER_PID="$poller_pid" \
+    LARK_STATUS_RUNTIME_DIR="$RUNTIME_DIR" \
     LARK_STATUS_CLAUDE_AUTH="$(_claude_auth_mode)" \
     LARK_STATUS_GATEWAY_URL="$GATEWAY_URL" \
     node -e '
@@ -273,7 +292,9 @@ status() {
         // 自修工单在跑：心跳的 inFlight 已把它算进去，这里单列出工单 id 与开始时间（lark-bot self-fix list 看明细）。
         const selfFix = worker?.selfFix && !worker.heartbeatStale ? `  自修中 ${worker.selfFix.id}（自 ${String(worker.selfFix.since || "?").slice(0, 16)}）` : "";
         console.log(`lark-worker:  ${workerState}${workerPid ? `  pid=${workerPid}` : ""}${draining ? `  排空中（在飞 ${worker.inFlight ?? "?"} 个，跑完即自动 restart）` : ""}${selfFix}`);
-        console.log(`poller:       ${pollerState}${pollerPid ? `  pid=${pollerPid}` : ""}`);
+        let watchMode = "";
+        try { const w = JSON.parse(require("fs").readFileSync(process.env.LARK_STATUS_RUNTIME_DIR + "/lark-bug-watch.json", "utf8")); watchMode = `  ${w.mode === "testing" ? "测试中" : "平时"}（自 ${String(w.modeSince || "?").slice(5, 16)}）`; } catch {}
+        console.log(`poller:       ${pollerState}${pollerPid ? `  pid=${pollerPid}` : ""}${watchMode}`);
         console.log("");
         console.log(`executor:     ${readiness?.executor || "--"}${readiness?.model ? `  model=${readiness.model}  reasoning=${readiness.reasoningEffort}  probe=${readiness.modelProbe}` : ""}${readiness?.executor === "claude" ? `  auth=${process.env.LARK_STATUS_CLAUDE_AUTH}` : ""}`);
         console.log(`tasks:        queued=${counts.queued || 0} running=${counts.running || 0} waiting=${counts.waiting_confirmation || 0} failed=${counts.failed || 0} receipt-pending=${health?.pendingReceipts?.total || 0} writeback-pending=${counts.done_pending_writeback || 0}`);
@@ -368,6 +389,7 @@ case "${1:-}" in
   logs)     tail -n 40 -f "$LOGDIR"/gateway.log "$LOGDIR"/worker.log ;;
   poll-on)  poll_on ;;
   poll-off) poll_off ;;
+  poll-stop) poll_stop ;;
   failed)   failed ;;
   retry)    retry "${2:-}" ;;
   # 终端结单：与群里回复卡片「结单」同一个 store 方法，只改状态不发卡（卡片找不到时用）。
@@ -387,5 +409,5 @@ case "${1:-}" in
   claude-auth) claude_auth "${2:-}" ;;
   # 自修工单（lib/lark-self-fix*.mjs）：list / apply <id>（合进运行分支）/ discard <id>
   self-fix) node "$LARK_BOT_ROOT/scripts/lark-self-fix.mjs" "${@:2}" ;;
-  *) echo "usage: lark-bot {start|stop|restart|status|logs|poll-on|poll-off|failed|retry <id>|close <id> [reason] [\"<说明>\"]|resume <id> \"<补充>\"|receipt-retry <id>|clean [hours]|clean --failed [hours]|claude-auth [local|proxy]|doctor [--json]|self-fix {list|apply <id>|discard <id>}}"; exit 1 ;;
+  *) echo "usage: lark-bot {start|stop|restart|status|logs|poll-on|poll-off|poll-stop|failed|retry <id>|close <id> [reason] [\"<说明>\"]|resume <id> \"<补充>\"|receipt-retry <id>|clean [hours]|clean --failed [hours]|claude-auth [local|proxy]|doctor [--json]|self-fix {list|apply <id>|discard <id>}}"; exit 1 ;;
 esac

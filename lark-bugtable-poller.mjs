@@ -22,6 +22,9 @@ import { runLarkCli, sendChatMessage, resolveChatIdByProject, larkCallFailed, fo
 import { createGatewayClient, sleep } from './lib/lark-gateway-client.mjs'
 import { defaultGatewayUrl } from './lib/lark-constants.mjs'
 import { writePollerStatus } from './lib/lark-doctor.mjs'
+import { normalizeWatchConfig, setWatchMode } from './lib/lark-bug-watch.mjs'
+import { listBugRecords, loadWatchState, readNotificationMessages, recordWatchFailure, saveWatchState } from './lib/lark-bug-watch-io.mjs'
+import { runWatchRound } from './lib/lark-bug-watch-round.mjs'
 import {
   assigneeHasOpenId,
   buildBugText,
@@ -163,25 +166,12 @@ const fetchGatewayTasks = async (client) => {
   return byId
 }
 
-const runOnce = async ({ config, seen, client }) => {
+// 一批记录逐条按 gateway 任务状态分流：新记录入队、验退重开，其余（处理中 / 等人 / 终局 / 失败）不动。
+// 返回各类计数。对账与「读通知定位到的单条记录」共用（aven 11-01 B2）。
+export const handleBugRecords = async ({ records, config, seen, client, taskById, myOpenId, log = console.log }) => {
   const bug = config.bugTable
-  if (!bug?.appToken || !bug?.tableId) {
-    throw new Error('config.bugTable.appToken / tableId are required')
-  }
-  const records = await fetchPendingRecords({ bug })
-  // myOpenId 与「@负责人才触发任务分类」的 taskMentionOpenIds[0] 是同一人，不在 bugTable 下单独维护。
-  const myOpenId = bug.myOpenId || config.taskMentionOpenIds?.[0]
-  const mine = records.filter((record) => assigneeHasOpenId(record.fields?.[bug.assigneeField], myOpenId))
-  // 用 gateway 任务状态（而非「入队即永久 seen」）判断去重：避免 failed 的 bug 既留在表里待处理、
-  // 又被本地 seen 挡住永不再捞而静默消失。seen 只缓存已确认 done 的记录（跨重启防重入队）。
-  const taskById = await fetchGatewayTasks(client)
-  let enqueued = 0
-  let reopened = 0
-  let inFlight = 0
-  let waiting = 0
-  let noChange = 0
-  let stuck = 0
-  for (const record of mine) {
+  const counts = { enqueued: 0, reopened: 0, inFlight: 0, waiting: 0, noChange: 0, stuck: 0 }
+  for (const record of records) {
     const id = record.record_id
     const recordStatus = readStatusText(record.fields?.[bug.statusField])
     const task = taskById.get(id)
@@ -197,38 +187,93 @@ const runOnce = async ({ config, seen, client }) => {
       continue
     }
     if (disposition === 'in-flight') {
-      inFlight += 1 // 正在处理中，不重复入队
+      counts.inFlight += 1 // 正在处理中，不重复入队
       continue
     }
     if (disposition === 'waiting') {
-      waiting += 1 // 阻塞/待确认必须等人工补料，禁止 poller 自动重跑覆盖状态
+      counts.waiting += 1 // 阻塞/待确认必须等人工补料，禁止 poller 自动重跑覆盖状态
       continue
     }
     if (disposition === 'no-change') {
-      noChange += 1 // 本仓无对应改动（转后端/别的仓）：终局，不自动重跑，留待人工重新分派
+      counts.noChange += 1 // 本仓无对应改动（转后端/别的仓）：终局，不自动重跑，留待人工重新分派
       continue
     }
     if (disposition === 'failed') {
       // 上次失败：群里已收到失败卡片，表格保持待处理待人工介入。此处不自动重跑（避免对
       // 真正修不动的 bug 无限重试 AI、刷群烧钱）；仅计数暴露，需人工在群里重触发或手动处理。
-      stuck += 1
+      counts.stuck += 1
       continue
     }
     if (disposition === 'reopen') {
       await enqueueTask({ client, record, bug, fallbackChatId: resolveNotifyChatId(config), operator: myOpenId, reopen: true })
-      reopened += 1
-      console.log(`[bugtable-poller] reopened QA-returned ${id}`)
+      counts.reopened += 1
+      log(`[bugtable-poller] reopened QA-returned ${id}`)
       continue
     }
     // 全新记录 → 入队
     await enqueueTask({ client, record, bug, fallbackChatId: resolveNotifyChatId(config), operator: myOpenId })
-    enqueued += 1
-    console.log(`[bugtable-poller] enqueued ${id}`)
+    counts.enqueued += 1
+    log(`[bugtable-poller] enqueued ${id}`)
   }
-  console.log(`[bugtable-poller] actionable=${records.length} mine=${mine.length} new=${enqueued} qa-returned=${reopened} in-flight=${inFlight} waiting=${waiting} no-change=${noChange} stuck-failed=${stuck}`)
+  return counts
+}
+
+const myOpenIdOf = (config) => config.bugTable?.myOpenId || config.taskMentionOpenIds?.[0]
+const mineOf = (records, config) => records.filter((record) => assigneeHasOpenId(record.fields?.[config.bugTable.assigneeField], myOpenIdOf(config)))
+
+const runOnce = async ({ config, seen, client }) => {
+  const bug = config.bugTable
+  if (!bug?.appToken || !bug?.tableId) {
+    throw new Error('config.bugTable.appToken / tableId are required')
+  }
+  const records = await fetchPendingRecords({ bug })
+  // myOpenId 与「@负责人才触发任务分类」的 taskMentionOpenIds[0] 是同一人，不在 bugTable 下单独维护。
+  const myOpenId = myOpenIdOf(config)
+  const mine = mineOf(records, config)
+  // 用 gateway 任务状态（而非「入队即永久 seen」）判断去重：避免 failed 的 bug 既留在表里待处理、
+  // 又被本地 seen 挡住永不再捞而静默消失。seen 只缓存已确认 done 的记录（跨重启防重入队）。
+  const taskById = await fetchGatewayTasks(client)
+  const c = await handleBugRecords({ records: mine, config, seen, client, taskById, myOpenId })
+  console.log(`[bugtable-poller] actionable=${records.length} mine=${mine.length} new=${c.enqueued} qa-returned=${c.reopened} in-flight=${c.inFlight} waiting=${c.waiting} no-change=${c.noChange} stuck=${c.stuck}`)
   // 用本轮抓取窗口（全部待处理/验退记录）裁剪 seen：离开筛选的 done 记录随之退出，seen 不再只增。
   seen.prune(new Set(records.map((record) => record.record_id)))
-  return enqueued + reopened
+  return c.enqueued + c.reopened
+}
+
+// 两档调度（aven 2026-11-01 B2，config.bugTable.watch.enabled）：常驻，每 tick（默认 1 分钟）跑一轮 runWatchRound，
+// 读通知 / 对账按「平时 / 测试中」各自的间隔到期才真跑。没开 watch 时走下面的老循环（2 分钟整表、空闲 4h 收工）。
+const runWatchLoop = async ({ config, cfg, seen, client, once, saveStatus }) => {
+  const operator = myOpenIdOf(config)
+  const dmChat = operator || resolveNotifyChatId(config)
+  const dm = (text) => sendChatMessage({ chatId: dmChat, text, logPrefix: 'bug-watch', idempotencyKey: `bug-watch-${Date.now()}-${text.length}` })
+  const deps = {
+    readMessages: (args) => readNotificationMessages(args),
+    listRecords: ({ filter }) => listBugRecords({ bug: config.bugTable, filter, defaults: BUGTABLE_FIELD_DEFAULTS }),
+    listTasks: () => fetchGatewayTasks(client),
+    handleRecords: ({ records, taskById }) => handleBugRecords({ records, config, seen, client, taskById, myOpenId: operator }),
+    save: (state) => saveWatchState(state),
+    dm,
+    recordFailure: (args) => recordWatchFailure(args),
+  }
+  let state = loadWatchState()
+  if (state.recoveredFromCorrupt) {
+    delete state.recoveredFromCorrupt
+    await dm('bug 发现的状态文件损坏，已按初始状态重建：读通知从现在读起，对账重建基线。')
+  }
+  console.log(`[bugtable-poller] 两档调度启动：当前「${state.mode === 'testing' ? '测试中' : '平时'}」，通知会话 ${cfg.notifyChatId || '(未配，只对账)'}`)
+  do {
+    const now = Date.now()
+    const { state: next, report } = await runWatchRound({ config, cfg, state, now, deps })
+    state = next
+    if (report.notify || report.reconcile) {
+      console.log(`[bugtable-poller] ${state.mode} notify=${JSON.stringify(report.notify)} reconcile=${JSON.stringify(report.reconcile)}`)
+      const failed = [report.notify, report.reconcile].some((r) => r?.error)
+      saveStatus({ lastRoundAt: new Date(now).toISOString(), ...(failed ? {} : { lastOkAt: new Date(now).toISOString() }), consecutiveErrors: Math.max(state.failures?.notify || 0, state.failures?.reconcile || 0), mode: state.mode })
+    }
+    if (!once) await sleep(cfg.tickMs)
+    // 手动切档（lark-bot poll-on / poll-off 写的是同一个状态文件）：每轮重读，以磁盘为准
+    if (!once) state = { ...loadWatchState(), lastTickAt: state.lastTickAt }
+  } while (!once)
 }
 
 export async function runLarkBugtablePoller({
@@ -251,6 +296,15 @@ export async function runLarkBugtablePoller({
   const seen = createSeenStore(statePath)
   const client = createGatewayClient(gatewayUrl)
   const once = argv.includes('--once')
+  const watchCfg = normalizeWatchConfig(config.bugTable?.watch)
+  // lark-bot poll-on / poll-off：只切档写状态文件，常驻进程下一轮读到
+  const modeArg = argv.indexOf('--set-mode')
+  if (modeArg >= 0) {
+    const mode = argv[modeArg + 1] === 'testing' ? 'testing' : 'idle'
+    saveWatchState(setWatchMode(loadWatchState(), mode))
+    console.log(`bug 发现已切到「${mode === 'testing' ? '测试中' : '平时'}」`)
+    return
+  }
   // poller 自身的空闲/连续失败告警也私聊负责人（operator open_id），与 bug 卡兜底同源，
   // 不再把运维通知硬发进某个项目群（config 通知群仅在 operator 缺失时兜底）。
   const operator = config.bugTable?.myOpenId || config.taskMentionOpenIds?.[0]
@@ -267,6 +321,10 @@ export async function runLarkBugtablePoller({
     if (!once) writePollerStatus(Object.assign(status, patch))
   }
   saveStatus({})
+  if (watchCfg.enabled) {
+    await runWatchLoop({ config, cfg: watchCfg, seen, client, once, saveStatus })
+    return
+  }
   do {
     try {
       const enqueued = await runOnce({ config, seen, client })
