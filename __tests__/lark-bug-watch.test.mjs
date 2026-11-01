@@ -25,6 +25,11 @@ import {
 import { listBugRecords, loadWatchState, readNotificationMessages, recordWatchFailure, saveWatchState } from '../lib/lark-bug-watch-io.mjs'
 import { runWatchRound } from '../lib/lark-bug-watch-round.mjs'
 import { validateConfig } from '../lib/lark-config.mjs'
+import { activeClaims, formatClaimList, isClaimed, loadClaims, normalizeBugNo, parseClaimDirective, saveClaims } from '../lib/lark-bug-claims.mjs'
+import { dedupeNote, findMentioningCommits } from '../lib/lark-bug-dedupe.mjs'
+import { commitMessage } from '../lib/lark-worker-git.mjs'
+import { handleBugRecords } from '../lark-bugtable-poller.mjs'
+import { maybeHandleProjectChatDirective } from '../lib/lark-project-chat-sync.mjs'
 import { runSteps } from './support/steps.mjs'
 
 // aven 2026-11-01 B2：读新 bug 通知 + 对账替代整表轮询，平时 / 测试中两档
@@ -354,6 +359,85 @@ describe('bug 发现两档调度（读通知 + 对账）', () => {
       assert.equal(warn({ enabled: true, notifyChatId: 'oc_x' }), false)
       assert.equal(warn({ enabled: false }), false)
       assert.equal(validateConfig({ ...base, bugTable: { ...base.bugTable, watch: { enabled: true, notifyChatId: 'oc_x' } } }).errors.length, 0)
+    }],
+    ['B3 占用标记：指令解析、7 天过期、列表一项一行、落盘往返与损坏读空', () => {
+      assert.deepEqual(parseClaimDirective('我在修 bug-7561'), { action: 'claim', bugNo: 'BUG-7561' })
+      assert.deepEqual(parseClaimDirective('BUG-7561 我来修'), { action: 'claim', bugNo: 'BUG-7561' })
+      assert.deepEqual(parseClaimDirective('修完了 BUG-7561'), { action: 'release', bugNo: 'BUG-7561' })
+      assert.deepEqual(parseClaimDirective('放手 BUG-7561'), { action: 'release', bugNo: 'BUG-7561' })
+      assert.deepEqual(parseClaimDirective('认领列表'), { action: 'list' })
+      assert.equal(parseClaimDirective('BUG-7561 这个怎么回事'), null)
+      assert.equal(parseClaimDirective('我在修'), null)
+      assert.equal(normalizeBugNo('xx bug-12 yy'), 'BUG-12')
+      const now = Date.parse('2026-11-08T00:00:00Z')
+      const claims = { 'BUG-1': { at: '2026-11-07T00:00:00.000Z' }, 'BUG-2': { at: '2026-11-01T00:00:00.000Z' } }
+      assert.deepEqual(Object.keys(activeClaims(claims, now)), ['BUG-1'])
+      assert.equal(isClaimed(claims, 'bug-1', now), true)
+      assert.equal(isClaimed(claims, 'BUG-2', now), false, '7 天过期')
+      assert.equal(isClaimed(claims, '', now), false)
+      assert.equal(formatClaimList(claims, now), '你在手动修的单（1 条，bot 会跳过；7 天后自动失效）：\n- BUG-1（自 11-07 00:00）')
+      assert.match(formatClaimList({}, now), /现在没有你在手动修的单/)
+      const path = join(dir, 'claims.json')
+      assert.deepEqual(loadClaims({ path }), {})
+      saveClaims(claims, { path })
+      assert.deepEqual(loadClaims({ path }), claims)
+      writeFileSync(path, '{bad')
+      assert.deepEqual(loadClaims({ path }), {})
+    }],
+    ['B3 查重：按记录 trailer 与 bug 编号 grep 所有分支近 14 天，去重限条数；git 出错 / 没仓不挡；提示文案；提交带 bug trailer', () => {
+      const calls = []
+      const run = (cmd, args) => { calls.push([cmd, ...args]); return { status: 0, stdout: 'a1 aven 11-01 10:00 fix x\na1 aven 11-01 10:00 fix x\nb2 bot 11-01 11:00 lark hotfix: y\nc3 z\nd4 z\ne5 z\nf6 z\n' } }
+      const lines = findMentioningCommits({ repoRoot: '/repo', recordId: 'recABC', bugNo: 'BUG-7561', run })
+      assert.deepEqual(lines, ['a1 aven 11-01 10:00 fix x', 'b2 bot 11-01 11:00 lark hotfix: y', 'c3 z', 'd4 z', 'e5 z'])
+      const args = calls[0]
+      assert.deepEqual(args.slice(0, 6), ['git', '-C', '/repo', 'log', '--all', '--since=14 days ago'])
+      assert.ok(args.includes('--grep=lark-task: recABC$') && args.includes('--grep=\\bBUG-7561\\b'))
+      assert.deepEqual(findMentioningCommits({ repoRoot: '/repo', bugNo: 'BUG-1', run: () => ({ status: 128, stdout: 'x' }) }), [])
+      assert.deepEqual(findMentioningCommits({ repoRoot: '', bugNo: 'BUG-1', run }), [])
+      assert.deepEqual(findMentioningCommits({ repoRoot: '/repo', run }), [])
+      assert.equal(dedupeNote([]), '')
+      assert.match(dedupeNote(['a1 x']), /^\n\n【查重】业务仓近 14 天已有提交提到这单：\n- a1 x\n先逐条 git show 核对/)
+      assert.equal(commitMessage('lark task', 'fix it', { id: 'recABC', source: 'lark-bugtable', text: '问题…\n- bug 编号：bug-7561' }), 'lark task: fix it [recABC]\n\nlark-task: recABC\nbug: BUG-7561')
+      assert.equal(commitMessage('lark task', 'fix it', { id: 'om_1', source: 'lark', text: 'BUG-7561 群里说的' }), 'lark task: fix it [om_1]\n\nlark-task: om_1')
+      assert.equal(commitMessage('lark task', 'fix it', { id: 'r', source: 'lark-bugtable', text: '没有编号', qualityNote: 'q' }), 'lark task: fix it [r]\n\nlark-task: r\n\n⚠ q')
+    }],
+    ['B3 接入：认领的单跳过不入队；新单正文附查重、验退重开不附', async () => {
+      process.env.LARK_RUNTIME_DIR = dir
+      try {
+        const bodies = []
+        const client = { enqueueTask: async (b) => { bodies.push(['new', b]) }, reopenTask: async (id, b) => { bodies.push(['reopen', b]) } }
+        const seen = { has: () => false, add: () => {} }
+        const bugRec = (id, no, status = '待处理') => ({ record_id: id, fields: { ...rec(id, { status }).fields, bug编号: no } })
+        const config = { bugTable: { ...BUG, doneValue: '待推版' } }
+        const findCommits = ({ recordId }) => (recordId === 'r2' ? ['a1 aven fix BUG-2'] : [])
+        const counts = await handleBugRecords({
+          records: [bugRec('r1', 'BUG-1'), bugRec('r2', 'BUG-2'), bugRec('r3', 'BUG-3', '验退')],
+          config, seen, client, taskById: new Map([['r3', { status: 'done' }]]), myOpenId: 'ou_me', log: () => {},
+          claims: { 'BUG-1': { at: new Date().toISOString() } }, findCommits,
+        })
+        assert.equal(counts.claimed, 1)
+        assert.deepEqual(bodies.map(([k, b]) => [k, b.id]), [['new', 'r2'], ['reopen', 'r3']])
+        assert.match(bodies[0][1].text, /【查重】.*\n- a1 aven fix BUG-2/s)
+        assert.doesNotMatch(bodies[1][1].text, /【查重】/)
+      } finally {
+        delete process.env.LARK_RUNTIME_DIR
+      }
+    }],
+    ['B3 私信：我在修 / 修完了 / 认领列表，只认负责人，回执分行', async () => {
+      let store = {}
+      const replies = []
+      const deps = { send: async (m) => { replies.push(m.text) }, claims: { load: () => store, save: (next) => { store = next } }, now: Date.parse('2026-11-01T10:00:00Z') }
+      const msg = (text, sender = 'ou_me') => ({ text, chatId: 'ou_dm', chatType: 'p2p', senderOpenId: sender, messageId: `c-${replies.length}` })
+      const config = { notifyOpenId: 'ou_me' }
+      assert.equal(await maybeHandleProjectChatDirective({ msg: msg('我在修 BUG-7561', 'ou_x'), config, ...deps }), false)
+      assert.equal(await maybeHandleProjectChatDirective({ msg: msg('我在修 BUG-7561'), config, ...deps }), true)
+      assert.deepEqual(store, { 'BUG-7561': { at: '2026-11-01T10:00:00.000Z' } })
+      assert.equal(replies.at(-1), '好，BUG-7561 你在修，bot 先跳过它。\n修完回我「修完了 BUG-7561」；7 天后标记自动失效。')
+      await maybeHandleProjectChatDirective({ msg: msg('认领列表'), config, ...deps })
+      assert.match(replies.at(-1), /^你在手动修的单（1 条/)
+      await maybeHandleProjectChatDirective({ msg: msg('修完了 BUG-7561'), config, ...deps })
+      assert.deepEqual(store, {})
+      assert.equal(replies.at(-1), 'BUG-7561 已解除，bot 之后照常处理。')
     }],
   ], hooks))
 })

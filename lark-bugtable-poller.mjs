@@ -25,6 +25,9 @@ import { writePollerStatus } from './lib/lark-doctor.mjs'
 import { normalizeWatchConfig, setWatchMode } from './lib/lark-bug-watch.mjs'
 import { listBugRecords, loadWatchState, readNotificationMessages, recordWatchFailure, saveWatchState } from './lib/lark-bug-watch-io.mjs'
 import { runWatchRound } from './lib/lark-bug-watch-round.mjs'
+import { isClaimed, loadClaims } from './lib/lark-bug-claims.mjs'
+import { dedupeNote, findMentioningCommits } from './lib/lark-bug-dedupe.mjs'
+import { consumerRoot } from './lib/lark-paths.mjs'
 import {
   assigneeHasOpenId,
   buildBugText,
@@ -133,7 +136,7 @@ const fetchPendingRecords = async ({ bug }) => {
   return all
 }
 
-const enqueueTask = async ({ client, record, bug, fallbackChatId, operator, reopen = false }) => {
+const enqueueTask = async ({ client, record, bug, fallbackChatId, operator, reopen = false, findCommits = findMentioningCommits }) => {
   // 校验项目号：只把合法 PR-#### / PM-#### 传给 gateway；异常单元格（如 ../../x）不作为 project，
   // 交由 worker 走 adhoc 临时 worktree，避免污染路径/分支名。
   const rawProject = readProjectId({ fields: record.fields || {}, bug })
@@ -150,7 +153,13 @@ const enqueueTask = async ({ client, record, bug, fallbackChatId, operator, reop
     chatId,
     operator,
     commandType: readBugCommandType({ fields: record.fields || {}, bug }),
-    text: buildBugText({ record, bug }),
+    // 新单查重（aven 11-01 B3）：业务仓近 14 天有提交提到这条记录 / bug 编号，附进正文让 AI 先核对；
+    // 验退重开不查（QA 说没修好，旧提交正是要返工的）
+    text: buildBugText({ record, bug }) + (reopen ? '' : dedupeNote(findCommits({
+      repoRoot: consumerRoot,
+      recordId: record.record_id,
+      bugNo: readStatusText(record.fields?.[bug.bugNoField || BUGTABLE_FIELD_DEFAULTS.bugNoField]),
+    }))),
     // 问题截图：只传 file_token，gateway 入队时下载到附件目录（下载要 base token，留在 gateway 一处做）。
     screenshots: readBugScreenshots({ fields: record.fields || {}, bug }),
   }
@@ -168,11 +177,18 @@ const fetchGatewayTasks = async (client) => {
 
 // 一批记录逐条按 gateway 任务状态分流：新记录入队、验退重开，其余（处理中 / 等人 / 终局 / 失败）不动。
 // 返回各类计数。对账与「读通知定位到的单条记录」共用（aven 11-01 B2）。
-export const handleBugRecords = async ({ records, config, seen, client, taskById, myOpenId, log = console.log }) => {
+export const handleBugRecords = async ({
+  records, config, seen, client, taskById, myOpenId, log = console.log, claims = loadClaims(), findCommits = findMentioningCommits,
+}) => {
   const bug = config.bugTable
-  const counts = { enqueued: 0, reopened: 0, inFlight: 0, waiting: 0, noChange: 0, stuck: 0 }
+  const counts = { enqueued: 0, reopened: 0, inFlight: 0, waiting: 0, noChange: 0, stuck: 0, claimed: 0 }
   for (const record of records) {
     const id = record.record_id
+    // 负责人私信「我在修 BUG-x」的单：跳过，不入队、不重开（aven 11-01 B3，防和手动修撞车）
+    if (isClaimed(claims, readStatusText(record.fields?.[bug.bugNoField || BUGTABLE_FIELD_DEFAULTS.bugNoField]))) {
+      counts.claimed += 1
+      continue
+    }
     const recordStatus = readStatusText(record.fields?.[bug.statusField])
     const task = taskById.get(id)
     const disposition = classifyBugPollAction({
@@ -205,13 +221,13 @@ export const handleBugRecords = async ({ records, config, seen, client, taskById
       continue
     }
     if (disposition === 'reopen') {
-      await enqueueTask({ client, record, bug, fallbackChatId: resolveNotifyChatId(config), operator: myOpenId, reopen: true })
+      await enqueueTask({ client, record, bug, fallbackChatId: resolveNotifyChatId(config), operator: myOpenId, reopen: true, findCommits })
       counts.reopened += 1
       log(`[bugtable-poller] reopened QA-returned ${id}`)
       continue
     }
     // 全新记录 → 入队
-    await enqueueTask({ client, record, bug, fallbackChatId: resolveNotifyChatId(config), operator: myOpenId })
+    await enqueueTask({ client, record, bug, fallbackChatId: resolveNotifyChatId(config), operator: myOpenId, findCommits })
     counts.enqueued += 1
     log(`[bugtable-poller] enqueued ${id}`)
   }

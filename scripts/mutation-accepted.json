@@ -94,5 +94,11 @@
     "code": "const counted = state.mode === 'testing' && gap > 0 && gap <= maxGapMs ? workMsBetween(last, now, cfg) : 0",
     "op": "> → >=",
     "reason": "gap 为 0 时 workMsBetween(last, last) 恒为 0（等价变异）"
+  },
+  {
+    "file": "lib/lark-bug-claims.mjs",
+    "code": "export const claimsPath = () => join(process.env.LARK_RUNTIME_DIR || larkRuntimeDir, 'lark-bug-claims.json')",
+    "op": "|| → &&",
+    "reason": "只是占用标记文件路径的环境变量默认值，测试显式传 path"
   }
 ]
