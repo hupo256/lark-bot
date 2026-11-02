@@ -284,12 +284,16 @@ describe('对话层：契约、入队门槛、分类落态、归并', () => {
         after?.(r.into)
       })
     }],
-    ['mergeTaskObjects：缺任一方或同一条 → null，不动对象', () => {
+    ['mergeTaskObjects：缺任一方、同一条、目标已 superseded → null，不动对象', () => {
       const same = { id: 'a', status: 'queued' }
       assert.equal(mergeTaskObjects({ from: same, into: same, requeueTask: () => {} }), null)
       assert.equal(mergeTaskObjects({ from: null, into: same, requeueTask: () => {} }), null)
       assert.equal(mergeTaskObjects({ from: same, into: undefined, requeueTask: () => {} }), null)
       assert.equal(same.status, 'queued')
+      // 11-02 复核：被兄弟并掉 / 人工取消的（superseded）不能当目标——原先掉进「终态重开」把取消的活复活再跑
+      const gone = { id: 'g', status: 'superseded', text: '取消的', epoch: 3 }
+      assert.equal(mergeTaskObjects({ from: same, into: gone, requeueTask: () => { throw new Error('不该换代') } }), null)
+      assert.deepEqual([gone, same], [{ id: 'g', status: 'superseded', text: '取消的', epoch: 3 }, { id: 'a', status: 'queued' }])
     }],
     ['store：recordReceipt 记 chatId（重启后仍在）；resolveIntake 委托 applyIntakeClassification；幂等重放按新门槛算', () => {
       const dir = mkdtempSync(join(tmpdir(), 'lark-intake-'))

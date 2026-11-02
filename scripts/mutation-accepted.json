@@ -275,5 +275,11 @@
     "op": "&& → ||",
     "col": 62,
     "reason": "11-02 对话层：runner 主体没有注入点（要真 worktree + 真 AI 才能走到），提交门槛由 lark-work-context / lark-run-report 的单测钉住；待给 createTaskRunner 加 deps 注入点后补运行期测试"
+  },
+  {
+    "file": "lib/lark-control-channel.mjs",
+    "code": "return bare.length > 0 && bare.length <= 6 && PROGRESS_PING_RE.test(bare)",
+    "op": "> → >=",
+    "reason": "等价：PROGRESS_PING_RE 匹配不了空串，length > 0 只是冗余保护"
   }
 ]
