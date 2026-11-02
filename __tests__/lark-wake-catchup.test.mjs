@@ -9,11 +9,11 @@ import { chatListMessageToEvent, flattenThreadReplies, isPollableMessage, readLa
 import { normalizeMessage } from '../lib/lark-message.mjs'
 
 describe('开盖补拉群消息（长连接睡着时收不到，飞书重推只覆盖约 7 小时的几个时间点）', () => {
-  const setup = ({ messages = [], failTimes = 0, lastAlive = null, chats = ['oc_in'], failChats = [] } = {}) => {
+  const setup = ({ messages = [], failTimes = 0, lastAlive = null, chats = ['oc_in'], failChats = [], tasks = [{ chatId: 'oc_in', updatedAt: '2026-10-16T16:00:00Z' }] } = {}) => {
     const env = { now: Date.parse('2026-10-16T20:20:00+04:00'), closed: false, sleptAt: Date.parse('2026-10-16T09:00:00+04:00'), calls: [], ingested: [], fail: failTimes, alive: [] }
     const catchup = startWakeCatchup({
       config: {},
-      store: { has: (id) => id === 'om_task' },
+      store: { has: (id) => id === 'om_task', list: () => tasks },
       ingest: async ({ raw }) => env.ingested.push(raw.message_id),
       deps: {
         now: () => env.now,
@@ -72,6 +72,30 @@ describe('开盖补拉群消息（长连接睡着时收不到，飞书重推只�
     assert.deepEqual(await restarted.catchup.tick(), { chats: 1, fed: 1, failedChats: 0 })
     assert.deepEqual(restarted.env.calls, [{ chatId: 'oc_in', start: new Date(lastAlive - 120_000).toISOString() }])
     assert.deepEqual(restarted.env.ingested, ['om_gap'])
+    // 重启空窗只补近 7 天有过 bot 任务的群（11-02：每次重启全拉 50 个群把接口频率打满）；私信、太旧的、别的群不拉
+    const scoped = setup({ messages: [], lastAlive, chats: ['oc_in', 'oc_quiet', 'oc_old', 'oc_dm'], tasks: [
+      { chatId: 'oc_in', updatedAt: '2026-10-16T16:00:00Z' },
+      { chatId: 'oc_old', updatedAt: '2026-10-09T16:00:00Z' },
+      { chatId: 'oc_dm', chatType: 'p2p', updatedAt: '2026-10-16T16:00:00Z' },
+      { chatId: 'oc_edge', createdAt: new Date(Date.parse('2026-10-16T20:21:00+04:00') - 7 * 24 * 3600_000).toISOString() },
+      { chatId: 'ou_x', updatedAt: '2026-10-16T16:00:00Z' },
+      { chatId: null },
+    ] })
+    scoped.env.now += 60_000
+    assert.deepEqual(await scoped.catchup.tick(), { chats: 1, fed: 0, failedChats: 0 })
+    assert.deepEqual(scoped.env.calls.map((c) => c.chatId), ['oc_in'])
+    const edge7 = setup({ messages: [], lastAlive, chats: ['oc_edge'], tasks: [{ chatId: 'oc_edge', createdAt: new Date(Date.parse('2026-10-16T20:21:00+04:00') - 7 * 24 * 3600_000).toISOString() }] })
+    edge7.env.now += 60_000
+    await edge7.catchup.tick()
+    assert.deepEqual(edge7.env.calls.map((c) => c.chatId), ['oc_edge'], '恰好 7 天还算')
+    const noList = startWakeCatchup({ config: {}, store: { has: () => false }, ingest: async () => {}, deps: { now: () => Date.parse('2026-10-16T20:21:00+04:00'), isLidClosed: async () => false, lastSystemSleepAt: async () => null, listBotChatIds: async () => ['oc_a'], readLastAliveAt: () => lastAlive, writeLastAliveAt: () => {}, listChatMessages: async () => ({ ok: true, messages: [], hasMore: false }), setInterval: () => ({ unref() {} }) } })
+    assert.deepEqual(await noList.tick(), { chats: 0, fed: 0, failedChats: 0 }, 'store 没有 list 就一个群都不补')
+    // 补完一次后再遇到睡眠窗口就全拉
+    scoped.env.sleptAt = scoped.env.now + 10_000
+    scoped.env.now += 3600_000
+    scoped.env.calls.length = 0
+    await scoped.catchup.tick()
+    assert.deepEqual(scoped.env.calls.map((c) => c.chatId), ['oc_in', 'oc_quiet', 'oc_old', 'oc_dm'], '睡眠窗口不受限')
     const stale = setup({ messages: [user('om_old')], lastAlive: Date.parse('2026-10-15T20:00:00+04:00') })
     stale.env.now += 60_000
     assert.equal(await stale.catchup.tick(), null, '超过 24h 的「上次活着」不当窗口')
