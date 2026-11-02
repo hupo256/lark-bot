@@ -247,6 +247,17 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
         { name: '短指代句', fn: isShortDeictic, text: '重跑', want: true },
         { name: '去掉 @ 名字再判', fn: isShortDeictic, text: '@Aven.Bot 这个再看看', want: true },
         { name: '没指代词', fn: isShortDeictic, text: '修复登录页的报错问题', want: false },
+        // 11-02 真机：问句里带「是 / 吗 / ?」不算指代，独立私信问题进分类器
+        { name: '带「是」的问句不算', fn: isShortDeictic, text: '现在 pre 环境跑的是哪个版本', want: false },
+        { name: '带「吗」的问句不算', fn: isShortDeictic, text: '你能发邮件吗', want: false },
+        { name: '带问号的问句不算', fn: isShortDeictic, text: 'test 和 pre 一样?', want: false },
+        { name: '「帮我做个页面」不算', fn: isShortDeictic, text: '帮我做个页面', want: false },
+        { name: '整句「是」', fn: isShortDeictic, text: '是', want: true },
+        { name: '整句「是的。」', fn: isShortDeictic, text: '是的。', want: true },
+        { name: '整句「做吧」', fn: isShortDeictic, text: '做吧', want: true },
+        { name: '整句「可以」', fn: isShortDeictic, text: '可以', want: true },
+        { name: '整句「不」', fn: isShortDeictic, text: '不', want: true },
+        { name: '「这个不用做」', fn: isShortDeictic, text: '这个不用做', want: true },
         { name: '恰好 40 字', fn: isShortDeictic, text: `这个${'啊'.repeat(38)}`, want: true },
         { name: '41 字太长', fn: isShortDeictic, text: `重跑${'啊'.repeat(39)}`, want: false },
         { name: '空', fn: isShortDeictic, text: '', want: false },
@@ -297,7 +308,8 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       assert.equal(resolve('好').task, first, '同一时刻的取先登记的')
       // 私信里发起的任务不被 reply / recent 锚（aven 11-02 真机：「你能发邮件吗」自答后的下一句被当成对它的指示）。
       const dmSelf = put('om_dm', [{ messageId: 'om_dm_ack', kind: 'ack', epoch: 0, chatId: 'ou_aven', createdAt: iso(now) }], { status: 'answered', chatId: 'ou_aven', chatType: 'p2p', intake: { trigger: 'dm' }, text: '你能发邮件吗' })
-      assert.equal(resolve('那你看看，现在 test、pre 两个环境运行的代码是不是一样的'), null, '私信任务 + 短指代句 → 不锚（也不越过它粘更早的群任务）')
+      assert.equal(resolve('那条再看看'), null, '私信任务 + 短指代句 → 不锚（也不越过它粘更早的群任务）')
+      assert.equal(resolve('那你看看，现在 test、pre 两个环境运行的代码是不是一样的'), null, '私信任务 + 新问题 → 不锚')
       assert.equal(resolve('好', { replyToDirect: 'om_dm_ack' }), null, '回复私信任务的回执 → 不锚')
       assert.equal(resolve('好', { replyTo: 'om_dm_ack' }), null)
       assert.deepEqual(resolve('继续任务 om_dm 再查一下'), { task: dmSelf, via: 'explicit', directive: { taskId: 'om_dm', supplementText: '再查一下' } }, '显式点名私信任务照样认')
@@ -306,7 +318,8 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
         assert.equal(resolve('好'), null, `私信身份按 ${JSON.stringify(extra)} 判`)
       }
       const grp = put('om_grp2', [{ messageId: 'om_g2', kind: 'done', epoch: 0, chatId: 'ou_aven', createdAt: iso(now + 1) }])
-      assert.deepEqual(resolve('那你看看，现在 test、pre 两个环境运行的代码是不是一样的'), { task: grp, via: 'recent' }, '群里发起的任务 + 短指代句照旧锚')
+      assert.deepEqual(resolve('那条再看看'), { task: grp, via: 'recent' }, '群里发起的任务 + 短指代句照旧锚')
+      assert.equal(resolve('现在 pre 环境跑的是哪个版本'), null, '群任务的结果通知后问新问题 → 不锚（11-02 真机：带「是」的问句被当指示、答案发去了群里）')
     }],
     ['maybeHandlePrincipalChannel：部署通知 / 放行草稿 / 续跑 / 指示任务；锚不到放行', async () => {
       const now = Date.now()

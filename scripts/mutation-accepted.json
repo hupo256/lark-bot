@@ -169,9 +169,9 @@
   },
   {
     "file": "lib/lark-principal-channel.mjs",
-    "code": "return bare.length > 0 && bare.length <= maxChars && DEICTIC_RE.test(bare)",
+    "code": "return bare.length > 0 && bare.length <= maxChars && (DEICTIC_RE.test(bare) || DEICTIC_WHOLE_RE.test(bare))",
     "op": "> → >=",
-    "reason": "等价：DEICTIC_RE 匹配不了空串，length > 0 只是冗余保护"
+    "reason": "等价：DEICTIC_RE / DEICTIC_WHOLE_RE 都匹配不了空串，length > 0 只是冗余保护"
   },
   {
     "file": "lib/lark-principal-channel.mjs",

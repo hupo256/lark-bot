@@ -26,3 +26,4 @@ runtime/lark-digest-state.json
 
 # Claude Code 会话 / 权限设置（审批动作随手写入，本机数据）
 .claude/
+runtime/lark-gateway-alive-state.json
