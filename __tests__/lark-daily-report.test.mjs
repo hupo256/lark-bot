@@ -23,7 +23,7 @@ const { deliverOutcome } = await import('../lib/lark-delivery.mjs')
 const { envRef } = await import('../lib/lark-ops-task.mjs')
 
 const { buildDailyTask, decideDailyRun, dueReportDate, dailySettings, maybeHandleDailyDirective, parseDailyDirective, readDailyState, startDailyReport } = schedule
-const { collectBugFacts, collectGitFacts, pickBaseline, readTaskFiles, renderBugSection, renderDailyReport, renderGitSection, renderTaskSection, runDailyReportTask, summarizeBugRecords, summarizeTasks, taskBucket } = report
+const { collectBugFacts, humanBugReadError, collectGitFacts, pickBaseline, readTaskFiles, renderBugSection, renderDailyReport, renderGitSection, renderTaskSection, runDailyReportTask, summarizeBugRecords, summarizeTasks, taskBucket } = report
 
 const at = (d, h, m = 0) => new Date(2026, 10, d, h, m).getTime() // 2026-11-d 本地时间；11-02 是周一
 const iso = (d, h, m = 0) => new Date(at(d, h, m)).toISOString()
@@ -272,6 +272,14 @@ describe('fameex 日报', () => {
       const first = renderBugSection({ ok: true, ...summarizeBugRecords({ records: RECORDS, bug: BUG, date: DATE, baseline: null }) })
       assert.equal(first.at(-1), '- 今天：新分给我 1 个（BUG-8）；修好 / 被打回从明天起才比得出来（今天第一次记）')
       assert.deepEqual(renderBugSection({ ok: false, reason: '没配 bugTable / 负责人 open_id' }), ['bug 表这次没读到：没配 bugTable / 负责人 open_id'])
+      // 读不到的原因说人话，不贴 lark-cli 原始 JSON（11-02 真机）
+      const flaky = '飞书接口这会儿不稳（限流 / 网络），重试了几次没读到；晚点私信我「重发日报」再看'
+      for (const raw of ['读 bug 表 失败：{ "ok": false, "error": { "subtype": "invalid_response", "message": "SDK returned' , 'TAT response (HTTP 429)', 'HTTP 503', 'rate limit', 'Too Many Requests', 'network down', 'timeout', 'ETIMEDOUT', 'ECONNRESET']) assert.equal(humanBugReadError(raw), flaky, raw)
+      for (const raw of ['missing_scope: base:record', 'permission denied', 'Forbidden', 'no permission']) assert.equal(humanBugReadError(raw), '没有读这张 bug 表的权限', raw)
+      assert.equal(humanBugReadError('读 bug 表 失败：{ "ok": false }'), '读 bug 表 失败：')
+      assert.equal(humanBugReadError(`字段不存在${'x'.repeat(100)}`), `字段不存在${'x'.repeat(75)}`)
+      assert.equal(humanBugReadError('{ "a": 1 }'), '原因不明')
+      assert.equal(humanBugReadError(null), '原因不明')
       const fresh = (n) => renderBugSection({ ok: true, total: n, open: [], rest: [], fresh: Array.from({ length: n }, (_, i) => `B${i}`), fixed: [], reopened: [], hasBaseline: true }).at(-1)
       assert.equal(fresh(8), '- 今天：新分给我 8 个（B0、B1、B2、B3、B4、B5、B6、B7）；修好 0 个，被打回 0 个')
       assert.equal(fresh(9), '- 今天：新分给我 9 个（B0、B1、B2、B3、B4、B5、B6、B7 等）；修好 0 个，被打回 0 个')
@@ -293,7 +301,9 @@ describe('fameex 日报', () => {
       await collectBugFacts({ config: { notifyOpenId: 'ou_n', bugTable: { ...BUG, myOpenId: undefined } }, date: DATE, baseline: null, runCli: fallback.run })
       assert.match(fallback.calls[0][fallback.calls[0].indexOf('--filter-json') + 1], /"ou_n"/)
       const denied = await collectBugFacts({ config: CONFIG, date: DATE, baseline: null, runCli: fakeCli({ code: 0, stdout: '{"ok":false,"error":{"type":"permission","message":"no access"}}', stderr: '' }).run })
-      assert.deepEqual(denied, { ok: false, reason: '读 bug 表 失败：permission: no access' })
+      assert.deepEqual(denied, { ok: false, reason: '没有读这张 bug 表的权限' })
+      // 抛出来的不是 Error 而是字符串也照样认
+      assert.deepEqual(await collectBugFacts({ config: CONFIG, date: DATE, baseline: null, runCli: async () => { throw 'missing_scope' } }), { ok: false, reason: '没有读这张 bug 表的权限' })
       assert.deepEqual(await collectBugFacts({ config: { notifyOpenId: ME }, date: DATE, runCli: fakeCli().run }), { ok: false, reason: '没配 bugTable / 负责人 open_id' })
       assert.deepEqual(await collectBugFacts({ config: { bugTable: { ...BUG, myOpenId: undefined } }, date: DATE, runCli: fakeCli().run }), { ok: false, reason: '没配 bugTable / 负责人 open_id' })
     }],
@@ -383,7 +393,7 @@ describe('fameex 日报', () => {
       const snapshots = { '2026-11-01': BASELINE }
       const noBug = harness({ state: { bugSnapshots: snapshots }, cli: fakeCli({ code: 1, stdout: '', stderr: 'network down' }) })
       await noBug.run({ date: DATE, mode: 'scheduled' })
-      assert.match(noBug.sends[0].text, /\nbug 表这次没读到：读 bug 表 失败：network down\n/)
+      assert.match(noBug.sends[0].text, /\nbug 表这次没读到：飞书接口这会儿不稳（限流 \/ 网络），重试了几次没读到；晚点私信我「重发日报」再看\n/)
       assert.deepEqual(noBug.saves[0].bugSnapshots, snapshots)
       const empty = harness({ cli: fakeCli({ code: 1, stdout: '', stderr: 'x' }) })
       await empty.run({ date: DATE, mode: 'scheduled' })

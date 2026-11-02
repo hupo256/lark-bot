@@ -31,7 +31,7 @@ import { createTaskStore } from '../lib/lark-task-store.mjs'
 import { parkedReminderRound } from '../lib/lark-parked-reminder.mjs'
 import { rotateLogIfLarge } from '../lib/lark-log-rotate.mjs'
 import { sweepAttachments } from '../lib/lark-retention.mjs'
-import { messageSendRecipientArgs, parseSentChatId, parseSentMessageId, pickChatIdByProject, resolveDeliveryChatId, formatLarkCliError, isTransientLarkError, runLarkCliWithRetry, sendChatMessage } from '../lib/lark-cli.mjs'
+import { messageSendRecipientArgs, parseSentChatId, runLarkCliRetrying, parseSentMessageId, pickChatIdByProject, resolveDeliveryChatId, formatLarkCliError, isTransientLarkError, runLarkCliWithRetry, sendChatMessage } from '../lib/lark-cli.mjs'
 import {
   classifyClosureIntent,
   classifyCommandType,
@@ -2377,9 +2377,37 @@ describe('formatLarkCliError（失败结果压成一行可读原因）', () => {
 })
 
 describe('isTransientLarkError（仅网络层/本地 spawn 超时可重试）', () => {
-  it('code=-1（超时/spawn error）与 error.type=network 判为瞬时', () => {
+  it('code=-1（超时/spawn error）与 error.type=network / 限流判为瞬时；读类薄重试', async () => {
     assert.equal(isTransientLarkError({ code: -1, stdout: '', stderr: 'timeout' }), true)
     assert.equal(isTransientLarkError({ code: 1, stdout: JSON.stringify({ ok: false, error: { type: 'network', subtype: 'transport' } }) }), true)
+    // 11-02 真机：取 token 被限流（HTTP 429）报 invalid_response / token_missing，也是瞬时的
+    for (const message of ['SDK returned an invalid JSON response: failed to parse TAT response (HTTP 429): x', 'resolve tenant access token: failed to parse TAT response (HTTP 502)', 'rate limit exceeded', 'Too Many Requests', 'frequency limit', 'ratelimit']) {
+      assert.equal(isTransientLarkError({ code: 1, stdout: JSON.stringify({ ok: false, error: { type: 'internal', subtype: 'invalid_response', message } }) }), true, message)
+    }
+    assert.equal(isTransientLarkError({ code: 1, stdout: JSON.stringify({ ok: false, error: { type: 'internal', message: 'HTTP 404 not found' } }) }), false)
+    assert.equal(isTransientLarkError({ code: 1, stdout: JSON.stringify({ ok: false, error: { type: 'internal' } }) }), false)
+    assert.equal(isTransientLarkError({ code: 1, stdout: JSON.stringify({ ok: false }) }), false)
+    // runLarkCliRetrying：瞬时错误退避重试到成功 / 次数用完；非瞬时、成功都不重试
+    const limited = { code: 1, stdout: JSON.stringify({ ok: false, error: { type: 'internal', message: 'TAT response (HTTP 429)' } }) }
+    const denied = { code: 1, stdout: JSON.stringify({ ok: false, error: { type: 'permission' } }) }
+    const ok = { code: 0, stdout: '{"ok":true}' }
+    const runner = (results) => { const calls = []; return { calls, run: async (args) => { calls.push(args); return results[calls.length - 1] } } }
+    const waits = []
+    const wait = async (ms) => { waits.push(ms) }
+    const a = runner([limited, ok])
+    assert.equal(await runLarkCliRetrying(['x'], { run: a.run, wait }), ok)
+    assert.deepEqual([a.calls.length, waits], [2, [1500]])
+    const b = runner([limited, limited, limited, ok])
+    assert.equal(await runLarkCliRetrying(['x'], { run: b.run, wait }), limited)
+    assert.equal(b.calls.length, 3)
+    assert.deepEqual(waits, [1500, 1500, 3000])
+    const c = runner([denied, ok])
+    assert.equal(await runLarkCliRetrying(['x'], { run: c.run, wait }), denied)
+    assert.equal(c.calls.length, 1)
+    const d = runner([ok])
+    assert.equal(await runLarkCliRetrying(['x'], { run: d.run, wait, retries: 1 }), ok)
+    const e = runner([limited, ok])
+    assert.equal(await runLarkCliRetrying(['x'], { run: e.run, wait, retries: 1 }), limited, 'retries=1 不再试')
   })
 
   it('权限/参数类结构化错误不重试（尽快失败以告警）', () => {
