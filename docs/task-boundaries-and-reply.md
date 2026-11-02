@@ -246,4 +246,5 @@ Lark 保留自己的任务生命周期、AI 分析、质量闸和本地提交链
 负责人私信 = 控制通道（`lib/lark-principal-channel.mjs`）：显式「继续任务 id」> 回复了某条私信 > 12h 内最近一条「在问他」的通知（或本条是短指代句）→ 挂着的续跑、「就这样回」放行草稿、其它建「私聊指示」任务（群 / 发送人沿用被指示的群消息，私信原话不进群）；锚错了回「取消任务 id」。没锚到的私信是独立任务。
 
 回放：`node scripts/lark-replay-intake.mjs --fixture __tests__/fixtures/intake-replay-1101.json [--live]` 用 11-01 的 6 条真实消息核分类 → 契约 → 可执行性。
+「群里这条之前的消息」时间窗（11-02，`lib/lark-chat-context.mjs` `applyRecentWindow`）：近 `recentContextHours`（默认 4）小时全留，更早的只留本 bot 最近 3 条（对方隔夜接 bot 的话，falive 10-23 #74 的教训）和本条发送人最近 2 条，别人的旧闲聊、别家机器人的旧通知、隔天的长卡片不再进上下文，也不再下它们的图。回归集按 4 小时截后 22 条受影响、全部通过（另 3 条波动与截断无关）。
 分类回归集（11-02）：`node scripts/lark-replay-intake.mjs --fixture __tests__/fixtures/intake-regression-1102.json --live [--model m] [--effort e] [--conc 8]`，53 条（fameex 真实消息 23 条 + falive 存档按类别 / 交付分层 30 条），按运行配置的分类模型（`claudeIntentModel` / `claudeIntentEffort`）真跑、带 persona，逐条比 decision / deliverable / selfAnswer / continues（expected 是可接受值集合），并报耗时中位 / P90。换分类模型 / 强度、改分类提示前先跑；11-02 的对比：Opus high 中位 8.6s、Opus low 5.2s（都 0 处明确误判），Sonnet high 8.2s（漏 2 条负责人私聊指示），Haiku high 11.4s（漏 8 条，含「online 异常，修掉」判 ignore）。

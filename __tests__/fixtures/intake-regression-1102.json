@@ -1639,12 +1639,14 @@
    "expected": {
     "decision": [
      "api_reply",
-     "bug"
+     "bug",
+     "question"
     ],
     "deliverable": [
      "verification"
     ]
-   }
+   },
+   "note": "「再测试一下」接 bot 的结果卡：api_reply / bug / question 都是去复测，交付一样"
   },
   {
    "id": "om_x100b62c1ec5ee0a4ed6ade7eaab85db",
@@ -1906,9 +1908,11 @@
      "bug"
     ],
     "deliverable": [
-     "change"
+     "change",
+     "verification"
     ]
-   }
+   },
+   "note": "「现在 uat 环境前端 API 还是有问题」接 bot 的实测结论：先去复测再定改不改，verification 也说得通"
   },
   {
    "id": "om_x100b61790d52a4a0ff5fecf60167d28",
@@ -2017,12 +2021,14 @@
    "attachments": [],
    "expected": {
     "decision": [
-     "requirement"
+     "requirement",
+     "bug"
     ],
     "deliverable": [
      "verification"
     ]
-   }
+   },
+   "note": "负责人私聊「已部署」→ 去 pre 复测：bug / requirement 交付一样是实测，关键是不能 ignore"
   },
   {
    "id": "om_x100b61317d91a8a8ffaf85949d657d4",

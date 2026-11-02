@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
-import { clipText, parseFetchedMessage, pickEarlierDoc, pickRecentAttachments, pickRecentContext, pickThreadContext, shortTime } from '../lib/lark-chat-context.mjs'
+import { clipText, parseFetchedMessage, pickEarlierDoc, pickRecentAttachments, pickRecentContext, pickThreadContext, shortTime, applyRecentWindow, RECENT_CONTEXT_HOURS } from '../lib/lark-chat-context.mjs'
 import { ACTIVITY_WINDOW_MS, ANCHOR_WINDOW_MS, buildConversationData, renderActivityBlock, renderAnchorBlock, renderCandidateBlock, resolveDefaultAnchor } from '../lib/lark-conversation.mjs'
 import { toEpochMs } from '../lib/lark-message.mjs'
 import { hashText, listOutbox, localHHMM, pruneOutbox, recordOutbox, shouldSend } from '../lib/lark-outbox.mjs'
@@ -79,10 +79,11 @@ describe('对话层：锚点、上下文、对话包、发件簿、义务、pers
       ]
       const out = pickRecentContext(msgs, { beforeMs: Date.parse('2026-11-01T18:00:00'), excludeIds: ['excluded'], botOpenIds: [BOT, APP] })
       assert.deepEqual(out.map((item) => item.messageId), ['own-app', 'own-custom', 'other-bot', 'img', 'pic', 'long', 'plain'])
-      assert.deepEqual(out[0], { messageId: 'own-app', sender: 'Aven.Bot（bot，我们自己）', time: '11-01 17:00', text: '结论：都通了', attachments: [], bot: true })
+      assert.deepEqual(out[0], { messageId: 'own-app', sender: 'Aven.Bot（bot，我们自己）', time: '11-01 17:00', at: Date.parse('2026-11-01T17:00:00'), text: '结论：都通了', attachments: [], bot: true, ownBot: true })
+      assert.equal(out[2].ownBot, undefined, '别家机器人不标 ownBot')
       assert.equal(out[1].sender, 'Aven.Bot（bot，我们自己）')
       assert.equal(out[2].sender, '部署机器人（机器人）')
-      assert.deepEqual(out[3], { messageId: 'img', sender: '小王', senderOpenId: 'ou_u', time: '11-01 17:00', text: '看下这个 （发了 2 张图）', attachments: [{ type: 'image', imageKey: 'img_1' }, { type: 'image', imageKey: 'img_2' }] })
+      assert.deepEqual(out[3], { messageId: 'img', sender: '小王', senderOpenId: 'ou_u', time: '11-01 17:00', at: Date.parse('2026-11-01T17:00:00'), text: '看下这个 （发了 2 张图）', attachments: [{ type: 'image', imageKey: 'img_1' }, { type: 'image', imageKey: 'img_2' }] })
       assert.deepEqual(out[4].attachments, [{ type: 'image', imageKey: 'img_only' }])
       assert.equal(out[4].text, '（发了 1 张图）')
       assert.ok(out[5].text.endsWith('…') && !out[5].text.includes('https://'), '切点落在链接中间就整个去掉')
@@ -92,6 +93,23 @@ describe('对话层：锚点、上下文、对话包、发件簿、义务、pers
       assert.equal(pickRecentContext(many, { beforeMs: Date.parse('2026-11-01T18:00:00'), limit: 3 }).length, 3)
       assert.deepEqual(pickRecentContext(null, { beforeMs: 0 }), [])
       assert.equal(pickRecentContext([userMsg('t0', 'x', { at: 0 })], { beforeMs: 1 }).length, 1, '没有时间的消息不按 beforeMs 过滤')
+    }],
+    ['applyRecentWindow：窗口内全留；更早的只留本 bot 最近 3 条和本人最近 2 条（别家机器人 / 别人旧话 / 本人更早的都去掉）；没时间的不删；窗口 0 / 缺 beforeMs 不截；保持顺序', () => {
+      const H = 3_600_000
+      const now = Date.parse('2026-11-02T18:00:00')
+      const item = (id, hoursAgo, extra = {}) => ({ messageId: id, at: hoursAgo == null ? null : now - hoursAgo * H, ...extra })
+      const items = [
+        item('bot-old-1', 30, { bot: true, ownBot: true }), item('bot-old-2', 29, { bot: true, ownBot: true }), item('bot-old-3', 28, { bot: true, ownBot: true }), item('bot-old-4', 27, { bot: true, ownBot: true }),
+        item('other-bot-old', 26, { bot: true }), item('me-old-1', 25, { senderOpenId: 'ou_me' }), item('me-old-2', 24, { senderOpenId: 'ou_me' }), item('me-old-3', 23, { senderOpenId: 'ou_me' }),
+        item('pm-old', 5, { senderOpenId: 'ou_pm' }), item('no-time', null, { senderOpenId: 'ou_pm' }), item('edge', 4, { senderOpenId: 'ou_pm' }), item('pm-new', 1, { senderOpenId: 'ou_pm' }),
+      ]
+      assert.deepEqual(applyRecentWindow(items, { beforeMs: now, senderOpenId: 'ou_me' }).map((it) => it.messageId),
+        ['bot-old-2', 'bot-old-3', 'bot-old-4', 'me-old-2', 'me-old-3', 'no-time', 'edge', 'pm-new'])
+      assert.deepEqual(applyRecentWindow(items, { beforeMs: now }).map((it) => it.messageId), ['bot-old-2', 'bot-old-3', 'bot-old-4', 'no-time', 'edge', 'pm-new'], '不知道发送人就不留本人旧话')
+      assert.equal(applyRecentWindow(items, { beforeMs: now, windowMs: 0 }).length, items.length)
+      assert.equal(applyRecentWindow(items, { beforeMs: null }).length, items.length)
+      assert.deepEqual(applyRecentWindow(items, { beforeMs: now, windowMs: 6 * H, keepOwnBot: 1, keepSameSender: 0, senderOpenId: 'ou_me' }).map((it) => it.messageId), ['bot-old-4', 'pm-old', 'no-time', 'edge', 'pm-new'])
+      assert.deepEqual([applyRecentWindow(null, { beforeMs: now }), RECENT_CONTEXT_HOURS], [[], 4])
     }],
     ['pickThreadContext：本 bot 的话留下、别家 app 跳过、空消息跳过、limit', () => {
       const msgs = [
