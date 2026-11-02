@@ -4,7 +4,7 @@
  * 一个 it 合并全部段（测试棘轮）；表驱动，每行翻转一处条件，给变异扫描用。
  */
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it, mock } from 'node:test'
@@ -12,6 +12,8 @@ import { describe, it, mock } from 'node:test'
 import { CONTRACT_VERSION, deriveContract, isReadOnlyAsk, isRecordOnly, refreshContract, taskContract } from '../lib/lark-task-contract.mjs'
 import { applyIntakeClassification, intakeActionable, sameIntentClassification } from '../lib/lark-intake-resolve.mjs'
 import { mergeTaskObjects } from '../lib/lark-task-merge.mjs'
+import { judgeIntakeCase, regressionTaskOf } from '../lib/lark-intake-replay.mjs'
+import { buildIntentClassificationPrompt } from '../lib/lark-classify-prompt.mjs'
 import { createTaskStore } from '../lib/lark-task-store.mjs'
 import { eachCase, runSteps } from './support/steps.mjs'
 
@@ -22,6 +24,29 @@ const NOW = '2026-11-01T10:00:00.000Z'
 
 describe('对话层：契约、入队门槛、分类落态、归并', () => {
   it('deriveContract / isReadOnlyAsk / intakeActionable / applyIntakeClassification / mergeTaskObjects / store 委托', () => runSteps([
+    ['分类回归集（11-02）：judgeIntakeCase 按可接受集合判、缺字段不比、单值也行；fixture 53 条都能拼出提示、没漏真实 open_id', () => {
+      const expected = { decision: ['bug', 'question'], deliverable: ['change'], continues: [null], selfAnswer: false }
+      assert.deepEqual(judgeIntakeCase(expected, { decision: 'question', deliverable: 'change', continues: undefined, selfAnswer: false }), { ok: true, mismatches: [] })
+      assert.deepEqual(judgeIntakeCase(expected, { decision: 'ignore', deliverable: null, continues: 'om_x', selfAnswer: true }).mismatches, [
+        'decision=ignore（应为 bug / question）', 'deliverable=null（应为 change）', 'continues=om_x（应为 null）', 'selfAnswer=true（应为 false）',
+      ])
+      assert.equal(judgeIntakeCase({ decision: 'bug' }, { decision: 'bug', deliverable: 'answer', continues: 'x', selfAnswer: true }).ok, true, '单值 / 没写的字段不比')
+      assert.deepEqual(regressionTaskOf({ id: 'd', text: 't', trigger: 'dm', addressedToBot: false, fromPrincipal: true }, { principalOpenId: 'ou_p' }), {
+        id: 'd', source: 'lark', text: 't', operator: 'ou_p', chatType: 'p2p', addressedToBot: false, privateOrigin: false, conversation: null, attachments: [], intake: { required: true, trigger: 'dm' },
+      })
+      const groupTask = regressionTaskOf({ id: 'g', text: 't', trigger: 'group', conversation: { anchor: null }, attachments: [{ type: 'image' }], privateOrigin: true })
+      assert.deepEqual([groupTask.chatType, groupTask.intake.trigger, groupTask.addressedToBot, groupTask.operator, groupTask.conversation, groupTask.attachments.length, groupTask.privateOrigin], ['group', 'bot_mention', true, null, { anchor: null }, 1, true])
+      const fixture = JSON.parse(readFileSync(new URL('./fixtures/intake-regression-1102.json', import.meta.url), 'utf8'))
+      assert.equal(fixture.regression, true)
+      assert.equal(fixture.cases.length, 53)
+      assert.doesNotMatch(JSON.stringify(fixture), /ou_[0-9a-f]{20,}/, '真实 open_id 要换成占位')
+      for (const item of fixture.cases) {
+        assert.ok(Array.isArray(item.expected.decision) && item.expected.decision.length, `${item.id} 缺 expected.decision`)
+        const built = regressionTaskOf(item, { principalOpenId: 'ou_aven' })
+        assert.equal(built.operator, item.fromPrincipal ? 'ou_aven' : null)
+        assert.ok(buildIntentClassificationPrompt(built, {}).includes(item.text.slice(0, 20)), `${item.id} 提示里没有正文`)
+      }
+    }],
     ['deriveContract：交付物只算一次，运维 > 显式前缀 > 分类器交付 > 只记一笔 > 提问 > 原话正则 > 其余改码', () => eachCase([
       { name: '显式「运维：」→ ops，不只读、不要代码、空 diff 也算完成', input: task('运维：部署 online'), want: { deliverable: 'ops', source: 'ops', readOnly: false, expectsCode: false, emptyDiffOk: true, docsOnlyOk: true, api: false, defect: false, browser: false, selfAnswer: false } },
       { name: '推断的运维（commandType=ops/inferred）→ ops', input: task('部署 online', { commandType: 'ops', commandTypeSource: 'inferred' }), want: { deliverable: 'ops', source: 'ops', readOnly: false } },

@@ -136,6 +136,17 @@ describe('上下文分层升级：遮蔽检测 / 缓存标龄 / 视觉分流 / �
       assert.equal(calls[2].args.includes('--setting-sources'), false, '没钉模型 / 强度不隔离')
       await execAiExecutor({ executor: 'cursor', promptText: 'x', cwd: mkdtempSync(join(tmpdir(), 'cur-')), localConfig: { ...pinned, claudeSettingSources: 'project' }, systemPromptText: 'SYS', spawnImpl: (cmd, args) => { calls.push({ cmd, args }); throw new Error('stop') } }).catch(() => {})
       assert.equal(calls[3].args.some((a) => a === '--setting-sources' || a === '--append-system-prompt'), false, '非 claude 执行器不吃 claude 参数')
+      // 分类单独配模型 / 强度（11-02）：只作用于 intent，分析 / 实施仍走各自的键；没配沿用任务模型与强度。
+      const stop = (cmd, args) => { calls.push({ cmd, args }); throw new Error('stop') }
+      const intentCfg = { ...pinned, claudeIntentModel: 'fast', claudeIntentEffort: 'low', claudeAnalysisEffort: 'max' }
+      await execAiExecutor({ executor: 'claude', promptText: 'x', cwd: tmpdir(), localConfig: intentCfg, resultKind: 'intent', spawnImpl: stop }).catch(() => {})
+      await execAiExecutor({ executor: 'claude', promptText: 'x', cwd: tmpdir(), localConfig: intentCfg, resultKind: 'analysis', spawnImpl: stop }).catch(() => {})
+      await execAiExecutor({ executor: 'claude', promptText: 'x', cwd: tmpdir(), localConfig: intentCfg, spawnImpl: stop }).catch(() => {})
+      await execAiExecutor({ executor: 'claude', promptText: 'x', cwd: tmpdir(), localConfig: pinned, resultKind: 'intent', spawnImpl: stop }).catch(() => {})
+      // 配置里都没有：退回调用方传的 model / reasoningEffort，再退回旧参数名 codexModel / codexReasoningEffort。
+      await execAiExecutor({ executor: 'claude', promptText: 'x', cwd: tmpdir(), localConfig: {}, model: 'p', reasoningEffort: 'pe', resultKind: 'intent', spawnImpl: stop }).catch(() => {})
+      await execAiExecutor({ executor: 'claude', promptText: 'x', cwd: tmpdir(), localConfig: {}, codexModel: 'c', codexReasoningEffort: 'ce', resultKind: 'intent', spawnImpl: stop }).catch(() => {})
+      assert.deepEqual(calls.slice(4).map((c) => [argOf(c.args, '--model'), argOf(c.args, '--effort')]), [['fast', 'low'], ['m', 'max'], ['m', 'high'], ['m', 'high'], ['p', 'pe'], ['c', 'ce']])
     }],
     ['runAI：AGENTS.md 遮蔽只对 claude 生效（codex / cursor 原生读 AGENTS.md）', async () => {
       const calls = []
@@ -161,7 +172,7 @@ describe('上下文分层升级：遮蔽检测 / 缓存标龄 / 视觉分流 / �
       assert.doesNotMatch(calls[1].systemPromptText, /AGENTS\.md/)
     }],
     ['模型配置：空配置 / 旧键兼容（resolveAiModelConfig 从 executor 拆出后仍同口径）', () => {
-      assert.deepEqual(resolveAiModelConfig(null, 'claude'), { model: null, reasoningEffort: null, provider: null, analysisModel: null, analysisEffort: null })
+      assert.deepEqual(resolveAiModelConfig(null, 'claude'), { model: null, reasoningEffort: null, provider: null, analysisModel: null, analysisEffort: null, intentModel: null, intentEffort: null })
       assert.deepEqual([resolveAiModelConfig({ model: 'm', reasoningEffort: 'low' }, 'claude').model, resolveAiModelConfig({ model: 'm', reasoningEffort: 'low' }, 'claude').reasoningEffort], ['m', 'low'])
     }],
     ['体检取数：默认 claude、CLI 失败记 null、版本去空白、非 claude 不起子进程、规则缺失记原因、没钉不隔离', () => {
