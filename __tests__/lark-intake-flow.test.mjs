@@ -42,7 +42,8 @@ const AVEN = { id: 'ou_aven', name: 'aven', key: '@_user_2' }
 const event = (id, text, { chatId = 'oc_g', chatType = 'group', sender = 'ou_qa', mentions = [], ...rest } = {}) =>
   ({ message_id: id, chat_id: chatId, chat_type: chatType, sender_type: 'user', sender_id: sender, message_type: 'text', content: text, mentions, ...rest })
 const atBot = (id, text, extra = {}) => event(id, `@Aven.Bot ${text}`.trim(), { mentions: [BOT], ...extra })
-const dm = (id, text, extra = {}) => event(id, text, { chatId: 'ou_aven', chatType: 'p2p', sender: 'ou_aven', ...extra })
+// 私信的 chat_id 和生产一样是 oc_（p2p 会话），不是负责人的 open_id（11-02 复核：原来写成 ou_aven 把主通道 recent 锚定对不上 oc_ 的缺口盖住了）
+const dm = (id, text, extra = {}) => event(id, text, { chatId: 'oc_p2p', chatType: 'p2p', sender: 'ou_aven', ...extra })
 // 内存版任务库（只要 get / list / listActiveByThread 的纯函数段用）
 const memStore = (tasks) => ({
   get: (id) => tasks.find((task) => task.id === id),
@@ -202,6 +203,11 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       assert.deepEqual(latestDmReceipt({ receipts: [{ chatId: 'ou_aven', kind: 'start', createdAt: T1 }, { chatId: 'ou_aven', kind: 'done', createdAt: T2 }] }, 'ou_aven'), { at: Date.parse(T2), kind: 'done' })
       assert.deepEqual(latestDmReceipt({ receipts: [{ chatId: 'ou_aven', kind: 'a', createdAt: T1 }, { chatId: 'ou_aven', kind: 'b', createdAt: T1 }] }, 'ou_aven'), { at: Date.parse(T1), kind: 'a' }, '同一时刻取先登记的')
       assert.equal(latestDmReceipt({ receipts: [{ chatId: 'ou_aven', kind: 'x', createdAt: 'bad' }] }, 'ou_aven'), null, '时间解析不了的不算')
+      // 11-02 复核：私信通知按 open_id 发、回执记 ou_，他回过来的 p2p 消息 chat_id 是 oc_：两种 id 都算这个会话；群里的仍不算；没 chatId 的老回执不算
+      assert.deepEqual(latestDmReceipt({ receipts: [{ chatId: 'oc_g', kind: 'ack', createdAt: T2 }, { chatId: 'ou_aven', kind: 'suspected', createdAt: T1 }] }, 'oc_p2p', 'ou_aven'), { at: Date.parse(T1), kind: 'suspected' }, 'ou_ 回执按负责人 open_id 认')
+      assert.deepEqual(latestDmReceipt({ receipts: [{ chatId: 'oc_p2p', kind: 'held', createdAt: T2 }, { chatId: 'ou_aven', kind: 'suspected', createdAt: T1 }] }, 'oc_p2p', 'ou_aven'), { at: Date.parse(T2), kind: 'held' }, 'oc_ 回执按本次私信 chat_id 认，两种混着取最近')
+      assert.equal(latestDmReceipt({ receipts: [{ chatId: 'ou_aven', kind: 'suspected', createdAt: T1 }, { kind: 'old', createdAt: T2 }] }, 'oc_p2p'), null, '没给 open_id 只认 chat_id；没 chatId 的老回执不算')
+      assert.equal(latestDmReceipt({ receipts: [{ chatId: 'oc_g', kind: 'ack', createdAt: T1 }] }, 'oc_p2p', 'ou_aven'), null, '群里的回执不算')
       assert.equal(anchorHead({ summary: '【引用】登录页报错\n第二行', text: 'T' }), '登录页报错')
       assert.equal(anchorHead({ text: '\n  只有正文  \n' }), '只有正文')
       assert.equal(anchorHead({ summary: 'x'.repeat(60) }, 10), 'x'.repeat(10))
@@ -209,15 +215,15 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       assert.deepEqual(['waiting_confirmation', 'blocked', 'done', undefined].map((status) => decidePrincipalAction(status ? { status } : null)), ['resume', 'resume', 'instruct', 'instruct'])
       const anchor = { id: 'om_g1', status: 'done', chatId: 'oc_g', messageId: 'om_g1', replyTarget: { messageId: 'om_g1', inThread: false }, threadRootId: 'omt_1', operator: 'ou_qa', project: 'PR-X', projectTitle: '跟单', text: '群里原话', summary: '【引用】群里原话', attachments: [{ type: 'image', imageKey: 'g' }], aiExecutor: 'codex', intake: { classification: { decision: 'ignore', reason: '只是通知' } } }
       const at = new Date('2026-11-01T03:00:00.000Z')
-      const task = buildPrincipalInstructionTask({ msg: { messageId: 'om_p', chatId: 'ou_aven', senderOpenId: 'ou_aven', text: ' 这个要做 ' }, anchor, attachments: [{ type: 'image', imageKey: 'p' }], commandType: 'fix', commandTypeSource: 'explicit', now: at })
+      const task = buildPrincipalInstructionTask({ msg: { messageId: 'om_p', chatId: 'oc_p2p', senderOpenId: 'ou_aven', text: ' 这个要做 ' }, anchor, attachments: [{ type: 'image', imageKey: 'p' }], commandType: 'fix', commandTypeSource: 'explicit', now: at })
       assert.deepEqual(task, {
         id: 'om_p', source: 'lark', chatId: 'oc_g', messageId: 'om_p', replyTarget: { messageId: 'om_g1', inThread: false }, threadRootId: 'omt_1', operator: 'ou_qa', project: 'PR-X', commandType: 'fix', commandTypeSource: 'explicit', projectTitle: '跟单',
         text: '【aven 私聊指示】这个要做\n\n【指示针对的群消息（任务 om_g1，当前 done，之前判定 ignore：只是通知）】\n群里原话',
         summary: '群里原话', attachments: [{ type: 'image', imageKey: 'p' }, { type: 'image', imageKey: 'g' }], aiExecutor: 'codex', status: 'received',
         intake: { required: true, trigger: 'principal_private', mentionedOpenIds: [], lane: 'fast', notBefore: null, receivedAt: at.toISOString() },
-        addressedToBot: true, fromPrincipal: true, privateOrigin: { chatId: 'ou_aven', senderOpenId: 'ou_aven', anchorId: 'om_g1', anchorHead: '群里原话' }, createdAt: at.toISOString(),
+        addressedToBot: true, fromPrincipal: true, privateOrigin: { chatId: 'oc_p2p', senderOpenId: 'ou_aven', anchorId: 'om_g1', anchorHead: '群里原话' }, createdAt: at.toISOString(),
       })
-      const bare = buildPrincipalInstructionTask({ msg: { messageId: 'om_p2', chatId: 'ou_aven', senderOpenId: 'ou_aven', text: '' }, anchor: { id: 'om_g2', status: 'waiting_confirmation', chatId: 'oc_g', messageId: 'om_g2', operator: 'ou_qa', text: '' }, now: at })
+      const bare = buildPrincipalInstructionTask({ msg: { messageId: 'om_p2', chatId: 'oc_p2p', senderOpenId: 'ou_aven', text: '' }, anchor: { id: 'om_g2', status: 'waiting_confirmation', chatId: 'oc_g', messageId: 'om_g2', operator: 'ou_qa', text: '' }, now: at })
       assert.deepEqual([bare.text, bare.summary, bare.replyTarget, bare.threadRootId, bare.project, bare.projectTitle, bare.attachments, bare.aiExecutor, bare.commandType, bare.commandTypeSource],
         ['【aven 私聊指示】（附件）\n\n【指示针对的群消息（任务 om_g2，当前 waiting_confirmation）】\n', '（附件）', { messageId: 'om_g2', inThread: false }, null, null, null, [], 'claude', null, null])
       return eachCase([
@@ -243,7 +249,8 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
     }],
     ['resolvePrincipalAnchor：显式 > 回复私信通知 > 12h 内最近一条（只认「在问他」的，或本条是短指代句）', () => {
       const now = Date.parse('2026-11-01T12:00:00.000Z')
-      const dmMsg = (text, extra = {}) => ({ messageId: 'om_in', chatId: 'ou_aven', senderOpenId: 'ou_aven', text, mentions: [], ...extra })
+      // 本条私信的 chat_id 和生产一样是 oc_；私信通知的回执记的是负责人 open_id（ou_aven = config.notifyOpenId），11-02 复核前两者对不上、recent 永远锚不到
+      const dmMsg = (text, extra = {}) => ({ messageId: 'om_in', chatId: 'oc_p2p', senderOpenId: 'ou_aven', text, mentions: [], ...extra })
       const put = (id, receipts, extra = {}) => store.upsert({ id, status: 'done', chatId: 'oc_g', text: `任务 ${id}`, epoch: 0, createdAt: iso(now - 20 * H), ...(receipts ? { receipts } : {}), ...extra })
       const resolve = (text, extra, more = {}) => resolvePrincipalAnchor({ msg: dmMsg(text, extra), store, config, now, ...more })
       put('om_plain')
@@ -257,7 +264,11 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       const legacy = { get: () => null, list: () => [], findByReceiptMessageId: (id) => (id === 'om_rcpt' ? replied : null) }
       assert.deepEqual(resolvePrincipalAnchor({ msg: dmMsg('好', { replyTo: 'om_rcpt' }), store: legacy, config, now }), { task: replied, via: 'reply' }, '老 store 只有按代次的回执反查也能锚')
       put('om_grp', [{ messageId: 'om_gr', kind: 'suspected', epoch: 0, chatId: 'oc_g', createdAt: iso(now) }])
-      assert.deepEqual(resolve('把登录页按钮改成灰色'), { task: replied, via: 'recent' }, '「在问他」的通知：长句也锚；群里的回执不算私信')
+      assert.deepEqual(resolve('把登录页按钮改成灰色'), { task: replied, via: 'recent' }, '「在问他」的通知：长句也锚；群里的回执不算私信；ou_ 回执按 notifyOpenId 认')
+      assert.equal(resolvePrincipalAnchor({ msg: dmMsg('是'), store, config: { ...config, notifyOpenId: null }, now }), null, '没配 notifyOpenId 就只按本条 chat_id 认，ou_ 回执对不上')
+      const byChat = put('om_oc', [{ messageId: 'om_oc_r', kind: 'held', epoch: 0, chatId: 'oc_p2p', createdAt: iso(now - 30 * 60_000) }])
+      assert.deepEqual(resolve('就这样回'), { task: byChat, via: 'recent' }, '回执记了 p2p 会话 chat_id（oc_）的按本条 chat_id 认')
+      assert.equal(resolvePrincipalAnchor({ msg: dmMsg('就这样回', { chatId: 'oc_other_p2p' }), store, config: { ...config, notifyOpenId: null }, now }), null, '别的会话的 oc_ 回执不算')
       const done = put('om_done', [{ messageId: 'om_d', kind: 'done', epoch: 0, chatId: 'ou_aven', createdAt: iso(now - 10 * 60_000) }])
       assert.deepEqual(resolve('重跑一次'), { task: done, via: 'recent' }, '结果类通知 + 短指代句')
       assert.equal(resolve('把登录页按钮改成灰色'), null, '结果类通知 + 长的独立私信 → 不粘')
@@ -295,7 +306,7 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
         downloadAttachments: async (args) => { downloads.push(args); return [{ type: 'image', imageKey: 'dl', localPath: '/x' }] },
         resolveAnchor: () => anchor,
       }
-      const msg = (text, extra = {}) => ({ messageId: 'om_p', chatId: 'ou_aven', chatType: 'p2p', senderOpenId: 'ou_aven', senderType: 'user', text, mentions: [], attachments: [], ...extra })
+      const msg = (text, extra = {}) => ({ messageId: 'om_p', chatId: 'oc_p2p', chatType: 'p2p', senderOpenId: 'ou_aven', senderType: 'user', text, mentions: [], attachments: [], ...extra })
       const run = (text, extra) => maybeHandlePrincipalChannel({ msg: msg(text, extra), config, store, deps })
       assert.equal(await run('已部署', { chatType: 'group', chatId: 'oc_g' }), false, '群里的不走主通道')
       assert.equal(await run('已部署', { senderOpenId: 'ou_qa' }), false, '不是负责人')
@@ -528,7 +539,7 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       await ingestLarkEvent({ raw: dm('om_dm1', '有哪些差别'), config, store })
       const a = store.get('om_dm1')
       assert.deepEqual([a.status, a.chatType, a.chatId, a.operator, a.addressedToBot, a.fromPrincipal, a.quotedOwnCard, a.project, a.projectTitle, a.commandType, a.commandTypeSource, a.text, a.summary, a.threadRootId, a.replyTarget, a.attachments, a.aiExecutor],
-        ['received', 'p2p', 'ou_aven', 'ou_aven', true, true, false, null, undefined, null, null, '有哪些差别', '有哪些差别', null, { messageId: 'om_dm1', inThread: false }, [], 'claude'])
+        ['received', 'p2p', 'oc_p2p', 'ou_aven', true, true, false, null, undefined, null, null, '有哪些差别', '有哪些差别', null, { messageId: 'om_dm1', inThread: false }, [], 'claude'])
       assert.deepEqual({ ...a.intake, notBefore: undefined, receivedAt: undefined }, { required: true, trigger: 'dm', mentionedOpenIds: [], lane: 'fast', anchorTaskId: null, notBefore: undefined, receivedAt: undefined })
       const gapMs = Date.parse(a.intake.notBefore) - Date.parse(a.intake.receivedAt)
       assert.ok(gapMs >= 0 && gapMs < 1000, `快道不等：${gapMs}`)
@@ -564,7 +575,7 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       await ingestLarkEvent({ raw: dm('om_ops', '运维：部署 pre', { thread_id: 'omt_1' }), config, store })
       const ops = store.get('om_ops')
       assert.deepEqual({ ...ops, createdAt: undefined, updatedAt: undefined, contract: undefined }, {
-        id: 'om_ops', source: 'lark', chatId: 'ou_aven', chatType: 'p2p', messageId: 'om_ops', replyTarget: { messageId: 'om_ops', inThread: false }, threadRootId: 'omt_1', operator: 'ou_aven', project: null,
+        id: 'om_ops', source: 'lark', chatId: 'oc_p2p', chatType: 'p2p', messageId: 'om_ops', replyTarget: { messageId: 'om_ops', inThread: false }, threadRootId: 'omt_1', operator: 'ou_aven', project: null,
         commandType: 'ops', commandTypeSource: 'explicit', projectTitle: null, text: '运维：部署 pre', summary: '运维：部署 pre', attachments: [], addressedToBot: true, fromPrincipal: true, aiExecutor: 'claude', status: 'queued', intake: null,
         createdAt: undefined, updatedAt: undefined, contract: undefined,
       })
