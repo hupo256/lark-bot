@@ -104,6 +104,21 @@ describe('摄入链路 / 上下文包 / 入群事件（真 store + 假 lark-cli�
       ]) await ingestLarkEvent({ raw: event, config, store })
       assert.equal(store.list().length, count, '一条都没建')
     })],
+    ['闲置群记账与指令（lib/lark-chat-retention）：群里 @bot 记活跃（白名单外 / 没叫机器人的不记）；负责人私信「留下 关键字」直接回话标不退、不建任务', () => quiet(async () => {
+      const activityFile = join(process.env.LARK_RUNTIME_DIR, 'lark-chat-activity-state.json')
+      const chatsOf = () => { try { return JSON.parse(readFileSync(activityFile, 'utf8')).chats } catch { return {} } }
+      rmSync(activityFile, { force: true })
+      await ingestLarkEvent({ raw: raw({ text: '@Aven.Bot 别的群', mentions: [BOT], chatId: 'oc_other' }), config, store })
+      await ingestLarkEvent({ raw: raw({ text: '没叫机器人', chatId: 'oc_named' }), config, store })
+      assert.deepEqual(chatsOf(), {})
+      await ingestLarkEvent({ raw: atBot('看下资产页'), config, store })
+      assert.deepEqual(Object.keys(chatsOf()), ['oc_g'])
+      const count = store.list().length
+      const keep = dm('留下 测试群')
+      await ingestLarkEvent({ raw: keep, config, store })
+      assert.equal(store.list().length, count, '指令不建任务')
+      assert.equal(chatsOf().oc_g.keep, true)
+    })],
     ['负责人私信：dm + fromPrincipal + 快道；explicit「运维：」→ 直接 queued 的 ops 任务（契约 ops、回复目标、话题键取 reply_to）；推断的运维说法 → source=inferred；群里的「运维：」不算运维', () => quiet(async () => {
       const plain = dm('看看测试环境能不能登录')
       await ingestLarkEvent({ raw: plain, config, store })

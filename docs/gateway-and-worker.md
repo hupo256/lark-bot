@@ -134,6 +134,7 @@ bug 表来源的修复任务在实施前先跑**只读分诊**（`lib/lark-triag
 | `joinGreeting` | 进群时在群里说的一句；默认 `false` 不说，只私信负责人绑定结果 |
 | `digest` | `{ at: "09:30", enabled }` 每日「等你决定的 n 条」私信 |
 | `dailyReport` | `{ enabled, at: "19:00", days: [1, 2, 3, 4, 5] }` fameex 日报（11-02）：工作日到点 gateway 建系统任务、worker 脚本生成（今天经手的任务 / bug 表我名下进度 / fameex-web 各环境今天的提交 / 等你决定的），**只私发** `notifyOpenId`，不发群；记账 `runtime/lark-daily-report-state.json`，同一天不重发，合盖错过的开盖后 24h 内补发。私信 bot「发日报」现要一份（已发过就提示），「重发日报」照发。`enabled: false` 只关定时。实现 `lib/lark-daily-schedule.mjs` / `lib/lark-daily-report.mjs` |
+| `chatRetention` | `{ enabled, idleDays: 14, graceHours: 48, at: "09:35", keep: [] }` 闲置群自动退出（11-02）：每天到点查一次 bot 所在群，14 天没人 @bot / 回复 bot、bot 也没在群里回过任务的，合并私信负责人「这 n 个群 14 天没人 @我了，48 小时后我自动退出」；48 小时后还没人找就退群并私信「已退出」，期间有人找 bot 就作废。时钟从功能上线那一刻起算、不回填历史。永远不退：`keep` 里的 chat_id、bug 表群（`bugTable.chatId` / `bugTable.watch.notifyChatId`）、群名带 falive 的（falive-bot 是同一个飞书应用，它的流量这边看不见）、私信「留下 群名里的几个字」标过的；私信「退群列表」看待退 / 不退的群。退群要应用开通 `im:chat`、`im:chat.members:write_only`，没开时私信一次要开哪个、之后每天静默再试。记账 `runtime/lark-chat-activity-state.json`，实现 `lib/lark-chat-retention.mjs` / `lib/lark-chat-activity.mjs`。例：`"chatRetention": { "keep": ["oc_要永远留的群"] }`（其余用默认值；`enabled: false` 关掉巡检，私信指令照样能用） |
 | `personaPath` | 负责人 persona 文件（默认 `runtime/persona/aven.md`）：口吻 / 取舍 / 常见问题怎么答，进分类器与代答提示 |
 | `principalReplyWindowMs` | 负责人私信锚到上一条通知的窗口（默认 12h） |
 

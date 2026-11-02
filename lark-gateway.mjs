@@ -42,6 +42,7 @@ import { ACK_SWEEP_EVERY_MS, sweepPendingAcks } from './lib/lark-intake-ack.mjs'
 import { deliverOverdueObligations } from './lib/lark-delivery.mjs'
 import { expireSuspectedAndNotify, startDailyDigest } from './lib/lark-daily-digest.mjs'
 import { startDailyReport } from './lib/lark-daily-schedule.mjs'
+import { startChatRetention } from './lib/lark-chat-retention.mjs'
 import { GATEWAY_HOST, defaultGatewayPort, defaultTaskLeaseMs } from './lib/lark-constants.mjs'
 
 // 任务领取租约：worker 领走后置 running；超过此时长仍 running 视为孤儿，下次 claim 时自动重入队。
@@ -199,6 +200,8 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   const digest = startDailyDigest({ config, store })
   // fameex 日报（默认工作日 19:00，config.dailyReport）：到点建系统任务交给 worker 生成，只私发负责人。
   const dailyReport = startDailyReport({ config, store })
+  // 闲置群自动退出（默认每天 09:35，config.chatRetention）：14 天没人 @bot 先私信负责人，48 小时后还没人找就退群。
+  const chatRetention = startChatRetention({ config })
 
   // 日志轮转：launchd 把 stdout/stderr 定向到固定文件，进程可连跑数周不重启，日志无上限。
   // 只有 plist 注入了 LARK_LOG_FILE 才生效（前台手跑不截断任何文件）。
@@ -214,6 +217,7 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
     clearInterval(ackTimer)
     digest.stop()
     dailyReport.stop()
+    chatRetention.stop()
     if (logTimer) clearInterval(logTimer)
     wakeCatchup.stop()
     keepAwake.stop()

@@ -84,6 +84,7 @@ launchd 直接运行本仓代码。**改完代码不会自动生效**，要执�
 对应的环境开关：`LARK_KEEP_AWAKE=0`（关掉开盖防空闲睡眠）、`LARK_WAKE_CATCHUP=0`（关掉开盖补拉）、`LARK_TASK_BUDGET_MS`（单任务总预算，默认 150 分钟）。
 2026-11-01 对话层（人话出口、五类分类、任务契约、负责人私信主通道）的可选键：`ownerMap` / `memberRoles` / `internalNames`、`intake`、`envSites`、`docIdentity`、`joinGreeting`、`digest`、`personaPath`，见 [docs/gateway-and-worker.md](./docs/gateway-and-worker.md) §6 末尾；运行态多了 `runtime/lark-outbox/`（发件簿）、`runtime/lark-obligations/`（回复义务）、`runtime/persona/aven.md`（负责人 persona，手写）、`runtime/people.json`。分类回放：`node scripts/lark-replay-intake.mjs [--live]`。
 2026-11-02 fameex 日报的可选键 `dailyReport`（`{ enabled, at: "19:00", days: [1, 2, 3, 4, 5] }`，默认开、工作日 19:00）：只私发负责人（`notifyOpenId`），私信「发日报 / 重发日报」随时要，见 [docs/gateway-and-worker.md](./docs/gateway-and-worker.md) §6 末尾；记账 `runtime/lark-daily-report-state.json`。
+2026-11-02 闲置群自动退出的可选键 `chatRetention`（`{ enabled, idleDays: 14, graceHours: 48, at: "09:35", keep: [chat_id] }`，默认开）：14 天没人 @bot 的群先私信负责人，48 小时后还没人找就退群；bug 表群、群名带 falive 的、`keep` 里的、私信「留下 关键字」标过的永远不退，私信「退群列表」查看。退群要应用开通 `im:chat`、`im:chat.members:write_only`。见 [docs/gateway-and-worker.md](./docs/gateway-and-worker.md) §6 末尾；记账 `runtime/lark-chat-activity-state.json`。
 
 执行器的选择优先级：任务里的 `[claude]` / `[codex]` / `[pi]` / `[cursor]` 标签 > 配置 `aiExecutor` > 内置默认 `claude`。执行器在入队时锁定。
 
