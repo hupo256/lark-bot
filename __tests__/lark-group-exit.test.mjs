@@ -74,6 +74,13 @@ describe('群 / 私信唯一出口', () => {
       assert.equal(fallback.calls[0].includes('--reply-in-thread'), false)
       assert.equal(fallback.calls[0][fallback.calls[0].indexOf('--idempotency-key') + 1], 'k'.repeat(50))
       assert.equal(fallback.calls[1][1], '+messages-send')
+      const withAt = fakeRun([paramFail, okOut('om_11')])
+      await replyMarkdown({ messageId: 'om_1', markdown: '好', fallbackChatId: 'oc_g', fallbackMarkdown: '@他 好', retries: 1, run: withAt.run })
+      assert.equal(withAt.calls[0][withAt.calls[0].indexOf('--markdown') + 1], '好', '回复用原文')
+      assert.equal(withAt.calls[1][withAt.calls[1].indexOf('--markdown') + 1], '@他 好', '回落直发用带 @ 的版本')
+      const noMsg = fakeRun([okOut('om_12')])
+      await replyMarkdown({ messageId: null, markdown: '好', fallbackChatId: 'oc_g', fallbackMarkdown: '@他 好', retries: 1, run: noMsg.run })
+      assert.equal(noMsg.calls[0][noMsg.calls[0].indexOf('--markdown') + 1], '@他 好')
       assert.equal(fallback.calls[1][fallback.calls[1].indexOf('--idempotency-key') + 1], `${'k'.repeat(48)}-s`)
       const both = fakeRun([paramFail, paramFail])
       assert.match((await replyMarkdown({ messageId: 'om_1', markdown: '好', fallbackChatId: 'oc_g', retries: 1, run: both.run })).reason, /回复失败.*直发也失败/)
@@ -107,6 +114,8 @@ describe('群 / 私信唯一出口', () => {
       const sent = await sendReply({ config, store, task, phase: 'ack', text: '收到。', idempotencyKey: 'k1', deps: s })
       assert.deepEqual(sent, { ok: true, messageId: 'om_r1', gated: false, reason: null, via: 'reply' })
       assert.deepEqual([s.sent[0].messageId, s.sent[0].inThread, s.sent[0].fallbackChatId, s.sent[0].idempotencyKey, s.sent[0].logPrefix], ['om_root', true, 'oc_g', 'k1', 'ack om_1'])
+      // 回复原消息时正文不加 @（回复本身就指向当事人）；回落直发时带 @当事人（aven 11-02）
+      assert.deepEqual([s.sent[0].markdown, s.sent[0].fallbackMarkdown], ['收到。', '<at user_id="ou_qa"></at> 收到。'])
       assert.deepEqual(store.get('om_1').receipts.map((r) => [r.messageId, r.kind, r.epoch, r.chatId]), [['om_r1', 'ack', 2, 'oc_g']])
       const entry = listOutbox({ chatId: 'oc_g' })[0]
       assert.deepEqual([entry.phase, entry.to, entry.topic, entry.messageId, entry.text, entry.gated], ['ack', 'ou_qa', 'login', 'om_r1', '收到。', undefined])
@@ -116,9 +125,16 @@ describe('群 / 私信唯一出口', () => {
       assert.deepEqual([s.sent[1].kind, s.sent[1].messageId, s.sent[1].inThread, s.sent[1].idempotencyKey], ['reply', 'om_2', false, undefined])
       const direct = await sendReply({ config, store, task: newTask({ id: 'om_3', messageId: null, operator: 'ou_other' }), phase: 'done', text: '结论二', deps: s })
       assert.deepEqual([s.sent[2].kind, s.sent[2].chatId, direct.via], ['send', 'oc_g', 'send'])
+      assert.equal(s.sent[2].markdown, '<at user_id="ou_other"></at> 结论二', '没有原消息可回：直发群里 @当事人')
+      await sendReply({ config, store, task: newTask({ id: 'om_3b', messageId: null, operator: 'ou_other' }), phase: 'done', text: '<at user_id="ou_other">他</at> 结论', deps: s })
+      assert.equal(s.sent.at(-1).markdown, '<at user_id="ou_other">他</at> 结论', '正文已经 @ 了当事人不重复')
+      for (const extra of [{ chatType: 'p2p' }, { intake: { trigger: 'dm' } }, { operator: 'cli_bot' }, { operator: null }]) {
+        await sendReply({ config, store, task: newTask({ id: 'om_3c', messageId: null, operator: 'ou_other', ...extra }), phase: 'done', text: `私信${JSON.stringify(extra).length}`, deps: s })
+        assert.equal(s.sent.at(-1).markdown.startsWith('<at'), false, `不 @：${JSON.stringify(extra)}`)
+      }
       // anchor=send 的 phase 直发；receipt=none 不登记回执
       await sendReply({ config, store, task: newTask({ id: 'om_4', chatId: 'ou_aven' }), phase: 'digest', text: '汇总', deps: s })
-      assert.deepEqual([s.sent[3].kind, s.sent[3].chatId], ['send', 'ou_aven'])
+      assert.deepEqual([s.sent.at(-1).kind, s.sent.at(-1).chatId, s.sent.at(-1).markdown], ['send', 'ou_aven', '汇总'])
       assert.equal(store.get('om_4').receipts, undefined)
       // 发送失败：不记发件簿、不登记回执
       const failing = { ...s, replyMarkdown: async () => ({ ok: false, messageId: null, via: 'reply', reason: '撤回了' }) }

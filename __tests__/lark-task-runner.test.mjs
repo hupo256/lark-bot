@@ -442,6 +442,17 @@ describe('createTaskRunner 运行期控制流（deps 注入）', () => {
       assert.equal(ro.audit.record.scopeCheck, undefined, '只读不核契约')
       const answer = await doneRun({ task: baseTask({ contract: { deliverable: 'verification', expectsCode: false, readOnly: false } }), workContext: hotfixCtx(baseTask(), { singlePass: true }) })
       assert.deepEqual(answer.statuses, ['running', 'done'])
+      // 点名 online、本轮只打了 pre（aven 11-02）：结论前明说测错了环境，自称通过的降成待验证
+      const sites = { pre: 'https://www.azmgb.com', online: 'https://www.fameex.com' }
+      const envReport = { subject: '登录', answer: null, items: [{ mark: 'ok', name: '登录', note: '200', evidence: 'pre' }] }
+      const wrongEnv = await doneRun({
+        task: baseTask({ contract: { deliverable: 'verification', expectsCode: false, readOnly: false }, envTargets: ['online'] }),
+        workContext: hotfixCtx(baseTask(), { singlePass: true }),
+        config: { envSites: sites },
+        deps: { runAI: async () => aiRun(aiResult({ changedFiles: [], report: envReport })), runEvidenceFor: () => ({ probeCalls: 1, browserCalls: 0, hosts: ['www.azmgb.com'] }) },
+      })
+      assert.equal(wrongEnv.last.extra.outcome.report.answer, '⚠ 这次实际测的是 pre，不是你说的 online，下面的结论不代表 online。')
+      assert.equal(wrongEnv.last.extra.outcome.report.items[0].mark, 'unverified')
       assert.equal(answer.calls.enforceCodeQuality, undefined, 'answerLike 不进闸，也不跑兜底闸')
       assert.equal(answer.calls.gitAt, undefined)
       assert.equal(answer.calls.inspectWorkingTreeFingerprint, undefined)

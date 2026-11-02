@@ -17,7 +17,8 @@ writeFileSync(join(dir, 'runtime', 'persona', 'aven.md'), '# 口吻\n\n短句、
 process.env.LARK_RUNTIME_DIR = join(dir, 'runtime')
 const { buildOutcome, detailDocOf, mapStatusForContract, outcomeFromWorkerFailure, outcomeHeadline, runEvidenceFor } = await import('../lib/lark-run-report.mjs')
 const { buildGroupReplyPassPrompt, owesGroupReply, runGroupReplyPass } = await import('../lib/lark-group-reply-pass.mjs')
-const { buildEnvProbeRule } = await import('../lib/lark-worker-modes.mjs')
+const { ANSWER_MODE_BLOCK, VERIFICATION_MODE_BLOCK, buildEnvProbeRule } = await import('../lib/lark-worker-modes.mjs')
+const { applyEnvCheck, checkEnvTarget, envTargetLine, hostOf, resolveEnvTargets, touchedEnvs } = await import('../lib/lark-env-target.mjs')
 const { buildIntentClassificationPrompt, describeSender, formatTaskAttachments, readPersona } = await import('../lib/lark-classify-prompt.mjs')
 const { classifyTaskIntent, runAI } = await import('../lib/lark-worker-run.mjs')
 
@@ -93,9 +94,9 @@ describe('worker 侧对话层：outcome / 契约映射 / 群回复补写 / 模�
       writeFileSync(join(project, 'sess-a.jsonl'), `${event('t1', 'node scripts/probe.mjs health')}\n${event('t2', 'node tools/verify-page.mjs check /login')}\n`)
       writeFileSync(join(project, 'sess-b.jsonl'), `${event('t3', 'node scripts/probe.mjs users')}\n`)
       const aiRun = { sessionId: 'sess-b', analysisSessionId: 'sess-a', implementation: { analysisSessionId: 'sess-a' } }
-      assert.deepEqual(runEvidenceFor({ aiRun, cwd: '/tmp/proj', verify: { probeCommand: 'node scripts/probe.mjs' }, claudeHome: home }), { probeCalls: 2, browserCalls: 1 })
-      assert.deepEqual(runEvidenceFor({ aiRun, cwd: '/tmp/proj', verify: null, claudeHome: home }), { probeCalls: 0, browserCalls: 1 }, '没配探针脚本就只认 curl / wget 直连')
-      assert.deepEqual(runEvidenceFor({ aiRun, cwd: '/tmp/proj', verify: { probeCommand: 'node scripts/probe.mjs', browserPattern: 'verify-page\\.mjs' }, claudeHome: home }), { probeCalls: 2, browserCalls: 1 })
+      assert.deepEqual(runEvidenceFor({ aiRun, cwd: '/tmp/proj', verify: { probeCommand: 'node scripts/probe.mjs' }, claudeHome: home }), { probeCalls: 2, browserCalls: 1, hosts: [] })
+      assert.deepEqual(runEvidenceFor({ aiRun, cwd: '/tmp/proj', verify: null, claudeHome: home }), { probeCalls: 0, browserCalls: 1, hosts: [] }, '没配探针脚本就只认 curl / wget 直连')
+      assert.deepEqual(runEvidenceFor({ aiRun, cwd: '/tmp/proj', verify: { probeCommand: 'node scripts/probe.mjs', browserPattern: 'verify-page\\.mjs' }, claudeHome: home }), { probeCalls: 2, browserCalls: 1, hosts: [] })
       assert.equal(runEvidenceFor({ aiRun: { sessionId: 'missing' }, cwd: '/tmp/proj', claudeHome: home }), null, '一份会话记录都读不到 → 不核')
       assert.equal(outcomeHeadline({ report: { answer: '\n  \n 第一行 \n第二行' }, summary: 'S' }), '第一行')
       assert.equal(outcomeHeadline({ report: { answer: '   ' }, summary: ' 摘要 \n次行' }), '摘要')
@@ -146,6 +147,65 @@ describe('worker 侧对话层：outcome / 契约映射 / 群回复补写 / 模�
       assert.equal(await runGroupReplyPass({ task: { id: 't', ackedInGroup: true }, aiRun: run3, exec: passExec(null).exec }), false)
       assert.equal(await runGroupReplyPass({ task: { id: 't', ackedInGroup: true }, aiRun: run3, exec: passExec(null, { throws: true }).exec }), false)
       assert.deepEqual(run3.result, owedResult())
+    }],
+    ['环境识别与核对（aven 11-02：online 的问题不能拿 pre 复验）：认环境名 / 中文叫法 / 域名；提示点名；本轮打的环境不对就明说、通过的降待验证', async () => {
+      const sites = { dev: 'https://www.pfyys.com', test: 'https://www.dvmkgi.vip', pre: 'www.azmgb.com', online: 'https://www.fameex.com', bad: 'http://[' }
+      await eachCase([
+        { name: '线上', texts: ['线上登录报错，帮我看看'], want: ['online'] },
+        { name: 'online 英文', texts: ['online 的充值页白屏'], want: ['online'] },
+        { name: 'prod', texts: ['prod 环境挂了'], want: ['online'] },
+        { name: '正式环境 / 生产环境 / 现网', texts: ['正式环境', '生产环境', '现网'], want: ['online'] },
+        { name: '预发 → pre', texts: ['预发上复测一下'], want: ['pre'] },
+        { name: 'pre 与 online 按出现顺序', texts: ['pre 好了，online 还不行'], want: ['pre', 'online'] },
+        { name: '测试环境', texts: ['看看测试环境能不能注册'], want: ['test'] },
+        { name: 'test 环境', texts: ['test环境的登录'], want: ['test'] },
+        { name: 'test、pre 并列', texts: ['test、pre 代码一样吗'], want: ['test', 'pre'] },
+        { name: '「测试一下」不是环境', texts: ['帮我测试一下这个按钮'], want: [] },
+        { name: 'testing / prefix / devtools 不是环境', texts: ['testing prefix devtools'], want: [] },
+        { name: '开发环境 / dev', texts: ['开发环境'], want: ['dev'] },
+        { name: 'dev 单词', texts: ['dev 上看下'], want: ['dev'] },
+        { name: 'uat', texts: ['uat 通过了'], want: ['uat'] },
+        { name: '域名认环境（子域也算）', texts: ['https://cmsadmin.azmgb.com 打不开'], want: ['pre'] },
+        { name: '域名和名字指同一环境不重复', texts: ['online www.fameex.com'], want: ['online'] },
+        { name: '多段文本合并', texts: [null, '登录报错', '在 test 上'], want: ['test'] },
+        { name: '空', texts: [], want: [] },
+        { name: '开头就是域名', texts: ['azmgb.com 打不开'], want: ['pre'] },
+      ], ({ texts, want }) => assert.deepEqual(resolveEnvTargets({ texts, envSites: sites }), want))
+      assert.deepEqual(resolveEnvTargets({ texts: ['www.azmgb.com'] }), [], '没配地址就只认名字')
+      assert.deepEqual(resolveEnvTargets(), [])
+      assert.equal(hostOf('www.Fameex.com/x'), 'www.fameex.com')
+      assert.equal(hostOf('http://['), null)
+      assert.equal(envTargetLine({ targets: [], envSites: sites }), '')
+      assert.equal(envTargetLine(), '')
+      assert.equal(envTargetLine({ targets: ['online', 'uat'], envSites: sites }), '本任务点名的环境：online（https://www.fameex.com）、uat。只在点名的环境测 / 查，结论只说这个环境；别的环境的结果不能顶替，要对比就单列一条写明是哪个环境；report.subject 写明环境名。')
+      assert.deepEqual(touchedEnvs({ hosts: ['www.azmgb.com', 'cmsadmin.azmgb.com', 'api.example.com', 'www.fameex.com'], envSites: sites }), ['pre', 'online'])
+      assert.deepEqual(touchedEnvs(), [])
+      await eachCase([
+        { name: '点名 online 只打了 pre → 不匹配', targets: ['online'], hosts: ['www.azmgb.com'], want: { ok: false, mismatch: true, touched: ['pre'] } },
+        { name: '点名 online 打了 online（顺带打 pre 对比）→ 匹配', targets: ['online'], hosts: ['www.azmgb.com', 'www.fameex.com'], want: { ok: true, mismatch: false, touched: ['pre', 'online'] } },
+        { name: '没点名 → 不判', targets: [], hosts: ['www.azmgb.com'], want: { ok: true, mismatch: false, touched: ['pre'] } },
+        { name: '本轮没打任何环境 → 不判', targets: ['online'], hosts: ['api.example.com'], want: { ok: true, mismatch: false, touched: [] } },
+      ], ({ targets, hosts, want }) => assert.deepEqual(checkEnvTarget({ targets, envSites: sites, evidence: { hosts } }), { ...want, targets }))
+      assert.deepEqual(checkEnvTarget({ targets: ['online'], envSites: sites, evidence: null }), { ok: true, mismatch: false, targets: ['online'], touched: [] }, '读不到会话不核')
+      assert.deepEqual(checkEnvTarget({ targets: ['online'], envSites: sites, evidence: {} }).touched, [])
+      assert.deepEqual(checkEnvTarget(), { ok: true, mismatch: false, targets: [], touched: [] })
+      const report = { subject: 'pre 登录', answer: null, items: [{ mark: 'ok', name: '登录', note: '200', evidence: 'pre' }, { mark: 'not_done', name: '注册', note: '', evidence: 'none' }] }
+      const mismatch = { mismatch: true, targets: ['online'], touched: ['pre'] }
+      assert.deepEqual(applyEnvCheck(report, mismatch), { ...report, answer: '⚠ 这次实际测的是 pre，不是你说的 online，下面的结论不代表 online。', items: [{ ...report.items[0], mark: 'unverified' }, report.items[1]] })
+      assert.equal(applyEnvCheck({ ...report, answer: '能登录' }, mismatch).answer, '⚠ 这次实际测的是 pre，不是你说的 online，下面的结论不代表 online。\n能登录')
+      assert.equal(applyEnvCheck(report, { mismatch: false }), report)
+      assert.equal(applyEnvCheck(report, null), report)
+      assert.equal(applyEnvCheck(null, mismatch), null)
+      // buildOutcome 把核对结果用到 report 上
+      const out = buildOutcome({ aiResult: { status: 'done', report }, envCheck: mismatch })
+      assert.equal(out.report.items[0].mark, 'unverified')
+      assert.equal(buildOutcome({ aiResult: { status: 'done', report } }).report.items[0].mark, 'ok')
+      // 提示：点名了才加那一行；代答 / 实测两种都加
+      const named = { envTargets: ['online'] }
+      assert.ok(VERIFICATION_MODE_BLOCK(named, { envSites: sites }).includes('本任务点名的环境：online（https://www.fameex.com）'))
+      assert.ok(ANSWER_MODE_BLOCK(named, { envSites: sites }).includes('本任务点名的环境：online（https://www.fameex.com）'))
+      assert.equal(VERIFICATION_MODE_BLOCK({}, { envSites: sites }).includes('本任务点名的环境'), false)
+      assert.equal(ANSWER_MODE_BLOCK(null).includes('本任务点名的环境'), false)
     }],
     ['buildEnvProbeRule：只认非空字符串地址；一个都没有就说明没配环境地址', () => {
       assert.match(buildEnvProbeRule({ test: 'https://test.example.com', pre: ' ', uat: 5, online: null }), /上下文说哪个环境就测哪个：test https:\/\/test\.example\.com。/)

@@ -459,6 +459,32 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       assert.deepEqual(await run({ ok: true, selfAnswer: true, task: selfTask }), body({ selfAnswer: true, answered: true }))
       assert.deepEqual(said, [['notePerson', { openId: 'ou_qa', name: '小王', role: '测试', topic: '摘要', chatId: 'oc_g', taskId: 'om_me' }], ['flushPendingAck', { config: cfg, store: st, task: selfTask, reply: 'R', send: true, reason: 'self_answer' }]])
       assert.deepEqual([getObligation(selfTask).state, getObligation(selfTask).answerText, logs.at(-1)], ['answered', 'R', '[lark-gateway] 分类落地 om_me：自答（ack）：R'])
+      // 点名的环境（aven 11-02）：分类后从「要做什么」的原话认出来存到任务上；没点名不写；重放（alreadyResolved）不重算
+      assert.equal(selfTask.envTargets, undefined, '没配 envSites、原话里也没环境名 → 不写')
+      const envCfg = { ...cfg, envSites: { pre: 'https://www.azmgb.com', online: 'https://www.fameex.com' } }
+      const envRun = (t, extra = {}) => { outcome = { ok: true, actionable: true, task: t, ...extra }; upserts.length = 0; return handleIntakeResolution({ config: envCfg, store: st, id: 'om_me', body: { epoch: 0, classification: t.intake.classification }, deliverTo, deps }) }
+      const onlineTask = task({ summary: '充值页白屏' }, cls({ summary: '去线上复测充值页', deliverable: 'verification' }))
+      await envRun(onlineTask)
+      assert.deepEqual([onlineTask.envTargets, upserts.includes(onlineTask)], [['online'], true])
+      const ownText = task({ summary: 'www.azmgb.com 打不开' }, cls({ summary: '看看页面' }))
+      await envRun(ownText)
+      assert.deepEqual(ownText.envTargets, ['pre'], '本条原话里的域名也算')
+      const dmFirstLine = task({ summary: '群里原话', privateOrigin: { chatId: 'oc_p2p' }, text: '【aven 私聊指示】去 pre 看\n\n【指示针对的群消息】online 报错' }, cls({ summary: '复测' }))
+      await envRun(dmFirstLine)
+      assert.deepEqual(dmFirstLine.envTargets, ['pre'], '私聊指示只看私信那一行，不看被锚的群消息')
+      const notPrivate = task({ summary: '群里原话', text: '去 pre 看' }, cls({ summary: '复测' }))
+      await envRun(notPrivate)
+      assert.equal(notPrivate.envTargets, undefined, '不是私聊指示就不看 text（上下文包）')
+      const none = task({ summary: '按钮颜色不对' }, cls({ summary: '改颜色' }))
+      await envRun(none)
+      assert.deepEqual([none.envTargets, upserts.includes(none)], [undefined, false])
+      const replay = task({ summary: '线上' }, cls({ summary: '线上' }))
+      await envRun(replay, { alreadyResolved: true })
+      assert.equal(replay.envTargets, undefined, '重放不重算')
+      const noCls = { id: 'om_me', chatId: 'oc_g', operator: 'ou_qa', status: 'intake_failed', summary: '线上', intake: {} }
+      outcome = { ok: true, task: noCls }
+      await handleIntakeResolution({ config: envCfg, store: st, id: 'om_me', body: { epoch: 0, error: 'x' }, deliverTo, deps })
+      assert.equal(noCls.envTargets, undefined, '分类失败没有 classification 不算')
       // 没 reply 只有 result：「收到」发的是固定句，答案（result）单独回一条
       const selfBare = task({ id: 'om_me2', status: 'answered', result: 'S', topic: '主题' }, cls({ reply: null }))
       await run({ ok: true, selfAnswer: true, task: selfBare })

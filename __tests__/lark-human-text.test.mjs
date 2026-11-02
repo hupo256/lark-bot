@@ -244,14 +244,17 @@ describe('对话层出口文案（§4.1）', () => {
         writeFileSync(join(dir, 'b.jsonl'), use('t3', 'git diff'))
         // 页面工具：路径先赋给变量再 check 也算（10-28 页脚任务真测过被判没实测）；只 start / stop 不算；工具名本身像浏览器（mcp 的 playwright 工具，没有命令）也算
         writeFileSync(join(dir, 'c.jsonl'), [use('p1', 'T=/x/tools/verify-page.mjs; node $T start --cwd .; node $T check --cwd . --expect 关注我们 /'), use('p2', 'node /x/tools/verify-page.mjs stop --cwd .'), use('p3', 'node /x/tools/verify-page.mjs check /room/1'), use('p4', null, 'mcp__playwright__browser_click'), JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'p5', name: 'Bash', input: { script: 'node x/verify-page.mjs check /' } }] } })].join('\n'))
-        assert.deepEqual(collectRunEvidence({ sessionFiles: [join(dir, 'c.jsonl')] }), { probeCalls: 0, browserCalls: 4 }, '没给探针命令就不按脚本名数探针')
-        assert.deepEqual(collectRunEvidence({ sessionFiles: [join(dir, 'a.jsonl'), join(dir, 'b.jsonl')], probeCommand: 'node scripts/pre-probe.mjs' }), { probeCalls: 1, browserCalls: 1 })
-        assert.deepEqual(collectRunEvidence({ sessionFiles: [join(dir, 'a.jsonl')], probeCommand: 'bash' }), { probeCalls: 0, browserCalls: 1 }, '探针命令里没有脚本文件名就不按名字数')
+        assert.deepEqual(collectRunEvidence({ sessionFiles: [join(dir, 'c.jsonl')] }), { probeCalls: 0, browserCalls: 4, hosts: [] }, '没给探针命令就不按脚本名数探针')
+        assert.deepEqual(collectRunEvidence({ sessionFiles: [join(dir, 'a.jsonl'), join(dir, 'b.jsonl')], probeCommand: 'node scripts/pre-probe.mjs' }), { probeCalls: 1, browserCalls: 1, hosts: [] })
+        assert.deepEqual(collectRunEvidence({ sessionFiles: [join(dir, 'a.jsonl')], probeCommand: 'bash' }), { probeCalls: 0, browserCalls: 1, hosts: [] }, '探针命令里没有脚本文件名就不按名字数')
         assert.equal(collectRunEvidence({ sessionFiles: [join(dir, 'missing.jsonl'), null] }), null)
         assert.equal(collectRunEvidence({ sessionFiles: [] }), null)
         // 直连接口也算实测（10-29 OL 换域名直连 www.falive.com 被判没实测）；只是 grep 里带网址不算
         writeFileSync(join(dir, 'd.jsonl'), [use('h1', 'for p in /api/preload/lives /go-api/health; do curl -s -m 15 "https://www.falive.com$p"; done'), use('h2', 'wget -qO- http://x.test/a'), use('h3', 'grep -n "https://www.falive.com" build/service-hosts.ts')].join('\n'))
-        assert.deepEqual(collectRunEvidence({ sessionFiles: [join(dir, 'd.jsonl')] }), { probeCalls: 2, browserCalls: 0 })
+        // 页面工具按 input.url 打开的页面也记主机（mcp 浏览器工具没有 command）
+        writeFileSync(join(dir, 'e.jsonl'), JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'u1', name: 'mcp__playwright__browser_navigate', input: { url: 'https://www.Fameex.com/login' } }] } }))
+        assert.deepEqual(collectRunEvidence({ sessionFiles: [join(dir, 'e.jsonl')] }), { probeCalls: 0, browserCalls: 1, hosts: ['www.fameex.com'] })
+        assert.deepEqual(collectRunEvidence({ sessionFiles: [join(dir, 'd.jsonl')] }), { probeCalls: 2, browserCalls: 0, hosts: ['www.falive.com', 'x.test'] }, '只记真发了请求的主机，grep 里的网址不算')
       } finally {
         rmSync(dir, { recursive: true, force: true })
       }
