@@ -23,6 +23,8 @@ runtime/lark-obligations/
 runtime/persona/
 runtime/people.json
 runtime/lark-digest-state.json
+# fameex 日报发送记账 + bug 状态快照（aven 11-02）
+runtime/lark-daily-report-state.json
 
 # Claude Code 会话 / 权限设置（审批动作随手写入，本机数据）
 .claude/

@@ -133,6 +133,7 @@ bug 表来源的修复任务在实施前先跑**只读分诊**（`lib/lark-triag
 | `docIdentity` | 建 Lark 文档（超长群消息 / 材料）用的身份，`bot` / `user`（默认 user） |
 | `joinGreeting` | 进群时在群里说的一句；默认 `false` 不说，只私信负责人绑定结果 |
 | `digest` | `{ at: "09:30", enabled }` 每日「等你决定的 n 条」私信 |
+| `dailyReport` | `{ enabled, at: "19:00", days: [1, 2, 3, 4, 5] }` fameex 日报（11-02）：工作日到点 gateway 建系统任务、worker 脚本生成（今天经手的任务 / bug 表我名下进度 / fameex-web 各环境今天的提交 / 等你决定的），**只私发** `notifyOpenId`，不发群；记账 `runtime/lark-daily-report-state.json`，同一天不重发，合盖错过的开盖后 24h 内补发。私信 bot「发日报」现要一份（已发过就提示），「重发日报」照发。`enabled: false` 只关定时。实现 `lib/lark-daily-schedule.mjs` / `lib/lark-daily-report.mjs` |
 | `personaPath` | 负责人 persona 文件（默认 `runtime/persona/aven.md`）：口吻 / 取舍 / 常见问题怎么答，进分类器与代答提示 |
 | `principalReplyWindowMs` | 负责人私信锚到上一条通知的窗口（默认 12h） |
 

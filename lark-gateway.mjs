@@ -43,6 +43,7 @@ import { sendMarkdown } from './lib/lark-cli.mjs'
 import { ACK_SWEEP_EVERY_MS, sweepPendingAcks } from './lib/lark-intake-ack.mjs'
 import { deliverOverdueObligations } from './lib/lark-delivery.mjs'
 import { expireSuspectedAndNotify, startDailyDigest } from './lib/lark-daily-digest.mjs'
+import { startDailyReport } from './lib/lark-daily-schedule.mjs'
 import { GATEWAY_HOST, defaultGatewayPort, defaultTaskLeaseMs } from './lib/lark-constants.mjs'
 
 // 任务领取租约：worker 领走后置 running；超过此时长仍 running 视为孤儿，下次 claim 时自动重入队。
@@ -206,6 +207,8 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
 
   // 每天「等你决定的 n 条」（疑似 / 扣下的草稿 / 答应了没结论 / 等材料超 24h）私信负责人；没有就不发。
   const digest = startDailyDigest({ config, store })
+  // fameex 日报（默认工作日 19:00，config.dailyReport）：到点建系统任务交给 worker 生成，只私发负责人。
+  const dailyReport = startDailyReport({ config, store })
 
   // 日志轮转：launchd 把 stdout/stderr 定向到固定文件，进程可连跑数周不重启，日志无上限。
   // 只有 plist 注入了 LARK_LOG_FILE 才生效（前台手跑不截断任何文件）。
@@ -220,6 +223,7 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
     clearInterval(parkedTimer)
     clearInterval(ackTimer)
     digest.stop()
+    dailyReport.stop()
     if (logTimer) clearInterval(logTimer)
     wakeCatchup.stop()
     keepAwake.stop()
