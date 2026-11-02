@@ -657,7 +657,7 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       notes.length = 0
       store.upsert({ ...base, id: 'om_r3', parkedAt: iso(now - 4 * H), operator: null })
       await remindParkedTasks({ config, store, now, deps })
-      assert.deepEqual([replies.map((r) => [r.text, r.mentions, r.idempotencyKey]), notes], [[['「登录页报错」还在等你补：null。补上回我一句就继续。', [], 'om_r3-e2-rm1']], []], '催过的不重复；没 blocker 也只催一句')
+      assert.deepEqual([replies.map((r) => [r.text, r.mentions, r.idempotencyKey]), notes], [[['「登录页报错」还在等你补材料。补上回我一句就继续。', [], 'om_r3-e2-rm1']], []], '催过的不重复；没 blocker 说「补材料」（11-02 复核：不再拼 null）')
     }],
     ['daily-digest：四组挑选、同一天只发一次、断点文件、定时器、疑似过期合并知会', async () => {
       const now = Date.parse('2026-11-01T12:00:00.000Z')

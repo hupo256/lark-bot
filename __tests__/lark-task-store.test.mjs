@@ -275,11 +275,12 @@ describe('createTaskStore', () => {
 
   it('releaseRunning 把在跑任务交还队列：running→queued、清租约、bump epoch、不计 retry/requeue（优雅退出用）', () => {
     const store = createTaskStore({ tasksDir: dir, leaseMs: 60_000 })
-    store.upsert({ id: 'r', status: 'running', epoch: 1, claimedAt: '2026-01-01T00:00:00Z', createdAt: '2026-01-01T00:00:00Z' })
+    store.upsert({ id: 'r', status: 'running', epoch: 1, claimedAt: '2026-01-01T00:00:00Z', createdAt: '2026-01-01T00:00:00Z', rerunAfterDone: true })
     const released = store.releaseRunning('r')
     assert.equal(released.status, 'queued')
     assert.equal(released.claimedAt, null)
     assert.equal(released.epoch, 2) // bump 后，被中断执行的迟到回写（带旧 epoch=1）会被 fencing 掉
+    assert.equal(released.rerunAfterDone, undefined, '11-02 复核：回队即清 rerunAfterDone，下一轮已带补充，不再多跑一轮')
     assert.equal(released.retryCount, undefined) // 运维重启不该推向死信，不占 retry/requeue 额度
     assert.equal(released.requeueCount, undefined)
     // 未过租约也能立刻被领走，无需等 40min 租约过期
@@ -336,6 +337,31 @@ describe('createTaskStore', () => {
       resumedAt: resumed.waitingHistory[0].resumedAt,
     })
     assert.equal(store.claimNext().id, 'w') // 真的回到 pending
+
+    // 11-02 复核：requeueMergedFollowUp 消费在跑时并入的后续——终态 / 挂起才回队（换代、记 threadHistory、清结果与挂起字段、rerunCount++、清标记）；
+    // 没标记 / 标记不是 true / 还在跑（running、verifying）/ 不存在 → null 不动。
+    store.upsert({ id: 'm', status: 'done', epoch: 1, rerunAfterDone: true, result: '第一轮结论', owner: 'x', noChangeReason: 'env_version', scopeRequest: { paths: ['a'] }, parkedAt: 'p', parkedRemindedRound: 1, pendingReceipt: { status: 'done' }, createdAt: '2026-01-01T00:00:00Z' })
+    const closedAt = store.get('m').updatedAt
+    const rerun = store.requeueMergedFollowUp('m')
+    assert.equal(rerun.status, 'queued')
+    assert.deepEqual(rerun.threadHistory.map((h) => h.closedAt), [closedAt], '本轮结束时间记进历史')
+    assert.equal(rerun.epoch, 2)
+    assert.equal(rerun.rerunCount, 1)
+    assert.equal(rerun.rerunAfterDone, undefined)
+    assert.equal(rerun.claimedAt, null)
+    assert.equal(rerun.pendingReceipt, undefined)
+    assert.deepEqual([rerun.result, rerun.owner, rerun.noChangeReason, rerun.scopeRequest, rerun.parkedAt, rerun.parkedRemindedRound], [null, null, null, null, null, 0])
+    assert.deepEqual(rerun.threadHistory.map((h) => [h.status, h.result]), [['done', '第一轮结论']])
+    assert.equal(store.requeueMergedFollowUp('m'), null, '标记已清，再调不动')
+    assert.equal(createTaskStore({ tasksDir: dir, leaseMs: 1000 }).get('m').rerunCount, 1, '已持久化')
+    store.upsert({ id: 'm-blocked', status: 'blocked', rerunAfterDone: true, createdAt: '2026-01-01T00:00:00Z' })
+    assert.equal(store.requeueMergedFollowUp('m-blocked')?.status, 'queued', '挂起态也回队')
+    store.upsert({ id: 'm-running', status: 'running', rerunAfterDone: true, createdAt: '2026-01-01T00:00:00Z' })
+    store.upsert({ id: 'm-verifying', status: 'verifying', rerunAfterDone: true, createdAt: '2026-01-01T00:00:00Z' })
+    store.upsert({ id: 'm-false', status: 'done', rerunAfterDone: false, createdAt: '2026-01-01T00:00:00Z' })
+    store.upsert({ id: 'm-truthy', status: 'done', rerunAfterDone: 1, createdAt: '2026-01-01T00:00:00Z' })
+    assert.deepEqual(['m-running', 'm-verifying', 'm-false', 'm-truthy', 'missing'].map((id) => store.requeueMergedFollowUp(id)), [null, null, null, null, null])
+    assert.deepEqual([store.get('m-running').status, store.get('m-verifying').status, store.get('m-running').rerunAfterDone], ['running', 'verifying', true], '在跑的不动、标记留着等它回写终态')
   })
 
   it('机器人回执 message_id 可持久关联原任务，重启后仍可反查', () => {
@@ -375,12 +401,16 @@ describe('createTaskStore', () => {
     const seed = (task) => writeFileSync(join(dir, `${task.id}.json`), JSON.stringify(task))
     seed({ id: 'old-done', status: 'done', createdAt: '2000-01-01T00:00:00Z', updatedAt: '2000-01-01T00:00:00Z' })
     seed({ id: 'old-failed', status: 'failed', createdAt: '2000-01-01T00:00:00Z', updatedAt: '2000-01-01T00:00:00Z' })
+    // 11-02 复核：还欠一轮重跑的陈旧 done（rerunAfterDone=true，回执没送达前标记一直在）不清；标记不是 true 的照清
+    seed({ id: 'old-rerun', status: 'done', rerunAfterDone: true, createdAt: '2000-01-01T00:00:00Z', updatedAt: '2000-01-01T00:00:00Z' })
+    seed({ id: 'old-rerun-false', status: 'done', rerunAfterDone: false, createdAt: '2000-01-01T00:00:00Z', updatedAt: '2000-01-01T00:00:00Z' })
     const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
     store.upsert({ id: 'fresh-done', status: 'done', createdAt: '2000-01-01T00:00:00Z' }) // upsert 盖新鲜 updatedAt
     const removed = store.pruneTerminal({ olderThanMs: 60_000, statuses: ['done'] })
-    assert.deepEqual(removed, ['old-done'])
+    assert.deepEqual(removed.sort(), ['old-done', 'old-rerun-false'])
     assert.equal(store.has('old-done'), false)
     assert.equal(store.has('fresh-done'), true)
+    assert.equal(store.has('old-rerun'), true)
     assert.equal(store.has('old-failed'), true) // 默认不碰 failed
   })
 
