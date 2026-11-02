@@ -277,7 +277,7 @@ describe('任务的人话出口', () => {
       ])
       assert.deepEqual(store.get('om_1').receipts.map((r) => [r.kind, r.chatId]), [['ack', 'oc_g'], ['start', 'ou_aven'], ['suspected', 'ou_aven'], ['ignored_after_ack', 'ou_aven']])
     })],
-    ['巡检答应了没结论：4h 没结论私信一次并标记；发件簿里已有结论的补记 answered；任务已了结的不提醒；没发成不标记', () => quiet(async () => {
+    ['巡检答应了没结论：4h 没结论私信一次并标记；发件簿里已有结论的补记 answered；任务已了结 / 挂起等人 / 疑似 / 追问 / 私信发起的不提醒（标记一次）；没发成不标记', () => quiet(async () => {
       const now = Date.now()
       const ago = now - 5 * 60 * 60_000
       const a = task({ id: 'om_a', messageId: 'om_a', status: 'running' })
@@ -291,18 +291,26 @@ describe('任务的人话出口', () => {
       bState.state = 'acked'
       const c = task({ id: 'om_c', messageId: 'om_c', operator: 'ou_c', status: 'done' })
       noteAck({ task: c, text: '收到。', now: ago })
-      const d = task({ id: 'om_d', messageId: 'om_d', operator: 'ou_d', status: 'waiting_confirmation' })
-      noteAck({ task: d, text: '收到 d。', now: ago })
+      // 11-02 复核：挂起等人（waiting / blocked）、疑似、追问、私信发起的都不是「没跑完」——疑似 / 追问只回了「收到」就挂起，原来 4h 后误报一条。
+      // 每种单独成立就跳过（标记一次、下轮不再查），不靠状态与标记同时成立。
+      const parked = [
+        task({ id: 'om_d', messageId: 'om_d', operator: 'ou_d', status: 'waiting_confirmation' }),
+        task({ id: 'om_bl', messageId: 'om_bl', operator: 'ou_bl', status: 'blocked' }),
+        task({ id: 'om_su', messageId: 'om_su', operator: 'ou_su', status: 'running', suspected: true }),
+        task({ id: 'om_ab', messageId: 'om_ab', operator: 'ou_ab', status: 'queued', askBack: true }),
+        task({ id: 'om_dm', messageId: 'om_dm', operator: 'ou_aven', status: 'running', chatType: 'p2p', chatId: 'oc_p2p' }),
+      ]
+      for (const t of parked) noteAck({ task: t, text: `收到 ${t.id}。`, now: ago })
       const fresh = task({ id: 'om_e', messageId: 'om_e', operator: 'ou_e', status: 'running' })
       noteAck({ task: fresh, text: '收到。', now: now - 60_000 })
       sent.length = 0
       const count = await deliverOverdueObligations({ config, store, now, deps })
-      assert.equal(count, 2)
+      assert.equal(count, 1)
       assert.deepEqual(dm(), [
         `⏰ 群里答应过「收到，我看一下」（${G}），4 小时了还没结论，任务可能没跑完。要重跑回「继续任务 om_a」，不用管就忽略。`,
-        `⏰ 群里答应过「收到 d」（${G}），4 小时了还没结论，任务可能没跑完。要重跑回「继续任务 om_d」，不用管就忽略。`,
       ])
       assert.deepEqual([getObligation(a).overdueNotifiedAt != null, getObligation(c).overdueNotifiedAt != null, getObligation(fresh).overdueNotifiedAt], [true, true, undefined])
+      assert.deepEqual(parked.map((t) => [t.id, getObligation(t).state, getObligation(t).overdueNotifiedAt != null]), parked.map((t) => [t.id, 'acked', true]), '挂起 / 疑似 / 追问 / 私信发起的：不提醒、标记一次')
       assert.deepEqual([getObligation(b).state, getObligation(b).answerTaskId], ['answered', 'om_b'], '发件簿里有「记下了」就补记 answered')
       assert.deepEqual(store.get('om_a').receipts.map((r) => r.kind), ['overdue'])
       assert.equal(await deliverOverdueObligations({ config, store, now, deps }), 0, '提醒过的不再提醒')

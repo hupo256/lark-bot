@@ -192,7 +192,7 @@ describe('群 / 私信唯一出口', () => {
       assert.equal(replyKeyFor({ id: 'x'.repeat(60), epoch: 1 }, 'done').length, 50)
       assert.equal(replyKeyFor(null, 'done'), 'na-e0-done')
     }],
-    ['sendPrincipalNote：没配 notifyOpenId 不发；发成记发件簿（按他的 open_id）+ 任务回执；没 taskId 不登记；失败带原因', () => quiet(async () => {
+    ['sendPrincipalNote：没配 notifyOpenId 不发；发成记发件簿（按他的 open_id）+ 任务回执（发送结果带 chat_id 就记 oc_）；没 taskId 不登记；失败带原因', () => quiet(async () => {
       const s = stubs()
       assert.deepEqual(await sendPrincipalNote({ config: {}, store, text: 'x', deps: s }), { ok: false, messageId: null, reason: 'no notifyOpenId' })
       newTask()
@@ -209,6 +209,11 @@ describe('群 / 私信唯一出口', () => {
       const noId = { sendMarkdown: async () => ({ ok: true, messageId: null }) }
       assert.equal((await sendPrincipalNote({ config, store, text: 'y', taskId: 'om_1', deps: noId })).ok, true)
       assert.equal(store.get('om_1').receipts.length, 1, '没 message_id 不登记回执')
+      // 11-02 复核：发送结果带 p2p 会话 chat_id（oc_）就按它记回执（他回过来的消息 chat_id 是 oc_）；发件簿仍按 open_id 记
+      const withChat = { sendMarkdown: async () => ({ ok: true, messageId: 'om_s9', chatId: 'oc_p2p' }) }
+      assert.equal((await sendPrincipalNote({ config, store, text: 'z', taskId: 'om_1', kind: 'held', deps: withChat })).ok, true)
+      assert.deepEqual(store.get('om_1').receipts.at(-1), { messageId: 'om_s9', kind: 'held', epoch: 2, chatId: 'oc_p2p', createdAt: store.get('om_1').receipts.at(-1).createdAt })
+      assert.deepEqual(listOutbox({ chatId: 'ou_aven' }).at(-1).messageId, 'om_s9')
     })],
     ['fetchRecentChatContext：倒着翻页凑够 limit、拉失败 / 抛错返回已拿到的、缺参数返回空', async () => {
       const user = (id, t) => ({ message_id: id, msg_type: 'text', create_time: String(t), sender: { id: 'ou_k', sender_type: 'user', name: 'K' }, content: JSON.stringify({ text: `m${id}` }) })
