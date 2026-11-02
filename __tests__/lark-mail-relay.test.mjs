@@ -9,7 +9,7 @@ import { exemptReason } from '../lib/lark-chat-retention.mjs'
 import { validateConfig } from '../lib/lark-config.mjs'
 import { startConsumer } from '../lib/lark-consumer.mjs'
 import { classifyOlKind, hasOlSubject, renderOlScore, scoreOlMail } from '../lib/lark-mail-ol-score.mjs'
-import { catchUpRelay, createRelayCli, createRelayHandler, fileRelayIo, mailFromWatchLine, pickRoute, startMailRelay } from '../lib/lark-mail-relay.mjs'
+import { RELAY_POLL_MS, RELAY_POLL_OVERLAP_MS, catchUpRelay, createRelayCli, createRelayHandler, fileRelayIo, mailFromWatchLine, pickRoute, relayPollMs, startMailRelay } from '../lib/lark-mail-relay.mjs'
 import { forwardMail, renderRelayNote } from '../lib/lark-mail-relay-forward.mjs'
 import { getScorer } from '../lib/lark-mail-relay-presets.mjs'
 import { addressOf, matchRoute, normalizeRoutes, relayChatIds, routeMatches, validateMailRelay } from '../lib/lark-mail-relay-routes.mjs'
@@ -137,7 +137,7 @@ describe('审批邮件转群：OL 评分、路由、转发、引擎、拆分接�
     ['配置校验：形状、路由 id 唯一、chatId、预设 / 评分器名、match 各字段与正则、没有任何匹配条件拒收；接进 validateConfig；转发群不自动退群', () => {
       const errorsOf = (relay) => validateMailRelay(relay)
       assert.deepEqual(errorsOf(undefined), [])
-      assert.deepEqual(errorsOf([]), ['mailRelay 必须是对象 { enabled, routes: [...], cliConfigDir?, stateFile? }'])
+      assert.deepEqual(errorsOf([]), ['mailRelay 必须是对象 { enabled, routes: [...], mode?, pollMs?, cliConfigDir?, stateFile? }'])
       assert.deepEqual(errorsOf(OL_RELAY), [])
       assert.deepEqual(errorsOf({ enabled: 'y', cliConfigDir: '', stateFile: 3, routes: {} }), ['mailRelay.enabled 必须是 true / false', 'mailRelay.cliConfigDir 必须是非空路径字符串', 'mailRelay.stateFile 必须是非空路径字符串', 'mailRelay.routes 必须是数组'])
       const errors = errorsOf({ routes: [
@@ -169,7 +169,7 @@ describe('审批邮件转群：OL 评分、路由、转发、引擎、拆分接�
         'mailRelay.routes[6].match.firstOnly 必须是 true / false',
         'mailRelay.routes[7] 没有预设也没写 match（subject / from / to 至少一项），会把所有邮件都转出去',
       ])
-      assert.ok(validateConfig({ project: 'PR-01947', mailRelay: [] }).errors.includes('mailRelay 必须是对象 { enabled, routes: [...], cliConfigDir?, stateFile? }'))
+      assert.ok(validateConfig({ project: 'PR-01947', mailRelay: [] }).errors.includes('mailRelay 必须是对象 { enabled, routes: [...], mode?, pollMs?, cliConfigDir?, stateFile? }'))
       assert.ok(!validateConfig({ project: 'PR-01947', mailRelay: OL_RELAY }).errors.some((e) => /mailRelay/.test(e)))
       const state = { chats: {} }
       assert.equal(exemptReason({ config: { mailRelay: OL_RELAY }, state, chatId: 'oc_ol' }), '审批邮件转发群')
@@ -246,7 +246,7 @@ describe('审批邮件转群：OL 评分、路由、转发、引擎、拆分接�
       assert.equal(Object.keys(many.read().forwarded).length, 500, '台账只留最近 500 条')
       assert.ok(many.read().forwarded.m1)
     }],
-    ['启动补转：首次启用只落时钟不回填；之后只转上次在线之后到达的（同一时刻不算）；读收件箱失败如实返回', async () => {
+    ['拉收件箱（启动补转 / 定时拉）：首次启用只落时钟不回填；之后只转上次拉成功之后到达的（同一时刻不算）、overlapMs 往前多看；读失败如实返回且不推时钟', async () => {
       const first = memIo()
       const handled = []
       const handler = { handle: async (mail) => handled.push(mail.message_id) }
@@ -260,8 +260,14 @@ describe('审批邮件转群：OL 评分、路由、转发、引擎、拆分接�
       assert.equal(calls[0][1].identity, 'user')
       assert.deepEqual(calls[0][0], ['mail', '+triage', '--filter', '{"folder":"INBOX"}', '--max', '100', '--format', 'json'], '补转不限主题：所有路由一起判')
       assert.equal(later.read().checkedAt, '2026-11-02T13:00:00Z')
-      assert.deepEqual(await quiet(() => catchUpRelay({ handler, io: memIo({ checkedAt: 'x', forwarded: {} }), run: async () => ({ code: 1, stdout: '', stderr: 'HTTP 429' }) })), { failed: true })
-      assert.deepEqual(await catchUpRelay({ handler, io: memIo({ checkedAt: 'x', forwarded: {} }), run: async () => ({ code: 0, stdout: 'not json', stderr: '' }) }), { failed: true })
+      const stuck = memIo({ checkedAt: '2026-11-02T10:00:00Z', forwarded: {} })
+      assert.deepEqual(await quiet(() => catchUpRelay({ handler, io: stuck, run: async () => ({ code: 1, stdout: '', stderr: 'HTTP 429' }), now: () => '2026-11-02T13:00:00Z' })), { failed: true })
+      assert.deepEqual(await catchUpRelay({ handler, io: stuck, run: async () => ({ code: 0, stdout: 'not json', stderr: '' }), now: () => '2026-11-02T13:00:00Z' }), { failed: true })
+      assert.equal(stuck.read().checkedAt, '2026-11-02T10:00:00Z', '读失败不推时钟，下一轮接着补')
+      handled.length = 0
+      const overlap = memIo({ checkedAt: '2026-11-02T12:00:00Z', forwarded: {} })
+      assert.deepEqual(await catchUpRelay({ handler, io: overlap, run, now: () => '2026-11-02T13:00:00Z', overlapMs: 90 * 60_000 }), { checked: 2 })
+      assert.deepEqual(handled, ['new1', 'new2'], '往前多看 90 分钟：发信时间早于上次拉取的也补（重复的靠台账去重）')
     }],
     ['台账文件：读坏 / 字段不对当空表、写后可读、无路径不落盘、写失败不抛；startConsumer 自定义命令与启动器照传', async () => {
       const dir = mkdtempSync(join(tmpdir(), 'mail-relay-'))
@@ -309,7 +315,35 @@ describe('审批邮件转群：OL 评分、路由、转发、引擎、拆分接�
       assert.equal(spawned[0].env.PATH, process.env.PATH, '子进程继承本进程环境')
       assert.deepEqual(spawned[1], { stdio: ['pipe', 'pipe', 'pipe'] }, '不配就不传 env')
     }],
-    ['入口：没开 / 没启用路由不起；开了用 user 身份常驻 +watch、行进 handler、补转与定时只写本地时钟、停止落时钟', async () => {
+    ['入口（默认 poll）：不开 WebSocket；立刻拉一轮、之后按 pollMs（缺省 2 分钟、最少 30 秒）拉；带 15 分钟重叠；上一轮没完不叠加；停止清定时', async () => {
+      let consumed = null
+      const consume = (options) => { consumed = options; return { stop: () => {}, observe: () => null } }
+      const io = memIo()
+      const calls = []
+      let release = null
+      const catchUp = (args) => { calls.push(args); return new Promise((resolve) => { release = () => resolve({ checked: 1 }) }) }
+      const timers = []
+      const cli = { run: async () => ({ code: 0, stdout: '', stderr: '' }), env: {} }
+      const relay = await quiet(() => startMailRelay({ relay: OL_RELAY, io, cli, consume, catchUp, schedule: (fn, ms) => { timers.push([fn, ms]); return 7 } }))
+      assert.equal(consumed, null, 'poll 模式不开 +watch')
+      assert.deepEqual([relay.mode, timers[0][1], calls.length, calls[0].overlapMs, calls[0].io === io, calls[0].run === cli.run], ['poll', RELAY_POLL_MS, 1, RELAY_POLL_OVERLAP_MS, true, true])
+      await timers[0][0]()
+      assert.equal(calls.length, 1, '上一轮还在跑：本轮跳过')
+      release()
+      await new Promise((resolve) => setImmediate(resolve))
+      assert.equal(relay.observe().last.checked, 1)
+      await Promise.all([timers[0][0](), (async () => { await Promise.resolve(); release() })()])
+      assert.equal(calls.length, 2)
+      const failing = await quiet(() => startMailRelay({ relay: OL_RELAY, io, cli, consume, catchUp: async () => { throw new Error('boom') }, schedule: () => null }))
+      await new Promise((resolve) => setImmediate(resolve))
+      assert.equal(failing.observe().last.failed, true, '拉取抛错记一笔、不炸')
+      assert.deepEqual([relayPollMs({}), relayPollMs({ pollMs: 1000 }), relayPollMs({ pollMs: 300_000 }), relayPollMs({ pollMs: 'x' }), relayPollMs(null), relayPollMs({ pollMs: 0 }), relayPollMs({ pollMs: -5 }), relayPollMs({ pollMs: Infinity })], [RELAY_POLL_MS, 30_000, 300_000, RELAY_POLL_MS, RELAY_POLL_MS, RELAY_POLL_MS, RELAY_POLL_MS, RELAY_POLL_MS])
+      assert.deepEqual(validateMailRelay({ ...OL_RELAY, mode: 'push', pollMs: -1 }), ['mailRelay.mode 只能是 poll（默认，定时拉）/ watch（实时监听，只在独立应用里用）', 'mailRelay.pollMs 必须是正数（毫秒）'])
+      assert.deepEqual(validateMailRelay({ ...OL_RELAY, mode: 'watch', pollMs: 60_000 }), [])
+      assert.deepEqual(validateMailRelay({ ...OL_RELAY, pollMs: 0 }), ['mailRelay.pollMs 必须是正数（毫秒）'])
+      relay.stop()
+    }],
+    ['入口（mode=watch，只在独立应用里用）：没开 / 没启用路由不起；开了用 user 身份常驻 +watch、行进 handler、补转与定时只写本地时钟、停止落时钟', async () => {
       let consumed = null
       const consume = (options) => { consumed = options; return { stop: () => { consumed.stopped = true }, observe: () => ({ alive: true }) } }
       assert.equal(startMailRelay({ relay: { ...OL_RELAY, enabled: false }, consume }).observe(), null)
@@ -320,7 +354,7 @@ describe('审批邮件转群：OL 评分、路由、转发、引擎、拆分接�
       let caught = null
       const timers = []
       const cli = { run: async () => ({ code: 0, stdout: '', stderr: '' }), env: { LARKSUITE_CLI_CONFIG_DIR: '/d' } }
-      const relay = await quiet(() => startMailRelay({ relay: OL_RELAY, io, cli, consume, catchUp: async (args) => { caught = args }, schedule: (fn, ms) => { timers.push([fn, ms]); return null } }))
+      const relay = await quiet(() => startMailRelay({ relay: { ...OL_RELAY, mode: 'watch' }, io, cli, consume, catchUp: async (args) => { caught = args }, schedule: (fn, ms) => { timers.push([fn, ms]); return null } }))
       assert.deepEqual(consumed.command, ['--as', 'user', 'mail', '+watch', '--msg-format', 'metadata', '--format', 'data'])
       assert.equal(consumed.eventKey, 'mail.user_mailbox.event.message_received_v1')
       assert.equal(consumed.env, cli.env, '拆分时 +watch 也走同一套凭证')

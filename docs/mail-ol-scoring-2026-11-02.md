@@ -94,6 +94,8 @@ aven 收件箱 ──(user) mail +message──▶ 打分 ──(user) mail +sha
 
 ## 6. 自动触发：不加轮询，用邮件事件
 
+> **11-02 晚改口：默认改回定时拉（`mailRelay.mode` 缺省 poll，每 2 分钟 `mail +triage`）。** 同一应用里常驻 `+watch` 的代价比下面估计的大：飞书把 im 消息事件分给 +watch 那条连接后，它报「not found handler」丢掉，靠飞书重投——4 小时丢了 6 条 `im.message.receive_v1`，aven 一条私信「test 和 pre 一样吗」连投两次都落到 +watch，晚了 5 分钟才到网关。`mode: "watch"` 只留给拆成独立应用之后用。下面是当时的分析，留作记录。
+
 ### 可用的事件
 
 `mail.user_mailbox.event.message_received_v1`（新邮件到达）。lark-cli 的入口是 `mail +watch`（WebSocket 长连接），`--msg-format metadata` 直接带主题、发件人、收件人、folder，可以先按主题过滤，命中后再 `+message` 读正文。它是推送，不是轮询。

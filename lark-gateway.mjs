@@ -209,7 +209,8 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   const dailyReport = startDailyReport({ config, store })
   // 闲置群自动退出（默认每天 09:35，config.chatRetention）：14 天没人 @bot 先私信负责人，48 小时后还没人找就退群。
   const chatRetention = startChatRetention({ config })
-  // 审批邮件 → 审批群（11-02，config.mailRelay 路由表；OL 上线附评分）：常驻 mail +watch（邮箱主人 user 身份），重启时补转一次，不轮询。
+  // 审批邮件 → 审批群（11-02，config.mailRelay 路由表；OL 上线附评分）：默认每 2 分钟 mail +triage 拉一次（邮箱主人 user 身份）；
+  // 不在本应用里开 mail +watch——它另开的 WebSocket 会分走私信 / @bot 事件（11-02 实测丢了 6 条），见 lib/lark-mail-relay。
   // 拆成独立应用时这里关掉，改跑 scripts/lark-mail-relay.mjs run（见 lib/lark-mail-relay.mjs 头注释）。
   const mailRelay = startMailRelay({ relay: config.mailRelay })
 
