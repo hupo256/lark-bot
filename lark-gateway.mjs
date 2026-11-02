@@ -33,6 +33,7 @@ import { startLogRotation } from './lib/lark-log-rotate.mjs'
 import { sweepAttachments } from './lib/lark-retention.mjs'
 import { larkAttachmentsRoot } from './lib/lark-paths.mjs'
 import { createRequestHandler } from './lib/lark-routes.mjs'
+import { createWorkSignal } from './lib/lark-work-signal.mjs'
 import { createRuntimeVersion } from './lib/lark-runtime-version.mjs'
 import { startKeepAwake } from './lib/lark-keep-awake.mjs'
 import { startWakeCatchup } from './lib/lark-wake-catchup.mjs'
@@ -77,9 +78,12 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   if (!membershipMode && !config.allowedChatIds?.length && !config.allowedOpenIds?.length) {
     console.warn('[lark-gateway] ⚠ 未配置任何白名单（allowedChatIds/allowedOpenIds），将拒绝所有事件（fail-closed）。请填 allowedChatIds:"auto"（bot 所在群）或显式群 id。')
   }
+  // 有活了就唤醒长轮询的 worker（GET /lark/work/wait），新消息不再白等 worker 的 5 秒轮询。
+  const workSignal = createWorkSignal()
   const store = createTaskStore({
     tasksDir: larkTasksDir,
     leaseMs: defaultTaskLeaseMs,
+    onClaimable: () => workSignal.bump(),
     // 孤儿达重投上限转 failed 死信时发一次告警卡：无人值守下这是人工介入的唯一信号
     onDeadLetter: (task) => {
       sendAlert({
@@ -113,7 +117,7 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
     onDownAlert: () => {},
   })
 
-  const server = createServer(createRequestHandler({ config, store, consumer, port, runtimeVersion }))
+  const server = createServer(createRequestHandler({ config, store, consumer, port, runtimeVersion, workSignal }))
   server.listen(port, GATEWAY_HOST, () => {
     console.log(`[lark-gateway] listening on http://${GATEWAY_HOST}:${port} for ${config.project}`)
     console.log(`[lark-gateway] whitelist chats=${config.allowedChatIds === 'auto' ? 'auto(bot 所在群)' : ((config.allowedChatIds || []).join(',') || '(none)')} consume=im.message.receive_v1,im.chat.member.bot.added_v1`)

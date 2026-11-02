@@ -2,7 +2,7 @@
  * Gateway HTTP 路由（lib/lark-routes.mjs createRequestHandler）：直接调 handler，假 req（Readable 正文）/ 假 res（记 writeHead / end）。
  * 真 store（临时目录）；lark-cli 用假脚本顶替（记参数、下载类成功，token 带 bad 的失败），LARK_CLI_BIN / LARK_RUNTIME_DIR / LARK_GATEWAY_SECRET
  * 在模块加载时读，所以先设环境再动态 import（同 lark-control-channel.test）。config 不配 notifyOpenId，开跑知会不发私信。
- * 一个 it，分段跑：鉴权 / health / 按 id 取 / 续租 / 结单 / 续跑 / next / intake / QA 验退 / retry / prune / claim / release / 入队 / status / 回执重试 / 500；
+ * 一个 it，分段跑：鉴权 / health / 按 id 取 / 续租 / 结单 / 续跑 / next / intake / QA 验退 / retry / prune / claim / release / work/wait 长轮询 / 入队 / status / 回执重试 / 500；
  * 外加状态回写层（lib/lark-status.mjs）的 bug 表分支（假 lark-cli 记 record-batch-update 写了什么值）与回执判定（deliver 注入）。
  */
 import assert from 'node:assert/strict'
@@ -383,6 +383,37 @@ describe('Gateway HTTP 路由 createRequestHandler', () => {
       assert.deepEqual([released.status, released.body.ok, released.body.task.status, released.body.task.epoch], [200, true, 'queued', 1])
       const again = await post('/lark/tasks/c%201/release', {})
       assert.deepEqual([again.status, again.body], [404, { ok: false, error: 'task not found or not running' }])
+    }],
+    ['work/wait 长轮询：鉴权；没带 since 立即对时；挂起后任务写成可领取才唤醒（running 不算）；超时 woke=false；since 比当前大（gateway 重启过）立即返回；没装信号 404', async () => {
+      fresh()
+      assert.equal((await get('/lark/work/wait?since=0')).status, 404, '没装 workSignal（旧 gateway）= 没这个路由，worker 据此退回纯轮询')
+      const { createWorkSignal } = await import('../lib/lark-work-signal.mjs')
+      const signal = createWorkSignal()
+      const s = createTaskStore({ tasksDir: mkdtempSync(join(dir, 'tasks-')), leaseMs: 60_000, onClaimable: () => signal.bump() })
+      const h = createRequestHandler({ config, store: s, consumer: { observe: () => ({ alive: true }) }, port: 9, runtimeVersion: { observe: () => null }, workSignal: signal })
+      const wait = (query, opts = {}) => call(h, { path: `/lark/work/wait${query}`, ...opts })
+      assert.equal((await wait('?since=0&timeoutMs=10', { secret: null })).status, 401)
+      assert.deepEqual((await wait('')).body, { seq: 0, woke: true }, '没带 since：立即返回当前序号')
+      const pending = wait('?since=0&timeoutMs=5000')
+      s.upsert({ id: 'w1', status: 'running' })
+      assert.equal(signal.waiting(), 1, 'running 不算有活，不唤醒')
+      s.upsert({ id: 'w1', status: 'queued' })
+      assert.deepEqual((await pending).body, { seq: 1, woke: true })
+      s.upsert({ id: 'w2', status: 'received' })
+      assert.equal(signal.seq(), 2, '待分类也算有活')
+      assert.deepEqual((await wait('?since=2&timeoutMs=10')).body, { seq: 2, woke: false }, '超时')
+      assert.deepEqual((await wait('?since=9&timeoutMs=5000')).body, { seq: 2, woke: true }, 'since 比当前大 = gateway 重启过，立即对时')
+      assert.equal(signal.waiting(), 0)
+      // 长轮询期间 worker 断开（本地先醒、abort 了请求）：摘掉等待者，等到了也不往已断的连接写。
+      const closers = []
+      const gone = { writes: 0, destroyed: false, writableEnded: false, on(event, fn) { if (event === 'close') closers.push(fn) }, writeHead() { this.writes += 1 }, end() { this.writes += 1 } }
+      const req = Object.assign(Readable.from([]), { method: 'GET', url: '/lark/work/wait?since=2&timeoutMs=5000', headers: { 'x-lark-gateway-secret': SECRET } })
+      const handling = h(req, gone)
+      assert.deepEqual([signal.waiting(), closers.length], [1, 1])
+      gone.destroyed = true
+      closers[0]()
+      await handling
+      assert.deepEqual([signal.waiting(), gone.writes], [0, 0])
     }],
     ['入队 POST /lark/tasks：id 取 id > recordId > messageId；已存在原样返回；缺省字段；坏正文 / 缺 id 400', async () => {
       fresh()

@@ -68,7 +68,7 @@ describe('planDrainRestart', () => {
 
   it('磁盘变了 → 先进入排空；有在飞就等；刚改完不到 settleMs 也等；都满足才 verify', () => {
     const start = planDrainRestart({ version: stale(0, now), now })
-    assert.deepEqual([start.action, start.reason, start.patch], ['start-drain', '磁盘代码已更新', { draining: true }])
+    assert.deepEqual([start.action, start.reason, start.patch], ['start-drain', '磁盘代码已更新', { draining: true, drainingSince: now }])
     const draining = { draining: true }
     assert.equal(planDrainRestart({ version: stale(0, now), now, state: draining, inFlight: 2 }).action, 'wait-inflight')
     assert.equal(planDrainRestart({ version: stale(DEFAULT_SETTLE_MS - 1, now), now, state: draining }).action, 'wait-settle')
@@ -127,14 +127,17 @@ describe('createDrainRestart（驱动器）', () => {
     const { drain, calls } = makeDrain({ clock, version })
     assert.equal((await drain.tick({ inFlight: 1 })).action, 'none')
     version.set(stale(0, clock.now))
+    assert.equal(drain.drainingSince(), null, '没排空时没有起点')
     assert.equal((await drain.tick({ inFlight: 1 })).action, 'start-drain')
     assert.equal(drain.isDraining(), true)
+    assert.deepEqual([drain.drainingSince(), drain.restartRequested()], [clock.now, false], '排空起点给领任务口径用')
     assert.equal((await drain.tick({ inFlight: 1 })).action, 'wait-inflight')
     assert.equal((await drain.tick({ inFlight: 0 })).action, 'wait-settle')
     clock.now += DEFAULT_SETTLE_MS + 1
     assert.equal((await drain.tick({ inFlight: 0 })).action, 'verify')
     assert.deepEqual([calls.tests, calls.configs.length, calls.restarts, calls.notes.length], [1, 0, 1, 0])
     assert.equal(drain.state.restartRequestedAt, clock.now)
+    assert.equal(drain.restartRequested(), true)
     assert.equal((await drain.tick({ inFlight: 0 })).action, 'wait-restart')
     assert.equal(calls.restarts, 1)
     assert.ok(calls.logs.some((line) => /自检绿.*pid 4242/.test(line)))
@@ -143,6 +146,7 @@ describe('createDrainRestart（驱动器）', () => {
     version.set({ ...fresh })
     assert.equal((await drain.tick({ inFlight: 0 })).action, 'cancel-drain')
     assert.equal(drain.isDraining(), false)
+    assert.equal(drain.drainingSince(), null)
   })
 
   it('自检超时不算红：先照常干活、5 分钟后再试；绿了就重启；同一版连续 3 次超时才按红处理并私信（falive 10-30 教训 #100：机器忙时 bot 卡在旧代码）', async () => {

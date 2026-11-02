@@ -26,6 +26,8 @@ import { createSelfFixRunner } from './lib/lark-self-fix-run.mjs'
 import { sendChatMessage } from './lib/lark-cli.mjs'
 import { larkRuntimeDir } from './lib/lark-repo.mjs'
 import { defaultTaskLeaseMs } from './lib/lark-constants.mjs'
+import { claimAllowed, describeClaimMode, resolveClaimMode } from './lib/lark-claim-policy.mjs'
+import { createWorkWaiter } from './lib/lark-work-signal.mjs'
 
 function printHelp() {
   console.log(`usage: lark-worker.mjs [--once] [--preflight] [--help]
@@ -141,7 +143,7 @@ export async function runLarkWorker({
   let shuttingDown = false
 
   // 自修工单（从 falive 移植，lib/lark-self-fix-run.mjs）：没有在飞任务时一次跑一张 runtime/lark-self-fix 里的待执行工单；
-  // 跑的时候不领新任务，排空重启把它算一个在飞（不会在自修中途重启）。开关 selfHeal.selfFix=false / LARK_SELF_FIX=0。
+  // 跑的时候只领轻活（分类 + 只读答疑，lib/lark-claim-policy），排空重启把它算一个在飞（不会在自修中途重启）。开关 selfHeal.selfFix=false / LARK_SELF_FIX=0。
   const selfFixOn = selfFixEnabled({ localConfig })
   const selfFix = createSelfFixRunner({
     localConfig,
@@ -192,6 +194,10 @@ export async function runLarkWorker({
 
   // 并行调度器：inFlight 以 workContext.cwd 为 key（同一 worktree 只允许一个在飞、天然串行；
   // 不同 worktree 并行）。git worktree add/remove 等走 spawnSync 同步执行，本就互不交错，无需额外锁。
+  // 领任务口径（lib/lark-claim-policy）：排空 / 自修期间不再全停，照样接分类和只读答疑。
+  // 等下一轮（lib/lark-work-signal）：gateway 有活了长轮询立刻返回、本地任务跑完立刻唤醒，pollMs 只是上限。
+  const waiter = createWorkWaiter({ remoteWait: (options) => client.waitForWork(options) })
+  let lastMode = 'all'
   let lastDraining = false
   let lastSelfFix = null
   for (;;) {
@@ -203,7 +209,10 @@ export async function runLarkWorker({
     // 排空状态一变就补写心跳，health / `lark-bot status` 不用等下一分钟才看到「排空中」。
     if (drain.isDraining() !== lastDraining) heartbeat(activity())
     lastDraining = drain.isDraining()
-    while (!shuttingDown && !drain.isDraining() && !selfFix.busy() && inFlight.size < defaultConcurrency) {
+    const mode = resolveClaimMode({ draining: drain.isDraining(), drainingSince: drain.drainingSince(), restartRequested: drain.restartRequested(), selfFixBusy: selfFix.busy() })
+    if (mode !== lastMode) console.log(`[lark-worker] 领任务：${describeClaimMode(mode)}`)
+    lastMode = mode
+    while (!shuttingDown && mode !== 'none' && inFlight.size < defaultConcurrency) {
       // gateway 重启 / 抖动时不裸崩：listClaimable 的 reliableRequest 只重试 3×150ms，超过就抛；
       // 原来这里没 try，一次 ECONNREFUSED 就让整个 worker 进程退出、在飞任务成孤儿。
       let candidates
@@ -220,6 +229,7 @@ export async function runLarkWorker({
         if (skipThisRound.has(candidate.id)) continue
         const ctx = resolveWorkContext(workerConfig, candidate)
         if (inFlight.has(ctx.cwd)) continue
+        if (!claimAllowed(mode, { task: candidate, workContext: ctx })) continue
         picked = candidate
         pickedCtx = ctx
         break
@@ -252,7 +262,10 @@ export async function runLarkWorker({
       const key = pickedCtx.cwd
       const running = runTask(claimed, pickedCtx, { signal: shutdownController.signal })
         .catch((error) => console.error(`[lark-worker] ${claimed.id} runTask 未捕获异常（任务交给租约回收）：${String(error?.stack || error).slice(0, 400)}`))
-        .finally(() => inFlight.delete(key))
+        .finally(() => {
+          inFlight.delete(key)
+          waiter.wake() // 同 worktree 排着的下一条、排空等的「0 在飞」都不用再等一轮
+        })
       inFlight.set(key, { promise: running, taskId: claimed.id })
     }
 
@@ -262,6 +275,6 @@ export async function runLarkWorker({
     if (selfFixNow !== lastSelfFix) heartbeat(activity())
     lastSelfFix = selfFixNow
     if (shuttingDown) return
-    await sleep(pollMs)
+    await waiter.wait(pollMs)
   }
 }
