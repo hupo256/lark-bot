@@ -10,7 +10,7 @@ const LINE_BUDGET = 600
 const LEGACY_SNAPSHOT = {
   'lib/lark-ai-executor.mjs': 829,
   'lib/lark-scope-contract.mjs': 690,
-  'lib/lark-task-runner.mjs': 576, // 11-02 deps 注入点：收尾提交器等拆去 lark-runner-steps，686 → 576
+  'lib/lark-task-runner.mjs': 577, // 11-02 deps 注入点：收尾提交器等拆去 lark-runner-steps，686 → 576；answerLike 提到 try 外 +1
 }
 const countLines = (file) => readFileSync(join(root, file), 'utf8').split('\n').length
 
