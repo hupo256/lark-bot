@@ -41,6 +41,10 @@ describe('运维指令：负责人私信下达固定动作', () => {
       const status = { type: 'status', source: 'inferred' }
       assert.equal(resolveOpsCommandType({ config, msg: dm('部署 uat'), classified: status }), status, '已判成别的类型不改')
       assert.deepEqual(resolveOpsCommandType({ config, msg: dm('这个按钮颜色不对'), classified: { type: null, source: null } }), { type: null, source: null })
+      // 11-02 真机：问能不能发邮件、问清楚之类的话有「发邮件」字样但解析不出动作，不当运维（进分类器自答）
+      assert.deepEqual(resolveOpsCommandType({ config, msg: dm('你能发邮件吗'), classified: { type: null, source: null } }), { type: null, source: null })
+      assert.deepEqual(resolveOpsCommandType({ config, msg: dm('确认一下，现在你可以按指令发邮件吗？'), classified: { type: null, source: null } }), { type: null, source: null })
+      assert.deepEqual(resolveOpsCommandType({ config, msg: dm('帮我部署 pre'), classified: { type: null, source: null } }), { type: 'ops', source: 'inferred' })
       for (const t of ['部署 online', '发 pre', '推pre', '合到 uat 了吗', '发信给运维', '发邮件']) assert.ok(OPS_INTENT_RE.test(t), t)
       for (const t of ['修一下登录页', 'preview 页面', '发布会']) assert.equal(OPS_INTENT_RE.test(t), false, t)
       assert.equal(isOpsOwner(config, ''), false)
