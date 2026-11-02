@@ -33,6 +33,8 @@ const makeTree = () => {
   writeFileSync(join(root, 'schemas.json'), '{"x":1}\n')
   writeFileSync(join(root, 'docs', 'guide.md'), '# doc\n')
   writeFileSync(join(root, '__tests__', 'x.test.mjs'), 'assert(true)\n')
+  mkdirSync(join(root, '.claude'), { recursive: true })
+  writeFileSync(join(root, '.claude', 'settings.json'), '{"permissions":{"allow":[]}}\n') // 权限审批随手写，不算源码
   writeFileSync(join(root, 'runtime', 'lark-bot.local.json'), '{"project":"PR-00001"}\n')
   writeFileSync(join(root, 'runtime', 'lark-bugtable-state.json'), '{"seen":[]}\n')
   writeFileSync(join(root, 'runtime', 'lark-tasks', 't1.json'), '{"id":"t1"}\n')
@@ -56,6 +58,7 @@ describe('lark-runtime-version', () => {
       writeFileSync(join(root, 'docs', 'guide.md'), '# doc changed\n')
       writeFileSync(join(root, 'runtime', 'lark-bot.local.json'), '{"project":"PR-00002"}\n')
       writeFileSync(join(root, 'runtime', 'lark-tasks', 't1.json'), '{"id":"t1","status":"done"}\n')
+      writeFileSync(join(root, '.claude', 'settings.json'), '{"permissions":{"allow":["Bash(ls)"]}}\n')
       assert.equal(computeCodeHash(root).hash, base, '非源文件改动不应触发 codeStale（否则告警成噪音）')
 
       writeFileSync(join(root, 'lib', 'a.mjs'), 'export const a = 99\n')
