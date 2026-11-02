@@ -31,7 +31,7 @@ import { createTaskStore } from '../lib/lark-task-store.mjs'
 import { parkedReminderRound } from '../lib/lark-parked-reminder.mjs'
 import { rotateLogIfLarge } from '../lib/lark-log-rotate.mjs'
 import { sweepAttachments } from '../lib/lark-retention.mjs'
-import { messageSendRecipientArgs, parseSentMessageId, pickChatIdByProject, resolveDeliveryChatId, formatLarkCliError, isTransientLarkError, runLarkCliWithRetry, sendChatMessage } from '../lib/lark-cli.mjs'
+import { messageSendRecipientArgs, parseSentChatId, parseSentMessageId, pickChatIdByProject, resolveDeliveryChatId, formatLarkCliError, isTransientLarkError, runLarkCliWithRetry, sendChatMessage } from '../lib/lark-cli.mjs'
 import {
   classifyClosureIntent,
   classifyCommandType,
@@ -1006,6 +1006,10 @@ describe('Lark 回执 message_id 解析', () => {
     assert.equal(parseSentMessageId('{"data":{"message":{"message_id":"om_b"}}}'), 'om_b')
     assert.equal(parseSentMessageId('{"message_id":"om_c"}'), 'om_c')
     assert.equal(parseSentMessageId('not-json'), null)
+    assert.equal(parseSentChatId('{"data":{"message_id":"om_a","chat_id":"oc_dm"}}'), 'oc_dm')
+    assert.equal(parseSentChatId('{"data":{"message":{"chat_id":"oc_m"}}}'), 'oc_m')
+    assert.equal(parseSentChatId('{"data":{"message_id":"om_a"}}'), null)
+    assert.equal(parseSentChatId('not-json'), null)
   })
 })
 

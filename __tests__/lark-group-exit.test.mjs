@@ -70,7 +70,7 @@ describe('群 / 私信唯一出口', () => {
       const fallback = fakeRun([paramFail, okOut('om_10')])
       const longKey = 'k'.repeat(60)
       const sent = await replyMarkdown({ messageId: 'om_1', markdown: '好', fallbackChatId: 'oc_g', idempotencyKey: longKey, retries: 1, run: fallback.run })
-      assert.deepEqual(sent, { ok: true, messageId: 'om_10', via: 'send', reason: null })
+      assert.deepEqual(sent, { ok: true, messageId: 'om_10', chatId: null, via: 'send', reason: null })
       assert.equal(fallback.calls[0].includes('--reply-in-thread'), false)
       assert.equal(fallback.calls[0][fallback.calls[0].indexOf('--idempotency-key') + 1], 'k'.repeat(50))
       assert.equal(fallback.calls[1][1], '+messages-send')
@@ -89,13 +89,15 @@ describe('群 / 私信唯一出口', () => {
     })],
     ['sendMarkdown：缺 chatId 不发；ou_ 走 --user-id、oc_ 走 --chat-id；默认键 md-<40 hex>；失败带原因', () => quiet(async () => {
       assert.deepEqual(await sendMarkdown({ chatId: '', markdown: 'x' }), { ok: false, messageId: null, reason: 'missing chatId' })
-      const run = fakeRun([okOut('om_2'), paramFail])
-      assert.deepEqual(await sendMarkdown({ chatId: 'oc_g', markdown: 'x', retries: 1, run: run.run }), { ok: true, messageId: 'om_2', reason: null })
+      const run = fakeRun([okOut('om_2'), paramFail, { code: 0, stdout: JSON.stringify({ ok: true, data: { message_id: 'om_3', chat_id: 'oc_dm' } }), stderr: '' }])
+      assert.deepEqual(await sendMarkdown({ chatId: 'oc_g', markdown: 'x', retries: 1, run: run.run }), { ok: true, messageId: 'om_2', chatId: null, reason: null })
       assert.deepEqual(run.calls[0], ['im', '+messages-send', '--chat-id', 'oc_g', '--markdown', 'x', '--idempotency-key', markdownIdempotencyKey('oc_g', 'x'), '--format', 'json'])
       assert.match(markdownIdempotencyKey('oc_g', 'x'), /^md-[0-9a-f]{40}$/)
       assert.notEqual(markdownIdempotencyKey('oc_g', 'x'), markdownIdempotencyKey('oc_h', 'x'))
       assert.equal((await sendMarkdown({ chatId: 'ou_a', markdown: 'x', retries: 1, run: run.run })).ok, false)
       assert.deepEqual(run.calls[1].slice(2, 4), ['--user-id', 'ou_a'])
+      // 按 open_id 私信时 lark-cli 回 data.chat_id：带回来给回执记 oc_（11-02 复核，私信回「是 / 继续」要按它锚）
+      assert.deepEqual(await sendMarkdown({ chatId: 'ou_a', markdown: 'y', retries: 1, run: run.run }), { ok: true, messageId: 'om_3', chatId: 'oc_dm', reason: null })
     })],
     ['sendReply：表外 phase 拒发；缺 chatId 不发；reply_origin 回原消息（话题内 inThread）、send 直发；发成记发件簿 + 回执', () => quiet(async () => {
       const s = stubs()
