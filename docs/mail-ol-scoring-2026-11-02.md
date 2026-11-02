@@ -1,8 +1,8 @@
 # OL 上线申请邮件规范度评分 · 2026-11-02
 
 > 来源：aven 11-02「在我的收件箱里拉出 100 封 OL 的邮件，分析出其中哪些比较标准的」→「将评分逻辑形成文档落盘，转发 OL 审批邮件到审批群时附评分」。
-> 实现：`lib/lark-mail-ol-score.mjs`（纯函数打分）、`lib/lark-mail-ol-forward.mjs`（读信 → 分享卡片 → bot 回评分）、`scripts/lark-mail-ol-forward.mjs`（手动触发）。
-> 测试：`__tests__/lark-mail-ol.test.mjs`。
+> 实现：`lib/lark-mail-ol-score.mjs`（OL 评分器）；11-02 晚泛化成审批邮件转群引擎 `lib/lark-mail-relay*.mjs`（路由 / 预设 / 转发 / 引擎，见 §8），入口 `scripts/lark-mail-relay.mjs`。
+> 测试：`__tests__/lark-mail-relay.test.mjs`。
 
 ## 1. 样本
 
@@ -89,7 +89,7 @@ aven 收件箱 ──(user) mail +message──▶ 打分 ──(user) mail +sha
 
 - `+share-to-chat` 只支持 user 身份，所以卡片以 aven 的名义发。返回的是 `data.im_message_id`，不是 `message_id`（11-02 真发核对过）。
 - 评分由 bot 回复在卡片下。bot 不在群里、回复失败时，回落为 bot 直发；还失败就用 aven 身份直发，保证评分能到群。
-- 手动触发：`node scripts/lark-mail-ol-forward.mjs --message-id <id> --chat-id <oc_…> [--dry-run] [--force]`。
+- 手动触发：`node scripts/lark-mail-relay.mjs forward --message-id <id> [--route ol-release] [--dry-run] [--force]`（按路由表转，见 §8）。
 - 目标群：「fe審批更新bot/人工群（测试中）」`oc_936db0947fefddc46ee6ac1f30528b7b`。**11-02 时 bot 还不在这个群**，正式转发前要先拉 bot 进群，否则评分会以 aven 身份发出。测试群：「lark-bot 测试群」`oc_da69155c32afd9b0b3efe679e638ce5e`。
 
 ## 6. 自动触发：不加轮询，用邮件事件
@@ -126,8 +126,66 @@ aven 收件箱 ──(user) mail +message──▶ 打分 ──(user) mail +sha
 
 在邮箱建一条收信规则（`mail +rule-create`）：主题包含 OL 标记时，转发到审批群的群邮箱地址。邮件会以原生邮件卡片出现在群里。缺点是没有评分，规则的正则能力也弱，`【OL` 和 `TOOL` 分不清。适合在事件方案落地前先顶上。
 
-## 7. 待定
+## 7. 现状（11-02 晚）
 
-- 正式群转发前把 bot 拉进「fe審批更新bot/人工群（测试中）」。
-- 事件接入（§6 第 1~3 步）完成后，把 `forwardOlMail` 接到网关：+watch 命中 → 判首封 → 转发；台账写进 `runtime/lark-mail-ol-state.json`（不进代码哈希）。
-- 运维操作单（补 K 线 / 撮合重启）是否另立一套「运维模板」评分：现在统一按 9 段模板打分，并注明不适用。
+- aven 选择先和 bot 共用应用试跑几天（接受 §6 的分流代价）；bot 已进「fe審批更新bot/人工群（测试中）」，网关常驻 `mail +watch`。
+- 待定：运维操作单（补 K 线 / 撮合重启）是否另立一套「运维模板」评分——现在统一按 9 段模板打分，并注明不适用。
+
+## 8. 审批邮件转群引擎：路由、预设、拆分
+
+aven 11-02：「如果好用，后面可能做成单独的应用，现在预留好接口，方便一键拆分」「领导用的时候不止 online 上线审批，还有加白名单等，要封装好方便配置」。
+
+### 分层
+
+| 文件 | 职责 |
+|---|---|
+| `lib/lark-mail-relay-presets.mjs` | 评分器注册表 `MAIL_SCORERS` 和预设 `MAIL_PRESETS`（一类审批的默认「怎么认 + 怎么评」） |
+| `lib/lark-mail-relay-routes.mjs` | 路由归一 / 匹配 / 配置校验（纯函数） |
+| `lib/lark-mail-relay-forward.mjs` | 一封邮件按路由转：读信 → 复核 → 分享卡片 → bot 回评分或类别 |
+| `lib/lark-mail-relay.mjs` | 引擎：常驻 +watch、台账、启动补转、`createRelayCli`（凭证切换） |
+| `lib/lark-mail-ol-score.mjs` | OL 上线评分器（§2–§3） |
+| `scripts/lark-mail-relay.mjs` | 独立入口：`check` / `forward` / `run` |
+
+引擎只依赖三个可注入件：lark-cli 调用器、台账 io、长连接启动器。不碰网关的任务链路和群消息链路。
+
+### 配置（`runtime/lark-bot.local.json` 的 `mailRelay`）
+
+```json
+"mailRelay": {
+  "enabled": true,
+  "cliConfigDir": null,
+  "stateFile": null,
+  "routes": [
+    { "id": "ol-release", "preset": "ol-release", "chatId": "oc_936db0947fefddc46ee6ac1f30528b7b" },
+    { "id": "whitelist", "enabled": false, "label": "加白名单审批", "chatId": "oc_…",
+      "match": { "subject": ["白名单"], "subjectNot": ["撤销"], "from": ["@hqstech.com"], "to": ["sysops@hqstech.com"] },
+      "scorer": null }
+  ]
+}
+```
+
+- **路由字段**：`id`（唯一，记进台账）、`enabled`（默认 true）、`preset`、`label`（群里显示的类别名）、`chatId`、`scorer`（评分器 id；写 `null` 表示只转发不评分）、`reply`（默认 true；false 表示只分享卡片、bot 不回）、`match`。
+- **match**：`subject` 正则任一命中、`subjectNot` 正则都不中、`from` 地址或 `@域名` 任一命中、`to`（收件 + 抄送）任一命中；没写的条件不限制。`firstOnly` 默认 true，只转申请首封。正则不区分大小写。
+- **预设**：写了 `preset` 就继承预设的 label / scorer / 主题判定，路由里自己写的字段覆盖预设。`ol-release` 的主题判定是函数（§2 的 OL 标记边界），它和配置里写的 `match.subject` 是「且」的关系。
+- **多条路由都命中**：按顺序取第一条，一封邮件只转一次。
+- **校验**：网关启动时校验，`check` 命令也会校验。正则写错、id 重复、chatId 不是群、预设或评分器名不认识，都会报错。没有预设也没写任何 match 条件的路由也会被拒收，因为它会把所有邮件都转出去。
+- **闲置自动退群**：启用路由的目标群一律豁免。
+
+### 新增一类审批
+
+1. **只转发、不评分**（比如加白名单）：在 `routes` 里加一条，写 `label` 和 `match`，`scorer: null`，不用改代码。先用 `node scripts/lark-mail-relay.mjs check` 校验，再用 `forward --message-id <一封真邮件> --route whitelist --dry-run` 看命中情况。
+2. **要评分**：在 `lark-mail-relay-presets.mjs` 加一个评分器 `{ score(mail) → { score, max, tier, tierLabel, items }, render(result, { sender, subject, label }) → markdown }`，再加一个引用它的预设，然后在路由里写 `preset`。
+
+### 拆成独立应用（一键拆分）
+
+1. 新建飞书应用：开邮件权限（§6 列的那几个）、im 发消息 / 回复权限、「收信通知」事件，发布版本。
+2. 准备新应用的 lark-cli 凭证目录：`LARKSUITE_CLI_CONFIG_DIR=<目录> lark-cli config init`（填新应用的 app id / secret），再用同一个环境变量 `auth login` 让邮箱主人授权。
+3. 写一份独立配置 `{ "mailRelay": { "enabled": true, "cliConfigDir": "<目录>", "stateFile": "<新台账路径>", "routes": [...] } }`。
+4. `node scripts/lark-mail-relay.mjs check --config <独立配置>` → `run --config <独立配置>`（正式上线时给它一个 launchd plist）。
+5. 网关这边把 `mailRelay.enabled` 改成 false。
+
+`cliConfigDir` 会让引擎里所有 lark-cli 调用（读信、分享、bot 回复）以及 `+watch` 子进程都带上 `LARKSUITE_CLI_CONFIG_DIR`，整条链路换成新应用。新应用有自己的长连接，§6 的分流问题也就没有了。
+
+### 以后接领导邮箱（自动审批）
+
+路由的匹配和评分可以直接复用。差别在两处：邮箱主人换成领导（独立凭证目录，正好用 `cliConfigDir`）；动作从「转群」变成「私信确认 / 回复进行」，届时在 forward 这一层加一种动作，方案见 docs/plan-mail-approval-2026-11-02.md。

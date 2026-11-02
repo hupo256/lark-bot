@@ -204,8 +204,8 @@
     "reason": "等价：只在 remaining 恰好等于当前最小余量时多赋一次，赋的是同一个数，minLeaseRemainingMs 不变"
   },
   {
-    "file": "lib/lark-mail-ol-watch.mjs",
-    "code": "const defaultPath = () => (process.env.NODE_TEST_CONTEXT && !process.env.LARK_RUNTIME_DIR ? null : join(larkRuntimeDir, MAIL_OL_STATE_FILE))",
+    "file": "lib/lark-mail-relay.mjs",
+    "code": "const defaultPath = () => (process.env.NODE_TEST_CONTEXT && !process.env.LARK_RUNTIME_DIR ? null : join(larkRuntimeDir, MAIL_RELAY_STATE_FILE))",
     "op": "&& → ||",
     "col": 57,
     "reason": "单测不可观测：larkRuntimeDir 在 import 时已定，设 LARK_RUNTIME_DIR 也指不到临时目录；测它就得往真 runtime 写假台账。与 lark-chat-activity 的 defaultPath 同一写法"

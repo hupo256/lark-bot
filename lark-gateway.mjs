@@ -43,7 +43,7 @@ import { deliverOverdueObligations } from './lib/lark-delivery.mjs'
 import { expireSuspectedAndNotify, startDailyDigest } from './lib/lark-daily-digest.mjs'
 import { startDailyReport } from './lib/lark-daily-schedule.mjs'
 import { startChatRetention } from './lib/lark-chat-retention.mjs'
-import { startMailOlWatch } from './lib/lark-mail-ol-watch.mjs'
+import { startMailRelay } from './lib/lark-mail-relay.mjs'
 import { GATEWAY_HOST, defaultGatewayPort, defaultTaskLeaseMs } from './lib/lark-constants.mjs'
 
 // 任务领取租约：worker 领走后置 running；超过此时长仍 running 视为孤儿，下次 claim 时自动重入队。
@@ -203,8 +203,9 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   const dailyReport = startDailyReport({ config, store })
   // 闲置群自动退出（默认每天 09:35，config.chatRetention）：14 天没人 @bot 先私信负责人，48 小时后还没人找就退群。
   const chatRetention = startChatRetention({ config })
-  // OL 上线申请邮件 → 审批群附评分（11-02，config.mailOl）：常驻 mail +watch（aven 的 user 身份），重启时补转一次，不轮询。
-  const mailOl = startMailOlWatch({ config })
+  // 审批邮件 → 审批群（11-02，config.mailRelay 路由表；OL 上线附评分）：常驻 mail +watch（邮箱主人 user 身份），重启时补转一次，不轮询。
+  // 拆成独立应用时这里关掉，改跑 scripts/lark-mail-relay.mjs run（见 lib/lark-mail-relay.mjs 头注释）。
+  const mailRelay = startMailRelay({ relay: config.mailRelay })
 
   // 日志轮转：launchd 把 stdout/stderr 定向到固定文件，进程可连跑数周不重启，日志无上限。
   // 只有 plist 注入了 LARK_LOG_FILE 才生效（前台手跑不截断任何文件）。
@@ -221,7 +222,7 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
     digest.stop()
     dailyReport.stop()
     chatRetention.stop()
-    mailOl.stop()
+    mailRelay.stop()
     if (logTimer) clearInterval(logTimer)
     wakeCatchup.stop()
     keepAwake.stop()
