@@ -7,7 +7,6 @@
  * 本文件只做「装配 + 生命周期」：装载配置、建 store/consumer、挂 HTTP 路由（lib/lark-routes）、
  * 起定时器（prune / 回写重试）与优雅退出。各职责已拆到 lib/lark-*：
  *   · lark-message   信封归一 + 白名单/@bot 判定（纯，可单测）
- *   · lark-cards     回执卡片构建（纯）
  *   · lark-cli       lark-cli 子进程 + 发消息/附件/群名缓存/引用消息
  *   · lark-task-store 文件队列 + 租约回收
  *   · lark-consumer  长连接自愈消费   · lark-ingest 事件摄入
@@ -19,11 +18,10 @@
 
 import { createServer } from 'node:http'
 import { join } from 'node:path'
-import { assertConfigOrExit, gatewaySecret, loadConfig, resolveNotifyChatId } from './lib/lark-config.mjs'
+import { assertConfigOrExit, gatewaySecret, loadConfig } from './lib/lark-config.mjs'
+import { sendPrincipalNote } from './lib/lark-group-exit.mjs'
 import { hardenRuntimeFiles, larkRuntimeDir, larkTasksDir } from './lib/lark-repo.mjs'
 import { normalizeAiExecutor } from './lib/lark-http.mjs'
-import { buildCardContent } from './lib/lark-cards.mjs'
-import { sendChatMessage } from './lib/lark-cli.mjs'
 import { createTaskStore } from './lib/lark-task-store.mjs'
 import { startConsumer } from './lib/lark-consumer.mjs'
 import { ingestLarkEvent } from './lib/lark-ingest.mjs'
@@ -48,14 +46,8 @@ import { GATEWAY_HOST, defaultGatewayPort, defaultTaskLeaseMs } from './lib/lark
 // 任务领取租约：worker 领走后置 running；超过此时长仍 running 视为孤儿，下次 claim 时自动重入队。
 // 必须 > worker 的 AI 执行超时（默认 30min），避免误回收正在跑的长任务。
 
-// 告警卡快捷发送：dead-letter / consumer-down / writeback 告警共用同一「alert 卡 + 幂等键」形态。
-const sendAlertCard = ({ config, chatId, lines, logPrefix, idempotencyKey }) =>
-  sendChatMessage({
-    chatId,
-    card: buildCardContent({ config, kind: 'alert', lines }),
-    logPrefix,
-    idempotencyKey,
-  })
+// 网关告警（死信 / 长连接断）：只私信负责人一句人话，不往群里发卡片（aven 11-02：消息不用卡片）。
+const sendAlert = ({ config, text, kind, idempotencyKey }) => sendPrincipalNote({ config, text, kind, idempotencyKey })
 
 export async function runLarkGateway({ configPath, port = defaultGatewayPort }) {
   // 版本快照必须在最前面拍：它代表「本进程 import 进内存的那一版源码」，晚于任何磁盘改动就失去意义。
@@ -87,11 +79,10 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
     leaseMs: defaultTaskLeaseMs,
     // 孤儿达重投上限转 failed 死信时发一次告警卡：无人值守下这是人工介入的唯一信号
     onDeadLetter: (task) => {
-      sendAlertCard({
+      sendAlert({
         config,
-        chatId: resolveNotifyChatId(config, task.chatId),
-        lines: [`**详情**：任务「${task.summary || task.id}」${task.deadLetterReason}。已停止自动重投，请人工排查（修复根因后 \`lark-bot retry ${task.id}\`）。`],
-        logPrefix: 'dead-letter alert',
+        text: `⛔ 任务「${task.summary || task.id}」${task.deadLetterReason}，已经停止自动重投。查清原因修好后回「继续任务 ${task.id}」或跑 lark-bot retry ${task.id}。`,
+        kind: 'dead-letter',
         idempotencyKey: `${task.id}-deadletter`,
       })
     },
@@ -101,11 +92,10 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
     eventKey: 'im.message.receive_v1',
     onLine: (raw) => ingestLarkEvent({ raw, config, store }),
     onDownAlert: (attempt) =>
-      sendAlertCard({
+      sendAlert({
         config,
-        chatId: resolveNotifyChatId(config),
-        lines: [`**详情**：Lark 事件长连接已连续 ${attempt} 次重连仍未恢复，可能暂时收不到群内 @；请检查网络或 lark-cli 登录态。`],
-        logPrefix: 'consumer-down alert',
+        text: `⚠ 飞书消息长连接连续 ${attempt} 次重连都没恢复，这段时间群里 @我可能收不到；看下网络或 lark-cli 登录。恢复后会补拉这段时间的群消息。`,
+        kind: 'consumer-down',
         idempotencyKey: `consumer-down-${attempt}`,
       }),
   })
