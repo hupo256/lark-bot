@@ -165,6 +165,24 @@ describe('摄入链路 / 上下文包 / 入群事件（真 store + 假 lark-cli�
       await ingestLarkEvent({ raw: empty, config, store })
       const quoted = store.get(empty.message_id)
       assert.deepEqual([quoted.text, quoted.summary, quoted.quotedOwnCard, quoted.intake.anchorTaskId], ['【被引用消息】（K 11-01 09:00）\n原话\n\n【本条 @】（无附言）', '原话', false, null])
+      // 11-02 复核：回复「收到」——原任务还没分类 → 并进去一起分类（不建任务、不回第二句）；已排队（同代回执）+ 有内容 → 放行成带锚点的新任务，
+      // 不再被续跑路径抓去回「不在等材料，续不了」；只问进度 → 「还在处理中」、不建任务
+      const outboxBefore = cliCalls('+messages-reply')
+      store.upsert({ id: 'om_fresh', source: 'lark', chatId: 'oc_g', messageId: 'om_fresh', operator: 'ou_qf', status: 'received', epoch: 0, addressedToBot: true, summary: '支付页白屏', text: '支付页白屏', intake: { required: true, trigger: 'bot_mention', lane: 'fast', receivedAt: '2026-11-01T00:00:00Z' }, createdAt: '2026-11-01T00:00:00Z' })
+      store.recordReceipt('om_fresh', { messageId: 'om_ack_fresh', kind: 'ack', epoch: 0, chatId: 'oc_g' })
+      const supplement = raw({ text: 'Safari 也复现，截图稍后', reply_to: 'om_ack_fresh', root_id: 'om_fresh', sender: 'ou_qg' })
+      await ingestLarkEvent({ raw: supplement, config, store })
+      assert.equal(store.has(supplement.message_id), false, '并入，不建任务')
+      assert.match(store.get('om_fresh').text, /^支付页白屏\n\n【话题补充 \d\d:\d\d】Safari 也复现，截图稍后$/)
+      assert.equal(cliCalls('+messages-reply'), outboxBefore, '不回第二句')
+      store.upsert({ id: 'om_run', source: 'lark', chatId: 'oc_g', messageId: 'om_run', operator: 'ou_qf', status: 'queued', epoch: 1, addressedToBot: true, summary: '充值页', text: '充值页', intake: { required: false, trigger: 'bot_mention' }, createdAt: '2026-11-01T00:00:00Z' })
+      store.recordReceipt('om_run', { messageId: 'om_ack_run', kind: 'ack', epoch: 1, chatId: 'oc_g' })
+      const more = raw({ text: '顺便把页脚也改一下', reply_to: 'om_ack_run', root_id: 'om_run', sender: 'ou_qg' })
+      await ingestLarkEvent({ raw: more, config, store })
+      assert.deepEqual([store.get(more.message_id)?.status, store.get(more.message_id)?.intake.anchorTaskId, store.get('om_run').status, cliCalls('+messages-reply')], ['received', 'om_run', 'queued', outboxBefore], '放行建任务带锚点；没说「续不了」')
+      const ping = raw({ text: '怎么样了', reply_to: 'om_ack_run', root_id: 'om_run', sender: 'ou_qg' })
+      await ingestLarkEvent({ raw: ping, config, store })
+      assert.deepEqual([store.has(ping.message_id), cliCalls('+messages-reply')], [false, outboxBefore + 1], '只问进度：回一句、不建任务')
     })],
     ['话题：thread_id 才回话题流（inThread）、话题键优先 thread_id；只有 root_id 的普通回复不进话题流', () => quiet(async () => {
       const inThread = atBot('话题里 @ 的', { thread_id: 'omt_1', root_id: 'om_root1' })

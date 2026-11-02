@@ -30,7 +30,7 @@ process.env.LARK_CLI_BIN = bin
 process.env.LARK_RUNTIME_DIR = join(dir, 'runtime')
 process.env.LARK_OUTBOX_DIR = join(dir, 'outbox')
 process.env.LARK_OBLIGATIONS_DIR = join(dir, 'obligations')
-const { handleResume, maybeHandleControlChannel, maybeHandleControlDirective } = await import('../lib/lark-control-channel.mjs')
+const { handleResume, isProgressPing, maybeHandleControlChannel, maybeHandleControlDirective } = await import('../lib/lark-control-channel.mjs')
 const { fetchReferencedContext } = await import('../lib/lark-cli.mjs')
 const { listOutbox } = await import('../lib/lark-outbox.mjs')
 const { getObligation, noteAck } = await import('../lib/lark-reply-obligation.mjs')
@@ -105,7 +105,7 @@ describe('任务控制通道（真出口 + 假 lark-cli）', () => {
       assert.equal(said(chatId)[2], '「登录页报错」现在是「done」，不是我结掉的那种，重开不了；这句没当成新任务。')
       assert.equal(store.get(done.id).status, 'done')
     })],
-    ['回复锚定：同话题 ≥2 条活动任务归属不明 → 列出来、接管、不新建；恰好 1 条 → 锚定并提示「还在处理中」；无关话（好的）→ 静默消费；终态 + 新请求 → 放行带锚点', () => quiet(async () => {
+    ['回复锚定：同话题 ≥2 条活动任务归属不明 → 列出来、接管、不新建；恰好 1 条 + 有内容 → 放行带锚点、只问进度 → 「还在处理中」；还没分类 → supplement；无关话（好的）→ 静默消费；终态 + 新请求 → 放行带锚点', () => quiet(async () => {
       const chatId = 'oc_c1'
       const a = task(chatId, { threadRootId: 'om_root', status: 'queued' })
       const b = task(chatId, { threadRootId: 'om_root', status: 'running', summary: '充值页' })
@@ -114,9 +114,21 @@ describe('任务控制通道（真出口 + 假 lark-cli）', () => {
       assert.deepEqual(await maybeHandleControlChannel({ msg: msg(chatId, '这个也看下', { replyTo: 'om_root', senderOpenId: 'ou_qb' }), config, store }), { handled: true, anchorTaskId: null }, '只有话题根（reply_to）也数得出来')
       assert.equal(said(chatId).length, 2)
       store.closeAsExternallyResolved({ id: b.id, operator: 'x', messageId: 'y', closureReason: 'cancelled' })
-      assert.deepEqual(await maybeHandleControlChannel({ msg: msg(chatId, '顺便把页脚也改一下', { threadRootId: 'om_root', senderOpenId: 'ou_qc' }), config, store }), { handled: true, anchorTaskId: a.id })
+      // 11-02 复核：回复在跑 / 排队任务且有实质内容 → 放行带锚点（分类器判 continues 并入），不再回「记下了」把内容丢掉
+      assert.deepEqual(await maybeHandleControlChannel({ msg: msg(chatId, '顺便把页脚也改一下', { threadRootId: 'om_root', senderOpenId: 'ou_qc' }), config, store }), { handled: false, anchorTaskId: a.id })
+      assert.equal(said(chatId).length, 2, '放行不说话')
+      assert.deepEqual(await maybeHandleControlChannel({ msg: msg(chatId, '怎么样了？', { threadRootId: 'om_root', senderOpenId: 'ou_qc' }), config, store }), { handled: true, anchorTaskId: a.id })
       assert.equal(said(chatId)[2], `「登录页报错」还在处理中，这句我记下了、没当成新任务。要停回「取消任务 ${a.id}」。`)
       assert.equal(store.get(a.id).status, 'queued')
+      const fresh = task(chatId, { status: 'received', intake: { required: true } })
+      store.recordReceipt(fresh.id, { messageId: 'om_ack_fresh', kind: 'ack', epoch: 2, chatId })
+      assert.deepEqual(await maybeHandleControlChannel({ msg: msg(chatId, '补充：Safari 也复现', { replyToDirect: 'om_ack_fresh', senderOpenId: 'ou_qc' }), config, store }), { handled: false, anchorTaskId: fresh.id, supplement: true }, '回复「收到」、还没分类 → 交给调用方并入')
+      assert.equal(said(chatId).length, 3)
+      assert.deepEqual([
+        ['怎么样了', '在吗', '这个也看下', '再看看～', '@Aven.Bot 进度？', '好了吗'].map((text) => isProgressPing({ text })),
+        ['顺便把页脚也改一下', '再帮我看下注册页白屏', '改成红色', '', '  '].map((text) => isProgressPing({ text })),
+        [isProgressPing({ text: '看下', attachments: [{ type: 'image' }] }), isProgressPing({ text: '这个也看下的' }), isProgressPing({ text: '这个也看下呢呢' }), isProgressPing()],
+      ], [[true, true, true, true, true, true], [false, false, false, false, false], [false, true, false, false]], '只问进度 / 指代短句：≤ 6 字、带进度词、没附件')
       assert.deepEqual(await maybeHandleControlChannel({ msg: msg(chatId, '好的', { replyToDirect: a.id, senderOpenId: 'ou_qd' }), config, store }), { handled: true, anchorTaskId: a.id })
       assert.equal(said(chatId).length, 3, '纯确认不说话')
       const done = task(chatId, { status: 'done' })

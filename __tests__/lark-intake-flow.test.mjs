@@ -20,9 +20,9 @@ chmodSync(cliBin, 0o755)
 process.env.LARK_CLI_BIN = cliBin
 process.env.LARK_RUNTIME_DIR = runtime
 
-const { ACK_SWEEP_EVERY_MS, DEFAULT_ACK_TIMEOUT_MS, appendSuspectedSupplement, flushPendingAck, holdsSuspectedForPrincipal, intakeTiming, isCompleteMessage, markAckPending, mergeThreadSupplement, pickSupplementTarget, resolveIntakeLane, resolveIntakeNotBefore, sweepPendingAcks } = await import('../lib/lark-intake-ack.mjs')
+const { ACK_SWEEP_EVERY_MS, DEFAULT_ACK_TIMEOUT_MS, appendSuspectedSupplement, deliverFollowUpReply, flushPendingAck, holdsSuspectedForPrincipal, intakeTiming, isCompleteMessage, markAckPending, mergeThreadSupplement, pickSupplementTarget, resolveIntakeLane, resolveIntakeNotBefore, sweepPendingAcks } = await import('../lib/lark-intake-ack.mjs')
 const { DEFAULT_PRINCIPAL_REPLY_WINDOW_MS, anchorHead, buildPrincipalInstructionTask, decidePrincipalAction, isDeployNotice, isReleaseHeldReply, isShortDeictic, latestDmReceipt, maybeHandlePrincipalChannel, resolvePrincipalAnchor } = await import('../lib/lark-principal-channel.mjs')
-const { handleIntakeResolution, resolveMergeTarget } = await import('../lib/lark-routes-intake.mjs')
+const { RERUN_ACK_REPLY, handleIntakeResolution, mergeableTarget, resolveMergeTarget } = await import('../lib/lark-routes-intake.mjs')
 const { buildConversationBundle } = await import('../lib/lark-conversation-bundle.mjs')
 const { ingestLarkEvent } = await import('../lib/lark-ingest.mjs')
 const { handleBotAddedEvent, parseBotAddedEvent } = await import('../lib/lark-project-chat-sync.mjs')
@@ -124,6 +124,18 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       assert.deepEqual(await flushPendingAck({ config, store, task: silent, send: false, deliver }), { sent: false, usedReply: false })
       assert.deepEqual([silent.ackPending, deliveries.length], [null, 2])
       assert.deepEqual(await flushPendingAck({ config, store, task: null, deliver }), { sent: false, usedReply: false })
+      // 「收到」已发过 / 被拦后单独回的那句：自答走 done、追问走 blocked_ask（按内容去重，不按人 2 分钟拦）；空的不发
+      const sends = []
+      const send = async (args) => { sends.push(args); return { ok: true, messageId: 'om_x', gated: false, reason: null } }
+      const ft = { id: 'om_f', epoch: 1, chatId: 'oc_g' }
+      assert.deepEqual(await deliverFollowUpReply({ config, store, task: ft, text: ' 能发 ', send }), { ok: true, messageId: 'om_x', gated: false, reason: null })
+      assert.deepEqual(await deliverFollowUpReply({ config, store, task: ft, text: '哪个环境？', kind: 'ask_back', send }), { ok: true, messageId: 'om_x', gated: false, reason: null })
+      assert.deepEqual(sends, [
+        { config, store, task: ft, phase: 'done', text: '能发', idempotencyKey: 'om_f-e1-ans' },
+        { config, store, task: ft, phase: 'blocked_ask', text: '哪个环境？', idempotencyKey: 'om_f-e1-askb' },
+      ])
+      assert.deepEqual(await deliverFollowUpReply({ config, store, task: ft, text: '  ', send }), { ok: false, gated: false, reason: 'empty follow-up' })
+      assert.equal(sends.length, 2)
     }],
     ['pickSupplementTarget：同话题 / 回复同一条；或同人同群安静期内的主楼连发（只认还没分类的）', () => {
       const now = Date.parse('2026-11-01T10:00:00.000Z')
@@ -177,6 +189,11 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       const mine = store.upsert({ id: 'om_t2', status: 'received', chatId: 'oc_g', operator: 'ou_aven', text: '', ackedInGroup: true, intake: { required: true, lane: 'slow', receivedAt: iso(now) }, createdAt: iso(now) })
       assert.equal(await mergeThreadSupplement({ msg: msg({ messageId: 'om_m3', senderOpenId: 'ou_aven', text: 'x' }), config, store, addressedToBot: true, download }), true)
       assert.deepEqual([mine.fromPrincipal, mine.ackPending, mine.text.startsWith('【话题补充')], [true, undefined, true], '负责人补充：fromPrincipal；回过「收到」的不再挂')
+      // 调用方已锚到目标（回复了「收到」，11-02 复核）：按话题 / 同人找不到也并进指定的那条
+      const anchored = store.upsert({ id: 'om_t3', status: 'received', chatId: 'oc_far', operator: 'ou_other', text: 'far', intake: { required: true, lane: 'slow', receivedAt: iso(now) }, createdAt: iso(now) })
+      assert.equal(await mergeThreadSupplement({ msg: msg({ messageId: 'om_m4', chatId: 'oc_far', senderOpenId: 'ou_zz', text: 'Safari 也复现' }), config, store, download }), false, '没指定目标：别人的任务找不到')
+      assert.equal(await mergeThreadSupplement({ msg: msg({ messageId: 'om_m4', chatId: 'oc_far', senderOpenId: 'ou_zz', text: 'Safari 也复现' }), config, store, target: anchored, download }), true)
+      assert.match(anchored.text, /^far\n\n【话题补充 \d{2}:\d{2}】Safari 也复现$/)
       await eachCase([
         { name: '疑似 + 挂起 + 不是负责人 → 扣住', task: { suspected: true, status: 'waiting_confirmation' }, operator: 'ou_qa', want: true },
         { name: '已不挂起', task: { suspected: true, status: 'done' }, operator: 'ou_qa', want: false },
@@ -351,11 +368,27 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       assert.equal(await run('没附件', { messageId: 'om_p2', attachments: undefined }), true)
       assert.deepEqual([downloads.at(-1), store.get('om_p2').commandType], [{ project: 'PR-01947', messageId: 'om_p2', attachments: [] }, null])
     }],
-    ['routes-intake：resolveMergeTarget（continues > 锚点，只对改码 / 对接类）', () => {
-      const tasks = [{ id: 'om_a', status: 'queued' }, { id: 'om_b', status: 'done' }, { id: 'om_me', status: 'received' }]
+    ['routes-intake：resolveMergeTarget（continues > 锚点，只对改码 / 对接类）；superseded 不当目标，顺 supersededBy 找承接的那条', () => {
+      const tasks = [
+        { id: 'om_a', status: 'queued' }, { id: 'om_b', status: 'done' }, { id: 'om_me', status: 'received' },
+        // 11-02 复核：被兄弟并掉的 → 指到承接的；人工取消的（externalResolution、没 supersededBy）→ 没目标；链 / 环都有上限
+        { id: 'om_s1', status: 'superseded', supersededBy: 'om_a' }, { id: 'om_s2', status: 'superseded', supersededBy: 'om_s1' },
+        { id: 'om_cancel', status: 'superseded', externalResolution: { closureReason: 'cancelled' } },
+        { id: 'om_dead', status: 'superseded', supersededBy: 'om_cancel' }, { id: 'om_loop', status: 'superseded', supersededBy: 'om_loop' },
+        { id: 'om_tome', status: 'superseded', supersededBy: 'om_me' }, { id: 'om_gone', status: 'superseded', supersededBy: 'om_nope' },
+        ...Array.from({ length: 6 }, (_, i) => ({ id: `om_c${i + 1}`, status: 'superseded', supersededBy: i === 0 ? 'om_a' : `om_c${i}` })), // om_c6 → … → om_c1 → om_a
+      ]
       const st = memStore(tasks)
       const t = (cls, anchorTaskId = null) => ({ id: 'om_me', intake: { classification: cls, anchorTaskId } })
+      assert.deepEqual(['om_s1', 'om_s2', 'om_cancel', 'om_dead', 'om_loop', 'om_tome', 'om_gone', 'om_a', 'om_nope', null].map((id) => mergeableTarget({ store: st, id, selfId: 'om_me' })?.id ?? null), ['om_a', 'om_a', null, null, null, null, null, 'om_a', null, null])
+      assert.equal(mergeableTarget({ store: st, id: 'om_me', selfId: 'om_me' }), null, '自己不算')
+      assert.deepEqual([mergeableTarget({ store: st, id: 'om_c5' })?.id, mergeableTarget({ store: st, id: 'om_c6' })], ['om_a', null], '最多追 5 跳')
+      assert.equal(mergeableTarget({ store: st, id: 'om_a' })?.id, 'om_a', '不传 selfId 也行')
       return eachCase([
+        { name: 'continues 指向被并掉的 → 承接它的那条', task: t({ decision: 'question', continues: 'om_s2' }), want: tasks[0] },
+        { name: 'continues 指向人工取消的 → 落到锚点', task: t({ decision: 'bug', continues: 'om_cancel' }, 'om_a'), want: tasks[0] },
+        { name: '锚点是人工取消的（回复「取消了」那条再报 bug）→ 新任务', task: t({ decision: 'bug' }, 'om_cancel'), want: null },
+        { name: '锚点是被并掉的（回复它的「收到」）→ 承接它的那条', task: t({ decision: 'requirement' }, 'om_s1'), want: tasks[0] },
         { name: '分类器点名 continues → 那条', task: t({ decision: 'question', continues: 'om_a' }), want: tasks[0] },
         { name: 'continues 指向自己 → 不算', task: t({ decision: 'bug', continues: 'om_me' }), want: null },
         { name: 'continues 不存在 → 落到锚点', task: t({ decision: 'bug', continues: 'om_nope' }, 'om_b'), want: tasks[1] },
@@ -379,8 +412,16 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
         upsert: (task) => task,
       }
       const said = []
-      const names = ['flushPendingAck', 'deliverNoted', 'deliverIgnoredAfterAck', 'deliverSuspected', 'deliverStart', 'sendPrincipalNote', 'notePerson']
-      const deps = Object.fromEntries(names.map((name) => [name, (args) => { said.push([name, args]); return Promise.resolve({ ok: true }) }]))
+      const names = ['flushPendingAck', 'deliverNoted', 'deliverIgnoredAfterAck', 'deliverSuspected', 'deliverStart', 'sendPrincipalNote', 'notePerson', 'deliverFollowUpReply']
+      // flushPendingAck 桩：「收到」还挂着（ackLive）且有 reply → 用 reply 发了；否则没发（到点发过固定句 / 被闸拦）。followUp 桩按 followUpOk 回 ok / 拦下。
+      let ackLive = true
+      let followUpOk = true
+      const deps = Object.fromEntries(names.map((name) => [name, (args) => {
+        said.push([name, args])
+        if (name === 'flushPendingAck') return Promise.resolve(ackLive && args.send && args.reply ? { sent: true, usedReply: true } : { sent: ackLive && args.send, usedReply: false })
+        if (name === 'deliverFollowUpReply') return Promise.resolve(followUpOk ? { ok: true, messageId: 'om_fu', gated: false, reason: null } : { ok: false, gated: true, reason: '出口闸拦下：同内容' })
+        return Promise.resolve({ ok: true })
+      }]))
       const delivered = []
       const deliverTo = async (task) => { delivered.push(task) }
       const cfg = { ...config, ownerMap: { 小王: 'ou_qa' }, memberRoles: { 小王: '测试' } }
@@ -393,19 +434,33 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
         logs.length = 0
         return handleIntakeResolution({ config: cfg, store: st, id: 'om_me', body, deliverTo, deps })
       }
+      const upserts = []
+      st.upsert = (task) => { upserts.push(task); return task }
       const body = (extra = {}) => ({ status: 200, body: { ok: true, actionable: false, suspected: false, selfAnswer: false, ...extra } })
       const saidNames = () => said.map(([name]) => name)
       assert.deepEqual(await run({ ok: false, code: 409, error: 'stale' }), { status: 409, body: { ok: false, code: 409, error: 'stale' } })
       assert.deepEqual(await run({ ok: false }), { status: 404, body: { ok: false } })
       assert.deepEqual(calls.at(-1), ['resolveIntake', { id: 'om_me', epoch: 0, classification: undefined, error: undefined }])
-      // 自答：发分类器那句、记义务、不建执行
+      // 自答：「收到」还挂着 → 分类器那句当「收到」发（一条 @bot 一个下文）、记义务、不建执行
       const selfTask = task({ status: 'answered', result: 'S' })
       assert.deepEqual(await run({ ok: true, selfAnswer: true, task: selfTask }), body({ selfAnswer: true, answered: true }))
       assert.deepEqual(said, [['notePerson', { openId: 'ou_qa', name: '小王', role: '测试', topic: '摘要', chatId: 'oc_g', taskId: 'om_me' }], ['flushPendingAck', { config: cfg, store: st, task: selfTask, reply: 'R', send: true, reason: 'self_answer' }]])
-      assert.deepEqual([getObligation(selfTask).state, getObligation(selfTask).answerText, logs.at(-1)], ['answered', 'R', '[lark-gateway] 分类落地 om_me：自答：R'])
+      assert.deepEqual([getObligation(selfTask).state, getObligation(selfTask).answerText, logs.at(-1)], ['answered', 'R', '[lark-gateway] 分类落地 om_me：自答（ack）：R'])
+      // 没 reply 只有 result：「收到」发的是固定句，答案（result）单独回一条
       const selfBare = task({ id: 'om_me2', status: 'answered', result: 'S', topic: '主题' }, cls({ reply: null }))
       await run({ ok: true, selfAnswer: true, task: selfBare })
-      assert.deepEqual([getObligation(selfBare).answerText, said[0][1].topic, said[1][1].reply, logs.at(-1)], ['S', '主题', null, '[lark-gateway] 分类落地 om_me2：自答：'])
+      assert.deepEqual([getObligation(selfBare).answerText, said[0][1].topic, said[1][1].reply, said[2], logs.at(-1)], ['S', '主题', null, ['deliverFollowUpReply', { config: cfg, store: st, task: selfBare, text: 'S', kind: 'self_answer' }], '[lark-gateway] 分类落地 om_me2：自答（follow_up）：S'])
+      // 11-02 复核：分类超过 45s、「收到」已被巡检发了固定句（或被闸按人拦了）→ 答案单独回一条到原消息；发成才记 answered
+      ackLive = false
+      const selfLate = task({ id: 'om_me3', status: 'answered', result: 'R' })
+      assert.deepEqual(await run({ ok: true, selfAnswer: true, task: selfLate }), body({ selfAnswer: true, answered: true }))
+      assert.deepEqual([said.slice(1), getObligation(selfLate).state, logs.at(-1)], [[['flushPendingAck', { config: cfg, store: st, task: selfLate, reply: 'R', send: true, reason: 'self_answer' }], ['deliverFollowUpReply', { config: cfg, store: st, task: selfLate, text: 'R', kind: 'self_answer' }]], 'answered', '[lark-gateway] 分类落地 om_me3：自答（follow_up）：R'])
+      followUpOk = false
+      const selfGated = task({ id: 'om_me4', status: 'answered', result: 'R' })
+      assert.deepEqual(await run({ ok: true, selfAnswer: true, task: selfGated }), body({ selfAnswer: true, answered: false }))
+      assert.deepEqual([getObligation(selfGated), logs.at(-1)], [null, '[lark-gateway] 分类落地 om_me4：自答没发出去（出口闸拦下：同内容），义务留着：R'], '没发出去不记 answered')
+      ackLive = true
+      followUpOk = true
       // 已落过：重放只在仍在队列 / 在跑且 actionable 时重发开跑
       const replayActive = task({ status: 'queued' })
       assert.deepEqual(await run({ ok: true, alreadyResolved: true, actionable: true, task: replayActive }), body({ actionable: true }))
@@ -434,6 +489,10 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       mergeResult = { mode: 'appended', into: target }
       assert.deepEqual(await run({ ok: true, suspected: true, task: cont }), body({ suspected: true, mergedInto: 'om_target', mode: 'appended' }), '疑似也并')
       assert.deepEqual([saidNames(), delivered], [['notePerson', 'flushPendingAck'], []])
+      // 并入在跑的那条（跑完再带补充跑一轮）：「收到」说清楚会怎么处理，不用分类器那句、不重发开跑
+      mergeResult = { mode: 'rerun_after_done', into: { ...target, status: 'running' } }
+      assert.deepEqual(await run({ ok: true, actionable: true, task: cont }), body({ actionable: true, mergedInto: 'om_target', mode: 'rerun_after_done' }))
+      assert.deepEqual([said.slice(1), delivered, RERUN_ACK_REPLY], [[['flushPendingAck', { config: cfg, store: st, task: cont, reply: '收到，这条等上一轮跑完一起处理', send: true, reason: 'merged:rerun_after_done' }]], [], '收到，这条等上一轮跑完一起处理'])
       mergeResult = null
       // 开跑
       const go = task()
@@ -441,8 +500,19 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       assert.deepEqual([said.slice(1), delivered, logs.at(-1)], [[['flushPendingAck', { config: cfg, store: st, task: go, reply: 'R', send: true }], ['deliverStart', { config: cfg, store: st, task: go }]], [go], '[lark-gateway] 分类落地 om_me：question/high·answer，正式入队'])
       // 追问 / 疑似 / 只记一笔
       const ask = task({ status: 'waiting_confirmation', fromPrincipal: true })
-      assert.deepEqual(await run({ ok: true, askBack: true, task: ask }), body({ askBack: true }))
-      assert.deepEqual([said[1], logs.at(-1)], [['flushPendingAck', { config: cfg, store: st, task: ask, reply: 'R', send: true, reason: 'ask_back' }], '[lark-gateway] 分类落地 om_me：负责人的话拿不准，先追问：R'])
+      assert.deepEqual(await run({ ok: true, askBack: true, task: ask }), body({ askBack: true, asked: true }))
+      assert.deepEqual([said[1], said.length, logs.at(-1)], [['flushPendingAck', { config: cfg, store: st, task: ask, reply: 'R', send: true, reason: 'ask_back' }], 2, '[lark-gateway] 分类落地 om_me：负责人的话拿不准，先追问（ack）：R'])
+      // 11-02 复核：「收到」已发过固定句 → 追问单独回一条；发不出去记在任务上（askBackUndelivered），不假装问过
+      ackLive = false
+      const askLate = task({ id: 'om_ask2', status: 'waiting_confirmation', fromPrincipal: true, result: 'Q' }, cls({ reply: null }))
+      assert.deepEqual(await run({ ok: true, askBack: true, task: askLate }), body({ askBack: true, asked: true }))
+      assert.deepEqual([said[2], 'askBackUndelivered' in askLate, logs.at(-1)], [['deliverFollowUpReply', { config: cfg, store: st, task: askLate, text: 'Q', kind: 'ask_back' }], false, '[lark-gateway] 分类落地 om_ask2：负责人的话拿不准，先追问（follow_up）：Q'])
+      followUpOk = false
+      const askGated = task({ id: 'om_ask3', status: 'waiting_confirmation', fromPrincipal: true })
+      assert.deepEqual(await run({ ok: true, askBack: true, task: askGated }), body({ askBack: true, asked: false }))
+      assert.deepEqual([askGated.askBackUndelivered.reason, upserts.at(-1), logs.at(-1)], ['出口闸拦下：同内容', askGated, '[lark-gateway] 分类落地 om_ask3：追问没发出去（出口闸拦下：同内容）：R'])
+      ackLive = true
+      followUpOk = true
       const sus = task({ status: 'waiting_confirmation', suspected: true }, cls({ decision: 'bug', confidence: 'low' }))
       assert.deepEqual(await run({ ok: true, suspected: true, task: sus }), body({ suspected: true }))
       assert.deepEqual([said.slice(1), logs.at(-1)], [[['flushPendingAck', { config: cfg, store: st, task: sus, reply: 'R', send: true, reason: 'suspected' }], ['deliverSuspected', { config: cfg, store: st, task: sus }]], '[lark-gateway] 分类落地 om_me：bug/low forMe=null，疑似：已私信负责人'])

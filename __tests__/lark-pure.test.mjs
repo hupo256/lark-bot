@@ -788,11 +788,22 @@ describe('decideControlAction', () => {
     }
   })
 
-  it('活动态路由：unclear→confirm；parked 无结单→resume；其它活动态无结单→notice', () => {
+  it('活动态路由：unclear→confirm；parked 无结单→resume；还没分类→supplement；其它活动态有实质内容→passthrough、只问进度→notice', () => {
     assert.equal(decideControlAction({ target: { status: 'running' }, verdict: { intent: 'unclear' } }), 'confirm')
     assert.equal(decideControlAction({ target: { status: 'waiting_confirmation' }, verdict: { intent: null } }), 'resume')
     assert.equal(decideControlAction({ target: { status: 'blocked' }, verdict: { intent: null } }), 'resume')
     assert.equal(decideControlAction({ target: { status: 'queued' }, verdict: { intent: null } }), 'notice')
+    // 11-02 复核：回复「收到」的人多半在补内容——还没分类的并进去一起分类；在跑的有实质内容就放行带锚点，由分类器判 continues
+    assert.equal(decideControlAction({ target: { status: 'received' }, verdict: { intent: null } }), 'supplement')
+    assert.equal(decideControlAction({ target: { status: 'received' }, verdict: { intent: null }, substantive: true }), 'supplement', '还没分类的不看 substantive')
+    assert.equal(decideControlAction({ target: { status: 'running', intake: { required: true } }, verdict: { intent: null } }), 'supplement', '分类中的 running 也算还没分类')
+    assert.equal(decideControlAction({ target: { status: 'running', intake: { required: false } }, verdict: { intent: null } }), 'notice')
+    for (const status of ['queued', 'running', 'verifying', 'failed']) {
+      assert.equal(decideControlAction({ target: { status, intake: { required: false } }, verdict: { intent: null }, substantive: true }), 'passthrough', status)
+      assert.equal(decideControlAction({ target: { status }, verdict: { intent: null }, substantive: false }), 'notice', status)
+    }
+    assert.equal(decideControlAction({ target: { status: 'waiting_confirmation' }, verdict: { intent: null }, substantive: true }), 'resume', '挂起的仍续跑')
+    assert.equal(decideControlAction({ target: { status: 'queued' }, verdict: { intent: null }, nonSupplemental: true, substantive: true }), 'ignore', '纯确认仍静默')
   })
 
   it('无实质内容的卡片回复无论原任务活动或终态都 ignore，不续跑也不新建', () => {
@@ -970,9 +981,12 @@ describe('resolveResumeTarget', () => {
     )
   })
 
-  it('回复机器人回执卡（reply_to 命中回执）→ 命中，不限状态', () => {
+  it('回复机器人回执卡（reply_to 命中回执）→ 只认仍挂起的任务（11-02 复核：在跑 / 终态由控制通道分流，这里不劫持成「续不了」）', () => {
     const store = makeStore({ byReceipt: { om_card: parked } })
     assert.equal(resolveResumeTarget({ msg: { replyToDirect: 'om_card', replyTo: 'om_card' }, store }).task, parked)
+    for (const status of ['received', 'queued', 'running', 'done']) {
+      assert.equal(resolveResumeTarget({ msg: { replyToDirect: 'om_card', replyTo: 'om_card' }, store: makeStore({ byReceipt: { om_card: { id: 'x', status } } }) }), null, status)
+    }
   })
 
   it('回复原任务消息：仅当该任务仍待确认/阻塞才算续跑意图', () => {
