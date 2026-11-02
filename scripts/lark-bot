@@ -77,7 +77,10 @@ install_agent() {
   if ! _loaded "$label"; then
     launchctl bootstrap "$DOMAIN" "$target"
   fi
-  launchctl kickstart -k "$DOMAIN/$label"
+  # 排空重启是从 worker（launchd 子进程）里发起的，那种上下文下 kickstart 会报「1: Operation not permitted」：
+  # 11-01 23:16 实发——gateway bootstrap 后 kickstart 失败，set -e 把后面 worker / poller 的安装整段跳过，
+  # worker 停了 10 小时没人知道。bootstrap 本身已按 RunAtLoad 拉起进程，kickstart 失败只记一行，就绪与否交给 wait_until 判。
+  launchctl kickstart -k "$DOMAIN/$label" || echo "• kickstart ${label} 失败（已 bootstrap，由 launchd RunAtLoad 拉起，等就绪）"
 }
 
 START_TIMEOUT_SECONDS="${LARK_BOT_START_TIMEOUT_SECONDS:-120}"
