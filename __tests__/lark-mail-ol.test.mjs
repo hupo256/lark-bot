@@ -1,7 +1,15 @@
 import assert from 'node:assert/strict'
+import { EventEmitter } from 'node:events'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
+import { startConsumer } from '../lib/lark-consumer.mjs'
+import { exemptReason } from '../lib/lark-chat-retention.mjs'
+import { validateConfig } from '../lib/lark-config.mjs'
 import { forwardOlMail } from '../lib/lark-mail-ol-forward.mjs'
+import { catchUpMailOl, createMailOlHandler, fileMailOlIo, mailFromWatchLine, shouldHandleMail, startMailOlWatch } from '../lib/lark-mail-ol-watch.mjs'
 import { classifyOlKind, hasOlSubject, isOlApplicationMail, renderOlScore, scoreOlMail } from '../lib/lark-mail-ol-score.mjs'
 import { runSteps } from './support/steps.mjs'
 
@@ -21,6 +29,12 @@ const fakeRun = (results) => {
   const calls = []
   return { calls, run: async (args, options) => { calls.push({ args, identity: options?.identity || 'bot' }); return results[Math.min(calls.length, results.length) - 1] } }
 }
+const memIo = (initial = { checkedAt: null, forwarded: {} }) => {
+  let state = JSON.parse(JSON.stringify(initial))
+  const writes = []
+  return { writes, read: () => JSON.parse(JSON.stringify(state)), write: (next) => { state = JSON.parse(JSON.stringify(next)); writes.push(state) } }
+}
+const OL_EVENT = { message_id: 'm1', folder_id: 'INBOX', subject: STD_SUBJECT }
 const quiet = async (fn) => {
   const original = [console.log, console.warn, console.error]
   console.log = console.warn = console.error = () => {}
@@ -86,6 +100,112 @@ describe('OL 上线申请邮件打分与转群', () => {
       assert.deepEqual(await forwardOlMail({ messageId: 'm', chatId: 'oc', run: noData.run }), { ok: false, step: 'read', reason: '{"ok":true}' })
       const byAddress = fakeRun([mailOut({ subject: STD_SUBJECT, body_plain_text: FULL_BODY, head_from: { mail_address: 'a@x.com' } })])
       assert.match((await forwardOlMail({ messageId: 'm', dryRun: true, run: byAddress.run })).markdown, /· 发件人 a@x\.com/)
+    }],
+    ['自动转发：+watch 行解析、只处理 INBOX 的 OL 主题、转过的不再转、并发同一封只转一次', async () => {
+      assert.deepEqual([mailFromWatchLine({ message: OL_EVENT }), mailFromWatchLine({ ok: true, data: { message: OL_EVENT } }), mailFromWatchLine({ header: {} })], [OL_EVENT, OL_EVENT, null])
+      assert.deepEqual([
+        shouldHandleMail(OL_EVENT, {}),
+        shouldHandleMail({ ...OL_EVENT, folder_id: undefined }, {}),
+        shouldHandleMail({ ...OL_EVENT, folder_id: 'SENT' }, {}),
+        shouldHandleMail({ ...OL_EVENT, subject: '【HQEX】【PRE】x' }, {}),
+        shouldHandleMail(OL_EVENT, { m1: { at: 'x' } }),
+        shouldHandleMail({ ...OL_EVENT, message_id: '' }, {}),
+      ], [true, true, false, false, false, false])
+      const io = memIo()
+      const calls = []
+      const forward = async ({ messageId, chatId }) => { calls.push([messageId, chatId]); return { ok: true, result: { score: 16, max: 16, tier: 'A' }, scoreVia: 'bot-reply' } }
+      const handler = createMailOlHandler({ chatId: 'oc_ol', io, forward, now: () => 'T1' })
+      await quiet(() => Promise.all([handler.handle(OL_EVENT), handler.handle(OL_EVENT)]))
+      await quiet(() => handler.handle(OL_EVENT))
+      assert.deepEqual(calls, [['m1', 'oc_ol']])
+      assert.deepEqual(io.read().forwarded, { m1: { at: 'T1', ok: true, score: 16, tier: 'A' } })
+    }],
+    ['自动转发：读信 / 分享失败不记台账（重投或重启还能补）、非首封与评分发送失败记下不重读、抛错不打断后续', async () => {
+      const io = memIo()
+      const outcomes = { a: { ok: false, step: 'read', reason: '429' }, b: { ok: false, step: 'filter', reason: 'Re' }, c: { ok: false, step: 'score', reason: 'x' } }
+      const forward = async ({ messageId }) => { if (messageId === 'd') throw new Error('boom'); return outcomes[messageId] }
+      const handler = createMailOlHandler({ chatId: 'oc', io, forward, now: () => 'T' })
+      for (const id of ['a', 'b', 'c', 'd']) await quiet(() => handler.handle({ ...OL_EVENT, message_id: id }))
+      assert.deepEqual(io.read().forwarded, { b: { at: 'T', ok: false, step: 'filter' }, c: { at: 'T', ok: false, step: 'score' } })
+      const many = memIo({ checkedAt: null, forwarded: Object.fromEntries(Array.from({ length: 500 }, (_, i) => [`old${i}`, { at: `2026-01-01T00:00:${String(i % 60).padStart(2, '0')}` }])) })
+      await quiet(() => createMailOlHandler({ chatId: 'oc', io: many, forward: async () => ({ ok: true, result: { score: 1, tier: 'D' } }), now: () => '2026-11-02T00:00:00' }).handle(OL_EVENT))
+      assert.equal(Object.keys(many.read().forwarded).length, 500, '台账只留最近 500 条')
+      assert.ok(many.read().forwarded.m1)
+    }],
+    ['启动补转：首次启用只落时钟不回填；之后只转上次在线之后到达的；读收件箱失败如实返回', async () => {
+      const first = memIo()
+      const handled = []
+      const handler = { handle: async (mail) => handled.push(mail.message_id) }
+      assert.deepEqual(await catchUpMailOl({ handler, io: first, run: async () => { throw new Error('不该读') }, now: () => '2026-11-02T10:00:00Z' }), { skipped: 'first-run' })
+      assert.equal(first.read().checkedAt, '2026-11-02T10:00:00Z')
+      const later = memIo({ checkedAt: '2026-11-02T10:00:00Z', forwarded: {} })
+      const calls = []
+      const run = async (args, options) => { calls.push([args, options]); return { code: 0, stdout: JSON.stringify({ messages: [{ message_id: 'new2', date: '2026-11-02T12:00:00Z' }, { message_id: 'new1', date: '2026-11-02T11:00:00Z' }, { message_id: 'old', date: '2026-11-02T09:00:00Z' }, { message_id: 'same', date: '2026-11-02T10:00:00Z' }, { message_id: 'nodate' }] }), stderr: '' } }
+      assert.deepEqual(await catchUpMailOl({ handler, io: later, run, now: () => '2026-11-02T13:00:00Z' }), { checked: 2 })
+      assert.deepEqual(handled, ['new1', 'new2'], '按到达先后补转，旧的不转')
+      assert.equal(calls[0][1].identity, 'user')
+      assert.deepEqual(calls[0][0].slice(0, 5), ['mail', '+triage', '--filter', '{"folder":"INBOX"}', '--query'])
+      assert.equal(later.read().checkedAt, '2026-11-02T13:00:00Z')
+      const failRun = async () => ({ code: 1, stdout: '', stderr: 'HTTP 429' })
+      assert.deepEqual(await quiet(() => catchUpMailOl({ handler, io: memIo({ checkedAt: 'x', forwarded: {} }), run: failRun })), { failed: true })
+      assert.deepEqual(await catchUpMailOl({ handler, io: memIo({ checkedAt: 'x', forwarded: {} }), run: async () => ({ code: 0, stdout: 'not json', stderr: '' }) }), { failed: true })
+    }],
+    ['台账文件：读坏 / 字段不对当空表、写后可读、无路径不落盘；startConsumer 自定义命令照传、缺省仍是 bot event consume', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'mail-ol-'))
+      try {
+        const path = join(dir, 'state.json')
+        assert.deepEqual(fileMailOlIo(path).read(), { checkedAt: null, forwarded: {} }, '没有文件')
+        writeFileSync(path, 'not json')
+        assert.deepEqual(fileMailOlIo(path).read(), { checkedAt: null, forwarded: {} }, '读坏了')
+        writeFileSync(path, JSON.stringify({ checkedAt: '', forwarded: 'x' }))
+        assert.deepEqual(fileMailOlIo(path).read(), { checkedAt: null, forwarded: {} }, 'forwarded 不是对象')
+        writeFileSync(path, JSON.stringify({ forwarded: null }))
+        assert.deepEqual(fileMailOlIo(path).read().forwarded, {})
+        fileMailOlIo(path).write({ checkedAt: 'T', forwarded: { m: { at: 'T' } } })
+        assert.deepEqual(fileMailOlIo(path).read(), { checkedAt: 'T', forwarded: { m: { at: 'T' } } })
+        assert.deepEqual(JSON.parse(readFileSync(path, 'utf8')).forwarded, { m: { at: 'T' } })
+        fileMailOlIo(null).write({ checkedAt: 'x', forwarded: {} })
+        await quiet(async () => fileMailOlIo(join(path, 'under-a-file', 's.json')).write({ checkedAt: 'x', forwarded: {} }))
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+      const spawned = []
+      const spawnChild = (bin, args) => { const child = new EventEmitter(); child.stdout = new EventEmitter(); child.stderr = new EventEmitter(); child.kill = () => {}; child.exitCode = null; spawned.push(args); return child }
+      const custom = startConsumer({ eventKey: 'mail', command: ['--as', 'user', 'mail', '+watch'], onLine: () => {}, spawnChild })
+      const plain = startConsumer({ eventKey: 'im.message.receive_v1', onLine: () => {}, spawnChild })
+      custom.stop()
+      plain.stop()
+      assert.deepEqual(spawned, [['--as', 'user', 'mail', '+watch'], ['--as', 'bot', 'event', 'consume', 'im.message.receive_v1']])
+    }],
+    ['网关接线：没开 / 没群不起；开了用 user 身份常驻 +watch、行进 handler、停止时落时钟；配置校验；转发群不自动退', async () => {
+      let consumed = null
+      const consume = (options) => { consumed = options; return { stop: () => { consumed.stopped = true }, observe: () => ({ alive: true }) } }
+      assert.equal(startMailOlWatch({ config: { mailOl: { enabled: false, chatId: 'oc' } }, consume }).observe(), null)
+      assert.equal(startMailOlWatch({ config: { mailOl: { enabled: true } }, consume }).observe(), null)
+      assert.equal(consumed, null)
+      const io = memIo()
+      let caught = null
+      const timers = []
+      const watch = await quiet(() => startMailOlWatch({ config: { mailOl: { enabled: true, chatId: 'oc_ol' } }, io, consume, catchUp: async (args) => { caught = args }, schedule: (fn, ms) => { timers.push([fn, ms]); return null } }))
+      assert.deepEqual(consumed.command, ['--as', 'user', 'mail', '+watch', '--msg-format', 'metadata', '--format', 'data'])
+      assert.equal(consumed.eventKey, 'mail.user_mailbox.event.message_received_v1')
+      assert.equal(consumed.onLine({ header: {} }), null, '不是邮件的行不处理')
+      assert.ok(caught?.handler && caught.io === io, '启动补转用同一个台账')
+      assert.equal(timers[0][1], 600_000)
+      timers[0][0]()
+      assert.ok(io.read().checkedAt, '定时只写本地时钟')
+      assert.deepEqual(watch.observe(), { alive: true })
+      watch.stop()
+      assert.equal(consumed.stopped, true)
+      const base = { project: 'PR-01947' }
+      assert.ok(validateConfig({ ...base, mailOl: [] }).errors.some((e) => /mailOl 必须是对象/.test(e)))
+      assert.ok(validateConfig({ ...base, mailOl: { enabled: 'yes' } }).errors.some((e) => /mailOl.enabled 必须是/.test(e)))
+      assert.ok(validateConfig({ ...base, mailOl: { enabled: true, chatId: 'ou_x' } }).errors.some((e) => /mailOl.chatId 必须是群/.test(e)))
+      assert.ok(!validateConfig({ ...base, mailOl: { enabled: true, chatId: 'oc_ok1' } }).errors.some((e) => /mailOl/.test(e)))
+      assert.ok(!validateConfig({ ...base, mailOl: { enabled: false } }).errors.some((e) => /mailOl/.test(e)))
+      const state = { chats: {} }
+      assert.equal(exemptReason({ config: { mailOl: { enabled: true, chatId: 'oc_ol' } }, state, chatId: 'oc_ol' }), 'OL 邮件转发群')
+      assert.equal(exemptReason({ config: { mailOl: { enabled: false, chatId: 'oc_ol' } }, state, chatId: 'oc_ol' }), null)
     }],
     ['转群：user 读信 → user 分享卡片 → bot 回在卡片下（卡片 id 取 data.im_message_id）', async () => {
       const { calls, run } = fakeRun([
