@@ -34,3 +34,5 @@ runtime/lark-mail-relay-state.json
 runtime/lark-gateway-alive-state.json
 # 端到端时延记账（aven 11-02）
 runtime/lark-latency.jsonl
+# 负责人维护的固定知识（环境与部署等，含内部站点 / 流程，aven 11-02）
+runtime/knowledge/

@@ -215,5 +215,11 @@
     "code": "log(`[lark-gateway] 时延记账写失败（忽略）：${String(error?.message || error).slice(0, 120)}`)",
     "op": "|| → &&",
     "reason": "只影响记账写失败时那行日志怎么描述错误（appendFileSync 抛的总是 Error），不影响交付与记账结果；无业务含义"
+  },
+  {
+    "file": "lib/lark-conversation-bundle.mjs",
+    "code": "if (recentCtx.length < fetchedRecent.length) console.log(`[lark-gateway] ${msg.messageId} 群里之前的消息：${fetchedRecent.length} 条里去掉 ${fetchedRecent.length - recentCtx.length} 条 ${recentHours} 小时前的（bot 和本人的话留着）`)",
+    "op": "< → <=",
+    "reason": "只决定没截掉任何消息时要不要多打一行日志（会写「去掉 0 条」），不影响上下文内容"
   }
 ]

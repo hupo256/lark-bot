@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
@@ -14,6 +14,9 @@ import { describePrdCacheDoc, detectShadowedAgentsDoc } from '../lib/lark-work-c
 import { buildAnalysisPrompt, buildTaskPromptParts } from '../lib/lark-worker-prompts.mjs'
 import { runAI } from '../lib/lark-worker-run.mjs'
 import { runSteps } from './support/steps.mjs'
+import { branchForEnv, describeBuild, parseLegacyVersion, parseWebNextCommit } from '../lib/lark-env-version.mjs'
+import { KNOWLEDGE_MAX_CHARS, buildEnvKnowledgeBlock, readKnowledge } from '../lib/lark-knowledge.mjs'
+import { ENV_VERSION_TOOL } from '../lib/lark-paths.mjs'
 
 // 11-01 上下文分层升级（docs/upgrade-plan-context-layers-2026-11-01.md）S3 / S4 / S6 的纯函数：
 // AGENTS.md 遮蔽检测、PRD 缓存标龄、截图先看、审计度量、体检执行层。
@@ -147,6 +150,55 @@ describe('上下文分层升级：遮蔽检测 / 缓存标龄 / 视觉分流 / �
       await execAiExecutor({ executor: 'claude', promptText: 'x', cwd: tmpdir(), localConfig: {}, model: 'p', reasoningEffort: 'pe', resultKind: 'intent', spawnImpl: stop }).catch(() => {})
       await execAiExecutor({ executor: 'claude', promptText: 'x', cwd: tmpdir(), localConfig: {}, codexModel: 'c', codexReasoningEffort: 'ce', resultKind: 'intent', spawnImpl: stop }).catch(() => {})
       assert.deepEqual(calls.slice(4).map((c) => [argOf(c.args, '--model'), argOf(c.args, '--effort')]), [['fast', 'low'], ['m', 'max'], ['m', 'high'], ['m', 'high'], ['p', 'pe'], ['c', 'ce']])
+    }],
+    ['环境版本解析（11-02）：老站 /version 认 React 注释、新站 /wn/<sha>/、只认十六进制；分支映射可覆盖；人话三种落点', () => {
+      assert.equal(parseLegacyVersion('<div>Version: <!-- -->13E83A1</div>'), '13e83a1')
+      assert.equal(parseLegacyVersion('<div>Version: b0ad0a3</div>'), 'b0ad0a3')
+      assert.deepEqual([parseLegacyVersion('Version: unknown'), parseLegacyVersion(''), parseLegacyVersion(null)], [null, null, null])
+      assert.equal(parseWebNextCommit('<script src="https://cdn.x.vip/wn/d456f82/assets/a.js">'), 'd456f82')
+      assert.deepEqual([parseWebNextCommit('/wn/1005796x/a.js'), parseWebNextCommit('/wn/zz12345/')], [null, null])
+      assert.deepEqual([branchForEnv('pre'), branchForEnv('prod', { prod: 'online' })], ['pre', 'online'])
+      const info = { found: true, date: '11-02 19:34', author: 'hurley', subject: 's' }
+      assert.equal(describeBuild({ label: '老站', sha: null, branch: 'pre' }), '老站：没查到')
+      assert.match(describeBuild({ label: '老站', sha: 'abc1234', branch: 'pre', info: { found: false } }), /本地仓库里找不到这个提交/)
+      assert.match(describeBuild({ label: '老站', sha: 'abc1234', branch: 'pre', info: { ...info, onBranch: true, behind: 0 } }), /= origin\/pre 最新；这个提交：11-02 19:34 hurley「s」/)
+      assert.match(describeBuild({ label: '老站', sha: 'abc1234', branch: 'online', info: { ...info, onBranch: true, behind: 60 } }), /比 origin\/online 最新落后 60 个提交/)
+      assert.match(describeBuild({ label: '老站', sha: 'abc1234', branch: 'test', info: { ...info, onBranch: false, behind: null } }), /不在 origin\/test 上/)
+      assert.match(describeBuild({ label: '老站', sha: 'abc1234', branch: 'test', info: { ...info, onBranch: null } }), /没核 origin\/test/)
+    }],
+    ['固定知识（11-02）：读 *.md 按名排序拼接、超长截断注明、没有目录为空；块只在有知识或配了站点时出现；只给只读 / 代答 / 实测提示，改码不带', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'kn-'))
+      assert.equal(readKnowledge({ dir: join(dir, 'none') }), '')
+      writeFileSync(join(dir, 'b.md'), ' 第二份 \n')
+      writeFileSync(join(dir, 'a.md'), '第一份')
+      writeFileSync(join(dir, 'skip.txt'), '不是 md')
+      mkdirSync(join(dir, 'sub.md'))
+      assert.equal(readKnowledge({ dir: join(dir) }), '', '读失败（目录名像 md）整块不给')
+      const ok = mkdtempSync(join(tmpdir(), 'kn-'))
+      writeFileSync(join(ok, 'b.md'), ' 第二份 \n')
+      writeFileSync(join(ok, 'a.md'), '第一份')
+      writeFileSync(join(ok, 'empty.md'), '  ')
+      assert.equal(readKnowledge({ dir: ok }), '第一份\n\n第二份')
+      assert.equal(readKnowledge({ dir: ok, maxChars: 3 }), `第一份\n…（固定知识超过 3 字，后面截掉了）`)
+      assert.equal(readKnowledge({ dir: ok, maxChars: 8 }), '第一份\n\n第二份', '正好上限不截')
+      assert.equal(KNOWLEDGE_MAX_CHARS, 6000)
+      assert.equal(buildEnvKnowledgeBlock({}), '')
+      assert.equal(buildEnvKnowledgeBlock({ envSites: { test: '  ' } }), '')
+      const onlyKnowledge = buildEnvKnowledgeBlock({ knowledge: 'K' })
+      assert.match(onlyKnowledge, /【环境与部署/)
+      assert.doesNotMatch(onlyKnowledge, /env-version/, '没配站点不提工具')
+      const both = buildEnvKnowledgeBlock({ knowledge: 'K', envSites: { pre: 'https://p' } })
+      assert.ok(both.includes(`node ${ENV_VERSION_TOOL}`) && both.includes('\nK\n'))
+      const ctx = { projectId: '(adhoc)', projectName: 'x', projectDocs: [], cwd: '/tmp/repo' }
+      const answer = { id: 'a', text: '现在 pre 跑的哪个版本', attachments: [], contract: { deliverable: 'answer', readOnly: true } }
+      const change = { id: 'c', text: '修一下登录', attachments: [], contract: { deliverable: 'change', readOnly: false } }
+      const opts = { ruleContext: { text: '', sources: [] }, knowledge: '部署知识原文', envSites: { pre: 'https://p' } }
+      const answerPrompt = buildTaskPromptParts(ctx, answer, 'claude', opts).user
+      assert.ok(answerPrompt.includes('部署知识原文') && answerPrompt.includes(ENV_VERSION_TOOL))
+      const changePrompt = buildTaskPromptParts(ctx, change, 'claude', opts).user
+      assert.ok(!changePrompt.includes('部署知识原文') && !changePrompt.includes(ENV_VERSION_TOOL))
+      const cmd = buildAiExecutorCommand({ executor: 'claude', promptText: 'x', cwd: '/tmp/repo', readOnly: true, extraReadOnlyCommands: [`node ${ENV_VERSION_TOOL}`] })
+      assert.ok(argOf(cmd.args, '--allowedTools').includes(`Bash(node ${ENV_VERSION_TOOL}:*)`))
     }],
     ['runAI：AGENTS.md 遮蔽只对 claude 生效（codex / cursor 原生读 AGENTS.md）', async () => {
       const calls = []
