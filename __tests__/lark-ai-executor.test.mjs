@@ -641,6 +641,8 @@ describe('risk-based validation policy', () => {
       { ruleContext: { scenario: 'g4_coding_worktree', sources: [], text: '只读规则。' } },
     )
     assert.match(prompt, /本任务是只读信息查询/)
+    assert.doesNotMatch(prompt, /task-boundaries-and-reply\.md/, '只读查询不塞改码用的边界文档（11-02：每条答疑白读一轮）')
+    assert.match(prompt, /请在 \/tmp\/repo 中完成任务。/, '没有要读的文档就不留空列表')
     assert.match(prompt, /changedFiles 必须为 \[\]/)
     assert.match(prompt, /无代码改动是正确结果/)
     assert.doesNotMatch(prompt, /编码规范（改任何代码前必做/)
