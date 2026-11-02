@@ -5,11 +5,11 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { chatListMessageToEvent, flattenThreadReplies, isPollableMessage, readLastAliveAt, startWakeCatchup, writeLastAliveAt } from '../lib/lark-wake-catchup.mjs'
+import { DM_CHAT_KEEP_MS, DM_CHAT_MAX, chatListMessageToEvent, flattenThreadReplies, isPollableMessage, mergeDmChats, readDmChats, readLastAliveAt, startWakeCatchup, writeLastAliveAt } from '../lib/lark-wake-catchup.mjs'
 import { normalizeMessage } from '../lib/lark-message.mjs'
 
 describe('开盖补拉群消息（长连接睡着时收不到，飞书重推只覆盖约 7 小时的几个时间点）', () => {
-  const setup = ({ messages = [], failTimes = 0, lastAlive = null, chats = ['oc_in'], failChats = [], tasks = [{ chatId: 'oc_in', updatedAt: '2026-10-16T16:00:00Z' }] } = {}) => {
+  const setup = ({ messages = [], failTimes = 0, lastAlive = null, chats = ['oc_in'], failChats = [], tasks = [{ chatId: 'oc_in', updatedAt: '2026-10-16T16:00:00Z' }], dmFile = {} } = {}) => {
     const env = { now: Date.parse('2026-10-16T20:20:00+04:00'), closed: false, sleptAt: Date.parse('2026-10-16T09:00:00+04:00'), calls: [], ingested: [], fail: failTimes, alive: [] }
     const catchup = startWakeCatchup({
       config: {},
@@ -21,7 +21,8 @@ describe('开盖补拉群消息（长连接睡着时收不到，飞书重推只�
         lastSystemSleepAt: async () => env.sleptAt,
         listBotChatIds: async () => chats,
         readLastAliveAt: () => lastAlive,
-        writeLastAliveAt: (at) => env.alive.push(at),
+        readDmChats: () => dmFile,
+        writeLastAliveAt: (at, options) => { env.alive.push(at); env.dmWritten = options?.dmChats },
         listChatMessages: async ({ chatId, start }) => {
           env.calls.push({ chatId, start })
           if (failChats.includes(chatId)) return { ok: false } // 没带 reason：日志里要落成 list failed
@@ -72,8 +73,9 @@ describe('开盖补拉群消息（长连接睡着时收不到，飞书重推只�
     assert.deepEqual(await restarted.catchup.tick(), { chats: 1, fed: 1, failedChats: 0 })
     assert.deepEqual(restarted.env.calls, [{ chatId: 'oc_in', start: new Date(lastAlive - 120_000).toISOString() }])
     assert.deepEqual(restarted.env.ingested, ['om_gap'])
-    // 重启空窗只补近 7 天有过 bot 任务的群（11-02：每次重启全拉 50 个群把接口频率打满）；私信、太旧的、别的群不拉
-    const scoped = setup({ messages: [], lastAlive, chats: ['oc_in', 'oc_quiet', 'oc_old', 'oc_dm'], tasks: [
+    // 重启空窗只补近 7 天有过 bot 任务的群（11-02：每次重启全拉 50 个群把接口频率打满）；太旧的、别的群不拉；
+    // 私信会话（任务库里的 p2p + 状态文件里记过的，30 天内）照补，按私信身份送 ingest（11-02 晚：私信被分流丢了 5 分钟）
+    const scoped = setup({ messages: [], lastAlive, chats: ['oc_in', 'oc_quiet', 'oc_old'], dmFile: { oc_dm_file: '2026-10-10T00:00:00Z', oc_dm_stale: '2026-09-01T00:00:00Z' }, tasks: [
       { chatId: 'oc_in', updatedAt: '2026-10-16T16:00:00Z' },
       { chatId: 'oc_old', updatedAt: '2026-10-09T16:00:00Z' },
       { chatId: 'oc_dm', chatType: 'p2p', updatedAt: '2026-10-16T16:00:00Z' },
@@ -82,20 +84,21 @@ describe('开盖补拉群消息（长连接睡着时收不到，飞书重推只�
       { chatId: null },
     ] })
     scoped.env.now += 60_000
-    assert.deepEqual(await scoped.catchup.tick(), { chats: 1, fed: 0, failedChats: 0 })
-    assert.deepEqual(scoped.env.calls.map((c) => c.chatId), ['oc_in'])
+    assert.deepEqual(await scoped.catchup.tick(), { chats: 3, fed: 0, failedChats: 0 })
+    assert.deepEqual(scoped.env.calls.map((c) => c.chatId), ['oc_in', 'oc_dm', 'oc_dm_file'], '私信按最近排；30 天前的不补')
+    assert.deepEqual(Object.keys(scoped.env.dmWritten), ['oc_dm', 'oc_dm_file'], '私信会话表随「上次活着」落盘')
     const edge7 = setup({ messages: [], lastAlive, chats: ['oc_edge'], tasks: [{ chatId: 'oc_edge', createdAt: new Date(Date.parse('2026-10-16T20:21:00+04:00') - 7 * 24 * 3600_000).toISOString() }] })
     edge7.env.now += 60_000
     await edge7.catchup.tick()
     assert.deepEqual(edge7.env.calls.map((c) => c.chatId), ['oc_edge'], '恰好 7 天还算')
-    const noList = startWakeCatchup({ config: {}, store: { has: () => false }, ingest: async () => {}, deps: { now: () => Date.parse('2026-10-16T20:21:00+04:00'), isLidClosed: async () => false, lastSystemSleepAt: async () => null, listBotChatIds: async () => ['oc_a'], readLastAliveAt: () => lastAlive, writeLastAliveAt: () => {}, listChatMessages: async () => ({ ok: true, messages: [], hasMore: false }), setInterval: () => ({ unref() {} }) } })
+    const noList = startWakeCatchup({ config: {}, store: { has: () => false }, ingest: async () => {}, deps: { readDmChats: () => ({}), now: () => Date.parse('2026-10-16T20:21:00+04:00'), isLidClosed: async () => false, lastSystemSleepAt: async () => null, listBotChatIds: async () => ['oc_a'], readLastAliveAt: () => lastAlive, writeLastAliveAt: () => {}, listChatMessages: async () => ({ ok: true, messages: [], hasMore: false }), setInterval: () => ({ unref() {} }) } })
     assert.deepEqual(await noList.tick(), { chats: 0, fed: 0, failedChats: 0 }, 'store 没有 list 就一个群都不补')
     // 补完一次后再遇到睡眠窗口就全拉
     scoped.env.sleptAt = scoped.env.now + 10_000
     scoped.env.now += 3600_000
     scoped.env.calls.length = 0
     await scoped.catchup.tick()
-    assert.deepEqual(scoped.env.calls.map((c) => c.chatId), ['oc_in', 'oc_quiet', 'oc_old', 'oc_dm'], '睡眠窗口不受限')
+    assert.deepEqual(scoped.env.calls.map((c) => c.chatId), ['oc_in', 'oc_quiet', 'oc_old', 'oc_dm', 'oc_dm_file'], '睡眠窗口群不受限，私信照补')
     const stale = setup({ messages: [user('om_old')], lastAlive: Date.parse('2026-10-15T20:00:00+04:00') })
     stale.env.now += 60_000
     assert.equal(await stale.catchup.tick(), null, '超过 24h 的「上次活着」不当窗口')
@@ -111,6 +114,29 @@ describe('开盖补拉群消息（长连接睡着时收不到，飞书重推只�
       assert.equal(readLastAliveAt({ path }), lastAlive)
       writeLastAliveAt(NaN, { path })
       assert.equal(readLastAliveAt({ path }), lastAlive, '坏时间戳不写')
+      assert.deepEqual(readDmChats({ path }), {})
+      writeLastAliveAt(lastAlive, { path, dmChats: { oc_dm: '2026-10-16T00:00:00.000Z' } })
+      writeLastAliveAt(lastAlive + 60_000, { path })
+      assert.deepEqual([readLastAliveAt({ path }), readDmChats({ path })], [lastAlive + 60_000, { oc_dm: '2026-10-16T00:00:00.000Z' }], '只更新时刻时私信会话表原样留着')
+      writeFileSync(path, JSON.stringify({ at: new Date(lastAlive).toISOString(), dmChats: ['oc_x'] }))
+      assert.deepEqual(readDmChats({ path }), {}, '形状不对当空')
+      const now = Date.parse('2026-11-02T12:00:00Z')
+      const merged = mergeDmChats({
+        previous: { oc_old: '2026-09-01T00:00:00Z', oc_keep: '2026-10-20T00:00:00Z', oc_task: '2026-10-01T00:00:00Z', oc_bad: 'x' },
+        tasks: [
+          { chatId: 'oc_task', chatType: 'p2p', updatedAt: '2026-11-02T10:00:00Z' },
+          { chatId: 'oc_new', chatType: 'p2p', createdAt: '2026-11-01T10:00:00Z' },
+          { chatId: 'oc_group', updatedAt: '2026-11-02T10:00:00Z' },
+          { chatId: 'ou_aven', chatType: 'p2p', updatedAt: '2026-11-02T10:00:00Z' },
+          { chatId: 'oc_task', chatType: 'p2p', updatedAt: '2026-10-01T00:00:00Z' },
+        ],
+        now,
+      })
+      assert.deepEqual(merged, { oc_task: '2026-11-02T10:00:00.000Z', oc_new: '2026-11-01T10:00:00.000Z', oc_keep: '2026-10-20T00:00:00.000Z' }, '按最近排；30 天前、ou_、群、坏时刻都不要；同一会话取最新')
+      assert.deepEqual(Object.keys(mergeDmChats({ previous: { oc_edge: new Date(now - DM_CHAT_KEEP_MS).toISOString() }, now })), ['oc_edge'], '恰好 30 天还留')
+      const many = Object.fromEntries(Array.from({ length: 25 }, (_, i) => [`oc_${String(i).padStart(2, '0')}`, new Date(now - i * 60_000).toISOString()]))
+      assert.deepEqual([Object.keys(mergeDmChats({ previous: many, now })).length, DM_CHAT_MAX, Object.keys(mergeDmChats({ previous: many, now }))[0]], [20, 20, 'oc_00'])
+      assert.equal(chatListMessageToEvent({ message_id: 'm' }, { chatId: 'oc_dm', chatType: 'p2p' }).chat_type, 'p2p')
       writeFileSync(path, '{"at":"garbage"}')
       assert.equal(readLastAliveAt({ path }), null, '坏文件读回 null')
       assert.equal(readLastAliveAt({ path: join(dir, 'nope', 'x.json') }), null)

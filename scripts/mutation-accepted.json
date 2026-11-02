@@ -221,5 +221,11 @@
     "code": "if (recentCtx.length < fetchedRecent.length) console.log(`[lark-gateway] ${msg.messageId} 群里之前的消息：${fetchedRecent.length} 条里去掉 ${fetchedRecent.length - recentCtx.length} 条 ${recentHours} 小时前的（bot 和本人的话留着）`)",
     "op": "< → <=",
     "reason": "只决定没截掉任何消息时要不要多打一行日志（会写「去掉 0 条」），不影响上下文内容"
+  },
+  {
+    "file": "lib/lark-wake-catchup.mjs",
+    "code": "if (at > (seen.get(task.chatId) || 0)) seen.set(task.chatId, at)",
+    "op": "> → >=",
+    "reason": "时刻相等时再写一遍同一个值，结果不变（等价变异）"
   }
 ]
