@@ -31,7 +31,7 @@ import { createTaskStore } from '../lib/lark-task-store.mjs'
 import { parkedReminderRound } from '../lib/lark-parked-reminder.mjs'
 import { rotateLogIfLarge } from '../lib/lark-log-rotate.mjs'
 import { sweepAttachments } from '../lib/lark-retention.mjs'
-import { messageSendRecipientArgs, parseSentChatId, runLarkCliRetrying, parseSentMessageId, pickChatIdByProject, resolveDeliveryChatId, formatLarkCliError, isTransientLarkError, runLarkCliWithRetry, sendChatMessage } from '../lib/lark-cli.mjs'
+import { listBotChats, messageSendRecipientArgs, parseSentChatId, runLarkCliRetrying, parseSentMessageId, pickChatIdByProject, resolveDeliveryChatId, formatLarkCliError, isTransientLarkError, runLarkCliWithRetry, sendChatMessage } from '../lib/lark-cli.mjs'
 import {
   classifyClosureIntent,
   classifyCommandType,
@@ -2387,6 +2387,25 @@ describe('isTransientLarkError（仅网络层/本地 spawn 超时可重试）', 
     assert.equal(isTransientLarkError({ code: 1, stdout: JSON.stringify({ ok: false, error: { type: 'internal', message: 'HTTP 404 not found' } }) }), false)
     assert.equal(isTransientLarkError({ code: 1, stdout: JSON.stringify({ ok: false, error: { type: 'internal' } }) }), false)
     assert.equal(isTransientLarkError({ code: 1, stdout: JSON.stringify({ ok: false }) }), false)
+    // listBotChats：bot 所在群翻页拉全（11-02：原来只拉第一页默认 20 个）；任何一页失败 / 解析失败返回 null、不动旧缓存
+    const page = (chats, more) => ({ code: 0, stdout: JSON.stringify({ ok: true, data: { chats, has_more: Boolean(more), page_token: more || '' } }) })
+    const pages = [page([{ chat_id: 'oc_1', name: '一' }, { name: '没 id' }], 'tk2'), page([{ chat_id: 'oc_2' }], null)]
+    const seen = []
+    const all = await listBotChats({ run: async (args) => { seen.push(args); return pages[seen.length - 1] } })
+    assert.deepEqual([...all.entries()], [['oc_1', '一'], ['oc_2', '']])
+    assert.deepEqual(seen, [['im', '+chat-list', '--page-size', '100', '--format', 'json'], ['im', '+chat-list', '--page-size', '100', '--page-token', 'tk2', '--format', 'json']])
+    assert.equal(await listBotChats({ run: async (args) => (args.includes('tk2') ? { code: 1, stdout: '' } : pages[0]) }), null, '第二页失败')
+    assert.equal(await listBotChats({ run: async () => ({ code: 0, stdout: 'not json' }) }), null, '解析失败')
+    const kept = await listBotChats({ run: async () => page([{ chat_id: 'oc_x' }], null) })
+    assert.deepEqual([...kept.keys()], ['oc_x'])
+    let calls = 0
+    await listBotChats({ run: async () => { calls += 1; return page([{ chat_id: `oc_${calls}` }], `t${calls}`) } })
+    assert.equal(calls, 10, '最多翻 10 页')
+    calls = 0
+    await listBotChats({ run: async () => { calls += 1; return { code: 0, stdout: JSON.stringify({ data: { items: [{ chat_id: 'oc_i' }], has_more: true } }) } } })
+    assert.equal(calls, 1, 'has_more 但没 page_token 就停')
+    const fromData = await listBotChats({ run: async () => ({ code: 0, stdout: JSON.stringify({ ok: true }) }) })
+    assert.deepEqual([...fromData.keys()], [], '没 data 当空列表')
     // runLarkCliRetrying：瞬时错误退避重试到成功 / 次数用完；非瞬时、成功都不重试
     const limited = { code: 1, stdout: JSON.stringify({ ok: false, error: { type: 'internal', message: 'TAT response (HTTP 429)' } }) }
     const denied = { code: 1, stdout: JSON.stringify({ ok: false, error: { type: 'permission' } }) }
