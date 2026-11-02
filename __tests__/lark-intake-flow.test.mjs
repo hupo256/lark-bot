@@ -267,6 +267,18 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       const first = put('om_t1', [{ messageId: 'om_1', kind: 'suspected', epoch: 0, chatId: 'ou_aven', createdAt: iso(now - 60_000) }])
       put('om_t2', [{ messageId: 'om_2', kind: 'suspected', epoch: 0, chatId: 'ou_aven', createdAt: iso(now - 60_000) }])
       assert.equal(resolve('好').task, first, '同一时刻的取先登记的')
+      // 私信里发起的任务不被 reply / recent 锚（aven 11-02 真机：「你能发邮件吗」自答后的下一句被当成对它的指示）。
+      const dmSelf = put('om_dm', [{ messageId: 'om_dm_ack', kind: 'ack', epoch: 0, chatId: 'ou_aven', createdAt: iso(now) }], { status: 'answered', chatId: 'ou_aven', chatType: 'p2p', intake: { trigger: 'dm' }, text: '你能发邮件吗' })
+      assert.equal(resolve('那你看看，现在 test、pre 两个环境运行的代码是不是一样的'), null, '私信任务 + 短指代句 → 不锚（也不越过它粘更早的群任务）')
+      assert.equal(resolve('好', { replyToDirect: 'om_dm_ack' }), null, '回复私信任务的回执 → 不锚')
+      assert.equal(resolve('好', { replyTo: 'om_dm_ack' }), null)
+      assert.deepEqual(resolve('继续任务 om_dm 再查一下'), { task: dmSelf, via: 'explicit', directive: { taskId: 'om_dm', supplementText: '再查一下' } }, '显式点名私信任务照样认')
+      for (const extra of [{ chatId: 'ou_aven' }, { chatType: 'p2p' }, { intake: { trigger: 'dm' } }]) {
+        put('om_dm', [{ messageId: 'om_dm_ack', kind: 'suspected', epoch: 0, chatId: 'ou_aven', createdAt: iso(now) }], { chatId: 'oc_g', ...extra })
+        assert.equal(resolve('好'), null, `私信身份按 ${JSON.stringify(extra)} 判`)
+      }
+      const grp = put('om_grp2', [{ messageId: 'om_g2', kind: 'done', epoch: 0, chatId: 'ou_aven', createdAt: iso(now + 1) }])
+      assert.deepEqual(resolve('那你看看，现在 test、pre 两个环境运行的代码是不是一样的'), { task: grp, via: 'recent' }, '群里发起的任务 + 短指代句照旧锚')
     }],
     ['maybeHandlePrincipalChannel：部署通知 / 放行草稿 / 续跑 / 指示任务；锚不到放行', async () => {
       const now = Date.now()
