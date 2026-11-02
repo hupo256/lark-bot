@@ -190,5 +190,17 @@
     "code": "const combined = typeof AbortSignal.any === 'function' ? AbortSignal.any([deadline, ...(signal ? [signal] : [])]) : signal || deadline",
     "op": "|| → &&",
     "reason": "死分支：Node ≥ 20 的 AbortSignal.any 恒为函数，三元的否定支（signal || deadline）跑不到；前半支由 lark-task-runner.test 的合成信号用例钉住"
+  },
+  {
+    "file": "lib/lark-task-store.mjs",
+    "code": "if (Number.isFinite(age) && age > oldestQueuedAgeMs) oldestQueuedAgeMs = age",
+    "op": "> → >=",
+    "reason": "等价：只在 age 恰好等于当前最大值时多赋一次，赋的是同一个数，oldestQueuedAgeMs 不变"
+  },
+  {
+    "file": "lib/lark-task-store.mjs",
+    "code": "if (minLeaseRemainingMs === null || remaining < minLeaseRemainingMs) minLeaseRemainingMs = remaining",
+    "op": "< → <=",
+    "reason": "等价：只在 remaining 恰好等于当前最小余量时多赋一次，赋的是同一个数，minLeaseRemainingMs 不变"
   }
 ]

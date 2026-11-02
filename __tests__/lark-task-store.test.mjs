@@ -5,10 +5,10 @@
  */
 
 import assert from 'node:assert/strict'
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, it } from 'node:test'
+import { afterEach, beforeEach, describe, it, mock } from 'node:test'
 
 import { createTaskStore, isReopenableClosedTask } from '../lib/lark-task-store.mjs'
 
@@ -31,6 +31,10 @@ describe('createTaskStore', () => {
     assert.ok(claimed.claimedAt)
     assert.equal(store.claimNext().id, 'b') // 下一个
     assert.equal(store.claimNext(), null) // 无 pending 剩余
+    // createdAt 相同按入库顺序领（先到先领）
+    store.upsert({ id: 'tie-1', status: 'queued', createdAt: '2026-02-01T00:00:00Z' })
+    store.upsert({ id: 'tie-2', status: 'received', createdAt: '2026-02-01T00:00:00Z' })
+    assert.equal(store.claimNext().id, 'tie-1')
   })
 
   it('租约过期的孤儿 running 任务在下次 claim 时重新入队（requeueCount 自增）', () => {
@@ -54,6 +58,17 @@ describe('createTaskStore', () => {
     assert.equal(store.get('orphan').requeueCount, 1)
     assert.equal(store.get('busy').status, 'running')
     assert.equal(store.stats().stuck.length, 0)
+    // 租约边界：离领取恰好 leaseMs 还不算孤儿，多 1ms 才算
+    mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-06-01T00:01:00.000Z') })
+    try {
+      store.upsert({ id: 'edge', status: 'running', claimedAt: '2026-06-01T00:00:00.000Z', createdAt: '2026-01-01T00:00:00Z' })
+      store.upsert({ id: 'over', status: 'running', claimedAt: '2026-05-31T23:59:59.999Z', createdAt: '2026-01-01T00:00:00Z' })
+      assert.deepEqual(store.stats().stuck, ['over'])
+      store.reclaimOrphans()
+      assert.deepEqual([store.get('edge').status, store.get('over').status], ['running', 'queued'])
+    } finally {
+      mock.timers.reset()
+    }
   })
 
   it('未过租约的 running 任务不回收，claimNext 返回 null', () => {
@@ -163,7 +178,8 @@ describe('createTaskStore', () => {
   it('前置分类拒绝 stale epoch 与非等待分类任务', () => {
     const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
     store.upsert({ id: 'stale', status: 'running', epoch: 3, intake: { required: true }, createdAt: '2026-01-01T00:00:00Z' })
-    assert.equal(store.resolveIntake({ id: 'stale', epoch: 2, classification: {} }).code, 409)
+    assert.deepEqual(store.resolveIntake({ id: 'stale', epoch: 2, classification: {} }), { ok: false, code: 409, error: 'stale epoch: got 2, current 3' })
+    assert.deepEqual(store.resolveIntake({ id: 'missing', classification: {} }), { ok: false, code: 409, error: 'task is not awaiting intake classification' })
     store.upsert({ id: 'direct', status: 'running', epoch: 0, createdAt: '2026-01-01T00:00:00Z' })
     assert.equal(store.resolveIntake({ id: 'direct', epoch: 0, classification: {} }).code, 409)
   })
@@ -191,6 +207,18 @@ describe('createTaskStore', () => {
       409,
     )
     assert.equal(store.resolveIntake({ id: claimed.id, epoch: claimedEpoch - 1, classification }).code, 409)
+    assert.equal(claimedEpoch, 0)
+    assert.equal(store.resolveIntake({ id: claimed.id, epoch: 0, classification }).alreadyResolved, true, 'actionable 换代后，带上一代 epoch 的重放仍幂等')
+    assert.equal(store.resolveIntake({ id: claimed.id, epoch: 1, classification }).code, 409, '当前代 epoch 不是那次请求的代次')
+    // 分类器非瞬时错误落 intake_failed 后：同一错误重放幂等，不同错误 409
+    // 非 actionable 不换代：重放按当前代次（这里是 2）比
+    store.upsert({ id: 'intent-err', status: 'received', epoch: 2, intake: { required: true }, createdAt: new Date().toISOString() })
+    store.claimById('intent-err')
+    assert.equal(store.resolveIntake({ id: 'intent-err', epoch: 2, error: 'classifier returned invalid json' }).ok, true)
+    const sameErr = store.resolveIntake({ id: 'intent-err', epoch: 2, error: 'classifier returned invalid json' })
+    assert.deepEqual([sameErr.ok, sameErr.alreadyResolved, sameErr.actionable], [true, true, false])
+    assert.equal(store.get('intent-err').epoch, 2)
+    assert.equal(store.resolveIntake({ id: 'intent-err', epoch: 2, error: 'another failure' }).code, 409)
   })
 
   it('retry 把 failed/blocked 任务重置为 queued 并清租约、自增 retryCount', () => {
@@ -263,6 +291,17 @@ describe('createTaskStore', () => {
       },
     ])
     assert.equal(store.claimNext().id, 'rec-returned')
+    assert.ok(reopened.text.startsWith('修复：Lark bug 表验退项 [按钮仍错位]\n\n【验退轮次】'), '新正文在最前')
+    assert.equal(reopened.summary, '验退：按钮仍错位')
+    // 只给部分参数：project 未给（undefined）沿用原值，summary 未给沿用原值；finishedAt 取上一轮 updatedAt
+    store.upsert({ id: 'rec-2', source: 'lark-bugtable', project: 'PR-1', summary: '旧摘要', status: 'failed', createdAt: '2026-01-01T00:00:00Z' })
+    const before = store.get('rec-2').updatedAt
+    const partial = store.reopenFromQaReturn({ id: 'rec-2', text: '再看看' })
+    assert.deepEqual([partial.project, partial.summary, partial.executionHistory[0].finishedAt], ['PR-1', '旧摘要', before])
+    assert.equal(store.reopenFromQaReturn({ id: 'rec-2', text: 'x', project: 'PR-2' }), null, '已回队的不可再验退')
+    store.upsert({ id: 'rec-3', source: 'lark-bugtable', project: 'PR-1', status: 'done', createdAt: '2026-01-01T00:00:00Z' })
+    assert.equal(store.reopenFromQaReturn({ id: 'rec-3', text: 'x', project: 'PR-2' }).project, 'PR-2', '显式 project 覆盖')
+    assert.equal(store.reopenFromQaReturn({ id: 'missing', text: 'x' }), null)
   })
 
   it('QA 验退不覆盖正在执行或等待人工确认的任务', () => {
@@ -412,6 +451,16 @@ describe('createTaskStore', () => {
     assert.equal(store.has('fresh-done'), true)
     assert.equal(store.has('old-rerun'), true)
     assert.equal(store.has('old-failed'), true) // 默认不碰 failed
+    // 年龄边界：恰好 olderThanMs 算陈旧（清），差 1ms 不清
+    mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-06-01T00:01:00.000Z') })
+    try {
+      seed({ id: 'edge-done', status: 'done', updatedAt: '2026-06-01T00:00:00.000Z' })
+      seed({ id: 'young-done', status: 'done', updatedAt: '2026-06-01T00:00:00.001Z' })
+      const edgeStore = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+      assert.deepEqual(edgeStore.pruneTerminal({ olderThanMs: 60_000 }), ['edge-done'])
+    } finally {
+      mock.timers.reset()
+    }
   })
 
   it('pruneTerminal 显式传 failed 时可清陈旧 failed（对应 clean --failed）', () => {
@@ -481,6 +530,29 @@ describe('createTaskStore', () => {
     assert.equal(stats.deadLetters, 1)
     assert.equal(stats.topRequeued[0].id, 'hot')
     assert.ok(stats.minLeaseRemainingMs > 0 && stats.minLeaseRemainingMs <= 60_000) // busy 未超租约
+    // 细节：计数、只重试过的也进 Top（缺的计数补 0）、只算 queued/received 的排队年龄、只算在跑且有租约的余量
+    const sub = join(dir, 'stats-detail')
+    const seedSub = (task) => { mkdirSync(sub, { recursive: true }); writeFileSync(join(sub, `${task.id}.json`), JSON.stringify(task)) }
+    mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-06-01T01:00:00.000Z') })
+    try {
+      seedSub({ id: 'q-a-old', status: 'queued', retryCount: 1, createdAt: '2026-06-01T00:00:00.000Z' })
+      seedSub({ id: 'q-b-new', status: 'queued', requeueCount: 3, createdAt: '2026-06-01T00:50:00.000Z' })
+      seedSub({ id: 'done-ancient', status: 'done', claimedAt: '2026-01-01T00:00:00.000Z', createdAt: '2026-01-01T00:00:00.000Z' })
+      seedSub({ id: 'run-nolease', status: 'running', createdAt: '2026-01-01T00:00:00.000Z' })
+      const detail = createTaskStore({ tasksDir: sub, leaseMs: 60_000 }).stats()
+      assert.deepEqual(detail.counts, { queued: 2, done: 1, running: 1 })
+      assert.deepEqual(detail.topRequeued, [{ id: 'q-b-new', requeueCount: 3, retryCount: 0 }, { id: 'q-a-old', requeueCount: 0, retryCount: 1 }])
+      assert.equal(detail.oldestQueuedAgeMs, 3_600_000, '取最老的 queued（后遍历到的更新的不覆盖），done 不算')
+      assert.equal(detail.minLeaseRemainingMs, null, 'done 残留的 claimedAt / 没租约的 running 不算')
+      seedSub({ id: 'rcv', status: 'received', createdAt: '2026-05-31T23:00:00.000Z' })
+      seedSub({ id: 'run-a', status: 'running', claimedAt: '2026-06-01T00:59:30.000Z', createdAt: '2026-01-01T00:00:00.000Z' })
+      seedSub({ id: 'run-b', status: 'running', claimedAt: '2026-06-01T00:59:50.000Z', createdAt: '2026-01-01T00:00:00.000Z' })
+      const more = createTaskStore({ tasksDir: sub, leaseMs: 60_000 }).stats()
+      assert.equal(more.oldestQueuedAgeMs, 7_200_000, 'received 也算排队')
+      assert.equal(more.minLeaseRemainingMs, 30_000, '取余量最小的那条')
+    } finally {
+      mock.timers.reset()
+    }
   })
 
   describe('同话题归并 / 收尾（listParkedByThread + supersede）', () => {
@@ -608,6 +680,16 @@ describe('createTaskStore', () => {
       assert.match(reopened.text, /【重开补充】\n按钮仍然是空的/)
       assert.equal(reopened.attachments[0].path, '/tmp/reopen.png')
       assert.equal(reopened.reopenHistory[0].messageId, 'om_re')
+      assert.equal(reopened.closureHistory[0].reopenedFromMessageId, 'om_re')
+      assert.equal(reopened.reopenHistory[0].supplementText, '按钮仍然是空的')
+      assert.equal(reopened.text, '【重开补充】\n按钮仍然是空的', '无原文时补充即正文')
+      store.upsert({ id: 'r2', status: 'queued', text: '原问题', createdAt: '2026-09-01T08:00:00Z' })
+      store.closeAsExternallyResolved({ id: 'r2', closureReason: 'cancelled' })
+      const withText = store.reopenClosed({ id: 'r2', supplementText: '还在' })
+      assert.equal(withText.text, '原问题\n\n【重开补充】\n还在')
+      store.closeAsExternallyResolved({ id: 'r2', closureReason: 'cancelled' })
+      const bare = store.reopenClosed({ id: 'r2' })
+      assert.deepEqual([bare.closureHistory[1].reopenedFromMessageId, bare.reopenHistory[1].supplementText, bare.text], [null, null, '原问题\n\n【重开补充】\n还在'])
       assert.equal(isReopenableClosedTask(reopened), false)
     })
 
@@ -677,7 +759,10 @@ describe('续租 touchLease（长任务不再被当孤儿回收）', () => {
     // 续租后 claimedAt = 现在，claimNext 不会把它当孤儿重入队
     assert.equal(store.claimNext(), null)
     assert.equal(store.get('a').status, 'running')
-    assert.deepEqual(store.touchLease('a', 1).code, 409)
+    assert.deepEqual(store.touchLease('a', 1), { ok: false, code: 409, error: 'stale epoch: got 1, current 0' })
+    store.upsert({ ...store.get('a'), epoch: 4 })
+    assert.equal(store.touchLease('a', 4).ok, true, 'epoch 非 0 时按当前代次比')
+    assert.deepEqual(store.touchLease('a', 3), { ok: false, code: 409, error: 'stale epoch: got 3, current 4' })
     assert.deepEqual(store.touchLease('zzz', 0).code, 404)
     store.upsert({ id: 'b', status: 'queued', createdAt: '2026-01-01T00:00:00Z' })
     assert.deepEqual(store.touchLease('b', 0).code, 409)
