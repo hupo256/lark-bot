@@ -31,7 +31,8 @@ import { retryPendingReceipts } from './lib/lark-status.mjs'
 import { remindParkedTasks } from './lib/lark-parked-reminder.mjs'
 import { startLogRotation } from './lib/lark-log-rotate.mjs'
 import { sweepAttachments } from './lib/lark-retention.mjs'
-import { larkAttachmentsRoot } from './lib/lark-paths.mjs'
+import { larkAttachmentsRoot, larkLatencyPath } from './lib/lark-paths.mjs'
+import { installLogTimestamps } from './lib/lark-log-time.mjs'
 import { createRequestHandler } from './lib/lark-routes.mjs'
 import { createWorkSignal } from './lib/lark-work-signal.mjs'
 import { createRuntimeVersion } from './lib/lark-runtime-version.mjs'
@@ -54,6 +55,7 @@ import { GATEWAY_HOST, defaultGatewayPort, defaultTaskLeaseMs } from './lib/lark
 const sendAlert = ({ config, text, kind, idempotencyKey }) => sendPrincipalNote({ config, text, kind, idempotencyKey })
 
 export async function runLarkGateway({ configPath, port = defaultGatewayPort }) {
+  installLogTimestamps() // gateway.log 每行带本地时间（lib/lark-log-time，LARK_LOG_TIMESTAMPS=0 关）
   // 版本快照必须在最前面拍：它代表「本进程 import 进内存的那一版源码」，晚于任何磁盘改动就失去意义。
   const runtimeVersion = createRuntimeVersion({ configPath })
   const loadedConfig = loadConfig(configPath, 'gateway config')
@@ -117,7 +119,7 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
     onDownAlert: () => {},
   })
 
-  const server = createServer(createRequestHandler({ config, store, consumer, port, runtimeVersion, workSignal }))
+  const server = createServer(createRequestHandler({ config, store, consumer, port, runtimeVersion, workSignal, latencyPath: larkLatencyPath }))
   server.listen(port, GATEWAY_HOST, () => {
     console.log(`[lark-gateway] listening on http://${GATEWAY_HOST}:${port} for ${config.project}`)
     console.log(`[lark-gateway] whitelist chats=${config.allowedChatIds === 'auto' ? 'auto(bot 所在群)' : ((config.allowedChatIds || []).join(',') || '(none)')} consume=im.message.receive_v1,im.chat.member.bot.added_v1`)

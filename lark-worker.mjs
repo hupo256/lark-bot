@@ -28,6 +28,7 @@ import { larkRuntimeDir } from './lib/lark-repo.mjs'
 import { defaultTaskLeaseMs } from './lib/lark-constants.mjs'
 import { claimAllowed, describeClaimMode, resolveClaimMode } from './lib/lark-claim-policy.mjs'
 import { createWorkWaiter } from './lib/lark-work-signal.mjs'
+import { installLogTimestamps } from './lib/lark-log-time.mjs'
 
 function printHelp() {
   console.log(`usage: lark-worker.mjs [--once] [--preflight] [--help]
@@ -55,6 +56,7 @@ export async function runLarkWorker({
   aiExecutor = defaultAiExecutor,
   configPath,
 }) {
+  installLogTimestamps() // worker.log 每行带本地时间（lib/lark-log-time，LARK_LOG_TIMESTAMPS=0 关）
   const localConfig = loadWorkerLocalConfig(configPath)
   // 版本快照要在装配前拍（= 本进程真正加载的源码版本）。worker 无 HTTP 端口，故靠心跳文件让
   // gateway 的 /lark/health 代为上报——「gateway 重启了但 worker 还是旧的」是最容易漏的半重启态。

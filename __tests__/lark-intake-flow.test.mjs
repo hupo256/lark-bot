@@ -664,8 +664,9 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       assert.deepEqual(store.list().map((task) => task.id), ['om_dm1'])
     }],
     ['ingest：群里 @bot 建任务；只 @ 负责人的不送分类（11-02）；同人连发并入还没分类的任务', async () => {
-      await ingestLarkEvent({ raw: atBot('om_b', '登录页报错'), config, store })
+      await ingestLarkEvent({ raw: atBot('om_b', '登录页报错', { create_time: '1793613600000' }), config, store })
       const b = store.get('om_b')
+      assert.equal(b.messageCreatedAt, new Date(1793613600000).toISOString(), '飞书发出时间记下来做时延起点（lib/lark-latency）')
       assert.deepEqual([b.intake.trigger, b.intake.lane, b.intake.mentionedOpenIds, b.addressedToBot, b.fromPrincipal, b.chatType, Boolean(b.ackPending), b.text, b.summary], ['bot_mention', 'fast', [], true, false, 'group', true, '登录页报错', '登录页报错'])
       await ingestLarkEvent({ raw: event('om_c', '@aven 导出按钮没反应', { sender: 'ou_pm', mentions: [AVEN] }), config, store })
       assert.equal(store.has('om_c'), false, '只 @ 负责人本人的不建任务')
@@ -681,12 +682,13 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       assert.deepEqual(store.list().map((task) => task.id), ['om_b'])
     }],
     ['ingest：负责人私信「运维：」直接排队，不过分类；群里的「运维：」不算', async () => {
-      await ingestLarkEvent({ raw: dm('om_ops', '运维：部署 pre', { thread_id: 'omt_1' }), config, store })
+      await ingestLarkEvent({ raw: dm('om_ops', '运维：部署 pre', { thread_id: 'omt_1', create_time: '1793613600000' }), config, store })
       const ops = store.get('om_ops')
-      assert.deepEqual({ ...ops, createdAt: undefined, updatedAt: undefined, contract: undefined }, {
+      assert.equal(ops.messageCreatedAt, new Date(1793613600000).toISOString(), '飞书发出时间记下来做时延起点（lib/lark-latency）')
+      assert.deepEqual({ ...ops, createdAt: undefined, updatedAt: undefined, contract: undefined, messageCreatedAt: undefined }, {
         id: 'om_ops', source: 'lark', chatId: 'oc_p2p', chatType: 'p2p', messageId: 'om_ops', replyTarget: { messageId: 'om_ops', inThread: false }, threadRootId: 'omt_1', operator: 'ou_aven', project: null,
         commandType: 'ops', commandTypeSource: 'explicit', projectTitle: null, text: '运维：部署 pre', summary: '运维：部署 pre', attachments: [], addressedToBot: true, fromPrincipal: true, aiExecutor: 'claude', status: 'queued', intake: null,
-        createdAt: undefined, updatedAt: undefined, contract: undefined,
+        createdAt: undefined, updatedAt: undefined, contract: undefined, messageCreatedAt: undefined,
       })
       assert.deepEqual([ops.contract.deliverable, ops.contract.source], ['ops', 'ops'])
       await ingestLarkEvent({ raw: dm('om_ops2', '发 pre'), config, store })

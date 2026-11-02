@@ -9,6 +9,11 @@ import { DRAIN_LIGHT_WINDOW_MS, claimAllowed, describeClaimMode, resolveClaimMod
 import { deriveContract } from '../lib/lark-task-contract.mjs'
 import { resolveWorkContext } from '../lib/lark-work-context.mjs'
 import { MAX_WORK_WAIT_MS, clampWaitMs, createWorkSignal, createWorkWaiter } from '../lib/lark-work-signal.mjs'
+import { appendLatency, formatLatency, latencyRecordOf, readLatency, summarizeLatency } from '../lib/lark-latency.mjs'
+import { formatLogTime, installLogTimestamps } from '../lib/lark-log-time.mjs'
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { eachCase, runSteps } from './support/steps.mjs'
 
 const NOW = 1_800_000_000_000
@@ -25,8 +30,8 @@ const manualSleep = () => {
   return { timers, sleepMs: (ms, signal) => new Promise((resolve) => { timers.push({ ms, resolve, signal }); signal?.addEventListener('abort', resolve, { once: true }) }) }
 }
 
-describe('worker 领任务口径与等待', () => {
-  it('四档口径 × 任务类型；工作信号与等待器（本地唤醒 / 远端唤醒 / 旧 gateway 退回轮询）', () => runSteps([
+describe('worker 领任务口径、等待与可观测', () => {
+  it('四档口径 × 任务类型；工作信号与等待器（本地唤醒 / 远端唤醒 / 旧 gateway 退回轮询）；时延记账与日志时间', () => runSteps([
     ['resolveClaimMode：已发起重启 none > 排空（窗口内 light、过窗口或没起点 intake）> 自修 light > 正常 all', () => eachCase([
       { name: '正常', input: {}, want: 'all' },
       { name: '自修中', input: { selfFixBusy: true }, want: 'light' },
@@ -125,6 +130,50 @@ describe('worker 领任务口径与等待', () => {
       const p4 = bare.wait(10)
       bare.wake()
       assert.equal(await p4, 'local')
+    }],
+    ['latencyRecordOf：起点优先飞书发出时间、没有退回建任务时间；时间缺 / 倒挂记 null；docMs 只收数字', () => {
+      const task = { id: 'x', epoch: 2, contract: { deliverable: 'change' }, messageCreatedAt: '2026-11-02T10:00:00.000Z', createdAt: '2026-11-02T10:00:01.000Z', intake: { resolvedAt: '2026-11-02T10:00:06.000Z' }, ackedAt: '2026-11-02T10:00:07.000Z', claimedAt: '2026-11-02T10:00:06.500Z' }
+      assert.deepEqual(latencyRecordOf({ task, status: 'done', reportedAt: '2026-11-02T10:01:00.000Z', deliveredAt: '2026-11-02T10:01:05.000Z', docMs: 3000 }), {
+        at: '2026-11-02T10:01:05.000Z', id: 'x', deliverable: 'change', status: 'done', epoch: 2,
+        ingestMs: 1000, classifyMs: 5000, ackMs: 7000, waitMs: 500, runMs: 53500, deliverMs: 5000, docMs: 3000, totalMs: 65000,
+      })
+      assert.equal(latencyRecordOf({ task: {}, reportedAt: '2026-11-02T10:00:00.000Z', deliveredAt: '2026-11-02T10:00:00.000Z' }).deliverMs, 0, '同一时刻是 0，不是缺')
+      const bare = latencyRecordOf({ task: { createdAt: '2026-11-02T10:00:01.000Z', claimedAt: '2026-11-02T10:00:00.000Z' }, status: 'failed', reportedAt: null, deliveredAt: '2026-11-02T10:00:03.000Z', docMs: '9' })
+      assert.deepEqual([bare.ingestMs, bare.ackMs, bare.waitMs, bare.runMs, bare.docMs, bare.totalMs, bare.deliverable, bare.epoch], [null, null, null, null, null, 2000, null, 0], '没有发出时间按建任务算总时长；领取早于建任务（倒挂）记 null')
+    }],
+    ['appendLatency / readLatency / summarizeLatency / formatLatency：追加、按时间窗读、坏行跳过、中位与慢的 1/10、按交付类型分', () => {
+      const path = join(mkdtempSync(join(tmpdir(), 'lat-')), 'l.jsonl')
+      assert.deepEqual([appendLatency(null, { path }), appendLatency({ at: 'x' }, {}), readLatency({ path })], [false, false, []])
+      const warned = []
+      assert.equal(appendLatency({ at: 'x' }, { path: join(path, 'no', 'such'), log: (line) => warned.push(line) }), false)
+      assert.match(warned[0], /时延记账写失败/)
+      for (const [at, deliverable, totalMs, ackMs] of [['2026-11-01T00:00:00Z', 'answer', 1000, 500], ['2026-11-02T00:00:00Z', 'answer', 3000, 700], ['2026-11-02T01:00:00Z', 'change', 9000, null], ['2026-11-02T02:00:00Z', null, 5000, 900]]) assert.equal(appendLatency({ at, deliverable, totalMs, ackMs }, { path }), true)
+      writeFileSync(path, `${'{bad\n'}`, { flag: 'a' })
+      const recent = readLatency({ path, sinceMs: Date.parse('2026-11-02T00:00:00Z') })
+      assert.deepEqual(recent.map((r) => r.totalMs), [3000, 9000, 5000], '时间窗外与坏行都不算')
+      const summary = summarizeLatency(recent)
+      assert.deepEqual([summary.tasks, summary.fields.totalMs, summary.fields.ackMs, summary.fields.docMs.n], [3, { n: 3, p50: 5000, p90: 9000 }, { n: 2, p50: 900, p90: 900 }, 0])
+      assert.deepEqual(summary.totalByDeliverable, { answer: { n: 1, p50: 3000, p90: 3000 }, change: { n: 1, p50: 9000, p90: 9000 }, '(未分类)': { n: 1, p50: 5000, p90: 5000 } })
+      const text = formatLatency(summary)
+      assert.match(text, /时延（3 条已交付任务/)
+      assert.match(text, /发出 → 回「收到」：0\.9s \/ 0\.9s（2 条）/)
+      assert.doesNotMatch(text, /建细节文档/, '没有数据的段不列')
+      assert.match(text, /answer 3\.0s \/ 3\.0s（1）；change 9\.0s/)
+    }],
+    ['installLogTimestamps：每行前加本地时间、四个方法都装、不叠加、LARK_LOG_TIMESTAMPS=0 关', () => {
+      assert.equal(formatLogTime(new Date(2026, 10, 2, 9, 5, 7, 42)), '11-02 09:05:07.042')
+      const lines = []
+      const fake = Object.fromEntries(['log', 'info', 'warn', 'error'].map((name) => [name, (...args) => lines.push([name, ...args])]))
+      const now = () => new Date(2026, 0, 3, 4, 5, 6, 7)
+      assert.equal(installLogTimestamps({ target: fake, env: { LARK_LOG_TIMESTAMPS: '0' }, now }), false)
+      fake.log('a')
+      assert.equal(installLogTimestamps({ target: fake, env: {}, now }), true)
+      assert.equal(installLogTimestamps({ target: fake, env: {}, now }), false, '重复装不叠加')
+      fake.log('b', 1)
+      fake.info('c')
+      fake.warn('d')
+      fake.error('e')
+      assert.deepEqual(lines, [['log', 'a'], ['log', '01-03 04:05:06.007', 'b', 1], ['info', '01-03 04:05:06.007', 'c'], ['warn', '01-03 04:05:06.007', 'd'], ['error', '01-03 04:05:06.007', 'e']])
     }],
   ]))
 })

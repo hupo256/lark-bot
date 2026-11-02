@@ -209,5 +209,11 @@
     "op": "&& → ||",
     "col": 57,
     "reason": "单测不可观测：larkRuntimeDir 在 import 时已定，设 LARK_RUNTIME_DIR 也指不到临时目录；测它就得往真 runtime 写假台账。与 lark-chat-activity 的 defaultPath 同一写法"
+  },
+  {
+    "file": "lib/lark-latency.mjs",
+    "code": "log(`[lark-gateway] 时延记账写失败（忽略）：${String(error?.message || error).slice(0, 120)}`)",
+    "op": "|| → &&",
+    "reason": "只影响记账写失败时那行日志怎么描述错误（appendFileSync 抛的总是 Error），不影响交付与记账结果；无业务含义"
   }
 ]

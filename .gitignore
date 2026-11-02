@@ -32,3 +32,5 @@ runtime/lark-mail-relay-state.json
 # Claude Code 会话 / 权限设置（审批动作随手写入，本机数据）
 .claude/
 runtime/lark-gateway-alive-state.json
+# 端到端时延记账（aven 11-02）
+runtime/lark-latency.jsonl

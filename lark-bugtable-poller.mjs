@@ -28,6 +28,7 @@ import { runWatchRound } from './lib/lark-bug-watch-round.mjs'
 import { isClaimed, loadClaims } from './lib/lark-bug-claims.mjs'
 import { dedupeNote, findMentioningCommits } from './lib/lark-bug-dedupe.mjs'
 import { consumerRoot } from './lib/lark-paths.mjs'
+import { installLogTimestamps } from './lib/lark-log-time.mjs'
 import {
   assigneeHasOpenId,
   buildBugText,
@@ -303,6 +304,7 @@ export async function runLarkBugtablePoller({
   idleOffMs = defaultIdleOffMs,
   argv = process.argv.slice(2),
 }) {
+  installLogTimestamps() // poller.log 每行带本地时间（lib/lark-log-time，LARK_LOG_TIMESTAMPS=0 关）
   const config = loadConfig(configPath)
   // 启动期结构校验：poller 以 bug 表为刚需，bugTable 缺失或子字段不全都直接拒绝启动，
   // 而不是等首轮轮询时才在 fetchPendingRecords 里抛（那时才发现配置错，已白跑一段）。

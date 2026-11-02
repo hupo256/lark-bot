@@ -521,6 +521,33 @@ describe('Gateway HTTP 路由 createRequestHandler', () => {
         if (landed) assert.equal(store.get('wb').status, landed)
       })
     }],
+    ['status 回写 × 时延记账：传了 latencyPath 才记、只记送达的终态、各段按任务时间戳算、docMs 取出口回报；路由把 latencyPath 透传', async () => {
+      const { readLatency } = await import('../lib/lark-latency.mjs')
+      const path = join(dir, `latency-${Date.now()}.jsonl`)
+      const deliver = async () => ({ ok: true, messageId: 'om_r', docMs: 1234 })
+      const seed = (id) => store.upsert({ id, status: 'running', epoch: 0, chatId: 'oc_g', contract: { deliverable: 'answer' }, messageCreatedAt: '2026-11-02T10:00:00.000Z', createdAt: '2026-11-02T10:00:02.000Z', intake: { resolvedAt: '2026-11-02T10:00:07.000Z' }, ackedAt: '2026-11-02T10:00:08.500Z', claimedAt: '2026-11-02T10:00:07.200Z' })
+      fresh()
+      seed('l1')
+      await quiet(() => handleStatusUpdate({ config: {}, store, id: 'l1', status: 'done', epoch: 0, result: 'r', deliver, resolveGroupChat: async () => null }))
+      assert.equal(existsSync(path), false, '没传 latencyPath 不记（单测不碰真实运行态）')
+      seed('l2')
+      await quiet(() => handleStatusUpdate({ config: {}, store, id: 'l2', status: 'waiting_confirmation', epoch: 0, result: 'r', deliver, resolveGroupChat: async () => null, latencyPath: path }))
+      assert.equal(existsSync(path), false, '挂起不是终态，不记')
+      seed('l3')
+      await quiet(() => handleStatusUpdate({ config: {}, store, id: 'l3', status: 'done', epoch: 0, result: 'r', deliver: async () => ({ ok: false, reason: 'x' }), resolveGroupChat: async () => null, latencyPath: path }))
+      assert.equal(existsSync(path), false, '没送达不记（重试送达时再说）')
+      seed('l4')
+      await quiet(() => handleStatusUpdate({ config: {}, store, id: 'l4', status: 'done', epoch: 0, result: 'r', deliver, resolveGroupChat: async () => null, latencyPath: path }))
+      const [record] = readLatency({ path })
+      assert.deepEqual([record.id, record.deliverable, record.status, record.ingestMs, record.classifyMs, record.ackMs, record.waitMs, record.docMs], ['l4', 'answer', 'done', 2000, 5000, 8500, 200, 1234])
+      assert.equal(record.at, store.get('l4').lastDeliveredReceipt.deliveredAt)
+      assert.ok(record.runMs > 0 && record.totalMs > record.runMs && record.deliverMs >= 0)
+      const routed = createRequestHandler({ config, store, consumer: { observe: () => consumerObs }, port: 9, runtimeVersion: { observe: () => null }, latencyPath: path })
+      store.upsert({ id: 'l5', status: 'running', epoch: 0, chatId: 'oc_g', contract: { deliverable: 'answer' }, outcome: null })
+      await quiet(() => call(routed, { method: 'POST', path: '/lark/tasks/l5/status', body: { status: 'done', epoch: 0, result: 'r', outcome: { kind: 'ai', summary: 's', report: { answer: '结论', items: [] } } } }))
+      // 真实出口在测试里发不出（假 lark-cli），送达不了就不记；这里只核路由没把 latencyPath 丢掉 → 没有抛错、文件仍只有 l4 一行或多一行 l5
+      assert.ok(readLatency({ path }).every((r) => ['l4', 'l5'].includes(r.id)))
+    }],
     ['status 回写 × 回执：发送中被换代 / 改态的判定、失败挂起字段、已送达清 pending、挂起锚点', async () => {
       const send = (effect, result = { ok: true, messageId: 'om_r' }) => async ({ task }) => { effect?.(task); return result }
       const run = (id, status, deliver, extra = {}) => quiet(() => handleStatusUpdate({ config: {}, store, id, status, epoch: 0, result: '结论', deliver, resolveGroupChat: async () => null, ...extra }))
