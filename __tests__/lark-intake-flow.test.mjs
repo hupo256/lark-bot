@@ -230,11 +230,11 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       assert.equal(anchorHead({ summary: 'x'.repeat(60) }, 10), 'x'.repeat(10))
       assert.equal(anchorHead(null), '')
       assert.deepEqual(['waiting_confirmation', 'blocked', 'done', undefined].map((status) => decidePrincipalAction(status ? { status } : null)), ['resume', 'resume', 'instruct', 'instruct'])
-      const anchor = { id: 'om_g1', status: 'done', chatId: 'oc_g', messageId: 'om_g1', replyTarget: { messageId: 'om_g1', inThread: false }, threadRootId: 'omt_1', operator: 'ou_qa', project: 'PR-X', projectTitle: '跟单', text: '群里原话', summary: '【引用】群里原话', attachments: [{ type: 'image', imageKey: 'g' }], aiExecutor: 'codex', intake: { classification: { decision: 'ignore', reason: '只是通知' } } }
+      const anchor = { id: 'om_g1', status: 'done', chatId: 'oc_g', messageId: 'om_g1', replyTarget: { messageId: 'om_g1', inThread: false }, threadRootId: 'omt_1', operator: 'ou_qa', project: 'PR-X', projectTitle: '跟单', chatName: '跟单群', text: '群里原话', summary: '【引用】群里原话', attachments: [{ type: 'image', imageKey: 'g' }], aiExecutor: 'codex', intake: { classification: { decision: 'ignore', reason: '只是通知' } } }
       const at = new Date('2026-11-01T03:00:00.000Z')
       const task = buildPrincipalInstructionTask({ msg: { messageId: 'om_p', chatId: 'oc_p2p', senderOpenId: 'ou_aven', text: ' 这个要做 ' }, anchor, attachments: [{ type: 'image', imageKey: 'p' }], commandType: 'fix', commandTypeSource: 'explicit', now: at })
       assert.deepEqual(task, {
-        id: 'om_p', source: 'lark', chatId: 'oc_g', messageId: 'om_p', replyTarget: { messageId: 'om_g1', inThread: false }, threadRootId: 'omt_1', operator: 'ou_qa', project: 'PR-X', commandType: 'fix', commandTypeSource: 'explicit', projectTitle: '跟单',
+        id: 'om_p', source: 'lark', chatId: 'oc_g', messageId: 'om_p', replyTarget: { messageId: 'om_g1', inThread: false }, threadRootId: 'omt_1', operator: 'ou_qa', project: 'PR-X', commandType: 'fix', commandTypeSource: 'explicit', projectTitle: '跟单', chatName: '跟单群',
         text: '【aven 私聊指示】这个要做\n\n【指示针对的群消息（任务 om_g1，当前 done，之前判定 ignore：只是通知）】\n群里原话',
         summary: '群里原话', attachments: [{ type: 'image', imageKey: 'p' }, { type: 'image', imageKey: 'g' }], aiExecutor: 'codex', status: 'received',
         intake: { required: true, trigger: 'principal_private', mentionedOpenIds: [], lane: 'fast', notBefore: null, receivedAt: at.toISOString() },

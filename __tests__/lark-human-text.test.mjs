@@ -165,6 +165,8 @@ describe('对话层出口文案（§4.1）', () => {
       assert.equal(chatLabel({ chatId: 'oc_p2p', chatType: 'p2p' }), '私信', 'chatType 单独就算私信')
       assert.equal(chatLabel({ chatId: 'oc_dm', intake: { trigger: 'dm' } }), '私信', 'trigger=dm 单独就算私信')
       assert.equal(chatLabel({ chatId: 'oc_g', projectTitle: '标题', project: 'PR-1' }), '标题')
+      assert.equal(chatLabel({ chatId: 'oc_g', chatName: '测试群', projectTitle: '标题', project: 'PR-1' }), '测试群', '入队时记下的群名优先于项目标题')
+      assert.equal(chatLabel({ chatId: 'oc_p', chatType: 'p2p', chatName: '不该用' }), '私信')
       assert.equal(chatLabel({ chatId: 'oc_g', project: 'PR-1' }), 'PR-1')
       assert.equal(chatLabel({ chatId: 'oc_g' }), 'oc_g')
       assert.equal(chatLabel(null), '')
