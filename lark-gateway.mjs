@@ -38,7 +38,11 @@ import { createRequestHandler } from './lib/lark-routes.mjs'
 import { createRuntimeVersion } from './lib/lark-runtime-version.mjs'
 import { startKeepAwake } from './lib/lark-keep-awake.mjs'
 import { startWakeCatchup } from './lib/lark-wake-catchup.mjs'
-import { startProjectChatSync } from './lib/lark-project-chat-sync.mjs'
+import { handleBotAddedEvent, startProjectChatSync } from './lib/lark-project-chat-sync.mjs'
+import { sendMarkdown } from './lib/lark-cli.mjs'
+import { ACK_SWEEP_EVERY_MS, sweepPendingAcks } from './lib/lark-intake-ack.mjs'
+import { deliverOverdueObligations } from './lib/lark-delivery.mjs'
+import { expireSuspectedAndNotify, startDailyDigest } from './lib/lark-daily-digest.mjs'
 import { GATEWAY_HOST, defaultGatewayPort, defaultTaskLeaseMs } from './lib/lark-constants.mjs'
 
 // 任务领取租约：worker 领走后置 running；超过此时长仍 running 视为孤儿，下次 claim 时自动重入队。
@@ -106,10 +110,20 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
       }),
   })
 
+  // 项目群绑定表（aven 2026-11-01）：定时拉 bot 所在群，新入群按群名线索绑定项目号、换群改绑，回群一律按 chat_id。
+  const projectChatSync = startProjectChatSync({ config })
+  // 入群事件（11-01 对话层）：进群立刻同步绑定表、私信负责人；后台没订阅该事件时 consumer 自停（maxRestarts），仍靠上面的定时拉。
+  const joinConsumer = startConsumer({
+    eventKey: 'im.chat.member.bot.added_v1',
+    maxRestarts: 5,
+    onLine: (raw) => handleBotAddedEvent({ raw, config, sync: () => projectChatSync.tick(), send: sendMarkdown }),
+    onDownAlert: () => {},
+  })
+
   const server = createServer(createRequestHandler({ config, store, consumer, port, runtimeVersion }))
   server.listen(port, GATEWAY_HOST, () => {
     console.log(`[lark-gateway] listening on http://${GATEWAY_HOST}:${port} for ${config.project}`)
-    console.log(`[lark-gateway] whitelist chats=${config.allowedChatIds === 'auto' ? 'auto(bot 所在群)' : ((config.allowedChatIds || []).join(',') || '(none)')} consume=im.message.receive_v1`)
+    console.log(`[lark-gateway] whitelist chats=${config.allowedChatIds === 'auto' ? 'auto(bot 所在群)' : ((config.allowedChatIds || []).join(',') || '(none)')} consume=im.message.receive_v1,im.chat.member.bot.added_v1`)
     console.log(`[lark-gateway] code=${runtimeVersion.codeHash} startedAt=${runtimeVersion.startedAt}（health.version 会在磁盘代码变更后报 codeStale）`)
   })
 
@@ -124,7 +138,7 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   const pruneTimer = setInterval(() => {
     const removed = store.pruneTerminal({
       olderThanMs: pruneDoneAfterMs,
-      statuses: ['done', 'done_with_warnings', 'no_change_needed', 'ignored', 'intake_failed', 'superseded'],
+      statuses: ['done', 'done_with_warnings', 'no_change_needed', 'ignored', 'intake_failed', 'superseded', 'answered'],
       keep: isBugtableTombstone, // 表格仍是待处理的终局 bug 任务留着，否则 poller 当新 bug 重跑
     })
     if (removed.length) console.log(`[lark-gateway] 清理陈旧终态任务 ${removed.length} 条`)
@@ -170,15 +184,28 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
 
   // 挂起催办：waiting_confirmation / blocked 的任务每 15min 盘一遍，超时未处理按轮次催办。
   // 无此定时器时，挂起任务只有最初那一条回执，被群里讨论刷下去就再无人记得。
+  // 同一轮顺带：答应了 4h 没结论的私信负责人一次（回复义务）、疑似 48h 没人认领的自动关（合并私信一条）。
   const parkedTimer = setInterval(() => {
     remindParkedTasks({ config, store }).catch((error) =>
       console.error(`[lark-gateway] 挂起催办异常：${String(error).slice(0, 120)}`),
     )
+    deliverOverdueObligations({ config, store }).catch((error) =>
+      console.error(`[lark-gateway] 逾期义务巡检异常：${String(error).slice(0, 120)}`),
+    )
+    expireSuspectedAndNotify({ config, store }).catch((error) =>
+      console.error(`[lark-gateway] 疑似过期巡检异常：${String(error).slice(0, 120)}`),
+    )
   }, 15 * 60 * 1000)
   parkedTimer.unref?.()
 
-  // 项目群绑定表（aven 2026-11-01）：定时拉 bot 所在群，新入群按群名线索绑定项目号、换群改绑，回群一律按 chat_id。
-  const projectChatSync = startProjectChatSync({ config })
+  // 「收到」兜底：挂着 ackPending 的任务到点（45s）还没分类就发固定句；启动先跑一次接上重启前挂着的。
+  const sweepAcks = () => sweepPendingAcks({ config, store }).catch((error) => console.error(`[lark-gateway] 收到巡检异常：${String(error).slice(0, 120)}`))
+  sweepAcks()
+  const ackTimer = setInterval(sweepAcks, ACK_SWEEP_EVERY_MS)
+  ackTimer.unref?.()
+
+  // 每天「等你决定的 n 条」（疑似 / 扣下的草稿 / 答应了没结论 / 等材料超 24h）私信负责人；没有就不发。
+  const digest = startDailyDigest({ config, store })
 
   // 日志轮转：launchd 把 stdout/stderr 定向到固定文件，进程可连跑数周不重启，日志无上限。
   // 只有 plist 注入了 LARK_LOG_FILE 才生效（前台手跑不截断任何文件）。
@@ -191,9 +218,12 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
     clearInterval(writebackTimer)
     clearInterval(receiptTimer)
     clearInterval(parkedTimer)
+    clearInterval(ackTimer)
+    digest.stop()
     if (logTimer) clearInterval(logTimer)
     wakeCatchup.stop()
     keepAwake.stop()
+    joinConsumer.stop()
     consumer.stop()
     server.close()
     process.exit(0)

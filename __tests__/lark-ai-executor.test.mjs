@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
 import { describe, it } from 'node:test'
-import { runSteps } from './support/steps.mjs'
+import { eachCase, runSteps } from './support/steps.mjs'
 
 import { parseAiExecutorDirective, resolveGatewayAiExecutor } from '../lib/lark-ingest.mjs'
 import {
@@ -20,7 +20,6 @@ import {
   buildPiReadinessCommand,
   execAiExecutor,
   executorReadableDirs,
-  formatStructuredAiResult,
   isTransientAiError,
   preflightAiExecutor,
   resolveAiExecutor,
@@ -31,8 +30,11 @@ import {
   trimSpawnArgs,
   validateAiExecutor,
 } from '../lib/lark-ai-executor.mjs'
+import { formatStructuredAiResult } from '../lib/lark-ai-result-text.mjs'
 import { buildClaudeResultFileInstruction, buildClaudeResultRecoveryInstruction, parseStructuredAiResult, parseStructuredAnalysisValue, parseStructuredIntentResult } from '../lib/lark-ai-result.mjs'
-import { buildQueuedCard, buildResultCard, buildWaitingCard, resolveOwnerMention } from '../lib/lark-cards.mjs'
+// 11-01 对话层：任务卡片（排队 / 结果 / 待确认 / 催办）已删，lark-cards 只剩网关告警 / 运维知会；resolveOwnerMention 搬进 lark-human-text，
+// 这里故意走 lark-cards 的转出口，钉住旧引用路径仍可用（函数本身的行为在 lark-human-text.test 钉）。
+import { resolveOwnerMention } from '../lib/lark-cards.mjs'
 import { scanDiffForViolations } from '../lib/lark-lint-diff.mjs'
 import { buildFocusedRuleContext } from '../lib/lark-rule-context.mjs'
 import { larkBotRoot } from '../lib/lark-paths.mjs'
@@ -379,17 +381,44 @@ describe('Codex non-interactive command', () => {
 })
 
 describe('task-mention intent classification', () => {
-  it('解析合法分类并拒绝缺字段结果', () => {
-    const result = parseStructuredIntentResult({
-      decision: 'bug',
-      confidence: 'high',
-      summary: '修复登录页报错',
-      reason: '明确描述了报错',
-    }, 'claude')
-    assert.equal(result.decision, 'bug')
-    assert.throws(() => parseStructuredIntentResult({ decision: 'bug' }), /confidence/)
-    assert.throws(() => parseStructuredIntentResult('{bad json'), /未返回合法意图分类结果/)
-  })
+  it('解析合法分类并拒绝缺字段结果；五类 + 交付物 + 接话字段归一，旧三字段结果仍可解析', () => runSteps([
+    ['合法分类 / 缺字段 / 非 JSON', () => {
+      const result = parseStructuredIntentResult({
+        decision: 'bug',
+        confidence: 'high',
+        summary: '修复登录页报错',
+        reason: '明确描述了报错',
+      }, 'claude')
+      assert.equal(result.decision, 'bug')
+      assert.throws(() => parseStructuredIntentResult({ decision: 'bug' }), /confidence/)
+      assert.throws(() => parseStructuredIntentResult('{bad json'), /未返回合法意图分类结果/)
+    }],
+    // 11-01 对话层：五类决定都接受；旧三字段结果（老审计回放 / 排空重启期间新旧代码并存）新字段归一成 null / false。
+    ['五类 decision 都接受，旧三字段结果新字段归一', () => eachCase(
+      ['bug', 'requirement', 'api_reply', 'question', 'ignore'].map((decision) => ({ name: decision, decision })),
+      ({ decision }) => assert.deepEqual(parseStructuredIntentResult({ decision, confidence: 'medium', summary: '摘要', reason: '理由' }), {
+        decision, confidence: 'medium', summary: '摘要', reason: '理由',
+        deliverable: null, forMe: null, selfAnswer: false, reply: null, continues: null, relatedTaskId: null, topic: null, waitsFor: null,
+      }),
+    )],
+    ['新字段：合法 deliverable / forMe 原样带出，文本字段去空白并截长，空串归 null', () => {
+      const full = parseStructuredIntentResult({
+        decision: 'question', confidence: 'high', summary: '问 test/pre 差异', reason: '问句',
+        deliverable: 'answer', forMe: true, selfAnswer: true, reply: '  我看下。 ', continues: 't_c', relatedTaskId: 'om_1', topic: 'x'.repeat(60), waitsFor: '',
+      })
+      assert.deepEqual(
+        [full.deliverable, full.forMe, full.selfAnswer, full.reply, full.continues, full.relatedTaskId, full.topic.length, full.waitsFor],
+        ['answer', true, true, '我看下。', 't_c', 'om_1', 40, null],
+      )
+      assert.equal(parseStructuredIntentResult({ decision: 'bug', confidence: 'low', summary: 's', reason: 'r', deliverable: 'change', forMe: false, selfAnswer: 'yes' }).selfAnswer, false, 'selfAnswer 只认布尔 true')
+    }],
+    ['非法 deliverable / 非布尔 forMe / 未知 decision 拒收', () => {
+      const base = { confidence: 'high', summary: 's', reason: 'r' }
+      assert.throws(() => parseStructuredIntentResult({ ...base, decision: 'bug', deliverable: 'ops' }), /deliverable 不合法：ops/)
+      assert.throws(() => parseStructuredIntentResult({ ...base, decision: 'bug', forMe: 'yes' }), /forMe 必须是布尔或 null/)
+      assert.throws(() => parseStructuredIntentResult({ ...base, decision: 'feature' }), /缺少合法 decision/)
+    }],
+  ]))
 
   it('Claude 兼容完整 JSON 代码围栏，但拒绝围栏外的解释文字', () => {
     const fenced = '```json\n{"decision":"requirement","confidence":"medium","summary":"调整页面规则","reason":"明确交办产品行为变更"}\n```'
@@ -675,7 +704,9 @@ describe('AI 子进程瞬时错误识别（决定是否自动重试）', () => {
   }
 })
 
-describe('structured result and cards', () => {
+// 11-01 对话层：结构化结果 → 稳定文本回执（formatStructuredAiResult）。原来并排的卡片构建用例随卡片一起删了；
+// 群里 / 私信里的人话文案在 lark-human-text.test 逐字钉，出口分发在 lark-delivery.test。
+describe('structured result text', () => {
   const result = {
     status: 'done',
     summary: '修复登录按钮颜色。',
@@ -743,7 +774,7 @@ describe('structured result and cards', () => {
     }
   })
 
-  it('缺陷分诊门禁（VERIFY-TASK-001）：后端根因缺证据 / 后端根因关单无转交均拒收，合规与旧形态放行', () => {
+  it('缺陷分诊门禁（VERIFY-TASK-001）：后端根因缺证据 / 后端根因关单无转交均拒收，合规与旧形态放行；群回复字段（report / groupReply / detailDoc / followUps）逐项校验', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'lark-diag-test-'))
     const resultPath = join(dir, 'result.json')
     const base = {
@@ -767,6 +798,33 @@ describe('structured result and cards', () => {
       assert.deepEqual(parseStructuredAiResult(write(feOk)), feOk)
       // 非法 taskState → 拒收
       assert.throws(() => parseStructuredAiResult(write({ ...base, taskState: 'nonsense' })), /taskState 必须是/)
+      // 11-01 对话层：群回复相关字段全部可选 / 可 null；report 只查「能不能安全渲染」（items 每项字符串或带 name 的对象，subject / answer 字符串或 null）
+      await eachCase([
+        { name: 'report 合法：字符串条目 + 对象条目，subject null、answer 字符串', patch: { report: { subject: null, answer: '通了', items: ['注意事项', { mark: 'ok', name: '登录', note: '', evidence: 'pre' }] } } },
+        { name: 'report 四个字段都 null / 空', patch: { report: { subject: null, answer: null, items: [] }, groupReply: null, detailDoc: null, followUps: null } },
+        { name: 'groupReply / detailDoc 字符串，followUps 合法', patch: { groupReply: '问题在后端', detailDoc: '# 细节', followUps: [{ owner: '后端', items: ['补字段', '改状态码'] }, { owner: 'QA', items: [] }] } },
+        { name: 'report 是数组 → 拒收', patch: { report: [] }, throws: /report 必须是 \{ subject, answer, items\[\] \} 或 null/ },
+        { name: 'report 是字符串 → 拒收', patch: { report: '通了' }, throws: /report 必须是/ },
+        { name: 'report 没 items → 拒收', patch: { report: { subject: 'x', answer: 'y' } }, throws: /report 必须是/ },
+        { name: 'report.items 有 null → 拒收', patch: { report: { items: [null] } }, throws: /report\.items 每项须是字符串或带 name 的对象/ },
+        { name: 'report.items 有数字 → 拒收', patch: { report: { items: [5] } }, throws: /report\.items 每项须是/ },
+        { name: 'report.items 对象没 name → 拒收', patch: { report: { items: [{ mark: 'ok' }] } }, throws: /report\.items 每项须是/ },
+        { name: 'report.items 对象 name 是空白 → 拒收', patch: { report: { items: [{ name: '   ' }] } }, throws: /report\.items 每项须是/ },
+        { name: 'report.items 对象 name 不是字符串 → 拒收', patch: { report: { items: [{ name: 3 }] } }, throws: /report\.items 每项须是/ },
+        { name: 'report.subject 是数字 → 拒收', patch: { report: { subject: 1, items: [] } }, throws: /report\.subject 必须是字符串或 null/ },
+        { name: 'report.answer 是对象 → 拒收', patch: { report: { answer: {}, items: [] } }, throws: /report\.answer 必须是字符串或 null/ },
+        { name: 'groupReply 是数字 → 拒收', patch: { groupReply: 5 }, throws: /groupReply 必须是字符串或 null/ },
+        { name: 'detailDoc 是数组 → 拒收', patch: { detailDoc: [] }, throws: /detailDoc 必须是字符串或 null/ },
+        { name: 'followUps 是字符串 → 拒收', patch: { followUps: 'x' }, throws: /followUps 必须是 \[\{ owner, items\[\] \}\] 或 null/ },
+        { name: 'followUps 有 null 项 → 拒收', patch: { followUps: [null] }, throws: /followUps 必须是/ },
+        { name: 'followUps owner 不是字符串 → 拒收', patch: { followUps: [{ owner: 5, items: ['a'] }] }, throws: /followUps 必须是/ },
+        { name: 'followUps items 不是数组 → 拒收', patch: { followUps: [{ owner: 'x', items: 'a' }] }, throws: /followUps 必须是/ },
+        { name: 'followUps items 里有非字符串 → 拒收', patch: { followUps: [{ owner: 'x', items: ['a', 1] }] }, throws: /followUps 必须是/ },
+      ], ({ patch, throws }) => {
+        const value = { ...base, ...patch }
+        if (throws) assert.throws(() => parseStructuredAiResult(write(value)), throws)
+        else assert.deepEqual(parseStructuredAiResult(write(value)), value)
+      })
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -784,13 +842,25 @@ describe('structured result and cards', () => {
     // 无分诊字段的旧形态结果不出现「分诊」行
     const plain = formatStructuredAiResult({ status: 'done', summary: 'ok', checks: [], changedFiles: [], warnings: [], blockers: null, owner: null, failureKind: null, nextStep: null })
     assert.doesNotMatch(plain, /分诊：/)
-  })
-
-  it('排队卡与结果卡展示实际执行器', () => {
-    const config = { project: 'PR-01947', title: 'Test' }
-    const task = { project: 'PR-01947', summary: 'fix', aiExecutor: 'codex' }
-    assert.match(JSON.parse(buildQueuedCard({ config, task })).elements[0].text.content, /执行器.*Codex/)
-    assert.match(JSON.parse(buildResultCard({ config, task, status: 'done', result: 'ok' })).elements[0].text.content, /执行器.*Codex/)
+    // 各行只在对应状态 + 字段都在时出现；只读查询的「查询完成」只给完成态；依据最多 3 条、每条 120 字内，恰好不截不加「另有」
+    const base = { summary: 'ok', checks: [], changedFiles: [], warnings: [] }
+    const long = 'x'.repeat(120)
+    return eachCase([
+      { name: '只有根因层也出「分诊」行', result: { ...base, status: 'done', rootCauseLayer: 'frontend-logic' }, match: /^已完成，待发布。\n1\. ok\n2\. 分诊：根因层 前端逻辑$/ },
+      { name: '只有诊断状态也出', result: { ...base, status: 'done', taskState: 'diagnosing' }, match: /2\. 分诊：诊断状态 待诊断$/ },
+      { name: '只读 + done → 查询完成', result: { ...base, status: 'done' }, readOnly: true, match: /^查询完成。\n1\. ok$/ },
+      { name: '只读 + done_with_warnings → 查询完成 + 验证提醒', result: { ...base, status: 'done_with_warnings', warnings: ['w1', 'w2'] }, readOnly: true, match: /^查询完成。\n1\. ok\n2\. 验证提醒：w1；w2$/ },
+      { name: '只读 + blocked 仍是阻塞标题', result: { ...base, status: 'blocked', blockers: ['b'] }, readOnly: true, match: /^已阻塞[^\n]*\n1\. ok\n2\. 待补充：b$/ },
+      { name: 'failed 没 failureKind 不出失败类型行', result: { ...base, status: 'failed' }, match: /^处理失败。\n1\. ok$/ },
+      { name: 'done 带 failureKind 也不出失败类型行', result: { ...base, status: 'done', failureKind: 'tool' }, match: /^已完成，待发布。\n1\. ok$/ },
+      { name: 'failed 未知 failureKind 原样列出', result: { ...base, status: 'failed', failureKind: 'odd' }, match: /2\. 失败类型：odd$/ },
+      { name: 'done 带 blockers 不出待补充', result: { ...base, status: 'done', blockers: ['b'] }, match: /^已完成，待发布。\n1\. ok$/ },
+      { name: 'waiting_confirmation 空 blockers 不出待补充', result: { ...base, status: 'waiting_confirmation', blockers: [] }, match: /^需人工确认[^\n]*\n1\. ok$/ },
+      { name: 'done 带 warnings 不出验证提醒', result: { ...base, status: 'done', warnings: ['w'] }, match: /^已完成，待发布。\n1\. ok$/ },
+      { name: 'done_with_warnings 空 warnings 不出验证提醒', result: { ...base, status: 'done_with_warnings', warnings: [] }, match: /^已完成（有验证提醒），待发布。\n1\. ok$/ },
+      { name: 'no_change_needed：依据 3 条正好不写「另有」，120 字正好不截', result: { ...base, status: 'no_change_needed', noChangeReason: 'env_version', triageEvidence: [long, 'b', 'c'] }, match: new RegExp(`2\\. 判定：环境版本未包含修复[^\\n]*\\n3\\. 依据：${long}；b；c$`) },
+      { name: 'no_change_needed：第 4 条起只写「另有 N 条」，121 字截 120 加省略号', result: { ...base, status: 'no_change_needed', noChangeReason: 'not_frontend', triageEvidence: [`${long}y`, 'b', 'c', 'd'], relatedCommits: ['abc 修了'], nextStep: '转后端' }, match: new RegExp(`3\\. 依据：${long}…；b；c（另有 1 条见任务审计）\\n4\\. 相关提交：abc 修了\\n5\\. 下一步：转后端$`) },
+    ], ({ result, readOnly = false, match }) => assert.match(formatStructuredAiResult(result, { readOnly }), match))
   })
 
   it('waiting_confirmation 结果转成「待确认」回执并列出 blockers（群卡不列建议责任人）', () => {
@@ -803,18 +873,6 @@ describe('structured result and cards', () => {
     assert.doesNotMatch(text, /建议责任人/)
   })
 
-  it('待确认卡为橙色、能识别触发人时 @ 其补料', () => {
-    const config = { project: 'PR-01947', title: 'Test' }
-    const task = { project: 'PR-01947', summary: 'tips', aiExecutor: 'codex' }
-    const card = JSON.parse(buildWaitingCard({ config, task, status: 'waiting_confirmation', result: '缺文案', mentionOpenId: 'ou_pm' }))
-    assert.equal(card.header.template, 'orange')
-    assert.match(card.elements[0].text.content, /待确认，需补充材料/)
-    assert.match(card.elements[0].text.content, /<at id=ou_pm><\/at>/)
-    // 无触发人（bug 表任务）→ 不带 @
-    const noMention = JSON.parse(buildWaitingCard({ config, task, status: 'waiting_confirmation', result: '缺文案' }))
-    assert.doesNotMatch(noMention.elements[0].text.content, /<at id=/)
-  })
-
   it('failed 结果带 failureKind 时回执列出失败类型（群卡不列下一步）', () => {
     const text = formatStructuredAiResult(
       { status: 'failed', summary: '构建产物缺失', checks: [], changedFiles: [], failureKind: 'env', nextStep: '在 dev 克隆重装依赖后重试' },
@@ -825,20 +883,13 @@ describe('structured result and cards', () => {
     assert.doesNotMatch(text, /下一步/)
   })
 
-  it('blocked 结果和卡片使用阻塞语义', () => {
+  it('blocked 结果使用阻塞语义', () => {
     const text = formatStructuredAiResult(
       { status: 'blocked', summary: '缺少权威文案', checks: ['只读分析通过'], changedFiles: [], blockers: ['PM 未提供 tips 文案'] },
     )
     assert.match(text, /^已阻塞/)
     assert.match(text, /待补充：PM 未提供 tips 文案/)
-    const card = JSON.parse(buildWaitingCard({
-      config: { project: 'PR-01947', title: 'Test' },
-      task: { project: 'PR-01947', summary: 'tips', aiExecutor: 'codex' },
-      status: 'blocked',
-      result: text,
-    }))
-    assert.equal(card.header.template, 'orange')
-    assert.match(card.elements[0].text.content, /已阻塞/)
+    // 群里 / 私信里的阻塞人话（⏸ 停下来了 + 要：… / @ 责任人要材料）在 lark-human-text.test 的 held draft / blocked_ask 格钉住。
   })
 
   it('owner 命中 ownerMap → @ 责任人；命中关键词也算；未命中回落提单人并注明', () => {
@@ -858,19 +909,6 @@ describe('structured result and cards', () => {
     assert.deepEqual(resolveOwnerMention({ operator: 'ou_op' }), { mentionOpenId: 'ou_op', ownerNote: null, matched: false })
     // bug 表任务无提单人 → 不 @
     assert.equal(resolveOwnerMention({ owner: '产品', ownerMap: {} }).mentionOpenId, null)
-  })
-
-  it('waiting 卡携带 ownerNote 时在 @ 行后附注', () => {
-    const card = JSON.parse(buildWaitingCard({
-      config: { project: 'PR-01947', title: 'Test' },
-      task: { project: 'PR-01947', summary: 'tips', aiExecutor: 'codex' },
-      status: 'waiting_confirmation',
-      result: '缺文案',
-      mentionOpenId: 'ou_op',
-      ownerNote: '（未在责任人表识别「产品」，暂 @ 提单人）',
-    }))
-    assert.match(card.elements[0].text.content, /<at id=ou_op><\/at>/)
-    assert.match(card.elements[0].text.content, /未在责任人表识别「产品」/)
   })
 })
 
@@ -909,17 +947,7 @@ describe('no_change_needed 终态（本仓无对应改动，转后端/别的仓�
     assert.match(text, /该拉先项属后台 API/)
     assert.doesNotMatch(text, /处理失败/)
     assert.doesNotMatch(text, /已完成/)
-  })
-
-  it('结果卡用中性灰、不是绿 done 也不是红 failed', () => {
-    const card = JSON.parse(buildResultCard({
-      config: { project: 'PR-02135', title: 'Test' },
-      task: { project: 'PR-02135', summary: '后台 api', aiExecutor: 'codex' },
-      status: 'no_change_needed',
-      result: '无需改动。',
-    }))
-    assert.equal(card.header.template, 'grey')
-    assert.match(card.elements[0].text.content, /无需改动/)
+    // 群里的人话（「看过了，这个不用改前端：…」）在 lark-human-text.test 的 no_change 格钉住。
   })
 })
 

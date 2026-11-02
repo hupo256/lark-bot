@@ -121,3 +121,19 @@ bug 表来源的修复任务在实施前先跑**只读分诊**（`lib/lark-triag
 非只读任务四种执行器都走两阶段：先只读分析（输出结构化修改范围契约 `scope`），前后校验 git status/diff 不变，分析可继续才进入实施；只读查询中 Claude、Pi、Cursor 仍单趟（Codex 保持原两阶段）。只读分析的权限：Codex 用 `read-only` 沙箱，Claude 只放 Read/Grep/Glob 与只读 git/rg（`--json-schema` 结构化输出），Pi / Cursor 靠前后快照兜底。收尾时 Worker 用实测改动核对契约，越界 / 碰禁区 / 超行数不提交、挂起待人回复「确认扩大范围」，详见 [task-boundaries-and-reply.md](./task-boundaries-and-reply.md) §3.1.1。四种执行器都接收同一份精准规则上下文，并把结构化结果落盘后由 Worker 统一回写 Gateway；执行器自身不直接回调 Gateway。
 
 审计写入 `runtime/lark-audits/<PROJECT>/<taskId>-e<epoch>.json/.log`：记录附件、规则来源/版本、分析/最终结果、Gateway 状态和 CLI 输出；该目录已 gitignore。
+
+对话层（2026-11-01）新增的可选配置键，都有默认值：
+
+| 键 | 含义 |
+|---|---|
+| `ownerMap` / `memberRoles` | 名字 → open_id / 名字 → 角色：分类器识别发送人、群里 @ 待跟进的人 |
+| `internalNames` | 内部同事名单：阻塞要材料时不往群里 @ 他们 |
+| `intake` | `{ quietGapMs, maxWaitMs, fastLaneMs }` 分类去抖：@bot / 私信走快道不等；只 @ 负责人的等安静期（默认 60s，封顶 180s） |
+| `envSites` | `{ test, pre, uat, online }` 环境地址：实测任务按上下文点名的环境 curl；没配只做代码比对并标「没实测」 |
+| `docIdentity` | 建 Lark 文档（超长群消息 / 材料）用的身份，`bot` / `user`（默认 user） |
+| `joinGreeting` | 进群时在群里说的一句；默认 `false` 不说，只私信负责人绑定结果 |
+| `digest` | `{ at: "09:30", enabled }` 每日「等你决定的 n 条」私信 |
+| `personaPath` | 负责人 persona 文件（默认 `runtime/persona/aven.md`）：口吻 / 取舍 / 常见问题怎么答，进分类器与代答提示 |
+| `principalReplyWindowMs` | 负责人私信锚到上一条通知的窗口（默认 12h） |
+
+回写接口 `POST /lark/tasks/:id/status` 多一个 `outcome`（结构化结果：summary / nextStep / blockers / report / groupReply / detailDoc / followUps / changedFiles / change），网关 `normalizeOutcome` 后存 `task.outcome`，人话出口只读它。

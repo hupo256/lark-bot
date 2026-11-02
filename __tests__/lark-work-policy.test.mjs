@@ -9,10 +9,12 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
+import { eachCase } from './support/steps.mjs'
 import {
   BLOCKER_CLASSES,
   WORK_KINDS,
   classifyBlocker,
+  expectsCodeChange,
   hasHumanGoAhead,
   isFastLaneTask,
   requirementGate,
@@ -102,11 +104,35 @@ describe('resolveWorkKind', () => {
     assert.equal(resolveWorkKind(larkTask({ text: '看下这个' })), WORK_KINDS.requirement)
   })
 
-  it('status / docs 命令不进快车道，也不被新需求闸拦', () => {
+  it('status / docs 命令不进快车道，也不被新需求闸拦；任务契约（11-01）优先于正文措辞：交付物不是改代码的性质由契约定', () => {
     assert.equal(resolveWorkKind(larkTask({ commandType: 'status', text: '项目状态' })), WORK_KINDS.readonly)
     assert.equal(resolveWorkKind(larkTask({ commandType: 'docs', text: '同步文档' })), WORK_KINDS.docs)
     assert.equal(requirementGate(larkTask({ commandType: 'status', text: '项目状态' })), null)
     assert.equal(requirementGate(larkTask({ commandType: 'docs', text: '同步文档' })), null)
+    // 正文带缺陷措辞 + 「修复：」前缀，没契约会判 bugfix；契约说代答 / 只记一笔 / 运维 → readonly，实测 → verification，改码契约不改判
+    const defect = (contract) => larkTask({ commandType: 'fix', text: '修复：导出按钮点了转圈报错', contract })
+    return eachCase([
+      { name: '无契约 → bugfix', contract: undefined, kind: WORK_KINDS.bugfix, code: true, gate: 'object' },
+      { name: 'answer → readonly、不要代码、不拦', contract: { deliverable: 'answer', expectsCode: false }, kind: WORK_KINDS.readonly, code: false, gate: null },
+      { name: 'record → readonly', contract: { deliverable: 'record', expectsCode: false }, kind: WORK_KINDS.readonly, code: false, gate: null },
+      { name: 'ops → readonly', contract: { deliverable: 'ops', expectsCode: false }, kind: WORK_KINDS.readonly, code: false, gate: null },
+      { name: 'verification → verification', contract: { deliverable: 'verification', expectsCode: false }, kind: WORK_KINDS.verification, code: false, gate: null },
+      { name: 'change → 仍按正文判 bugfix，要代码，闸照常（bug 不拦）', contract: { deliverable: 'change', expectsCode: true }, kind: WORK_KINDS.bugfix, code: true, gate: null },
+      { name: 'change 但契约说不要代码（api 只改文档）→ 以契约为准', contract: { deliverable: 'change', expectsCode: false }, kind: WORK_KINDS.bugfix, code: false, gate: null },
+      { name: 'answer 却说要代码 → expectsCode 以契约布尔为准', contract: { deliverable: 'answer', expectsCode: true }, kind: WORK_KINDS.readonly, code: true, gate: null },
+      { name: 'expectsCode 不是布尔 → 当没说，按性质判', contract: { deliverable: 'change', expectsCode: 'yes' }, kind: WORK_KINDS.bugfix, code: true, gate: null },
+      { name: 'deliverable 空 → 当没契约', contract: { deliverable: null }, kind: WORK_KINDS.bugfix, code: true, gate: null },
+    ], ({ contract, kind, code, gate }) => {
+      const task = defect(contract)
+      assert.equal(resolveWorkKind(task), kind)
+      assert.equal(expectsCodeChange({ task }), code)
+      assert.equal(expectsCodeChange({ task, readOnly: true }), false, 'readOnly 上下文一律不要代码')
+      assert.equal(requirementGate(task), null)
+      // 裸一句话新需求：契约 change 照拦，契约 answer 不拦（问一句「你能发邮件吗」不该停下来要 PRD）
+      const bare = larkTask({ text: '加个导出功能', contract })
+      if (gate === 'object' || contract?.deliverable === 'change') assert.equal(requirementGate(bare)?.status, 'waiting_confirmation')
+      else if (contract?.deliverable) assert.equal(requirementGate(bare), null)
+    })
   })
 
   it('非白名单来源不扩权也不被新需求闸拦（它不是群里的一句话）', () => {

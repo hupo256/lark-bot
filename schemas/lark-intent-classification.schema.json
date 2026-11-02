@@ -1,17 +1,45 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Lark mentioned-message intent classification",
+  "title": "Lark message intent classification",
   "type": "object",
   "additionalProperties": false,
-  "required": ["decision", "confidence", "summary", "reason"],
+  "required": ["decision", "confidence", "deliverable", "forMe", "selfAnswer", "reply", "continues", "relatedTaskId", "topic", "waitsFor", "summary", "reason"],
   "properties": {
     "decision": {
       "type": "string",
-      "enum": ["bug", "requirement", "ignore"]
+      "enum": ["bug", "requirement", "api_reply", "question", "ignore"]
     },
     "confidence": {
       "type": "string",
       "enum": ["high", "medium", "low"]
+    },
+    "deliverable": {
+      "type": ["string", "null"],
+      "enum": ["change", "verification", "answer", null]
+    },
+    "forMe": {
+      "type": ["boolean", "null"]
+    },
+    "selfAnswer": {
+      "type": "boolean"
+    },
+    "reply": {
+      "type": ["string", "null"],
+      "maxLength": 200
+    },
+    "continues": {
+      "type": ["string", "null"]
+    },
+    "relatedTaskId": {
+      "type": ["string", "null"]
+    },
+    "topic": {
+      "type": ["string", "null"],
+      "maxLength": 40
+    },
+    "waitsFor": {
+      "type": ["string", "null"],
+      "maxLength": 120
     },
     "summary": {
       "type": "string",

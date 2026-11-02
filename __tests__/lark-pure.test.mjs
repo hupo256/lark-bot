@@ -14,7 +14,7 @@ import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it, mock } from 'node:test'
 
-import { waitUntil } from './support/steps.mjs'
+import { eachCase, waitUntil } from './support/steps.mjs'
 
 import { handleStatusUpdate, resolveReceiptOutcome, retryPendingReceipts, sendQueuedReceipt } from '../lib/lark-status.mjs'
 import {
@@ -26,17 +26,18 @@ import {
   readStatusText,
 } from '../lib/lark-bugtable-parse.mjs'
 import { resolveWritebackOutcome } from '../lib/lark-bugtable-writeback.mjs'
+import { buildCardContent } from '../lib/lark-cards.mjs'
 import { createTaskStore } from '../lib/lark-task-store.mjs'
 import { parkedReminderRound } from '../lib/lark-parked-reminder.mjs'
 import { rotateLogIfLarge } from '../lib/lark-log-rotate.mjs'
 import { sweepAttachments } from '../lib/lark-retention.mjs'
-import { buildResultCard, buildWaitingCard } from '../lib/lark-cards.mjs'
 import { messageSendRecipientArgs, parseSentMessageId, pickChatIdByProject, resolveDeliveryChatId, formatLarkCliError, isTransientLarkError, runLarkCliWithRetry, sendChatMessage } from '../lib/lark-cli.mjs'
 import {
   classifyClosureIntent,
   classifyCommandType,
   classifyPauseIntent,
   classifyReopenIntent,
+  hasDocAttachment,
   inferCommandType,
   isForBot,
   isManualResolutionMessage,
@@ -50,6 +51,7 @@ import {
   parseResumeDirective,
   resolveCommandType,
   resolveMessageTrigger,
+  stripMentionNames,
 } from '../lib/lark-message.mjs'
 import { isProjectId, matchProjectId, matchProjectIds } from '../lib/lark-project-id.mjs'
 import { allRuleRefs, buildFocusedRuleContext, classifyLarkTask, extractMarkdownSection, readRuleRevisions } from '../lib/lark-rule-context.mjs'
@@ -87,6 +89,8 @@ describe('normalizeMessage', () => {
       content: '@小助手 修复登录页',
       mentions: [{ id: BOT, key: '@_user_1', name: '小助手' }],
       root_id: 'om_parent',
+      thread_id: 'omt_1',
+      create_time: '1700000000000',
     })
     assert.equal(msg.messageId, 'om_1')
     assert.equal(msg.chatId, 'oc_1')
@@ -94,6 +98,9 @@ describe('normalizeMessage', () => {
     assert.equal(msg.mentions[0].id, BOT) // 字符串形态直接取
     assert.equal(msg.text, '修复登录页') // @小助手 已剥除
     assert.equal(msg.replyTo, 'om_parent')
+    assert.deepEqual([msg.threadId, msg.threadRootId, msg.createTimeMs], ['omt_1', 'omt_1', 1_700_000_000_000])
+    const bare = normalizeMessage({ message_id: 'om_1b', chat_id: 'oc_1', message_type: 'text', content: 'x', mentions: [], root_id: 'om_parent' })
+    assert.deepEqual([bare.threadId, bare.threadRootId, bare.createTimeMs], [null, 'om_parent', null], '没话题 id：threadId 空、话题键回落 root_id；没时间就是 null')
   })
 
   it('官方嵌套 webhook：event.message.* + content JSON 串 + mention.id.open_id', () => {
@@ -106,6 +113,8 @@ describe('normalizeMessage', () => {
           message_type: 'text',
           content: JSON.stringify({ text: '看看这个' }),
           mentions: [{ id: { open_id: BOT }, key: '@_user_1', name: 'bot' }],
+          thread_id: 'omt_2',
+          create_time: '1700000000',
         },
         sender: { sender_id: { open_id: ME } },
       },
@@ -114,6 +123,11 @@ describe('normalizeMessage', () => {
     assert.equal(msg.senderOpenId, ME)
     assert.equal(msg.mentions[0].id, BOT) // { open_id } 形态取 open_id
     assert.equal(msg.text, '看看这个')
+    assert.deepEqual([msg.threadId, msg.threadRootId, msg.createTimeMs], ['omt_2', 'omt_2', 1_700_000_000_000], '嵌套层的 thread_id / 秒级 create_time 也认')
+    assert.equal(stripMentionNames('@Aven.Bot 取消任务 om_1', [{ name: 'Aven.Bot' }]), '取消任务 om_1')
+    assert.equal(stripMentionNames('  继续  做 ', []), '继续 做')
+    assert.equal(stripMentionNames('hi'), 'hi')
+    assert.equal(stripMentionNames(null), '')
   })
 
   it('post 富文本：抽出文本 + 图片 image_key 进 attachments', () => {
@@ -137,6 +151,10 @@ describe('normalizeMessage', () => {
     assert.equal(msg.text, '背景色不对')
     assert.equal(msg.attachments.length, 1)
     assert.deepEqual(msg.attachments[0], { type: 'image', imageKey: 'img_k1', width: 100, height: 200 })
+    assert.equal(hasDocAttachment(msg.attachments), false)
+    assert.equal(hasDocAttachment([{ type: 'file', fileName: '对接文档.md' }]), true)
+    assert.equal(hasDocAttachment([{ type: 'image', fileName: '对接文档.md' }]), false, '只认文件类')
+    assert.equal(hasDocAttachment([{ type: 'file', fileName: 'a.png' }, null]), false, '只认文档扩展名')
   })
 
   it('引用消息降级文本：恢复两种图片占位格式并按 image_key 去重', () => {
@@ -178,6 +196,10 @@ describe('bug table task status', () => {
     assert.deepEqual(resolveWritebackOutcome({ ok: false, attempts: 2, max: 3 }), {
       status: 'done_pending_writeback', attempts: 3, gaveUp: true, retry: false,
     })
+    // 回写失败的告警卡：alert 红色；不认识的 kind 按运维知会（灰）
+    const card = (kind) => JSON.parse(buildCardContent({ config: { project: 'PR-1', title: 'T' }, kind, lines: ['**x**：y'] }))
+    assert.deepEqual([card('alert').header.template, card('alert').header.title.content, card('nope').header.template], ['red', '[PR-1] T', 'grey'])
+    assert.match(card('alert').elements?.[0]?.content || JSON.stringify(card('alert')), /需人工关注 ⚠️/)
   })
 
   it('同时查询待处理与验退；未配置验退值时保持单状态过滤', () => {
@@ -421,10 +443,19 @@ describe('resolveWorkContext', () => {
     assert.equal(ctx.hotfixBranch, undefined)
   })
 
-  it('非只读命令（修复）仍走临时 worktree', () => {
+  it('非只读命令（修复）仍走临时 worktree；实测契约（11-01）：没配页面工具就地只读，配了才进隔离 worktree 单趟', () => {
     const ctx = resolveWorkContext(cfg, { project: 'PR-99999', text: '修复：登录报错', id: 'om_fix1234567890' })
     assert.ok(!ctx.readOnly)
     assert.ok(ctx.hotfixBranch?.startsWith('hotfix/PR-99999-'))
+    const verify = { localDev: ['pnpm', 'dev'] }
+    const verification = { project: 'PR-99999', text: '看看 test 能不能注册', id: 'om_ver1234567890', contract: { deliverable: 'verification', readOnly: false } }
+    const plain = resolveWorkContext({ ...cfg, localConfig: { verify } }, verification)
+    assert.deepEqual([plain.singlePass, plain.verification, plain.readOnly], [true, true, false])
+    assert.ok(plain.hotfixBranch?.startsWith('hotfix/PR-99999-'))
+    const noTool = resolveWorkContext({ ...cfg, localConfig: {} }, verification)
+    assert.deepEqual([noTool.singlePass, noTool.verification, noTool.readOnly, noTool.hotfixBranch], [undefined, undefined, true, undefined], '没页面工具：主仓就地只读')
+    const fix = resolveWorkContext({ ...cfg, localConfig: { verify } }, { project: 'PR-99999', text: '修复：登录报错', id: 'om_fix1234567890', contract: { deliverable: 'change', readOnly: false } })
+    assert.deepEqual([fix.singlePass, fix.verification, Boolean(fix.readOnly)], [undefined, undefined, false], '配了页面工具不影响改码任务')
   })
 })
 
@@ -596,6 +627,11 @@ describe('parseCommandType', () => {
     assert.equal(isReadOnlyTask({ commandType: 'status', text: '状态：x' }), true)
     assert.equal(isReadOnlyTask({ commandType: 'fix', text: '修复：x' }), false)
     assert.equal(isReadOnlyTask({ text: '登录页按钮点不动' }), false)
+    // 有契约以契约为准（布尔才算）；契约里不是布尔的回落命令类型
+    assert.equal(isReadOnlyTask({ commandType: 'fix', text: '修复：x', contract: { readOnly: true } }), true)
+    assert.equal(isReadOnlyTask({ commandType: 'status', text: '状态：x', contract: { readOnly: false } }), false)
+    assert.equal(isReadOnlyTask({ commandType: 'status', text: '状态：x', contract: { readOnly: 'yes' } }), true)
+    assert.equal(isReadOnlyTask({ commandType: 'fix', text: '修复：x', contract: {} }), false)
   })
 
   it('解析显式续跑指令并保留补料正文', () => {
@@ -899,10 +935,19 @@ describe('isNonSupplementalReply', () => {
 })
 
 describe('Bot receipt reply admission', () => {
-  it('用持久回执索引限制无 @ 控制入口', () => {
+  it('用持久回执索引限制无 @ 控制入口；话题根是 bot 的消息也算在回 bot', () => {
     const msg = { replyToDirect: 'om_receipt' }
     assert.equal(isRegisteredBotReceiptReply({ msg, store: { findTaskByAnyReceipt: () => ({ id: 't1' }) } }), true)
     assert.equal(isRegisteredBotReceiptReply({ msg, store: { findTaskByAnyReceipt: () => null, findByReceiptMessageId: () => null } }), false)
+    // 11-01 对话层：话题内发言不带 reply_to，只有 root_id；根消息命中回执（任意代次 / 当前代次）也算回 bot。
+    const hit = (ids) => ({ findTaskByAnyReceipt: (id) => (ids.includes(id) ? { id: 't1' } : null), findByReceiptMessageId: () => null })
+    return eachCase([
+      { name: 'threadRootId 命中任意代次回执 → true', msg: { threadRootId: 'om_root' }, store: hit(['om_root']), want: true },
+      { name: 'threadRootId 只命中当前代次索引 → true', msg: { threadRootId: 'om_root' }, store: { findTaskByAnyReceipt: () => null, findByReceiptMessageId: (id) => (id === 'om_root' ? { id: 't1' } : null) }, want: true },
+      { name: 'threadRootId 没命中 → false', msg: { threadRootId: 'om_other' }, store: hit(['om_root']), want: false },
+      { name: 'replyToDirect 没命中、threadRootId 命中 → true', msg: { replyToDirect: 'om_x', threadRootId: 'om_root' }, store: hit(['om_root']), want: true },
+      { name: '两个都没有 → false', msg: {}, store: hit(['om_root']), want: false },
+    ], ({ msg: m, store, want }) => assert.equal(isRegisteredBotReceiptReply({ msg: m, store }), want))
   })
 })
 
@@ -964,29 +1009,39 @@ describe('Lark 回执 message_id 解析', () => {
   })
 })
 
+// 11-01 对话层：开跑不再往群里发排队卡，只私信负责人一行「🛠 开始做」；回执由出口（sendPrincipalNote）登记，回复那条私信能锚回任务。
 describe('sendQueuedReceipt', () => {
-  it('排队卡发送成功后保存 message_id 与发送时 epoch', async () => {
+  const config = { project: 'PR-01930', title: '测试', notifyOpenId: 'ou_aven' }
+  it('开跑知会私信负责人成功后保存 message_id、发送时 epoch 与私信 chatId', async () => {
     let recorded
+    const sends = []
     const task = { id: 't1', chatId: 'oc_1', project: 'PR-01930', summary: '测试任务', epoch: 2 }
     const receipt = await sendQueuedReceipt({
-      config: { project: 'PR-01930', title: '测试' },
-      store: { recordReceipt: (id, value) => { recorded = { id, ...value } } },
+      config,
+      store: { get: () => task, recordReceipt: (id, value) => { recorded = { id, ...value } } },
       task,
-      sendMessage: async () => ({ ok: true, messageId: 'om_queued' }),
+      deps: { sendMarkdown: async (args) => { sends.push(args); return { ok: true, messageId: 'om_queued' } } },
     })
     assert.equal(receipt.ok, true)
-    assert.deepEqual(recorded, { id: 't1', messageId: 'om_queued', kind: 'queued', epoch: 2 })
+    assert.deepEqual(recorded, { id: 't1', messageId: 'om_queued', kind: 'start', epoch: 2, chatId: 'ou_aven' })
+    assert.deepEqual([sends.length, sends[0].chatId, sends[0].markdown, sends[0].idempotencyKey], [1, 'ou_aven', '🛠 开始做：测试任务（PR-01930）', 't1-e2-pn-st'])
   })
 
-  it('发送失败或未返回 message_id 时不伪造关联', async () => {
+  it('发送失败或未返回 message_id 时不伪造关联；负责人私信发起的不发', async () => {
     let recorded = false
-    await sendQueuedReceipt({
-      config: { project: 'PR-01930', title: '测试' },
-      store: { recordReceipt: () => { recorded = true } },
+    const store = { get: () => null, recordReceipt: () => { recorded = true } }
+    const failed = await sendQueuedReceipt({
+      config,
+      store,
       task: { id: 't1', chatId: 'oc_1', project: 'PR-01930', summary: '测试任务' },
-      sendMessage: async () => ({ ok: false, reason: 'network' }),
+      deps: { sendMarkdown: async () => ({ ok: false, reason: 'network' }) },
     })
-    assert.equal(recorded, false)
+    assert.deepEqual([failed.ok, failed.reason, recorded], [false, 'network', false])
+    const noId = await sendQueuedReceipt({ config, store, task: { id: 't1', chatId: 'oc_1', summary: '测试任务' }, deps: { sendMarkdown: async () => ({ ok: true }) } })
+    assert.deepEqual([noId.ok, noId.messageId, recorded], [true, null, false])
+    let sent = 0
+    const dm = await sendQueuedReceipt({ config, store, task: { id: 't1', chatId: 'ou_aven', summary: '测试任务' }, deps: { sendMarkdown: async () => { sent += 1; return { ok: true, messageId: 'om_x' } } } })
+    assert.deepEqual([dm.ok, dm.skipped, sent, recorded], [false, true, 0, false])
   })
 })
 
@@ -1157,11 +1212,14 @@ describe('handleStatusUpdate epoch fencing', () => {
     cleanup()
   })
 
-  it('epoch 匹配 → 放行（running 态无群卡，纯 network-free）', async () => {
+  it('epoch 匹配 → 放行（running 态无群卡，纯 network-free）；结构化结果只在非 running 回写时落到 task.outcome', async () => {
     const store = freshStore()
     store.upsert({ id: 't', status: 'running', epoch: 2, createdAt: '2026-01-01T00:00:00Z' })
-    const outcome = await handleStatusUpdate({ config: {}, store, id: 't', status: 'running', epoch: 2 })
+    const outcome = await handleStatusUpdate({ config: {}, store, id: 't', status: 'running', epoch: 2, outcome: { summary: '跑着呢' } })
     assert.equal(outcome.ok, true)
+    assert.equal(store.get('t').outcome, undefined, 'running 不带结构化结果')
+    await handleStatusUpdate({ config: {}, store, id: 't', status: 'done', epoch: 2, result: '完成', outcome: { summary: '做完了' } })
+    assert.equal(store.get('t').outcome?.summary, '做完了')
     cleanup()
   })
 
@@ -1175,23 +1233,42 @@ describe('handleStatusUpdate epoch fencing', () => {
 })
 
 // ---------------------------------------------------------------------------
-// 终态结果卡登记为回执：回复一条已完成/失败/无需改动的结果卡说「取消任务」时，控制通道要能锚定回原任务，
-// 幂等回「已结束、未新建」，而不是 fall through 新建一条名为「取消任务」的任务。
+// 终态结论登记为回执：回复一条已完成/失败/无需改动的结论（群里回的那句 / 私信负责人的那句）说「取消任务」时，
+// 控制通道要能锚定回原任务，幂等回「已结束、未新建」，而不是 fall through 新建一条名为「取消任务」的任务。
+// 11-01 对话层：走真实出口 deliverOutcome（lark-cli 由 deps 桩掉）——done / no_change 群里回原消息，failed（改码类、没写群回复）只私信负责人；
+// 回执由出口登记（recordReceipt 带 chatId），状态层同 messageId 再登记一次也不重复。
 // ---------------------------------------------------------------------------
-describe('终态结果卡回执可锚定', () => {
-  const cardConfig = { project: 'PR-TEST', title: '任务', bugTable: {} }
+describe('终态结论回执可锚定', () => {
+  const cardConfig = { project: 'PR-TEST', title: '任务', bugTable: {}, notifyOpenId: 'ou_aven' }
   for (const status of ['done', 'failed', 'no_change_needed']) {
-    it(`${status} 结果卡的 messageId 被登记为回执，findTaskByAnyReceipt 可反查`, async () => {
+    it(`${status} 结论的 messageId 被登记为回执，findTaskByAnyReceipt 可反查`, async () => {
       const dir = mkdtempSync(join(tmpdir(), 'lark-gw-term-'))
-      const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
-      store.upsert({ id: 't-term', status: 'running', epoch: 0, chatId: 'oc_x', summary: '原任务', createdAt: '2026-01-01T00:00:00Z' })
-      const sendMessage = async () => ({ ok: true, messageId: `om_result_${status}` })
-      const outcome = await handleStatusUpdate({ config: cardConfig, store, id: 't-term', status, epoch: 0, result: '结束。', sendMessage })
-      assert.equal(outcome.ok, true)
-      const anchored = store.findTaskByAnyReceipt(`om_result_${status}`)
-      assert.ok(anchored, `回复 ${status} 结果卡应能经回执锚定回原任务，否则控制通道会新建任务`)
-      assert.equal(anchored.id, 't-term')
-      rmSync(dir, { recursive: true, force: true })
+      process.env.LARK_OUTBOX_DIR = join(dir, 'outbox')
+      process.env.LARK_OBLIGATIONS_DIR = join(dir, 'obligations')
+      try {
+        const store = createTaskStore({ tasksDir: join(dir, 'tasks'), leaseMs: 1000 })
+        store.upsert({ id: 't-term', status: 'running', epoch: 0, chatId: 'oc_x', messageId: 'om_orig', operator: 'ou_qa', summary: '原任务', createdAt: '2026-01-01T00:00:00Z' })
+        const sent = []
+        const deps = {
+          replyMarkdown: async (args) => { sent.push({ kind: 'reply', ...args }); return { ok: true, messageId: `om_result_${status}`, via: 'reply' } },
+          sendMarkdown: async (args) => { sent.push({ kind: 'send', ...args }); return { ok: true, messageId: `om_result_${status}` } },
+        }
+        const outcome = await handleStatusUpdate({ config: cardConfig, store, id: 't-term', status, epoch: 0, result: '结束。', resolveGroupChat: async () => null, deps })
+        assert.deepEqual(outcome, { ok: true })
+        assert.equal(store.get('t-term').status, status)
+        const anchored = store.findTaskByAnyReceipt(`om_result_${status}`)
+        assert.ok(anchored, `回复 ${status} 结论应能经回执锚定回原任务，否则控制通道会新建任务`)
+        assert.equal(anchored.id, 't-term')
+        // 出口已带 chatId 登记过；状态层 recordSuccessfulReceipt 同 messageId 再登记一次（不带 chatId）会把出口写的 chatId 覆盖成 null——
+        // 私信主通道（lark-principal-channel latestDmReceipt）按 receipt.chatId 认私信回执，failed 这条私信因此锚不回；是 lib 侧的缺口，这里只钉「不重复登记」。
+        const receipts = anchored.receipts.filter((r) => r.messageId === `om_result_${status}`)
+        assert.deepEqual([receipts.length, store.get('t-term').lastDeliveredReceipt.idempotencyKey], [1, `t-term-e0-${{ done: 'done', failed: 'fail', no_change_needed: 'noop' }[status]}`], '同一 messageId 只登记一次')
+        assert.deepEqual(sent.filter((s) => s.kind === 'reply').map((s) => s.messageId), status === 'failed' ? [] : ['om_orig'], 'done / no_change 回复原消息，failed 不发群')
+      } finally {
+        delete process.env.LARK_OUTBOX_DIR
+        delete process.env.LARK_OBLIGATIONS_DIR
+        rmSync(dir, { recursive: true, force: true })
+      }
     })
   }
 })
@@ -1228,31 +1305,8 @@ describe('appendPublicCompletionEvidence（群完成卡隐藏内部治理字段�
   })
 })
 
-describe('buildResultCard（结果卡渲染分支行）', () => {
-  const config = { project: 'PR-01645', title: '冒烟', bugTable: {} }
-  it('有 task.branch → 卡片含分支行', () => {
-    const card = buildResultCard({ config, task: { summary: 'x', branch: 'hotfix/PR-01645-ab12cd' }, status: 'done', result: '已完成。' })
-    assert.match(card, /hotfix\/PR-01645-ab12cd/)
-    assert.match(card, /分支/)
-  })
-  it('无 task.branch（只读任务）→ 卡片不含分支行', () => {
-    const card = buildResultCard({ config, task: { summary: 'x', commandType: 'status' }, status: 'done', result: '查询完成。' })
-    assert.ok(!/\*\*分支\*\*/.test(card))
-    assert.match(card, /查询成功/)
-  })
-
-  it('待确认卡展示任务 ID、轮次和两种续跑入口', () => {
-    const card = buildWaitingCard({
-      config,
-      task: { id: 'rec1234', summary: '缺接口口径', waitRound: 2 },
-      status: 'waiting_confirmation',
-      result: '需确认全部账户含义。',
-    })
-    assert.match(card, /rec1234/)
-    assert.match(card, /第 2 轮/)
-    assert.match(card, /继续任务 rec1234/)
-  })
-})
+// 11-01 对话层：结果卡 / 待确认卡已删。「分支 · 改了 N 个文件」只在改码类群回复里出现（changeFacts / sayDoneChangeGroup，只读代答不带），
+// 续跑入口「继续任务 <id>」在私信文案里——都在 lark-human-text.test 逐字钉住，这里不再重复。
 
 describe('crossCheckChangedFiles（AI 自报 vs 真实 git diff）', () => {
   it('一致 → consistent，无差集', () => {
@@ -1553,6 +1607,17 @@ describe('validateConfig（启动期配置结构校验）', () => {
     assert.deepEqual(validateConfig({ ...unpinned, claudeSettingSources: 'user,project,local' }).warnings, [])
     assert.deepEqual(validateConfig({ ...unpinned, aiExecutor: 'codex' }).warnings, [])
     assert.ok(validateConfig({ ...base, claudeSettingSources: '' }).errors.some((e) => e.includes('claudeSettingSources')))
+    // 对话层可选键：joinGreeting 是 false 或非空字符串；digest / intake / envSites / ownerMap / memberRoles 必须是对象（数组 / 字符串都不行）
+    assert.deepEqual(validateConfig({ ...base, joinGreeting: false }).errors, [])
+    assert.deepEqual(validateConfig({ ...base, joinGreeting: '大家好' }).errors, [])
+    assert.deepEqual(validateConfig({ ...base, joinGreeting: '' }).errors, ['joinGreeting 必须是 false 或一句非空字符串（进群打招呼）'])
+    assert.deepEqual(validateConfig({ ...base, joinGreeting: true }).errors, ['joinGreeting 必须是 false 或一句非空字符串（进群打招呼）'])
+    for (const [key, message] of [['digest', 'digest 必须是对象 { at: "HH:MM", enabled }'], ['intake', 'intake 必须是对象 { quietGapMs, maxWaitMs, fastLaneMs }'], ['envSites', 'envSites 必须是对象 { test, pre, uat, online }'], ['ownerMap', 'ownerMap 必须是对象（名字 → open_id / 角色）'], ['memberRoles', 'memberRoles 必须是对象（名字 → open_id / 角色）']]) {
+      assert.deepEqual(validateConfig({ ...base, [key]: {} }).errors, [], key)
+      assert.deepEqual(validateConfig({ ...base, [key]: [] }).errors, [message], `${key} 数组`)
+      assert.deepEqual(validateConfig({ ...base, [key]: 'x' }).errors, [message], `${key} 字符串`)
+    }
+    assert.deepEqual(validateConfig({ ...base, digest: { at: '9:30' } }).errors, ['digest.at 必须是 HH:MM'])
   })
   it('notifyOpenId：没配只告警（自愈消息只写日志），配了必须是 ou_ 开头的 open_id', () => {
     const missing = validateConfig({ ...base, notifyOpenId: undefined })
@@ -1862,12 +1927,12 @@ describe('handleStatusUpdate 的 parkedAt 锚点', () => {
   it('进入挂起态打锚点；同态重复回写不重置；离开挂起态清掉', async () => {
     const store = freshStore()
     store.upsert({ id: 't', status: 'running', createdAt: '2026-01-01T00:00:00Z', chatId: null })
-    const sendMessage = async () => ({ ok: true })
-    await handleStatusUpdate({ config: parkedConfig, store, id: 't', status: 'blocked', result: 'x', sendMessage })
+    const deliver = async () => ({ ok: true, messageId: 'om_x' })
+    await handleStatusUpdate({ config: parkedConfig, store, id: 't', status: 'blocked', result: 'x', deliver })
     const first = store.get('t').parkedAt
     assert.ok(first, '进入 blocked 应打上 parkedAt')
     assert.equal(store.get('t').waitRound, 1)
-    await handleStatusUpdate({ config: parkedConfig, store, id: 't', status: 'blocked', result: 'x', sendMessage })
+    await handleStatusUpdate({ config: parkedConfig, store, id: 't', status: 'blocked', result: 'x', deliver })
     assert.equal(store.get('t').parkedAt, first, '同态重复回写不得重置挂起时长')
     assert.equal(store.get('t').waitRound, 1, '同态幂等回写不得增加等待轮次')
     await handleStatusUpdate({ config: parkedConfig, store, id: 't', status: 'running' })
@@ -1889,7 +1954,7 @@ describe('handleStatusUpdate no_change_needed 终态', () => {
       id: 't',
       status: 'no_change_needed',
       result: '无需改动。',
-      sendMessage: async () => ({ ok: true }),
+      deliver: async () => ({ ok: true, messageId: 'om_x' }),
     })
     assert.equal(outcome.ok, true) // 未落到 invalid status 分支
     assert.equal(store.get('t').status, 'no_change_needed') // 直接落终态，未走 done→done_pending_writeback
@@ -1899,7 +1964,7 @@ describe('handleStatusUpdate no_change_needed 终态', () => {
 
 describe('handleStatusUpdate 的 scopeRequest（范围契约待批准请求）', () => {
   const freshStore = () => createTaskStore({ tasksDir: mkdtempSync(join(tmpdir(), 'lark-scope-req-')), leaseMs: 1000 })
-  const options = { config: {}, sendMessage: async () => ({ ok: true }), resolveGroupChat: async () => null }
+  const options = { config: {}, deliver: async () => ({ ok: true, messageId: 'om_x' }), resolveGroupChat: async () => null }
 
   it('waiting_confirmation 持久化清洗后的请求；后续其它状态回写一律清空', async () => {
     const store = freshStore()
@@ -1927,7 +1992,7 @@ describe('任务回执持久化重试', () => {
       status: 'done',
       result: '完成',
       epoch: 2,
-      sendMessage: async () => ({ ok: false, reason: 'network down' }),
+      deliver: async () => ({ ok: false, reason: 'network down' }),
     })
     assert.equal(first.receiptPending, true)
     assert.equal(store.get('t').status, 'result_pending_receipt')
@@ -1935,14 +2000,17 @@ describe('任务回执持久化重试', () => {
     assert.equal(store.get('t').pendingReceipt.epoch, 2)
     assert.equal(store.get('t').pendingReceipt.idempotencyKey, 't-e2-done')
 
+    const delivered = []
     await retryPendingReceipts({
       config: { project: 'PR-99999' },
       store,
-      sendMessage: async () => ({ ok: true, messageId: 'om_receipt' }),
+      deliver: async ({ task, status }) => { delivered.push([task.id, status]); return { ok: true, messageId: 'om_receipt' } },
     })
+    assert.deepEqual(delivered, [['t', 'done']], '重试按保存的 pending 状态重发')
     assert.equal(store.get('t').status, 'done')
     assert.equal(store.get('t').pendingReceipt, undefined)
     assert.equal(store.get('t').lastDeliveredReceipt.idempotencyKey, 't-e2-done')
+    assert.equal(store.findTaskByAnyReceipt('om_receipt')?.id, 't', '重试成功的 messageId 也登记为回执')
   })
 
   it('结果卡送达结算同键 pending 时，发送期间被回写重试改成的 result_pending_receipt 一并落回 done，不永久卡住（falive 10-24 变异补测发现）', async () => {
@@ -1960,7 +2028,7 @@ describe('任务回执持久化重试', () => {
       status: 'done',
       result: '完成',
       epoch: 0,
-      sendMessage: async () => { store.get('t').status = 'result_pending_receipt'; return { ok: true, messageId: 'om_done' } },
+      deliver: async () => { store.get('t').status = 'result_pending_receipt'; return { ok: true, messageId: 'om_done' } },
     })
     assert.deepEqual(outcome, { ok: true })
     assert.equal(store.get('t').pendingReceipt, undefined)
@@ -2001,9 +2069,9 @@ describe('任务回执持久化重试', () => {
     const sending = retryPendingReceipts({
       config: { project: 'PR-99999' },
       store,
-      sendMessage: () => new Promise((resolve) => { releaseSend = resolve }),
+      deliver: () => new Promise((resolve) => { releaseSend = resolve }),
     })
-    await waitUntil(() => releaseSend, { what: 'sendMessage 被调用' })
+    await waitUntil(() => releaseSend, { what: 'deliver 被调用' })
     store.get('t').pendingReceipt = {
       status: 'done',
       result: '新完成',
@@ -2041,9 +2109,9 @@ describe('任务回执持久化重试', () => {
       status: 'blocked',
       result: '等待补料',
       epoch: 1,
-      sendMessage: () => new Promise((resolve) => { releaseSend = resolve }),
+      deliver: () => new Promise((resolve) => { releaseSend = resolve }),
     })
-    await waitUntil(() => releaseSend, { what: 'sendMessage 被调用' })
+    await waitUntil(() => releaseSend, { what: 'deliver 被调用' })
     store.retry('t')
     releaseSend({ ok: true, messageId: 'om_old' })
     const outcome = await updating
@@ -2072,7 +2140,7 @@ describe('任务回执持久化重试', () => {
     await retryPendingReceipts({
       config: { project: 'PR-99999' },
       store,
-      sendMessage: async () => { sends += 1; return { ok: true } },
+      deliver: async () => { sends += 1; return { ok: true, messageId: 'om_dup' } },
     })
     assert.equal(sends, 0)
     assert.equal(store.get('t').status, 'done')

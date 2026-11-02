@@ -73,8 +73,9 @@ describe('运维指令：负责人私信下达固定动作', () => {
     ['部署·先查合没合：有没进目标环境的提交就停，列出来，不取信息不发', () => {
       const { run, calls } = fakeRun({ 'cherry origin/online origin/uat': ok('- aaa1111\n+ bbb2222\n+ ccc3333\n'), 'log -1 --format=%h %s bbb2222': ok('bbb2222 fix: 没合的\n') })
       const out = runDeployAction({ action: { action: 'deploy', env: 'online', autoSend: true, mergedFrom: 'uat' }, opts: config.opsActions, run })
-      assert.equal(out.status, 'blocked')
-      assert.match(out.text, /^uat 上还有 2 个提交没进 online，没发部署信：\n- bbb2222 fix: 没合的\n- ccc3333$/)
+      // 11-01：「没合齐 / 没绿 / 没新内容」是查完的结论，落 done 不催办（原来 blocked 被催了两轮）。
+      assert.equal(out.status, 'done')
+      assert.match(out.text, /^uat 上还有 2 个提交没进 online，没发部署信：\n- bbb2222 fix: 没合的\n- ccc3333\n合齐了回我「部署 online」我再查一次。$/)
       assert.ok(calls.some((c) => c.join(' ') === 'git -C /r/falive fetch -q origin'))
       assert.equal(calls.some((c) => c.includes('info')), false)
       const err = fakeRun({ cherry: { status: 128, stderr: 'bad ref' } })
@@ -85,9 +86,9 @@ describe('运维指令：负责人私信下达固定动作', () => {
       const r = (info) => runDeployAction({ action: act, opts: config.opsActions, run: fakeRun({ info }).run })
       assert.match(r({ status: 1, stderr: 'boom' }).text, /取 online 部署信息失败：boom/)
       assert.match(r(ok('<html>')).text, /部署信息不是 JSON/)
-      assert.deepEqual(r(ok(JSON.stringify({ ...INFO, job: { id: 9, status: 'running' } }))), { status: 'blocked', text: 'build:online #9 状态是 running，没绿不发。' })
+      assert.deepEqual(r(ok(JSON.stringify({ ...INFO, job: { id: 9, status: 'running' } }))), { status: 'done', text: 'build:online #9 状态是 running，没绿不发。绿了回我「部署 online」。' })
       assert.match(r(ok(JSON.stringify({ ...INFO, job: null }))).text, /^build:online 状态是 取不到，没绿不发/)
-      assert.deepEqual(r(ok(JSON.stringify({ ...INFO, baseline: INFO.sha }))), { status: 'blocked', text: 'online 已经是 c1a40982（online 站点已部署），没有新内容，不发。' })
+      assert.deepEqual(r(ok(JSON.stringify({ ...INFO, baseline: INFO.sha }))), { status: 'done', text: 'online 已经是 c1a40982（online 站点已部署），没有新内容，不发。' })
       assert.match(r(ok(JSON.stringify({ ...INFO, baseline: INFO.sha, baselineFrom: '' }))).text, /（上次部署）/)
     }],
     ['部署·没说直接发：只回将要发的内容，不建草稿', () => {
@@ -141,6 +142,12 @@ describe('运维指令：负责人私信下达固定动作', () => {
       assert.equal((await runOpsAction({ task: { text: '发 pre', operator: OWNER }, workerConfig: { localConfig: config }, reportStatus, updateAudit: (p) => audits.push(p.status), run })).status, 'done')
       assert.deepEqual(reports.map((r) => r[0]), ['running', 'done'])
       assert.deepEqual(audits, ['running_ops', 'done'])
+      // 结构化 outcome：原文就是人话，summary 取第一行
+      assert.deepEqual(reports[1][5], { outcome: { kind: 'ops', summary: 'feature/phase-6-ol 没有新提交，不用推。', text: 'feature/phase-6-ol 没有新提交，不用推。', blockers: [], warnings: [] } })
+      reports.length = 0
+      await runOpsAction({ task: { text: '发 pre', operator: OWNER }, workerConfig: { localConfig: config }, reportStatus, run: fakeRun({ push: { status: 1, stderr: '第一行\n第二行' } }).run })
+      assert.deepEqual(reports.at(-1).slice(0, 2), ['failed', '推 feature/phase-6-ol 失败：第一行\n第二行'])
+      assert.deepEqual(reports.at(-1)[5].outcome, { kind: 'ops', summary: '推 feature/phase-6-ol 失败：第一行', text: '推 feature/phase-6-ol 失败：第一行\n第二行', blockers: [], warnings: [] })
     }],
     ['开工前出口与工作上下文：运维任务进运维仓根并接管；普通任务没触发需求闸就放行', async () => {
       const task = { id: 't', text: '运维：发 pre', commandType: 'ops', commandTypeSource: 'explicit', operator: OWNER }

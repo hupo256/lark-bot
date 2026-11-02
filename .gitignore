@@ -17,3 +17,9 @@ runtime/lark-self-fix/
 runtime/lark-project-chats.json*
 runtime/lark-bug-watch.json*
 runtime/lark-bug-claims.json*
+# 对话层运行态（aven 11-01）：发件簿、回复义务、负责人 persona、人员画像、日汇总断点
+runtime/lark-outbox/
+runtime/lark-obligations/
+runtime/persona/
+runtime/people.json
+runtime/lark-digest-state.json

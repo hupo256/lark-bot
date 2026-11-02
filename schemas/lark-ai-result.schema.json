@@ -3,8 +3,53 @@
   "title": "Lark AI task result",
   "type": "object",
   "additionalProperties": false,
-  "required": ["status", "taskState", "rootCauseLayer", "evidence", "summary", "checks", "changedFiles", "warnings", "blockers", "owner", "failureKind", "nextStep"],
+  "required": ["status", "taskState", "rootCauseLayer", "evidence", "summary", "checks", "changedFiles", "warnings", "blockers", "owner", "failureKind", "nextStep", "report", "groupReply", "detailDoc", "followUps"],
   "properties": {
+    "report": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "description": "结构化群回复（代答 / 实测 / 改码完成都可填；群里无事可说填 null）：代码按条目算第一行，不要在这里排版",
+      "properties": {
+        "subject": { "type": ["string", "null"], "description": "第一行的对象（实测的环境 / 流程）；代答可 null" },
+        "answer": { "type": ["string", "null"], "description": "代答 / 判断类的一两句直接回答；实测类可 null" },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["mark", "name", "note", "evidence"],
+            "properties": {
+              "mark": { "type": "string", "enum": ["ok", "not_usable", "not_done", "na"] },
+              "name": { "type": "string", "minLength": 1 },
+              "note": { "type": ["string", "null"] },
+              "evidence": { "type": "string", "enum": ["pre", "browser", "code", "none"] }
+            }
+          }
+        }
+      },
+      "required": ["subject", "answer", "items"]
+    },
+    "groupReply": {
+      "type": ["string", "null"],
+      "description": "report 装不下时的一段人话（没有条目的纯结论）；有 report 就填 null"
+    },
+    "detailDoc": {
+      "type": ["string", "null"],
+      "description": "给对方的材料（markdown：curl / 复现步骤 / 清单），bot 建成 Lark 文档、群里只放链接；没有填 null"
+    },
+    "followUps": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["owner", "items"],
+        "properties": {
+          "owner": { "type": "string", "minLength": 1 },
+          "items": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+        }
+      },
+      "description": "要别人跟进的点，按人分组；没有填 null"
+    },
     "status": {
       "type": "string",
       "enum": ["done", "done_with_warnings", "no_change_needed", "blocked", "failed", "waiting_confirmation"],

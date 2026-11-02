@@ -273,3 +273,21 @@ fameex 线**现在没配 `verify`**，上线后行为不变；要启用先在 `r
 - 反向：fameex 独有的机械验收自修（`lark-self-fix-run` / `lark-self-fix-cli`、`lark-failure-playbook`）比 falive 版严，阶段 ④ 若合代码要先搬回 falive 线。
 
 验证（11-01，第五批后）：`node scripts/test-all.mjs` 621 / 621 绿；`node scripts/mutate.mjs --diff fameex-stable` 62 个变异点抓到 61、豁免 1、存活 0。
+
+## 第三批（2026-11-01）：对话层——第一批「刻意没搬」的那部分，作废重搬
+
+aven 11-01：falive bot 下线后 lark-bot 是唯一主力，要做成「智能任务调度器 → 数字分身」：响应 @bot 与私信、讲人话、接上对方的话、不套固定模板。第一批写的「对接台账 / 回复义务 / 任务契约 / 结构化群回复不搬，fameex 内部群用卡片」作废。计划与验收见 `~/.claude/plans/sequential-dancing-planet.md`（会话文件）与 `docs/task-boundaries-and-reply.md` §4 / §7。
+
+| 能力 | falive 来源 | 落在哪 | 搬法 |
+|---|---|---|---|
+| 群 / 话题上下文挑选、最近 20 条含 bot 自己的话（#23 #74） | `lark-chat-context`、`lark-cli.fetchRecentChatContext` | 同名 | 逐字；own-bot 判定多认 `sender.id`（应用 bot） |
+| 发件簿 / 出口闸 / 阶段表（#57 I9） | `lark-outbox`、`lark-group-phases` | 同名 | 逐字；条目多记 `messageId`；表按 fameex 的 phase 重填（多 anchor / receipt 两列） |
+| 回复义务（I1） | `lark-reply-obligation` | 同名 | 逐字 |
+| 结构化群回复渲染 + 证据核对（I4） | `lark-report-render`、`lark-run-report` | 同名 | 逐字 + `normalizeOutcome` / `mapStatusForContract`（代答 / 实测查不到也是 done） |
+| 对话包 / 默认锚点 | `lark-conversation` | 同名 | 去台账、去 repo；产数据不产文本，分类提示渲染 |
+| 任务契约（I2） | `lark-task-contract` | 同名 | 去 repo 条件、加 `ops` / `selfAnswer` |
+| 分类五类 + 接话 | `lark-classify-prompt`、`lark-intake-resolve` | 同名 | 规则重写：去台账 / 功能总表，加能力清单 / persona / selfAnswer |
+| 负责人私信主通道 | `lark-principal-channel` | 同名 | 去 profile：锚定范围 = 全部任务；只认「在问他」的通知或短指代句 |
+| 「收到」挂起 / 话题补充并入 | `lark-repo-intake` | `lark-intake-ack` | 去 profile |
+| 人话出口 | `lark-repo-delivery`、`lark-blocked-ask`、`lark-docs` + `lark-detail-doc`、`lark-group-reply-pass` | `lark-human-text`、`lark-delivery`、`lark-group-exit`、`lark-blocked-ask`、`lark-docs`、`lark-group-reply-pass` | 改写：去 webhook，bot 身份 `+messages-reply --markdown` 回复原消息（post-md 的 `<at user_id>` 真机验过能 @ 到人） |
+| 不搬 | 台账 / 功能总表 / 日报 / 部署盯梢 / SEO / docIntake / 探针 / chat-poller / merge-back | — | fameex 没有这些对象 |

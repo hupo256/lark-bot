@@ -1,0 +1,60 @@
+{
+  "note": "2026-11-01 真机 6 条：aven 在测试群 @bot / 私信，旧 bot 全部走偏（见 plan §0）。deterministic 部分核契约与可执行性；--live 真跑分类器核 decision / deliverable / selfAnswer / continues。",
+  "cases": [
+    {
+      "id": "om_x100b61448c87fcb4ffe2bdeadd8569c",
+      "text": "确认一下，现在你可以按指令发邮件吗？",
+      "trigger": "dm",
+      "addressedToBot": true,
+      "fromPrincipal": true,
+      "expected": { "decision": "question", "deliverable": "answer", "selfAnswer": true, "continues": null, "actionable": false, "contract": "answer" }
+    },
+    {
+      "id": "om_x100b6145a68df0a0ffb25bb02ee2406",
+      "text": "看看现在 fameex-web 的测试环境，是不是能正常注册、登录",
+      "trigger": "dm",
+      "addressedToBot": true,
+      "fromPrincipal": true,
+      "expected": { "decision": "question", "deliverable": "verification", "selfAnswer": false, "continues": null, "actionable": true, "contract": "verification" }
+    },
+    {
+      "id": "om_x100b6145b345d4a4ffa62a1d40f3ad7",
+      "text": "那你看看，现在 test 、pre 两个环境，运行的代码是不是一样的",
+      "trigger": "dm",
+      "addressedToBot": true,
+      "fromPrincipal": true,
+      "expected": { "decision": "question", "deliverable": "answer", "selfAnswer": false, "continues": null, "actionable": true, "contract": "answer" }
+    },
+    {
+      "id": "om_x100b6145b0dc70a0ff63f8d1d90840c",
+      "text": "有哪些差别",
+      "trigger": "dm",
+      "addressedToBot": true,
+      "fromPrincipal": true,
+      "conversation": {
+        "anchor": { "taskId": "om_x100b6145b345d4a4ffa62a1d40f3ad7", "topic": "test-pre-diff", "at": "2026-11-01T11:19:43.000Z", "phase": "done", "text": "test 和 pre 两个分支的代码不一样：远端两个分支头不同，test 有 15041 个提交不在 pre 里，pre 也有 659 个提交不在 test 里。" },
+        "activity": { "outbox": [{ "at": "2026-11-01T11:19:43.000Z", "phase": "done", "topic": "test-pre-diff", "text": "test 和 pre 两个分支的代码不一样：远端两个分支头不同，test 有 15041 个提交不在 pre 里，pre 也有 659 个提交不在 test 里。" }], "tasks": [{ "id": "om_x100b6145b345d4a4ffa62a1d40f3ad7", "summary": "那你看看，现在 test 、pre 两个环境，运行的代码是不是一样的", "status": "done", "createdAt": "2026-11-01T11:17:45.550Z" }] },
+        "candidates": [{ "id": "om_x100b6145b345d4a4ffa62a1d40f3ad7", "summary": "那你看看，现在 test 、pre 两个环境，运行的代码是不是一样的", "status": "done", "deliverable": "answer", "createdAt": "2026-11-01T11:17:45.550Z", "botSaid": "test 和 pre 两个分支的代码不一样：远端两个分支头不同，test 有 15041 个提交不在 pre 里" }]
+      },
+      "expected": { "decision": "question", "deliverable": "answer", "selfAnswer": false, "continues": "om_x100b6145b345d4a4ffa62a1d40f3ad7", "actionable": true, "contract": "answer" }
+    },
+    {
+      "id": "ops-verify-1101",
+      "text": "运维：部署 online",
+      "trigger": "dm",
+      "addressedToBot": true,
+      "fromPrincipal": true,
+      "ops": true,
+      "expected": { "classified": false, "contract": "ops" }
+    },
+    {
+      "id": "ops-verify-1101b",
+      "text": "uat 环境通过了，确认一下相同的改动是不是合到 online 上了。如果是，就运行 \"部署 online\" 指令， 不用我确认草稿，直接发就好了。发完告诉我",
+      "trigger": "dm",
+      "addressedToBot": true,
+      "fromPrincipal": true,
+      "ops": true,
+      "expected": { "classified": false, "contract": "ops" }
+    }
+  ]
+}

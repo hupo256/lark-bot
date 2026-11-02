@@ -46,25 +46,24 @@ lark-bot 是跑在**本机**的一套常驻服务：群里 @ 一下机器人（�
 ## 3. 一条消息的旅程
 
 ```text
-群里 @Codex 修复：/xxx 页面 light 模式背景色不对
+群里 @bot /xxx 页面 light 模式背景色不对   （或：私信 bot、回复 bot 的消息；只 @ 负责人 / @所有人 的不处理）
   ↓ ① lark-cli 长连接投递 im.message.receive_v1 事件
-  ↓ ② Gateway：白名单校验（fail-closed）→ message_id 幂等 → 解析命令类型/项目号
-  ↓ ③ 合并话题上下文 + 下载图片附件 → 落盘为 task（文件队列）
-  ↓ ④ 立即回群「已收到」排队卡
-  ↓ ⑤ Worker 按 workContext 领取（同 worktree 串行，不同并行，上限 3）
-  ↓ ⑥ 准备/复用 worktree（有人类 WIP 则改路由到隔离 hotfix 分支）
-  ↓ ⑦ 注入规则上下文 + 项目文档 → spawn AI CLI：先只读分析出修改范围契约，再实施（默认 30min 硬超时）
-  ↓ ⑧ Worker 亲自跑终检：git diff --check + 触达文件 Biome + done 可信度评估 + 范围契约核对
-  ↓ ⑨ 通过 → 本地 commit（带 lark-task: <id> trailer）；不通过 → failed（越界 → 待确认扩大范围）
-  ↓ ⑩ 回写 Gateway → 发结果卡（绿完成 / 红失败 / 橙待确认 / 灰无需改动）
-  ↓ ⑪ bug 表来源额外回写记录状态（回写成功才落 done）
+  ↓ ② Gateway：白名单校验（fail-closed）→ message_id 幂等 → 显式指令（取消 / 继续任务 id、运维：）直达
+  ↓ ③ 上下文包：被引用消息 + 话题回复 + 本群最近 20 条（含 bot 自己的话）+ 这个人正在进行的事 + 默认锚点 → 落盘为 received task，挂「收到」
+  ↓ ④ Worker 只读分类（五类 + 交付物 + 接话一句）→ 回群「收到」就是分类器写的那句；问 bot 自己的直接答完；追问 / 疑似 / 只记一笔 / 忽略各走各的
+  ↓ ⑤ 契约 deliverable：代答 / 实测 → 单趟只读；改码 → 准备/复用 worktree（有人类 WIP 则改路由到隔离 hotfix 分支）
+  ↓ ⑥ 注入规则上下文 + 项目文档 → spawn AI CLI：先只读分析出修改范围契约，再实施（默认 30min 硬超时）
+  ↓ ⑦ Worker 亲自跑终检：git diff --check + 触达文件 Biome + done 可信度评估 + 范围契约核对（代答 / 实测不进闸）
+  ↓ ⑧ 通过 → 本地 commit（带 lark-task: <id> trailer）；不通过 → failed（越界 → 待确认扩大范围）
+  ↓ ⑨ 回写 Gateway（status + 结构化 outcome）→ 群里回复原消息一段人话；改砸了草稿私信负责人，回「就这样回」才发群
+  ↓ ⑩ bug 表来源额外回写记录状态（回写成功才落 done）
 ```
 
-关键边界：**bot 只本地 commit，从不 push、不开 PR、不合并**——产出的是「候选修复」，留人工 review；正式交付仍走项目级 v3.3 verify。
+关键边界：**bot 只本地 commit，从不 push、不开 PR、不合并**——产出的是「候选修复」，留人工 review；正式交付仍走项目级 v3.3 verify。收信、分类、出口的细则见 [task-boundaries-and-reply.md](./task-boundaries-and-reply.md) §4 / §7。
 
 ## 4. 信任与安全模型（为什么是这样做）
 
-- **fail-closed 白名单**：信任边界是白名单群（推荐 `allowedChatIds:"auto"` = bot 所在群动态成员制）；没配任何白名单就拒绝所有事件。`@所有人`/`@负责人` 触发先经只读 AI 意图分类，中高置信度才入队。
+- **fail-closed 白名单**：信任边界是白名单群（推荐 `allowedChatIds:"auto"` = bot 所在群动态成员制）；没配任何白名单就拒绝所有事件。`@所有人`/`@负责人`（没叫 bot）的消息 2026-11-02 起不再触发（之前经只读意图分类入队，判归属太复杂、准确性低，aven 决定先关掉）。
 - **本地 API 鉴权**：Gateway 写接口必须带 `LARK_GATEWAY_SECRET`（0600 文件注入，不落 plist）；缺失即拒绝启动——「只绑 127.0.0.1」不构成边界。
 - **身份复用 lark-cli**：收发消息、读话题、下图、读写多维表格全走 lark-cli 已登录的 bot 身份（keychain），配置里不放 appSecret。
 - **人类 WIP 不可侵犯**：目标 worktree 已有未提交改动时，任务改道隔离 hotfix worktree；命中人类分支时只 scoped 提交本任务实测文件。
