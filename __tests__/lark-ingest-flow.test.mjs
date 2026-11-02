@@ -26,6 +26,7 @@ case "$*" in
   *+messages-mget*) printf '%s' '{"ok":true,"data":{"messages":[{"message_id":"om_ref","msg_type":"text","content":"原话","sender":{"id":"ou_k","name":"K"},"create_time":"2026-11-01 09:00"}]}}' ;;
   *+chat-list*) printf '%s' '{"ok":true,"data":{"chats":[{"chat_id":"oc_named","name":"[PR-02306] 项目群"},{"chat_id":"oc_g","name":"测试群"},{"chat_id":"oc_bound","name":"绑定群"},{"chat_id":"oc_auto","name":"自动群"}]}}' ;;
   *+threads-messages-list*|*+chat-messages-list*) printf '%s' '{"ok":true,"data":{"messages":[]}}' ;;
+  *+messages-resources-download*file_ok*) printf '%s' '{"ok":true,"data":{}}' ;;
   *+messages-resources-download*) printf '%s' '{"ok":false,"error":{"type":"test","message":"no download"}}' ;;
   *) printf '{"ok":true,"data":{"message_id":"om_f%s"}}' "$n" ;;
 esac
@@ -40,6 +41,7 @@ mkdirSync(process.env.LARK_RUNTIME_DIR, { recursive: true })
 writeFileSync(join(process.env.LARK_RUNTIME_DIR, 'lark-project-chats.json'), JSON.stringify({ version: 1, baselineAt: null, projects: { 'PR-01111': { chatId: 'oc_bound', chatName: '绑定群' } }, knownChats: {} }))
 
 const { buildConversationBundle } = await import('../lib/lark-conversation-bundle.mjs')
+const { downloadAttachments } = await import('../lib/lark-cli.mjs')
 const { ingestLarkEvent } = await import('../lib/lark-ingest.mjs')
 const { recordOutbox } = await import('../lib/lark-outbox.mjs')
 const { handleBotAddedEvent, parseBotAddedEvent } = await import('../lib/lark-project-chat-sync.mjs')
@@ -354,6 +356,26 @@ describe('摄入链路 / 上下文包 / 入群事件（真 store + 假 lark-cli�
       const boom = async () => { throw new Error('网络坏了') }
       const failed = await buildConversationBundle({ msg: { ...msg, replyTo: 'om_q', text: '只有本条', attachments: [{ type: 'image', imageKey: 'img_o' }] }, config, store: { list: () => [] }, deps: { fetchReferencedContext: boom, fetchThreadContext: boom, fetchRecentChatContext: boom, downloadAttachments: async ({ attachments }) => attachments } })
       assert.deepEqual([failed.text, failed.attachments, failed.threadSpeakers, failed.refText, failed.quotedOwnCard], ['只有本条', [{ type: 'image', imageKey: 'img_o', origin: '本条' }], [], null, false])
+    })],
+    ['downloadAttachments：文件按 fileKey + --type file + 原文件名（去掉路径字符）下，不按图片改扩展名；图片照旧 .img；缺下载键直接记错不调；失败记 downloadError（11-02：原来一律当图片下）', () => quiet(async () => {
+      const out = await downloadAttachments({ project: 'PR-9', messageId: 'om_dl', attachments: [
+        { type: 'file', fileKey: 'file_ok1', fileName: '../需求/说明.md' },
+        { type: 'file', fileKey: 'file_ok2', fileName: null },
+        { type: 'image', imageKey: 'img_x' },
+        { type: 'file', fileName: '没键.md' },
+      ] })
+      const dirOf = join(process.env.LARK_RUNTIME_DIR, 'lark-attachments', 'PR-9', 'om_dl')
+      assert.deepEqual(out.map((a) => [a.localPath || null, a.downloadError ? a.downloadError.slice(0, 20) : null]), [
+        [join(dirOf, '1-_需求_说明.md'), null],
+        [join(dirOf, '2-file_ok2'), null],
+        [null, '{"ok":false,"error":'],
+        [null, '缺下载键'],
+      ])
+      const lines = readFileSync(cliLog, 'utf8').split('\n').filter((line) => line.includes('+messages-resources-download') && line.includes('om_dl'))
+      assert.equal(lines.length, 3, '缺下载键的不调')
+      assert.match(lines[0], /--file-key file_ok1 --type file --output 1-_需求_说明\.md/)
+      assert.match(lines[2], /--file-key img_x --type image --output 3-img_x\.img/)
+      assert.deepEqual(await downloadAttachments({ project: 'PR-9', messageId: 'om_dl2', attachments: [] }), [])
     })],
     ['parseBotAddedEvent：官方信封 / data.event / 拍平 / 驼峰 chatId / i18n 名 / 操作人三种写法 / external 只认 true；缺 chat_id → null', () => eachCase([
       { name: '官方信封', raw: { event: { chat_id: 'oc_1', name: 'N', external: true, operator_id: { open_id: 'ou_op' } } }, want: { chatId: 'oc_1', name: 'N', operatorOpenId: 'ou_op', external: true } },

@@ -77,6 +77,19 @@ describe('normalizeMessage', () => {
     assert.equal(normalizeMessage(null), null)
     assert.equal(normalizeMessage('x'), null)
     assert.equal(normalizeMessage({ chat_id: 'oc_1' }), null)
+    // 文件消息（11-02 真机格式）：lark-cli 拍平成 <file key name/> → file 附件，正文换成「[文件：名字]」；官方 JSON 信封 { file_key, file_name } 同样认
+    const flat = normalizeMessage({ message_id: 'om_f', chat_id: 'oc_1', message_type: 'file', content: '<file key="file_v3_a" name="需求 &amp; 说明.md"/>' })
+    assert.deepEqual([flat.text, flat.attachments], ['[文件：需求 & 说明.md]', [{ type: 'file', fileKey: 'file_v3_a', fileName: '需求 & 说明.md' }]])
+    const mixed = normalizeMessage({ message_id: 'om_m', chat_id: 'oc_1', message_type: 'text', content: '看下 <file key="file_b"/> 和 <file key="file_b"/> [Image: img_c] <file key="file_d" name="&lt;x&gt;&quot;.pdf">' })
+    assert.deepEqual(mixed.attachments, [{ type: 'image', imageKey: 'img_c' }, { type: 'file', fileKey: 'file_b', fileName: null }, { type: 'file', fileKey: 'file_d', fileName: '<x>".pdf' }])
+    assert.equal(mixed.text, '看下 [文件：未命名] 和 [文件：未命名] [Image: img_c] [文件：<x>".pdf]')
+    const official = normalizeMessage({ event: { message: { message_id: 'om_o', chat_id: 'oc_1', message_type: 'file', content: JSON.stringify({ file_key: 'file_e', file_name: 'a.md' }) } } })
+    assert.deepEqual([official.text, official.attachments], ['[文件：a.md]', [{ type: 'file', fileKey: 'file_e', fileName: 'a.md' }]])
+    const noName = normalizeMessage({ event: { message: { message_id: 'om_o2', chat_id: 'oc_1', message_type: 'file', content: JSON.stringify({ file_key: 'file_f' }) } } })
+    assert.deepEqual([noName.text, noName.attachments], ['[文件：未命名]', [{ type: 'file', fileKey: 'file_f', fileName: null }]])
+    const notFile = normalizeMessage({ event: { message: { message_id: 'om_o3', chat_id: 'oc_1', message_type: 'file', content: JSON.stringify({ text: 'x' }) } } })
+    assert.deepEqual(notFile.attachments, [], '没有 file_key 不算文件')
+    assert.equal(hasDocAttachment(flat.attachments), true, '先发文档后 @bot 靠它认文档')
   })
 
   it('lark-cli 拍平结构：顶层字段 + 字符串 mention.id + 去内联 @名字 + root_id 作 replyTo', () => {
