@@ -24,7 +24,7 @@ const closureOf = (entry) => {
 // 只看代码不看注释：注释里提到「不再 spawnSync」不算。
 const stripComments = (source) => source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/[^:'"]\/\/.*$/gm, '')
 const CHILD_PROCESS_ALLOWED = new Set(['lib/lark-cli.mjs', 'lib/lark-consumer.mjs', 'lib/lark-keep-awake.mjs', 'lib/lark-power.mjs'])
-const WORKER_ONLY = /lib\/lark-(daily-report|ai-executor|doc|worker-run|worker-git|worker-prompts|task-runner|quality-gate|final-verification|system-runner|triage|rule-context|classify-prompt|run-report|group-reply-pass|worker-modes|ai-result-text)\.mjs$/
+const WORKER_ONLY = /lib\/lark-(daily-report|ai-executor|doc|worker-run|worker-git|worker-prompts|task-runner|runner-steps|quality-gate|final-verification|system-runner|triage|rule-context|classify-prompt|run-report|group-reply-pass|worker-modes|ai-result-text)\.mjs$/
 
 describe('gateway 纯度闸', () => {
   const closure = closureOf('lark-gateway.mjs')

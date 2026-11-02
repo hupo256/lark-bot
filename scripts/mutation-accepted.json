@@ -116,83 +116,6 @@
     "reason": "等价：ids 为空时 sessionFiles 为 []，cwd 为空时路径落在 projects/null/ 不存在，collectRunEvidence 读到 0 份都返回 null，与守卫一致"
   },
   {
-    "file": "lib/lark-task-runner.mjs",
-    "code": "if (aiRun?.result && task.ackedInGroup) await runGroupReplyPass({ task, aiRun, cwd: workContext.cwd, attachments: task.attachments || [], localConfig: workerConfig.localConfig, auditLogPath: auditContext?.logPath, readOnly: Boolean(workContext.readOnly), signal: aiController.signal })",
-    "op": "&& → ||",
-    "col": 26,
-    "reason": "等价：runGroupReplyPass 内的 owesGroupReply 先重查 ackedInGroup 与 result，守卫只是省一次调用"
-  },
-  {
-    "file": "lib/lark-task-runner.mjs",
-    "code": "if (aiRun?.result && task.ackedInGroup) await runGroupReplyPass({ task, aiRun, cwd: workContext.cwd, attachments: task.attachments || [], localConfig: workerConfig.localConfig, auditLogPath: auditContext?.logPath, readOnly: Boolean(workContext.readOnly), signal: aiController.signal })",
-    "op": "|| → &&",
-    "col": 139,
-    "reason": "11-02 对话层：runner 主体没有注入点（要真 worktree + 真 AI 才能走到），本行逻辑由 lark-run-report / lark-group-reply-pass / lark-delivery 的单测钉住；待给 createTaskRunner 加 deps 注入点后补运行期测试"
-  },
-  {
-    "file": "lib/lark-task-runner.mjs",
-    "code": "const failWith = (text, kind = 'worker') => reportStatus('failed', text, aiRun?.executor, undefined, undefined, { outcome: outcomeFromWorkerFailure({ summary: String(text).split('\\n').find((line) => line.trim() && !/^(处理失败|已完成|无需改动)[。．]?$/.test(line.trim())) || text, kind }) })",
-    "op": "&& → ||",
-    "col": 217,
-    "reason": "11-02 对话层：runner 主体没有注入点（要真 worktree + 真 AI 才能走到），本行逻辑由 lark-run-report / lark-group-reply-pass / lark-delivery 的单测钉住；待给 createTaskRunner 加 deps 注入点后补运行期测试"
-  },
-  {
-    "file": "lib/lark-task-runner.mjs",
-    "code": "const failWith = (text, kind = 'worker') => reportStatus('failed', text, aiRun?.executor, undefined, undefined, { outcome: outcomeFromWorkerFailure({ summary: String(text).split('\\n').find((line) => line.trim() && !/^(处理失败|已完成|无需改动)[。．]?$/.test(line.trim())) || text, kind }) })",
-    "op": "|| → &&",
-    "col": 265,
-    "reason": "11-02 对话层：runner 主体没有注入点（要真 worktree + 真 AI 才能走到），本行逻辑由 lark-run-report / lark-group-reply-pass / lark-delivery 的单测钉住；待给 createTaskRunner 加 deps 注入点后补运行期测试"
-  },
-  {
-    "file": "lib/lark-task-runner.mjs",
-    "code": "const answerLike = Boolean(task.contract) && task.contract.deliverable !== 'change'",
-    "op": "&& → ||",
-    "col": 50,
-    "reason": "11-02 对话层：runner 主体没有注入点（要真 worktree + 真 AI 才能走到），本行逻辑由 lark-run-report / lark-group-reply-pass / lark-delivery 的单测钉住；待给 createTaskRunner 加 deps 注入点后补运行期测试"
-  },
-  {
-    "file": "lib/lark-task-runner.mjs",
-    "code": "const answerLike = Boolean(task.contract) && task.contract.deliverable !== 'change'",
-    "op": "!== → ===",
-    "col": 79,
-    "reason": "11-02 对话层：runner 主体没有注入点（要真 worktree + 真 AI 才能走到），本行逻辑由 lark-run-report / lark-group-reply-pass / lark-delivery 的单测钉住；待给 createTaskRunner 加 deps 注入点后补运行期测试"
-  },
-  {
-    "file": "lib/lark-task-runner.mjs",
-    "code": "if (isCompletedAiStatus(aiRun.result.status) && !answerLike) {",
-    "op": "&& → ||",
-    "col": 53,
-    "reason": "11-02 对话层：runner 主体没有注入点（要真 worktree + 真 AI 才能走到），本行逻辑由 lark-run-report / lark-group-reply-pass / lark-delivery 的单测钉住；待给 createTaskRunner 加 deps 注入点后补运行期测试"
-  },
-  {
-    "file": "lib/lark-task-runner.mjs",
-    "code": "outcome: outcomeFromWorkerFailure({ summary: '改动超出了分析阶段定下的范围，没提交', blockers: scopeGate.scopeRequest?.paths || [], nextStep: '确认可以改这些文件就回「确认扩大范围」，我接着做' }),",
-    "op": "|| → &&",
-    "col": 123,
-    "reason": "11-02 对话层：runner 主体没有注入点（要真 worktree + 真 AI 才能走到），本行逻辑由 lark-run-report / lark-group-reply-pass / lark-delivery 的单测钉住；待给 createTaskRunner 加 deps 注入点后补运行期测试"
-  },
-  {
-    "file": "lib/lark-task-runner.mjs",
-    "code": "const evidence = runEvidenceFor({ aiRun, cwd: workContext.cwd, verify: workerConfig.localConfig?.verify || null })",
-    "op": "|| → &&",
-    "col": 112,
-    "reason": "11-02 对话层：runner 主体没有注入点（要真 worktree + 真 AI 才能走到），本行逻辑由 lark-run-report / lark-group-reply-pass / lark-delivery 的单测钉住；待给 createTaskRunner 加 deps 注入点后补运行期测试"
-  },
-  {
-    "file": "lib/lark-task-runner.mjs",
-    "code": "const mapped = mapStatusForContract({ contract: task.contract || null, aiStatus: aiRun.result.status, outcome: buildOutcome({ aiResult: aiRun.result, actualChangedFiles, evidence, warnNotes }) })",
-    "op": "|| → &&",
-    "col": 70,
-    "reason": "11-02 对话层：runner 主体没有注入点（要真 worktree + 真 AI 才能走到），本行逻辑由 lark-run-report / lark-group-reply-pass / lark-delivery 的单测钉住；待给 createTaskRunner 加 deps 注入点后补运行期测试"
-  },
-  {
-    "file": "lib/lark-task-runner.mjs",
-    "code": "mapped.outcome.change = { committed: false, gate: 'commit', reason: String(finalized.reason || '').slice(0, 300) }",
-    "op": "|| → &&",
-    "col": 104,
-    "reason": "11-02 对话层：runner 主体没有注入点（要真 worktree + 真 AI 才能走到），本行逻辑由 lark-run-report / lark-group-reply-pass / lark-delivery 的单测钉住；待给 createTaskRunner 加 deps 注入点后补运行期测试"
-  },
-  {
     "file": "lib/lark-control-channel.mjs",
     "code": "task: { ...(task || {}), id: task?.id || null, chatId: msg.chatId, messageId: msg.messageId, operator: msg.senderOpenId, topic: task?.topic || null, epoch: task?.epoch || 0, replyTarget: { messageId: msg.messageId, inThread: Boolean(msg.threadId) } },",
     "op": "|| → &&",
@@ -257,29 +180,15 @@
     "reason": "等价：RELEASE_HELD 匹配不了空串，length > 0 只是冗余保护"
   },
   {
-    "file": "lib/lark-task-runner.mjs",
-    "code": "if (gatewayStatus === 'done' && !workContext.readOnly && !answerLike) {",
-    "op": "=== → !==",
-    "reason": "11-02 对话层：runner 主体没有注入点（要真 worktree + 真 AI 才能走到），提交门槛由 lark-work-context / lark-run-report 的单测钉住；待给 createTaskRunner 加 deps 注入点后补运行期测试"
-  },
-  {
-    "file": "lib/lark-task-runner.mjs",
-    "code": "if (gatewayStatus === 'done' && !workContext.readOnly && !answerLike) {",
-    "op": "&& → ||",
-    "col": 37,
-    "reason": "11-02 对话层：runner 主体没有注入点（要真 worktree + 真 AI 才能走到），提交门槛由 lark-work-context / lark-run-report 的单测钉住；待给 createTaskRunner 加 deps 注入点后补运行期测试"
-  },
-  {
-    "file": "lib/lark-task-runner.mjs",
-    "code": "if (gatewayStatus === 'done' && !workContext.readOnly && !answerLike) {",
-    "op": "&& → ||",
-    "col": 62,
-    "reason": "11-02 对话层：runner 主体没有注入点（要真 worktree + 真 AI 才能走到），提交门槛由 lark-work-context / lark-run-report 的单测钉住；待给 createTaskRunner 加 deps 注入点后补运行期测试"
-  },
-  {
     "file": "lib/lark-control-channel.mjs",
     "code": "return bare.length > 0 && bare.length <= 6 && PROGRESS_PING_RE.test(bare)",
     "op": "> → >=",
     "reason": "等价：PROGRESS_PING_RE 匹配不了空串，length > 0 只是冗余保护"
+  },
+  {
+    "file": "lib/lark-task-runner.mjs",
+    "code": "const combined = typeof AbortSignal.any === 'function' ? AbortSignal.any([deadline, ...(signal ? [signal] : [])]) : signal || deadline",
+    "op": "|| → &&",
+    "reason": "死分支：Node ≥ 20 的 AbortSignal.any 恒为函数，三元的否定支（signal || deadline）跑不到；前半支由 lark-task-runner.test 的合成信号用例钉住"
   }
 ]
