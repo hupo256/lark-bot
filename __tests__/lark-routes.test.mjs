@@ -318,6 +318,11 @@ describe('Gateway HTTP 路由 createRequestHandler', () => {
       const noShots = await quiet(() => post('/lark/tasks/rec3/reopen', { text: 't', chatId: 'oc_new' }))
       assert.deepEqual(noShots.body.task.attachments, [{ source: 'bugtable', imageKey: 'old' }], '没新截图不动旧截图')
       assert.equal(noShots.body.task.chatId, 'oc_new', '显式 chatId 覆盖（项目号没绑群，不改投）')
+      store.upsert({ id: 'rec4', source: 'lark-bugtable', status: 'done', project: 'PR-01947', attachments: [] })
+      const keep = await quiet(() => post('/lark/tasks/rec4/reopen', { text: '再看看' }))
+      assert.equal(keep.body.task.project, 'PR-01947', '正文没带项目号沿用原任务的（11-02：原来清成 null）')
+      store.upsert({ id: 'rec5', source: 'lark-bugtable', status: 'done', project: null, attachments: [] })
+      assert.equal((await quiet(() => post('/lark/tasks/rec5/reopen', { text: '再看看' }))).body.task.project, null)
     }],
     ['retry：不存在 / 不可重试 404 带缺省原因；达上限 404 带上限原因；成功回队并重下失败附件（无 messageId 不重下）', async () => {
       fresh()
