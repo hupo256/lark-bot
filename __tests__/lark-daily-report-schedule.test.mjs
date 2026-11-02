@@ -78,6 +78,13 @@ describe('startDailyReportScheduler（第 1 批：只建系统任务，生成交
       clock.now = at('19:23')
       await s.tick()
       assert.equal(dailyTasks(store).length, 1, '在队列里不重复建')
+      // dailyReport.paused（aven 11-02 项目上线后暂停日报）：到点也不建，调度里没有这个仓
+      registerRepoProfiles({ repos: { falive: { root: '/tmp/falive-react', baseRef: 'main', chatIds: ['oc_falive'], notifyChatId: 'ou_aven', title: 'Falive', dailyReport: { at: '19:00', to: 'ou_aven', paused: true } } } })
+      const pausedStore = fakeStore()
+      const paused = scheduler({ clock: { now: at('19:30') }, store: pausedStore })
+      assert.deepEqual(paused.targets, [])
+      assert.deepEqual(await paused.tick(), [])
+      profiles()
       store.map.get(task.id).status = 'running'
       await s.tick()
       assert.equal(dailyTasks(store).length, 1)
