@@ -154,11 +154,10 @@ describe('闲置群自动退出', () => {
       const noApp = await leaveChat({ config: {}, chatId: 'oc_a', run: async () => assert.fail('不该发请求') })
       assert.deepEqual(noApp, { code: -1, stdout: '', stderr: '没配 botAppId（cli_ 开头），不知道把谁移出群' })
     }],
-    ['豁免：配置 keep / bug 表群 / 「新的 Bug」会话 / 群名带 falive（不分大小写）/ 私信留下的——永不提醒；提醒过又豁免的清掉提醒', () => eachCase([
+    ['豁免：配置 keep / bug 表群 / 「新的 Bug」会话 / 私信留下的——永不提醒；提醒过又豁免的清掉提醒', () => eachCase([
       { name: '配置 keep', config: { ...CONFIG, chatRetention: { keep: ['oc_x'] } }, reason: '配置里留着' },
       { name: 'bug 表群', config: { ...CONFIG, bugTable: { chatId: 'oc_x' } }, reason: 'bug 表的群' },
       { name: '新的 Bug 会话', config: { ...CONFIG, bugTable: { chatId: 'oc_other', watch: { notifyChatId: 'oc_x' } } }, reason: 'bug 表的群' },
-      { name: 'falive 群', config: CONFIG, name2: '[FaLive] 直播', reason: 'falive 也在' },
       { name: '私信留下的', config: CONFIG, keep: true, reason: '你说留下的' },
     ], async ({ config, name2 = '某群', keep = false, reason }) => {
       const io = started({ oc_x: { warnedAt: iso(START), ...(keep ? { keep: true } : {}) } })
@@ -167,6 +166,7 @@ describe('闲置群自动退出', () => {
       const r = await run({ io, now: START + 30 * DAY, config, chats })
       assert.deepEqual([r.sent, r.left, io.data.chats.oc_x.warnedAt], [[], [], undefined])
       assert.equal(exemptReason({ config: CONFIG, state: { chats: {} }, chatId: 'oc_y', name: '某群' }), null)
+      assert.equal(exemptReason({ config: CONFIG, state: { chats: {} }, chatId: 'oc_y', name: '[FaLive] 直播' }), null, 'falive 群不豁免（aven 11-02：满足规则也可以退）')
     })],
     ['群已不在列表（被移出 / 解散）：从记账里删掉；群列表读失败：整轮跳过，不动记账、不发不退；关掉：不读群列表', async () => {
       const io = started({ oc_gone: { warnedAt: iso(START) }, oc_a: { lastActiveAt: iso(START + DAY) } })
@@ -191,7 +191,7 @@ describe('闲置群自动退出', () => {
       const chats = new Map([['oc_a', 'A 群'], ['oc_b', 'B 群'], ['oc_k', 'K 群'], ['oc_f', 'falive 群']])
       const plan = classifyChats({ config: CONFIG, state, chats, now: W + HOUR })
       assert.deepEqual(plan.warned, [{ chatId: 'oc_a', name: 'A 群', due: W + 48 * HOUR }])
-      assert.equal(sayRetentionList({ config: CONFIG, state, chats, now: W + HOUR }), '已经提醒过、到点就退的：\n- A 群（11-18 09:35 后退）\n14 天没人 @我、下次查的时候会提醒的：\n- B 群\n不退的：\n- K 群（你说留下的）\n- falive 群（falive 也在）')
+      assert.equal(sayRetentionList({ config: CONFIG, state, chats, now: W + HOUR }), '已经提醒过、到点就退的：\n- A 群（11-18 09:35 后退）\n14 天没人 @我、下次查的时候会提醒的：\n- B 群\n- falive 群\n不退的：\n- K 群（你说留下的）')
       assert.equal(sayRetentionList({ config: CONFIG, state: { startedAt: iso(W), chats: {} }, chats: new Map([['oc_b', 'B 群']]), now: W }), '现在没有要退的群。')
       assert.deepEqual(classifyChats({ config: CONFIG, state: { chats: {} }, chats: new Map([['oc_b', 'B']]), now: W }).idle, [], '没有 startedAt 不判闲置')
     }],
