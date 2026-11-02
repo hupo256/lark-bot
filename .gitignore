@@ -27,6 +27,7 @@ runtime/lark-digest-state.json
 runtime/lark-daily-report-state.json
 # 闲置群自动退出：群活跃记账（aven 11-02）
 runtime/lark-chat-activity-state.json
+runtime/lark-mail-relay-state.json
 
 # Claude Code 会话 / 权限设置（审批动作随手写入，本机数据）
 .claude/
