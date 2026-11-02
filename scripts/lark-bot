@@ -150,7 +150,11 @@ start() {
   echo "• worker supervised by launchd  → $LOGDIR/worker.log"
   if ! wait_until "worker/model" worker_ready; then
     tail -n 30 "$LOGDIR/worker.log" 2>/dev/null || true
-    stop_core
+    # 11-02 真机：排空重启期间磁盘又合进了新代码，worker 启动后 codeStale 永远不就绪，这里原来 stop_core 把
+    # gateway / worker / poller 全停了、事件总线也跟着没了，bot 整个失聪直到有人手动 start。
+    # 改成留着进程：launchd KeepAlive 托着，worker 自己的排空重启会处理 stale 代码；只有 gateway 起不来才算启动失败。
+    echo "⚠ worker 未就绪（看上面日志：codeStale / 模型探针 / 心跳），进程留着由 launchd 托管，worker 的排空重启会自行收口；要彻底停用 lark-bot stop" >&2
+    if watch_enabled; then ensure_poller; fi
     return 1
   fi
   # 两档调度开着：poller 常驻（平时档也要读通知 / 对账）
