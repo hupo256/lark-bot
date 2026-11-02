@@ -107,6 +107,17 @@ aven 收件箱 ──(user) mail +message──▶ 打分 ──(user) mail +sha
    - 如果会抢：改由网关进程统一持有长连接（等 lark-cli 把 mail 事件并进 event bus），或者单独起进程（见 docs/plan-mail-approval-2026-11-02.md）。
 4. **user token 续期**：当前 refresh token 到 2026-11-09 过期（有 `offline_access`，lark-cli 刷新时会续）。常驻 `+watch` 持续使用 user 身份，要确认它会自动刷新；过期时私信 aven 重新授权。
 
+### 11-02 实测结论（授权、事件订阅都已完成后）
+
+- 3 个邮件 scope 已授权，`mail +watch --dry-run` 通过；应用 1.0.9 / 收信通知事件已发布。
+- **`+watch` 自己另开一条 WebSocket**，不走网关在用的 event bus：起 `+watch` 后 `lark-cli event status` 的消费者仍是原来 2 个，`+watch` 日志里是自己的 `connected to wss://msg-frontier-sg…`。
+- **飞书会在同一应用的两条连接之间分流事件**：+watch 运行时在测试群连发 4 条 @bot，+watch 那条连接收到其中 1 条 `im.message.receive_v1`（报 `not found handler` 丢弃）；网关最终 4 条都收到，但第 3 条晚于第 4 条才到，是 +watch 处理失败后飞书重投过来的。
+- 所以**不能在同一个应用下常驻 `+watch`**：群消息会时不时被延迟（靠重投），重投次数用完、或每次都落到 +watch 那条连接上，就会丢；bot 进群、表情回复等事件同理。
+- 可行方案：
+  1. **单独建一个应用专收邮件事件（推荐）**：新应用只开邮件权限和收信通知事件，aven 在新应用上授权一次。它有自己的长连接，和网关互不抢；凭证用独立目录（`LARKSUITE_CLI_CONFIG_DIR`），也顺带满足 docs/plan-mail-approval 里「领导凭证和 worker 隔离」的要求。转发进群仍由 bot（现应用）回评分。
+  2. 网关自己实现一条 WebSocket，同时处理 im 和 mail 事件，替掉 lark-cli event bus：改动大，碰群消息主链路，不推荐。
+  3. 等 lark-cli 把 mail 事件并入 event bus（1.0.98 的 `event list` 里还没有）。
+
 ### 停机补漏（一次性，不是轮询）
 
 和群消息一样，停机期间的邮件事件飞书不会补推。网关启动时做**一次** `mail +triage --query OL --filter '{"folder":"INBOX"}'`，补转「上次存活时间」之后到达的申请首封。按 message_id 记账去重，已转过的不再转。这只在重启时跑一次，不是定时轮询。
