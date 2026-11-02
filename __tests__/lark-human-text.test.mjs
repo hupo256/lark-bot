@@ -99,7 +99,9 @@ const CELLS = [
     ],
   },
   { name: 'held release / stale / failed（aven）', got: () => [sayHeldReleased({ task }), sayHeldStale({ task }), sayHeldFailed({ reason: '原消息被撤回' })], want: [`已按原文回群（${H}）。`, `「${H}」这条已经发过更新的结论了，没有待放行的草稿。`, '没发出去：原消息被撤回。'] },
-  { name: 'reminder r1（群）有 / 无 @', got: () => [sayReminderGroup({ task, blocker: '接口文档', mentions: [{ name: 'QA', openId: 'ou_qa' }] }), sayReminderGroup({ task, blocker: '接口文档' })], want: [`@QA 「${H}」还在等你补：接口文档。补上回我一句就继续。`, `「${H}」还在等你补：接口文档。补上回我一句就继续。`] },
+  { name: 'reminder r1（群）有 / 无 @', got: () => [sayReminderGroup({ task, blocker: '接口文档', mentions: [{ name: 'QA', openId: 'ou_qa' }] }), sayReminderGroup({ task, blocker: '接口文档。' })], want: [`@QA 「${H}」还在等你补：接口文档。补上回我一句就继续。`, `「${H}」还在等你补：接口文档。补上回我一句就继续。`] },
+  // 11-02 复核：旧任务没 outcome / blockers 空 → 不拼 null，说「补材料」。
+  { name: 'reminder r1（群）没有具体条目：null / undefined / 空串', got: () => [sayReminderGroup({ task, blocker: null, mentions: [{ name: 'QA', openId: 'ou_qa' }] }), sayReminderGroup({ task }), sayReminderGroup({ task, blocker: ' ' })], want: [`@QA 「${H}」还在等你补材料。补上回我一句就继续。`, `「${H}」还在等你补材料。补上回我一句就继续。`, `「${H}」还在等你补材料。补上回我一句就继续。`] },
   { name: 'reminder r2（aven）', got: () => sayReminderPrincipal({ task, chatLabel: G }), want: `⏰ 「${H}」（${G}）等了 8 小时没人补材料，我不再催群里了。要关掉回「取消任务 om_1」。` },
   { name: 'suspected（aven）', got: () => saySuspected({ task, chatLabel: G }), want: `❓ 可能是你的事（${G}）：${H}\n是 → 回「继续任务 om_1 做」；不是 → 回「取消任务 om_1」。不回也不催，48 小时后自动关。` },
   {

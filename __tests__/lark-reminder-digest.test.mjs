@@ -144,6 +144,9 @@ describe('挂起催办与每日汇总', () => {
       { name: '答应了但没 ackedAt → 不进', task: { id: 'a', status: 'running', ackedInGroup: true }, want: [] },
       { name: '没答应过（ackedInGroup 假）5h → 不进', task: { id: 'a', status: 'running', ackedAt: ago(5 * HOUR) }, want: [] },
       { name: '答应了但已 done → 不进', task: { id: 'a', status: 'done', ackedInGroup: true, ackedAt: ago(5 * HOUR) }, want: [] },
+      // 11-02 复核：failed 在控制通道里算活动态（可结单）却从不被 prune，负责人早收到 ⛔ 私信，不能天天列成「没结论」。
+      { name: '答应了但已 failed（负责人已收 ⛔）→ 不进', task: { id: 'a', status: 'failed', ackedInGroup: true, ackedAt: ago(5 * HOUR) }, want: [] },
+      { name: '答应了 5h 没结论（verifying）→ 没结论', task: { id: 'a', status: 'verifying', ackedInGroup: true, ackedAt: ago(5 * HOUR) }, want: ['overdue'] },
       { name: '答应了后挂起（blocked 1h）→ 不算没结论', task: { id: 'a', status: 'blocked', ackedInGroup: true, ackedAt: ago(5 * HOUR), parkedAt: ago(1 * HOUR) }, want: [] },
       { name: '扣下的群回复（义务 held）→ 扣下', task: { id: 'h1', status: 'running', chatId: 'oc_h' }, held: true, want: ['held'] },
       { name: '义务只是 acked → 不算扣下', task: { id: 'h2', status: 'running', chatId: 'oc_h' }, acked: true, want: [] },
@@ -159,6 +162,13 @@ describe('挂起催办与每日汇总', () => {
       assert.deepEqual(collectDigest({ store: { list: () => [overdue] }, now: NOW }).overdue, [{ headline: 'o1', chatLabel: 'oc_1', time: localHHMM(ago(5 * HOUR)) }])
       assert.notEqual(localHHMM(ago(5 * HOUR)), localHHMM(ago(6 * HOUR)))
       assert.notEqual(localHHMM(ago(30 * HOUR)), localHHMM(ago(40 * HOUR)))
+      // 11-02 复核：扣下的草稿按义务去重——私聊指示任务（privateOrigin.anchorId）与被锚的群消息共用一份义务，只列一条；别的群的同 id 义务不混
+      const anchor = { id: 'om_held', status: 'running', chatId: 'oc_d', summary: '群里那条', createdAt: ago(3 * HOUR) }
+      const instruction = { id: 'om_dm', status: 'running', chatId: 'oc_d', privateOrigin: { anchorId: 'om_held', anchorHead: '群里那条' }, summary: '私聊指示', createdAt: ago(2 * HOUR) }
+      const otherChat = { id: 'om_held', status: 'running', chatId: 'oc_e', summary: '另一群', createdAt: ago(1 * HOUR) }
+      noteHeld({ task: anchor, text: '草稿', now: NOW })
+      noteHeld({ task: otherChat, text: '草稿', now: NOW })
+      assert.deepEqual(collectDigest({ store: { list: () => [instruction, anchor, otherChat] }, now: NOW }).held, [{ headline: '群里那条', chatLabel: 'oc_d', time: localHHMM(ago(2 * HOUR)) }, { headline: '另一群', chatLabel: 'oc_e', time: localHHMM(ago(1 * HOUR)) }])
     }],
     ['renderDigest：全空返回空串（不发）；有条目按组列', () => {
       assert.equal(renderDigest({}), '')

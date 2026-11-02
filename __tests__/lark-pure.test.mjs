@@ -16,7 +16,7 @@ import { describe, it, mock } from 'node:test'
 
 import { eachCase, waitUntil } from './support/steps.mjs'
 
-import { handleStatusUpdate, resolveReceiptOutcome, retryPendingReceipts, sendQueuedReceipt } from '../lib/lark-status.mjs'
+import { deliveryChatIdFor, handleStatusUpdate, resolveReceiptOutcome, retryPendingReceipts, sendQueuedReceipt } from '../lib/lark-status.mjs'
 import {
   buildBugStatusFilter,
   buildBugText,
@@ -1224,6 +1224,43 @@ describe('handleStatusUpdate epoch fencing', () => {
     assert.equal(store.get('t').outcome, undefined, 'running 不带结构化结果')
     await handleStatusUpdate({ config: {}, store, id: 't', status: 'done', epoch: 2, result: '完成', outcome: { summary: '做完了' } })
     assert.equal(store.get('t').outcome?.summary, '做完了')
+    assert.deepEqual([store.get('t').epoch, store.get('t').rerunCount], [2, undefined], '没并入后续的 done 不回队')
+
+    // 11-02 复核：在跑时并入的后续（rerunAfterDone）——本轮结论发出去后回队重跑一轮：queued / 换代 / rerunCount / 清标记 / 一行日志 / 私信负责人「接着做」；
+    // 群里本轮结论照发（deliver 收到的还是 done）。挂起态同样消费。
+    const logs = []
+    const logMock = mock.method(console, 'log', (...args) => logs.push(args.join(' ')))
+    const notes = []
+    const deps = { sendMarkdown: async (args) => { notes.push(args); return { ok: true, messageId: 'om_start' } } }
+    const delivered = []
+    const deliver = async ({ task, status }) => { delivered.push([task.id, status, task.text]); return { ok: true, messageId: `om_${task.id}_${status}` } }
+    try {
+      store.upsert({ id: 'rr', status: 'running', epoch: 3, chatId: 'oc_g', text: '原问题\n\n【同主题补充 2026-11-02T10:00】再看下 pre', rerunAfterDone: true, summary: '原问题', createdAt: '2026-01-01T00:00:00Z' })
+      const out = await handleStatusUpdate({ config: { notifyOpenId: 'ou_aven' }, store, id: 'rr', status: 'done', epoch: 3, result: '第一轮', deliver, resolveGroupChat: async () => null, deps })
+      assert.deepEqual(out, { ok: true })
+      assert.deepEqual(delivered, [['rr', 'done', '原问题\n\n【同主题补充 2026-11-02T10:00】再看下 pre']], '本轮结论照发')
+      const rr = store.get('rr')
+      assert.deepEqual([rr.status, rr.epoch, rr.rerunCount, rr.rerunAfterDone, rr.result, rr.claimedAt], ['queued', 4, 1, undefined, null, null])
+      assert.deepEqual(rr.threadHistory.map((h) => [h.status, h.result]), [['done', '第一轮']])
+      assert.deepEqual(rr.lastDeliveredReceipt.idempotencyKey, 'rr-e3-done', '本轮回执仍记在旧代次上')
+      assert.ok(logs.includes('[lark-gateway] 并入的后续重跑一轮：rr'), logs.join('\n'))
+      assert.deepEqual(notes.map((n) => [n.chatId, n.markdown]), [['ou_aven', '🛠 接着做（第 1 次续跑）：原问题']])
+      assert.equal(store.claimNext().id, 'rr', '真的能被领走重跑')
+      // 回执早已送达（重复回写）也消费：不再发群，只回队
+      delivered.length = 0
+      logs.length = 0
+      store.upsert({ id: 'rr2', status: 'done', epoch: 1, chatId: 'oc_g', rerunAfterDone: true, lastDeliveredReceipt: { idempotencyKey: 'rr2-e1-done' }, createdAt: '2026-01-01T00:00:00Z' })
+      assert.deepEqual(await handleStatusUpdate({ config: {}, store, id: 'rr2', status: 'done', epoch: 1, deliver, resolveGroupChat: async () => null, deps }), { ok: true, receiptAlreadyDelivered: true })
+      assert.deepEqual([delivered, store.get('rr2').status, store.get('rr2').epoch, logs], [[], 'queued', 2, ['[lark-gateway] 并入的后续重跑一轮：rr2']])
+      // 挂起态（blocked）也回队；running 回写不消费
+      store.upsert({ id: 'rr3', status: 'running', epoch: 0, chatId: 'oc_g', rerunAfterDone: true, createdAt: '2026-01-01T00:00:00Z' })
+      await handleStatusUpdate({ config: {}, store, id: 'rr3', status: 'running', epoch: 0, deliver, deps })
+      assert.deepEqual([store.get('rr3').status, store.get('rr3').rerunAfterDone], ['running', true])
+      await handleStatusUpdate({ config: {}, store, id: 'rr3', status: 'blocked', epoch: 0, result: '缺材料', deliver, resolveGroupChat: async () => null, deps })
+      assert.deepEqual([store.get('rr3').status, store.get('rr3').epoch, store.get('rr3').rerunAfterDone, store.get('rr3').parkedAt], ['queued', 1, undefined, null])
+    } finally {
+      logMock.mock.restore()
+    }
     cleanup()
   })
 
@@ -2012,6 +2049,17 @@ describe('任务回执持久化重试', () => {
     })
     assert.deepEqual(delivered, [['t', 'done']], '重试按保存的 pending 状态重发')
     assert.equal(store.get('t').status, 'done')
+    assert.deepEqual([store.get('t').epoch, store.get('t').rerunCount], [2, undefined], '没并入后续的不回队')
+
+    // 11-02 复核：并入了后续（rerunAfterDone）但本轮回执没送达 → 标记留着、不回队（回队会删 pendingReceipt，本轮结论就丢了）；重试送达后才回队重跑。
+    store.upsert({ id: 'r', status: 'running', epoch: 1, chatId: 'oc_x', rerunAfterDone: true, createdAt: '2026-01-01T00:00:00Z' })
+    const pending = await handleStatusUpdate({ config: {}, store, id: 'r', status: 'done', result: '第一轮', epoch: 1, deliver: async () => ({ ok: false, reason: 'network down' }), resolveGroupChat: async () => null })
+    assert.equal(pending.receiptPending, true)
+    assert.deepEqual([store.get('r').status, store.get('r').rerunAfterDone, store.get('r').epoch], ['result_pending_receipt', true, 1])
+    delivered.length = 0
+    await retryPendingReceipts({ config: {}, store, deliver: async ({ task, status }) => { delivered.push([task.id, status]); return { ok: true, messageId: 'om_r' } } })
+    assert.deepEqual(delivered, [['r', 'done']])
+    assert.deepEqual([store.get('r').status, store.get('r').rerunAfterDone, store.get('r').epoch, store.get('r').rerunCount, store.get('r').pendingReceipt], ['queued', undefined, 2, 1, undefined], '送达后回队重跑')
     assert.equal(store.get('t').pendingReceipt, undefined)
     assert.equal(store.get('t').lastDeliveredReceipt.idempotencyKey, 't-e2-done')
     assert.equal(store.findTaskByAnyReceipt('om_receipt')?.id, 't', '重试成功的 messageId 也登记为回执')
@@ -2270,6 +2318,30 @@ describe('resolveDeliveryChatId（发送时改投项目群）', () => {
     })
     assert.equal(chatId, 'oc_notify')
     assert.equal(called, false, 'project 为空时不得调用 resolve')
+
+    // 11-02 复核：deliveryChatIdFor（状态回写与 routes deliverTo 共用）——人私信里发起的 Lark 任务（source=lark 且私信）不按 PR 号改投群：
+    // 改投后回复原消息一旦非瞬时失败就回落直发群，私聊的答案进了项目群。bug 表任务的 ou_ chatId 只是 bot 没进群时的回落，照旧改投；群里的 Lark 任务照旧。
+    const resolve = async (p) => (p === 'PR-1' ? 'oc_group' : '')
+    await eachCase([
+      { name: 'lark 私信（chatType p2p）→ 不改投', task: { source: 'lark', chatType: 'p2p', project: 'PR-1', chatId: 'oc_p2p' }, want: 'oc_p2p' },
+      { name: 'lark 私信入口（intake.trigger dm）→ 不改投', task: { source: 'lark', intake: { trigger: 'dm' }, project: 'PR-1', chatId: 'oc_p2p' }, want: 'oc_p2p' },
+      { name: 'lark 群任务 → 改投项目群', task: { source: 'lark', chatType: 'group', project: 'PR-1', chatId: 'oc_old' }, want: 'oc_group' },
+      { name: 'lark 群任务、群解析不到 → 原 chatId', task: { source: 'lark', chatType: 'group', project: 'PR-9', chatId: 'oc_old' }, want: 'oc_old' },
+      { name: 'bug 表任务 chatId 是 operator 私聊（ou_）→ 照旧改投项目群', task: { source: 'lark-bugtable', project: 'PR-1', chatId: 'ou_operator' }, want: 'oc_group' },
+      { name: '没 source 的旧任务、ou_ chatId → 照旧改投', task: { project: 'PR-1', chatId: 'ou_operator' }, want: 'oc_group' },
+    ], async ({ task, want }) => assert.equal(await deliveryChatIdFor({ task, resolve }), want))
+    // 走完整状态回写：私信任务 done 后 chatId 仍是私聊；bug 表任务被改投
+    const dir = mkdtempSync(join(tmpdir(), 'lark-dm-chat-'))
+    const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+    store.upsert({ id: 'dm', source: 'lark', chatType: 'p2p', intake: { trigger: 'dm' }, project: 'PR-1', chatId: 'oc_p2p', status: 'running', createdAt: '2026-01-01T00:00:00Z' })
+    store.upsert({ id: 'bt', source: 'lark-bugtable', project: 'PR-1', chatId: 'ou_operator', status: 'running', createdAt: '2026-01-01T00:00:00Z' })
+    const seen = []
+    const deliver = async ({ task }) => { seen.push([task.id, task.chatId]); return { ok: true, messageId: `om_${task.id}` } }
+    await handleStatusUpdate({ config: {}, store, id: 'dm', status: 'done', result: 'x', deliver, resolveGroupChat: resolve })
+    await handleStatusUpdate({ config: {}, store, id: 'bt', status: 'done', result: 'x', deliver, resolveGroupChat: resolve })
+    assert.deepEqual(seen, [['dm', 'oc_p2p'], ['bt', 'oc_group']])
+    assert.deepEqual([store.get('dm').chatId, store.get('bt').chatId], ['oc_p2p', 'oc_group'])
+    rmSync(dir, { recursive: true, force: true })
   })
 })
 
