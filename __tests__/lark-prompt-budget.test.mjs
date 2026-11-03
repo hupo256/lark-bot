@@ -98,6 +98,8 @@ describe('提示词规则预算', () => {
     assert.doesNotMatch(classifier, /PR-0\d{4}/)
     const analysis = buildAnalysisPrompt(ctx, task, { text: '', sources: [] }, { lineLimit: 300 })
     assert.ok(analysis.length <= ANALYSIS_PROMPT_BUDGET, `${name} 分析提示 ${analysis.length} 字符，超过预算 ${ANALYSIS_PROMPT_BUDGET}`)
+    // 10-31 falive 回放：对方答复「完善资料部分需要前端接入」，分析反过来要接口文档。blockers 只在分析阶段产出，规则跟分析提示走（codex 分析没有系统层）。
+    assert.match(analysis, /对方在答复我方的对接问题.*答复正文就是材料.*推出来就推.*不把「再要一份文档 \/ 再确认一遍」写成 blocker.*前文里别的事.*不并进本条范围/, `${name} 分析提示缺「答复就是材料」`)
     assert.doesNotMatch(analysis, /PR-0\d{4}/)
   }))
 })
