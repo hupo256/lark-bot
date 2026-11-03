@@ -96,6 +96,8 @@ describe('提示词规则预算', () => {
     const classifier = buildIntentClassificationPrompt(task)
     assert.ok(classifier.length <= CLASSIFIER_RULE_BUDGET, `分类器规则 ${classifier.length} 字符，超过预算 ${CLASSIFIER_RULE_BUDGET}`)
     assert.doesNotMatch(classifier, /PR-0\d{4}/)
+    // 11-03 falive 回放：「创建最新的帖子 进行测试」先回「我在 pre 发几条新帖」，实测只读发不了帖——「收到」不许诺写操作。
+    assert.match(classifier, /不加承诺（发帖 \/ 造数等写操作未必能做，别说要做）/, '分类器 reply 缺「不许诺写操作」')
     const analysis = buildAnalysisPrompt(ctx, task, { text: '', sources: [] }, { lineLimit: 300 })
     assert.ok(analysis.length <= ANALYSIS_PROMPT_BUDGET, `${name} 分析提示 ${analysis.length} 字符，超过预算 ${ANALYSIS_PROMPT_BUDGET}`)
     // 10-31 falive 回放：对方答复「完善资料部分需要前端接入」，分析反过来要接口文档。blockers 只在分析阶段产出，规则跟分析提示走（codex 分析没有系统层）。

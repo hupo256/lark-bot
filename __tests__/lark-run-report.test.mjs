@@ -17,7 +17,8 @@ writeFileSync(join(dir, 'runtime', 'persona', 'aven.md'), '# 口吻\n\n短句、
 process.env.LARK_RUNTIME_DIR = join(dir, 'runtime')
 const { buildOutcome, detailDocOf, mapStatusForContract, outcomeFromWorkerFailure, outcomeHeadline, runEvidenceFor } = await import('../lib/lark-run-report.mjs')
 const { buildGroupReplyPassPrompt, owesGroupReply, runGroupReplyPass } = await import('../lib/lark-group-reply-pass.mjs')
-const { ANSWER_MODE_BLOCK, VERIFICATION_MODE_BLOCK, buildEnvProbeRule } = await import('../lib/lark-worker-modes.mjs')
+const { ANSWER_MODE_BLOCK, DELIVER_NOW_RULE, VERIFICATION_MODE_BLOCK, buildCarryOverBlock, buildEnvProbeRule } = await import('../lib/lark-worker-modes.mjs')
+const { buildTaskPromptParts } = await import('../lib/lark-worker-prompts.mjs')
 const { applyEnvCheck, checkEnvTarget, envTargetLine, hostOf, resolveEnvTargets, touchedEnvs } = await import('../lib/lark-env-target.mjs')
 const { buildIntentClassificationPrompt, describeSender, formatTaskAttachments, readPersona } = await import('../lib/lark-classify-prompt.mjs')
 const { classifyTaskIntent, runAI } = await import('../lib/lark-worker-run.mjs')
@@ -206,6 +207,31 @@ describe('worker 侧对话层：outcome / 契约映射 / 群回复补写 / 模�
       assert.ok(ANSWER_MODE_BLOCK(named, { envSites: sites }).includes('本任务点名的环境：online（https://www.fameex.com）'))
       assert.equal(VERIFICATION_MODE_BLOCK({}, { envSites: sites }).includes('本任务点名的环境'), false)
       assert.equal(ANSWER_MODE_BLOCK(null).includes('本任务点名的环境'), false)
+    }],
+    // 11-03 falive 回放：「测试的tid 发出来」tid 在上一单结论里却回「去翻文档」；「创建最新的帖子」先回「我在 pre 发几条新帖」，实测只读没发。
+    ['代答 / 实测：要什么本轮给什么（两种模式都带）；「收到」那句与上一单结论只进单趟提示', () => {
+      for (const block of [ANSWER_MODE_BLOCK({}), ANSWER_MODE_BLOCK({}, { persona: '短句' }), VERIFICATION_MODE_BLOCK({}), VERIFICATION_MODE_BLOCK({}, { hasPageTool: true })]) assert.ok(block.endsWith(`\n${DELIVER_NOW_RULE}`))
+      assert.match(DELIVER_NOW_RULE, /要事实（tid \/ 账号 \/ 地址 \/ 数据）就查出来直接列.*上一单结论.*只读 GET.*不让对方自己去翻.*不允许（发帖 \/ 注册 \/ 下单这类写操作）就直说这边做不了、该找谁.*单趟没有下次.*群里先回的那句答应过的/)
+      const prior = { taskId: 'om_prev', summary: '翻译实测', text: '- 标题翻译：18726–18742' }
+      const PRIOR_LINE = '本条接着任务 om_prev（翻译实测），那单 bot 的结论（以前的记录，用前对一下）：\n- 标题翻译：18726–18742'
+      return eachCase([
+        { name: '都没有 → 空', task: {}, want: '' },
+        { name: '没任务 → 空', task: null, want: '' },
+        { name: '只有「收到」那句', task: { intake: { classification: { reply: '好，我查下发你' } } }, want: '群里已先回了一句：「好，我查下发你」' },
+        { name: 'reply 被挪走（replyDropped）→ 不算', task: { intake: { classification: { reply: null, replyDropped: '找后端' } } }, want: '' },
+        { name: '只有上一单结论', task: { priorConclusion: prior }, want: PRIOR_LINE },
+        { name: '上一单没摘要', task: { priorConclusion: { ...prior, summary: null } }, want: '本条接着任务 om_prev，那单 bot 的结论（以前的记录，用前对一下）：\n- 标题翻译：18726–18742' },
+        { name: '两者都有：「收到」在前', task: { priorConclusion: prior, intake: { classification: { reply: '好' } } }, want: `群里已先回了一句：「好」\n${PRIOR_LINE}` },
+      ], ({ task, want }) => {
+        assert.equal(buildCarryOverBlock(task), want)
+        const ctx = { projectId: 'PR-99999', projectName: 't', projectDocs: [], cwd: '/tmp/repo' }
+        const full = { id: 't', attachments: [], chatId: 'oc', text: '测试的tid 发出来', ...task }
+        for (const [contract, carried] of [[{ v: 1, deliverable: 'answer', readOnly: true, expectsCode: false }, true], [{ v: 1, deliverable: 'verification', readOnly: false, expectsCode: false }, true], [{ v: 1, deliverable: 'change', readOnly: false, expectsCode: true }, false]]) {
+          const { user } = buildTaskPromptParts(ctx, { ...full, contract, intake: { ...full.intake, classification: { decision: 'bug', ...full.intake?.classification } } }, 'claude', { ruleContext: { text: '', sources: [] } })
+          if (want) assert.equal(user.includes(`\n${want}\n`), carried, `${contract.deliverable}：${carried ? '要带' : '不带'}`)
+          assert.equal(user.includes('群里已先回了一句') || user.includes('本条接着任务'), carried && Boolean(want))
+        }
+      })
     }],
     ['buildEnvProbeRule：只认非空字符串地址；一个都没有就说明没配环境地址', () => {
       assert.match(buildEnvProbeRule({ test: 'https://test.example.com', pre: ' ', uat: 5, online: null }), /上下文说哪个环境就测哪个：test https:\/\/test\.example\.com。/)

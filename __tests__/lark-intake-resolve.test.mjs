@@ -10,7 +10,7 @@ import { join } from 'node:path'
 import { describe, it, mock } from 'node:test'
 
 import { CONTRACT_VERSION, deriveContract, isReadOnlyAsk, isRecordOnly, refreshContract, taskContract } from '../lib/lark-task-contract.mjs'
-import { applyIntakeClassification, intakeActionable, sameIntentClassification } from '../lib/lark-intake-resolve.mjs'
+import { PRIOR_CONCLUSION_MAX, applyIntakeClassification, intakeActionable, priorConclusionOf, sameIntentClassification } from '../lib/lark-intake-resolve.mjs'
 import { mergeTaskObjects } from '../lib/lark-task-merge.mjs'
 import { judgeIntakeCase, regressionTaskOf } from '../lib/lark-intake-replay.mjs'
 import { buildIntentClassificationPrompt } from '../lib/lark-classify-prompt.mjs'
@@ -251,6 +251,19 @@ describe('对话层：契约、入队门槛、分类落态、归并', () => {
       { name: '分类出错时哪怕结果像自答 / 追问 / 只记一笔也一律 intake_failed', t: { addressedToBot: true, fromPrincipal: true, text: 'x' }, c: cls('question', 'low', { selfAnswer: true, deliverable: 'answer' }), error: 'boom', want: { out: { selfAnswer: false, askBack: false, suspected: false, recordOnly: false }, status: 'intake_failed', contract: undefined } },
       { name: '分类出错（别人的 api_reply）也不只记一笔', t: { addressedToBot: true, text: 'x' }, c: cls('api_reply', 'high', { forMe: true }), error: 'boom', want: { out: { recordOnly: false, suspected: false }, status: 'intake_failed' } },
       { name: '没分类也没错 → ignored，classification=null', t: { addressedToBot: true, text: 'x' }, c: null, want: { status: 'ignored', contract: undefined }, check: (t) => assert.equal(t.intake.classification, null) },
+      // 11-03 falive 回放：William「测试的tid 发出来」接着上一单实测（交付物不同另起），tid 只在那单的条目 / detailDoc 里，本单看不到就回了「去翻文档」。
+      {
+        name: '开跑且接着已有结论的那条（continues 优先于 relatedTaskId）→ 带上那条的结论',
+        t: { addressedToBot: true, text: '测试的tid 发出来' },
+        c: cls('question', 'high', { deliverable: 'answer', continues: 'om_prev', relatedTaskId: 'om_rel' }),
+        known: { om_prev: { id: 'om_prev', summary: '翻译实测', outcome: { report: { answer: '标题没翻', items: [{ name: '标题翻译', note: '18726–18742' }] } } }, om_rel: { id: 'om_rel', outcome: { summary: '别的' } } },
+        want: { priorConclusion: { taskId: 'om_prev', summary: '翻译实测', text: '标题没翻\n- 标题翻译：18726–18742' } },
+      },
+      { name: '只有 relatedTaskId → 带那条的', t: { addressedToBot: true, text: 'x' }, c: cls('question', 'high', { deliverable: 'answer', relatedTaskId: 'om_rel' }), known: { om_rel: { id: 'om_rel', outcome: { summary: '别的' } } }, want: { priorConclusion: { taskId: 'om_rel', summary: null, text: '别的' } } },
+      { name: '那条还没结论 → 不带', t: { addressedToBot: true, text: 'x' }, c: cls('question', 'high', { deliverable: 'answer', continues: 'om_prev' }), known: { om_prev: { id: 'om_prev', outcome: null } }, want: { priorConclusion: undefined } },
+      { name: 'continues 指自己 → 不带', t: { addressedToBot: true, text: 'x' }, c: cls('question', 'high', { deliverable: 'answer', continues: 'om_1' }), known: { om_1: { id: 'om_1', outcome: { summary: '自己' } } }, want: { priorConclusion: undefined } },
+      { name: '没开跑（疑似）→ 不带', t: { addressedToBot: true, text: 'x' }, c: cls('bug', 'low', { continues: 'om_prev' }), known: { om_prev: { id: 'om_prev', outcome: { summary: '上一单' } } }, want: { out: { suspected: true }, priorConclusion: undefined } },
+      { name: '不给 lookup → 不带也不炸', t: { addressedToBot: true, text: 'x' }, c: cls('question', 'high', { deliverable: 'answer', continues: 'om_prev' }), want: { out: { actionable: true }, priorConclusion: undefined } },
       {
         name: 'ignore 被放行（只读活归别人）：reply 不当「收到」发，挪到 replyDropped',
         t: { addressedToBot: true, text: '帮看下 pre 能不能登录' },
@@ -265,14 +278,24 @@ describe('对话层：契约、入队门槛、分类落态、归并', () => {
         want: { out: { actionable: true } },
         check: (t) => assert.equal('replyDropped' in t.intake.classification, false),
       },
-    ], ({ t, c, error, want, check }) => {
+    ], ({ t, c, error, known, want, check }) => {
       const target = { id: 'om_1', intake: { required: true, trigger: 'direct' }, ...t }
-      const out = applyIntakeClassification(target, { classification: c, error, now: NOW })
+      const out = applyIntakeClassification(target, { classification: c, error, now: NOW, ...(known ? { lookup: (id) => known[id] } : {}) })
       const { out: wantOut, ...fields } = want
       if (wantOut) assert.deepEqual(pick(out, Object.keys(wantOut)), wantOut)
       assert.deepEqual(pick(target, Object.keys(fields)), fields)
       assert.equal(target.claimedAt, null)
       check?.(target)
+    })],
+    ['priorConclusionOf：答案取 report.answer → groupReply → summary；条目「- 名：说明」；detailDoc 附在后面；截到上限；没结论 → null', () => eachCase([
+      { name: '三者都有取 answer', prior: { id: 'p', summary: 's', outcome: { report: { answer: 'A', items: [] }, groupReply: 'G', summary: 'S' } }, want: { taskId: 'p', summary: 's', text: 'A' } },
+      { name: '没 answer 取 groupReply', prior: { id: 'p', outcome: { report: { answer: null, items: [{ name: '登录', note: '' }, { name: '', note: '孤立说明' }] }, groupReply: 'G', summary: 'S' } }, want: { taskId: 'p', summary: null, text: 'G\n- 登录' } },
+      { name: '只有 summary + detailDoc', prior: { id: 'p', outcome: { summary: 'S', detailDoc: '# tid\n18608' } }, want: { taskId: 'p', summary: null, text: 'S\n详细：\n# tid\n18608' } },
+      { name: '没结论 → null', prior: { id: 'p', outcome: { report: { answer: '', items: [] } } }, want: null },
+      { name: '没任务 → null', prior: undefined, want: null },
+    ], ({ prior, want }) => {
+      assert.deepEqual(priorConclusionOf(prior), want)
+      assert.equal(priorConclusionOf({ id: 'p', outcome: { detailDoc: 'x'.repeat(PRIOR_CONCLUSION_MAX * 2) } }).text.length, PRIOR_CONCLUSION_MAX)
     })],
     ['sameIntentClassification：只比 decision / confidence / summary / reason', () => {
       const a = cls('bug', 'high', { reply: 'x' })
@@ -362,8 +385,10 @@ describe('对话层：契约、入队门槛、分类落态、归并', () => {
         // om_old 的登记时间与首次登记可能落在同一毫秒，只核它有时间戳，不核不相等（11-02 偶发红）
         assert.deepEqual(reloaded.get('om_q').receipts.map((r) => [r.messageId, r.kind, r.chatId, r.messageId === 'om_ack' ? r.createdAt === firstCreatedAt : /^\d{4}-/.test(r.createdAt)]), [['om_ack', 'ack', 'oc_g', true], ['om_old', 'receipt', null, true]])
         const claimedEpoch = store.claimById('om_q').epoch
-        const classification = cls('question', 'high', { deliverable: 'answer', topic: 'diff' })
+        store.upsert({ id: 'om_prev', status: 'done', text: '上一单', summary: '上一单实测', outcome: { summary: 'tid 18608' }, createdAt: '2026-11-01T00:00:00Z' })
+        const classification = cls('question', 'high', { deliverable: 'answer', topic: 'diff', continues: 'om_prev' })
         const out = store.resolveIntake({ id: 'om_q', epoch: claimedEpoch, classification })
+        assert.deepEqual(out.task.priorConclusion, { taskId: 'om_prev', summary: '上一单实测', text: 'tid 18608' }, 'store 按 id 查到接着的那条')
         assert.deepEqual([out.ok, out.actionable, out.requeue, out.selfAnswer, out.suspected], [true, true, true, false, false])
         assert.equal(out.task.status, 'queued')
         assert.equal(out.task.epoch, claimedEpoch + 1)
