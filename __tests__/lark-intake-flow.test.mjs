@@ -368,13 +368,22 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       anchor = { task: held, via: 'recent' }
       assert.equal(await run('就这样回'), true)
       assert.deepEqual([releases.pop(), notes.pop().text], ['om_h3', '已按原文回群（直播列表）。'])
-      noteAnswer({ task: held, text: '结论' }) // 放行是桩，om_h3 的草稿还挂着：锚点已发过结论的不改找它
+      // 锚点正常答过（answered、从没扣过草稿）也改找（11-03 第二次 review，改了原来「answered 就不改找」的口径）：13:00 私信 Y 的扣下草稿，
+      // 13:05 私信 X 的「💬 替你答了」，13:06「就这样回」说的是 Y 的草稿——原来回「X 这条已经发过更新的结论了」，Y 的草稿永远发不出去
+      noteAnswer({ task: held, text: '结论' }) // 放行是桩，om_h3 的草稿还挂着
       assert.equal(await run('就这样回'), true)
-      assert.deepEqual([notes.pop().text, releases.length], ['「登录页报错」这条已经发过更新的结论了，没有待放行的草稿。', 0])
+      assert.deepEqual([releases.pop(), notes.pop().text], ['om_h3', '已按原文回群（直播列表）。'])
+      anchor = { task: held, via: 'reply' }
+      assert.equal(await run('就这样回'), true)
+      assert.deepEqual([notes.pop().text, releases.length], ['「登录页报错」这条已经发过更新的结论了，没有待放行的草稿。', 0], '引用回复的照旧就说那条')
+      anchor = { task: held, via: 'recent' }
       noteHeld({ task: held, text: '旧草稿' })
       clearHeldDraft({ task: held })
       assert.equal(await run('就这样回'), true)
-      assert.deepEqual([notes.pop().text, releases.length], ['「登录页报错」这条没有扣下的草稿，没什么可发的。', 0], '锚点扣过草稿（已清掉）也不改找')
+      assert.deepEqual([notes.pop().text, releases.length], ['「登录页报错」这条没有扣下的草稿，没什么可发的。', 0], '锚点扣过草稿（heldAt，已清掉）不改找')
+      noteAnswer({ task: held, text: '更新的结论' })
+      assert.equal(await run('就这样回'), true)
+      assert.deepEqual([notes.pop().text, releases.length], ['「登录页报错」这条已经发过更新的结论了，没有待放行的草稿。', 0], '扣过草稿、之后发了更新的结论（草稿作废）不改找')
       noteAnswer({ task: other, text: '发了' })
       noteAnswer({ task: held, text: '结论' })
       noteHeld({ task: held, text: '草稿' })
