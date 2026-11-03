@@ -7,8 +7,8 @@ import { describe, it } from 'node:test'
 import {
   addressTo, changeFacts, chatLabel, dedupeMentions, firstClause, firstSentence, headline, humanizeLegacyResult, mentionTag, resolveOwnerMention,
   sayAck, sayBlockedAsk, sayDigest, sayDoneAnswerGroup, sayDoneAnswerPrincipal, sayDoneChangeGroup, sayDoneChangePrincipal, sayFailedNotice, sayFailedPrincipal,
-  sayHeldDraft, sayHeldFailed, sayHeldReleased, sayHeldStale, sayIgnoredAfterAck, sayIntakeFailed, sayMergedSupplement, sayNoChangeGroup, sayNoted, sayOps, sayOverdue, sayReminderGroup,
-  sayReminderPrincipal, sayStart, saySuspected, saySuspectedExpired, trimPunct,
+  sayHeldDraft, sayHeldFailed, sayHeldReleased, sayHeldStale, sayIgnoredAfterAck, sayIntakeFailed, sayMergedSupplement, sayNoChangeGroup, sayNoted, sayOps, sayOverdue, sayOwnItemsPrincipal,
+  sayReminderGroup, sayReminderPrincipal, sayStart, saySuspected, saySuspectedExpired, trimPunct,
 } from '../lib/lark-human-text.mjs'
 import { applyRunEvidence, collectRunEvidence, normalizeOutcome, normalizeReport, renderReport, unverifiedClaims } from '../lib/lark-report-render.mjs'
 import { eachCase, runSteps } from './support/steps.mjs'
@@ -82,6 +82,17 @@ const CELLS = [
     name: 'done · answer（aven）：首行 / 待跟进里写给他的事项另起一行',
     got: () => [sayDoneAnswerPrincipal({ chatLabel: G, firstLine: '不一样，test 比 pre 多 3 个提交' }), sayDoneAnswerPrincipal({ chatLabel: G, firstLine: '查过了', ownItems: ['定口径'] })],
     want: [`💬 替你答了（${G}）：不一样，test 比 pre 多 3 个提交`, `💬 替你答了（${G}）：查过了\n你这边：定口径`],
+  },
+  // fix16 review：群里没发成 / 不发群 / 交付物本不私信时，他这边的事项单发一条（群里那行与 change done 同口径），没事项空串。
+  {
+    name: '他这边的事项单发（aven）：群里已回 / 没发（原因）/ 没群结果 / 没事项',
+    got: () => [
+      sayOwnItemsPrincipal({ task, chatLabel: G, groupOutcome: { ok: true, text: '记下了。\n第二行' }, ownItems: ['周五前排期'] }),
+      sayOwnItemsPrincipal({ task, chatLabel: G, groupOutcome: { ok: false, reason: '没写群回复' }, ownItems: ['补数据', '看日志'] }),
+      sayOwnItemsPrincipal({ task, chatLabel: G, ownItems: ['看日志'] }),
+      sayOwnItemsPrincipal({ task, chatLabel: G, groupOutcome: { ok: true, text: 'x' } }),
+    ],
+    want: [`📌 ${H}（${G}）\n群里已回「记下了」\n你这边：周五前排期`, `📌 ${H}（${G}）\n群里没发（没写群回复）。\n你这边：补数据；看日志`, `📌 ${H}（${G}）\n你这边：看日志`, ''],
   },
   {
     name: 'done · verification（群）：通了 a 项没通 b 项 + 条目符号 / 都通了',

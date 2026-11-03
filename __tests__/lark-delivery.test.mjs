@@ -192,6 +192,28 @@ describe('任务的人话出口', () => {
       await deliverOutcome({ config, store, task: ownAsk, status: 'done', deps })
       assert.deepEqual([group()[6].markdown, dm().at(-1)], ['自己问的。', `💬 替你答了（${G}）：自己问的\n你这边：定口径`])
     })],
+    // fix16 review：负责人自己的事项（ownItems）原先只在代答群里发成功时才进私信——被出口闸拦下、没写群回复、groupSilent、record 交付物都丢了。
+    ['待跟进里有负责人的事项：群里没发成 / 不发群 / 交付物本不私信时也私信一条，群里发成功那条已含就不再单发', () => quiet(async () => {
+      const own = (items) => [{ owner: 'aven', items }]
+      const answer = (id, raw) => task({ id, messageId: id, contract: { deliverable: 'answer' }, outcome: out(raw) })
+      await deliverOutcome({ config, store, task: answer('om_1', { report: { answer: '同一个答案。', items: [] }, followUps: own(['定口径']) }), status: 'done', deps })
+      assert.deepEqual(dm(), [`💬 替你答了（${G}）：同一个答案\n你这边：定口径`], '群里发成功：只发含事项的那一条')
+      sent.length = 0
+      const gated = await deliverOutcome({ config, store, task: answer('om_2', { report: { answer: '同一个答案。', items: [] }, followUps: own(['再定口径']) }), status: 'done', deps })
+      assert.deepEqual([gated.ok, group().length, dm().length], [false, 0, 1])
+      assert.match(dm()[0], new RegExp(`^📌 ${H}，看一下（${G}）\\n群里没发（出口闸拦下：同内容 .*）。\\n你这边：再定口径$`))
+      sent.length = 0
+      await deliverOutcome({ config, store, task: answer('om_3', { summary: null, followUps: own(['补数据']) }), status: 'done', deps })
+      await deliverOutcome({ config, store, task: answer('om_4', { groupSilent: true, report: { answer: '不用回群。', items: [] }, followUps: own(['看日志']) }), status: 'done', deps })
+      await deliverOutcome({ config, store, task: task({ id: 'om_5', messageId: 'om_5', contract: { deliverable: 'record' }, outcome: out({ summary: '记下了。', followUps: own(['周五前排期']) }) }), status: 'done', deps })
+      await deliverOutcome({ config, store, task: answer('om_6', { groupSilent: true, report: { answer: '没事项。', items: [] } }), status: 'done', deps })
+      assert.deepEqual([group().map((item) => item.markdown), dm()], [['记下了。'], [
+        `📌 ${H}，看一下（${G}）\n群里没发（没写群回复）。\n你这边：补数据`,
+        `📌 ${H}，看一下（${G}）\n你这边：看日志`,
+        `📌 ${H}，看一下（${G}）\n群里已回「记下了」\n你这边：周五前排期`,
+      ]], '没写群回复 / groupSilent / record 各一条；没事项的照旧不私信')
+      assert.deepEqual(store.get('om_4').receipts.map((r) => r.kind), ['answered'])
+    })],
     // 11-03 静态 review R8 后半：在跑 / 没开跑时并入的别人的消息（appended / rerun_after_done）只记 mergedFrom、结论仍回原消息，并入人只得到一句「收到」。
     ['并入的别人的补充：结论末行 @ 那些提单人（去重；排除负责人 / 本任务提单人 / bot / 已 @ 的 / 已清掉的）；还欠一轮重跑的留给重跑那轮；@ 过的下一轮不再 @', () => quiet(async () => {
       const cfg = { ...config, botOpenId: 'ou_bot' }
