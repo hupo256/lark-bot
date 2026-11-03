@@ -30,7 +30,7 @@ const maxWaitMs = Number(value('--max-wait-min', 30)) * 60_000
 const settleMs = Number(value('--settle-sec', 25)) * 1000
 const port = Number(value('--port', 3105))
 const dry = flag('--dry')
-const aiCache = !flag('--no-ai-cache')
+const aiCache = flag('--ai-cache') // 默认关：只跑一次完整确认时用不上，缓存脚本也没测完（11-03）
 const BOT_OPEN_ID = 'ou_e331d79d4491e64b7bba89bb4e3b5e43'
 const FALIVE_REPO = join(homedir(), 'github', 'falive-react')
 const FALIVE_BRANCH = 'feature/phase-6-ol'
@@ -51,7 +51,10 @@ const timeline = JSON.parse(readFileSync(join(datasetDir, 'timeline.json'), 'utf
 writeFileSync(join(simDir, 'timeline.json'), JSON.stringify(timeline))
 writeFileSync(join(simDir, 'chats.json'), JSON.stringify(GROUPS.map((g) => ({ chat_id: g.chatId, name: g.name, external: g.external }))))
 const resources = {}
-for (const m of timeline) for (const r of m.resources || []) if (r.localPath) resources[`${m.id}/${r.key}`] = join(replayRoot, 'raw', r.localPath.replace(/^\.?\/?/, ''))
+// 时间线里的 localPath 已是绝对路径（11-03 发现：原来又拼到 raw/ 后面，所有模拟附件全部下载失败）；补拉的附件在 raw/resources-extra.json。
+for (const m of timeline) for (const r of m.resources || []) if (r.localPath) resources[`${m.id}/${r.key}`] = r.localPath
+const extraResourcesPath = join(replayRoot, 'raw', 'resources-extra.json')
+if (existsSync(extraResourcesPath)) Object.assign(resources, JSON.parse(readFileSync(extraResourcesPath, 'utf8')).resources || {})
 writeFileSync(join(simDir, 'resources.json'), JSON.stringify(resources))
 if (!existsSync(join(simDir, 'meta.json'))) writeFileSync(join(simDir, 'meta.json'), JSON.stringify({ simStartMs: fromMs, createdAt: new Date().toISOString() }))
 const events = timeline.filter((m) => m.atMs >= fromMs && m.atMs < toMs && !m.ownBot && !m.deleted && m.senderType === 'user' && (m.text || m.resources?.length))
@@ -121,6 +124,8 @@ const config = {
     ...(fromMs >= Date.parse('2026-10-29T00:00:00Z') ? { online: 'https://www.falive.com' } : {}),
   },
   dailyReport: { enabled: false },
+  // bug 表占位（读 bug 单的工具 tools/read-bug-record.mjs 要它；假 CLI 按 raw/bug-records 缓存供数，appToken 不校验）。bug-watch 不起。
+  bugTable: { appToken: 'sim-falive-bugtable', tableId: 'tblbJYjrxZsPe40V', viewId: 'vewvqqPhkD', statusField: '状态', assigneeField: '负责RD', watch: { enabled: false } },
   chatRetention: { enabled: false },
   digest: { enabled: false },
   selfHeal: { drainRestart: false, selfFix: false, doctor: false },
@@ -182,7 +187,7 @@ const env = {
   LARK_KEEP_AWAKE: '0',
   LARK_DOCTOR: '0',
   LARK_SELF_FIX: '0',
-  LARK_WORKER_CONCURRENCY: value('--conc', '2'),
+  LARK_WORKER_CONCURRENCY: value('--conc', '4'),
   LARK_CHAT_NAME_TTL_MS: '600000',
   ...aiCacheEnv,
 }
@@ -248,21 +253,53 @@ const shutdown = () => {
 }
 process.on('SIGINT', () => { shutdown(); process.exit(130) })
 
-for (const m of events) {
-  if (fed.has(m.id)) continue
-  if (m.atMs > virtualNow) {
-    virtualNow = m.atMs
-    setClock(virtualNow)
+// 喂事件的节奏（11-03 改）：系统有任务在跑时虚拟时间按真实速度走，到下一条消息的时刻就喂（当时群里的人就是在 bot 干活时接着说话的，
+// 会被并入 / 进上下文）；系统空闲就直接跳到下一条。原来每条都等完全空闲才喂下一条，既慢又把并发的对话串成了先后。
+const clockNow = () => {
+  try {
+    const c = JSON.parse(readFileSync(clockPath, 'utf8'))
+    return c.virtualMs + (Date.now() - c.realMs)
+  } catch {
+    return virtualNow
   }
+}
+const isIdle = async () => {
+  const tasks = await listTasks()
+  return Boolean(tasks) && !tasks.some((t) => ACTIVE.has(t.status) || t.ackPending)
+}
+const advanceTo = async (targetMs, label) => {
+  const started = Date.now()
+  await sleep(1500) // 刚喂的消息先让网关接住（建任务 / 挂「收到」），再判空闲
+  for (;;) {
+    if (clockNow() >= targetMs) return
+    if (await isIdle()) {
+      setClock(targetMs)
+      return
+    }
+    if (Date.now() - started > maxWaitMs) {
+      log(`${label}：忙了 ${Math.round((Date.now() - started) / 60000)} 分钟还没到下一条的时刻，直接跳过去`)
+      setClock(targetMs)
+      return
+    }
+    await sleep(2000)
+  }
+}
+
+let jumpedToFirst = false
+for (const [index, m] of events.entries()) {
+  if (fed.has(m.id)) continue
+  if (!jumpedToFirst) {
+    if (m.atMs > clockNow()) setClock(m.atMs) // 本次起跑（或断点续跑）的第一条：时钟直接跳到它
+    jumpedToFirst = true
+  }
+  virtualNow = Math.max(clockNow(), m.atMs)
   const event = toSimEvent(m, { botOpenId: BOT_OPEN_ID })
   appendFileSync(join(simDir, 'events.ndjson'), `${JSON.stringify(event)}\n`)
   fed.add(m.id)
   writeFileSync(fedPath, JSON.stringify([...fed]))
   log(`喂 ${m.id} ${new Date(m.atMs).toISOString().slice(5, 16)} ${m.chatKey} ${m.senderName}：${String(m.text).replace(/\s+/g, ' ').slice(0, 60)}${m.atBot ? '（@bot）' : ''}`)
-  // 没叫 bot 的群消息网关只记上下文 / 并入补料，等 3 秒就够；@bot / 私信 / 回复 bot 的才等「收到」巡检与任务跑完。
-  const replyToBot = m.parentId ? Boolean(timeline.find((x) => x.id === m.parentId)?.ownBot) : false
-  const trigger = m.atBot || replyToBot || (m.chatKey === 'webhook-group' && m.senderId === AVEN_OPEN_ID)
-  await waitIdle(m.id, trigger ? settleMs : 3000)
+  const next = events[index + 1]
+  if (next) await advanceTo(next.atMs, m.id)
 }
 log('事件喂完；再等一轮空闲后收尾')
 await waitIdle('final')
