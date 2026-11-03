@@ -21,7 +21,7 @@ process.env.LARK_CLI_BIN = cliBin
 process.env.LARK_RUNTIME_DIR = runtime
 
 const { ACK_SWEEP_EVERY_MS, DEFAULT_ACK_TIMEOUT_MS, appendSuspectedSupplement, deliverFollowUpReply, flushPendingAck, holdsSuspectedForPrincipal, intakeTiming, isCompleteMessage, markAckPending, mergeThreadSupplement, pickSupplementTarget, resolveIntakeLane, resolveIntakeNotBefore, sweepPendingAcks } = await import('../lib/lark-intake-ack.mjs')
-const { DEFAULT_PRINCIPAL_REPLY_WINDOW_MS, anchorHead, buildPrincipalInstructionTask, decidePrincipalAction, isDeployNotice, isReleaseHeldReply, isShortDeictic, latestDmReceipt, maybeHandlePrincipalChannel, resolvePrincipalAnchor } = await import('../lib/lark-principal-channel.mjs')
+const { DEFAULT_PRINCIPAL_REPLY_WINDOW_MS, anchorHead, buildPrincipalInstructionTask, classifyPrincipalReply, decidePrincipalAction, isDeployNotice, isReleaseHeldReply, isShortDeictic, latestDmReceipt, maybeHandlePrincipalChannel, resolvePrincipalAnchor } = await import('../lib/lark-principal-channel.mjs')
 const { RERUN_ACK_REPLY, handleIntakeResolution, mergeableTarget, resolveMergeTarget } = await import('../lib/lark-routes-intake.mjs')
 const { buildConversationBundle } = await import('../lib/lark-conversation-bundle.mjs')
 const { ingestLarkEvent } = await import('../lib/lark-ingest.mjs')
@@ -370,6 +370,44 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       anchor = { task: waiting, via: 'recent' }
       assert.equal(await run('用 508 号试'), true)
       assert.deepEqual([resumes.pop().resumeDirective, resumes.at(-1), notes.length, downloads.length], [undefined, undefined, 0, 0])
+      // 11-03 静态 review R1：疑似单私信「是 → 继续任务 id 做；不是 → 取消任务 id」，aven 回「不是」原先当补料放行开跑。否定 → 关掉并回一句；拿不准 → 问一句不动
+      const sus = store.upsert({ id: 'om_sus1', status: 'waiting_confirmation', suspected: true, chatId: 'oc_g', summary: '登录页报错', text: '登录页报错', createdAt: iso(now) })
+      anchor = { task: sus, via: 'recent' }
+      assert.equal(await run('不是'), true)
+      assert.deepEqual([store.get('om_sus1').status, store.get('om_sus1').closureReason, store.get('om_sus1').externalResolution.operator, store.get('om_sus1').externalResolution.messageId, resumes.length], ['superseded', 'cancelled', 'ou_aven', 'om_p', 0], '否定 → 结单，不续跑')
+      assert.deepEqual(notes.pop(), { config, store, text: '好，「登录页报错」取消了，不再做。', taskId: 'om_sus1', kind: 'private', idempotencyKey: 'om_p-pn' })
+      const blocked = store.upsert({ id: 'om_blk1', status: 'blocked', chatId: 'oc_g', summary: '充值页', text: '充值页', createdAt: iso(now) })
+      anchor = { task: blocked, via: 'reply' }
+      assert.equal(await run('不用做了'), true)
+      assert.deepEqual([store.get('om_blk1').status, store.get('om_blk1').closureReason, notes.pop().text], ['superseded', 'no_longer_needed', '好，「充值页」不用做了，已关掉。'])
+      const ask = store.upsert({ id: 'om_ask1', status: 'waiting_confirmation', askBack: true, chatId: 'oc_g', summary: '导出按钮', text: '导出按钮', createdAt: iso(now) })
+      anchor = { task: ask, via: 'recent' }
+      assert.equal(await run('先别做了吧？'), true)
+      assert.deepEqual([store.get('om_ask1').status, resumes.length, notes.pop().text], ['waiting_confirmation', 0, '这句像是不做了，我拿不准，先没动「导出按钮」。不做回「取消任务 om_ask1」；要做回「继续任务 om_ask1 做」。'])
+      assert.equal(await run('是'), true)
+      assert.deepEqual([resumes.pop().parentTask.taskId, store.get('om_ask1').status], ['om_ask1', 'waiting_confirmation'], '肯定 → 照旧续跑（续跑本身由 handleResume 桩接）')
+      anchor = { task: ask, via: 'explicit', directive: { taskId: 'om_ask1', supplementText: '不做了' } }
+      assert.equal(await run('继续任务 om_ask1 不做了'), true)
+      assert.deepEqual([store.get('om_ask1').status, store.get('om_ask1').closureReason, resumes.length], ['superseded', 'no_longer_needed', 0], '显式点名 + 否定补充 → 也关')
+      await eachCase([
+        { name: '不是', text: '不是', want: { kind: 'decline', closureReason: 'cancelled' } },
+        { name: '不是我的。', text: '不是我的。', want: { kind: 'decline', closureReason: 'cancelled' } },
+        { name: '不对，这是后端的', text: '不对，这是后端的', want: { kind: 'decline', closureReason: 'cancelled' } },
+        { name: '不是，应该是后端的事', text: '不是，应该是后端的事', want: { kind: 'decline', closureReason: 'cancelled' } },
+        { name: '不对，这个要改成红色（补料）', text: '不对，这个要改成红色', want: null },
+        { name: '不用', text: '不用', want: { kind: 'decline', closureReason: 'no_longer_needed' } },
+        { name: '算了', text: '算了', want: { kind: 'decline', closureReason: 'no_longer_needed' } },
+        { name: '不做了', text: '不做了', want: { kind: 'decline', closureReason: 'no_longer_needed' } },
+        { name: '取消', text: '取消', want: { kind: 'decline', closureReason: 'cancelled' } },
+        { name: '已经有人在改了', text: '已经有人在改了', want: { kind: 'decline', closureReason: 'no_longer_needed' } },
+        { name: '别做了？', text: '别做了？', want: { kind: 'unclear', closureReason: 'cancelled' } },
+        { name: '是', text: '是', want: null },
+        { name: '做', text: '做', want: null },
+        { name: '用 508 号试', text: '用 508 号试', want: null },
+        { name: '不是这个号，用 508', text: '不是这个号，用 508', want: null },
+        { name: '不用截图，直接按方案 A 做', text: '不用截图，直接按方案 A 做', want: null },
+        { name: '空', text: '', want: null },
+      ], ({ text, want }) => assert.deepEqual(classifyPrincipalReply(text), want))
       const doneTask = store.upsert({ id: 'om_d', status: 'done', chatId: 'oc_g', messageId: 'om_d', operator: 'ou_qa', summary: '导出按钮', text: '导出按钮没反应', project: 'PR-X', attachments: [{ type: 'image', imageKey: 'g' }], createdAt: iso(now) })
       anchor = { task: doneTask, via: 'recent' }
       assert.equal(await run('修复：这个要做', { attachments: [{ type: 'image', imageKey: 'p' }] }), true)
