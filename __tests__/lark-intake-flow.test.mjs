@@ -29,7 +29,7 @@ const { handleBotAddedEvent, parseBotAddedEvent } = await import('../lib/lark-pr
 const { defaultRemindAfterMs, defaultRemindRounds, isNeverNagged, remindParkedTasks } = await import('../lib/lark-parked-reminder.mjs')
 const { collectDigest, expireSuspectedAndNotify, renderDigest, runDailyDigest, startDailyDigest } = await import('../lib/lark-daily-digest.mjs')
 const { createTaskStore, isControlActiveStatus } = await import('../lib/lark-task-store.mjs')
-const { getObligation, noteAck, noteAnswer, noteHeld } = await import('../lib/lark-reply-obligation.mjs')
+const { clearHeldDraft, getObligation, noteAck, noteAnswer, noteHeld } = await import('../lib/lark-reply-obligation.mjs')
 const { localHHMM } = await import('../lib/lark-outbox.mjs')
 
 const H = 3_600_000
@@ -356,6 +356,12 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       anchor = { task: held, via: 'reply' }
       assert.equal(await run('就这样回'), true)
       assert.deepEqual(notes.pop(), { config, store, text: '「登录页报错」这条没有扣下的草稿，没什么可发的。', taskId: 'om_h', kind: 'private', idempotencyKey: 'om_p-pn' })
+      // 锚到的任务没草稿、另一条最近有草稿 → 放行那条（11-03 回放：放行 lives 草稿锚到了 preload）
+      const other = store.upsert({ id: 'om_h3', status: 'done', chatId: 'oc_g', messageId: 'om_h3', operator: 'ou_qa', summary: '直播列表', text: '直播列表', createdAt: iso(now), receipts: [{ chatId: 'ou_aven', kind: 'done', createdAt: iso(now - 60_000) }] })
+      noteHeld({ task: other, text: '草稿 2' })
+      assert.equal(await run('就这样回'), true)
+      assert.deepEqual([releases.pop(), notes.pop().text], ['om_h3', '已按原文回群（直播列表）。'])
+      noteAnswer({ task: other, text: '发了' })
       noteAnswer({ task: held, text: '结论' })
       assert.equal(await run('就这样回'), true)
       assert.deepEqual([notes.pop().text, releases.length], ['「登录页报错」这条已经发过更新的结论了，没有待放行的草稿。', 0])
@@ -368,6 +374,7 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       releaseResult = { ok: false }
       await run('就这样回')
       assert.equal(notes.pop().text, '没发出去：找不到要发的群。')
+      clearHeldDraft({ task: held }) // 放行是桩，草稿还挂着；清掉免得下面「没有草稿」的用例被改找到它
       anchor = { task: store.upsert({ ...held, id: 'om_h2', privateOrigin: { anchorId: 'om_zz', anchorHead: '原群消息' } }), via: 'recent' }
       await run('就这样回')
       assert.equal(notes.pop().text, '「原群消息」这条没有扣下的草稿，没什么可发的。', '私聊指示任务用它锚的群消息做标题')
