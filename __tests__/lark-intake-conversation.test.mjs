@@ -388,9 +388,11 @@ describe('对话层：锚点、上下文、对话包、发件簿、义务、pers
       assert.deepEqual(listOverdueObligations({ chatIds: [chatId], now: NOW_MS + 9 * HOUR }), [], 'held 不算答应了没结论')
       clearHeldDraft({ task: t, now: NOW_MS + 2 * HOUR })
       assert.equal(heldDraftFor(t), null)
-      noteHeld({ task: t, text: '草稿 2', now: NOW_MS + 2 * HOUR })
+      noteHeld({ task: t, text: '草稿 2', now: NOW_MS + 2.5 * HOUR })
       const answered = noteAnswer({ task: t, text: '结论', now: NOW_MS + 3 * HOUR })
       assert.deepEqual([answered.state, answered.answerText, answered.answerTaskId, 'heldDraft' in answered], ['answered', '结论', 'om_1', false], '有结论了草稿作废')
+      // heldAt 只增不删（11-03 第二次 review：「就这样回」靠它判锚点扣过草稿没有）：清草稿、再扣、发结论都不动第一次扣下的时刻
+      assert.equal(answered.heldAt, iso(NOW_MS + 2 * HOUR))
       noteOwed({ task: t, status: 'failed', now: NOW_MS + 4 * HOUR })
       assert.equal(getObligation(t).state, 'answered', '答过的不退回 owed')
       const t3 = { id: 'om_3', chatId, operator: 'ou_v' }

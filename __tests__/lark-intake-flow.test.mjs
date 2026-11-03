@@ -368,13 +368,22 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       anchor = { task: held, via: 'recent' }
       assert.equal(await run('就这样回'), true)
       assert.deepEqual([releases.pop(), notes.pop().text], ['om_h3', '已按原文回群（直播列表）。'])
-      noteAnswer({ task: held, text: '结论' }) // 放行是桩，om_h3 的草稿还挂着：锚点已发过结论的不改找它
+      // 锚点正常答过（answered、从没扣过草稿）也改找（11-03 第二次 review，改了原来「answered 就不改找」的口径）：13:00 私信 Y 的扣下草稿，
+      // 13:05 私信 X 的「💬 替你答了」，13:06「就这样回」说的是 Y 的草稿——原来回「X 这条已经发过更新的结论了」，Y 的草稿永远发不出去
+      noteAnswer({ task: held, text: '结论' }) // 放行是桩，om_h3 的草稿还挂着
       assert.equal(await run('就这样回'), true)
-      assert.deepEqual([notes.pop().text, releases.length], ['「登录页报错」这条已经发过更新的结论了，没有待放行的草稿。', 0])
+      assert.deepEqual([releases.pop(), notes.pop().text], ['om_h3', '已按原文回群（直播列表）。'])
+      anchor = { task: held, via: 'reply' }
+      assert.equal(await run('就这样回'), true)
+      assert.deepEqual([notes.pop().text, releases.length], ['「登录页报错」这条已经发过更新的结论了，没有待放行的草稿。', 0], '引用回复的照旧就说那条')
+      anchor = { task: held, via: 'recent' }
       noteHeld({ task: held, text: '旧草稿' })
       clearHeldDraft({ task: held })
       assert.equal(await run('就这样回'), true)
-      assert.deepEqual([notes.pop().text, releases.length], ['「登录页报错」这条没有扣下的草稿，没什么可发的。', 0], '锚点扣过草稿（已清掉）也不改找')
+      assert.deepEqual([notes.pop().text, releases.length], ['「登录页报错」这条没有扣下的草稿，没什么可发的。', 0], '锚点扣过草稿（heldAt，已清掉）不改找')
+      noteAnswer({ task: held, text: '更新的结论' })
+      assert.equal(await run('就这样回'), true)
+      assert.deepEqual([notes.pop().text, releases.length], ['「登录页报错」这条已经发过更新的结论了，没有待放行的草稿。', 0], '扣过草稿、之后发了更新的结论（草稿作废）不改找')
       noteAnswer({ task: other, text: '发了' })
       noteAnswer({ task: held, text: '结论' })
       noteHeld({ task: held, text: '草稿' })
@@ -433,6 +442,19 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
         { name: '不，找后端', text: '不，找后端', want: { kind: 'decline', closureReason: 'cancelled' } },
         { name: '不是，这个归 App', text: '不是，这个归 App', want: { kind: 'decline', closureReason: 'cancelled' } },
         { name: '不对，运维那边的事', text: '不对，运维那边的事', want: { kind: 'decline', closureReason: 'cancelled' } },
+        // 11-03 第二次 review：否定头词（不做 / 不用了 / 先不做 / 不归我们…）后接归属后半句原来返回 null → 挂起任务当补料开跑
+        { name: '不做，这是后端的', text: '不做，这是后端的', want: { kind: 'decline', closureReason: 'no_longer_needed' } },
+        { name: '先不做', text: '先不做', want: { kind: 'decline', closureReason: 'no_longer_needed' } },
+        { name: '这个不归我们，找后端', text: '这个不归我们，找后端', want: { kind: 'decline', closureReason: 'cancelled' } },
+        { name: '不用了，后端在改', text: '不用了，后端在改', want: { kind: 'decline', closureReason: 'no_longer_needed' } },
+        { name: '别做了，服务端那边已经在改了', text: '别做了，服务端那边已经在改了', want: { kind: 'decline', closureReason: 'no_longer_needed' } },
+        { name: '不对，算了（后半句本身是不做）', text: '不对，算了', want: { kind: 'decline', closureReason: 'cancelled' } },
+        { name: '不归我们，属于 App 的问题', text: '不归我们，属于 App 的问题', want: { kind: 'decline', closureReason: 'cancelled' } },
+        // 否定头词 + 认不出的后半句 → 问一句不动（不当补料开跑）
+        { name: '不做，先放着 → 只问', text: '不做，先放着', want: { kind: 'unclear', closureReason: 'no_longer_needed' } },
+        { name: '不用了，我自己来 → 只问', text: '不用了，我自己来', want: { kind: 'unclear', closureReason: 'no_longer_needed' } },
+        { name: '不是，没必要 → 只问', text: '不是，没必要', want: { kind: 'unclear', closureReason: 'cancelled' } },
+        { name: '不归我们，找 William → 只问（强否定头不当补料）', text: '不归我们，找 William 要账号', want: { kind: 'unclear', closureReason: 'cancelled' } },
         // 11-03 合入前 review：后半句不是归属说法的是补料（原来「应该是 / 是 / 找」后面随便跟什么都算否定，补料被关单）
         { name: '不对，应该是 508 账号（补料）', text: '不对，应该是 508 账号', want: null },
         { name: '不是，这个是 B 页面（补料）', text: '不是，这个是 B 页面', want: null },
@@ -716,7 +738,8 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       // 11-03 静态 review R3：锚点任务还在跑，负责人私信「不做，这是后端的」→ 指示任务判 ignore：锚点一并结掉（externalResolution，换代挡掉迟到回写），
       // 不再回群「改好了」；锚点已了结 / 不存在的不碰
       anchorTask = { id: 'om_g1', status: 'running', epoch: 1 }
-      const privStop = task({ status: 'ignored', privateOrigin: { anchorId: 'om_g1', anchorHead: '导出按钮', senderOpenId: 'ou_aven' } }, cls({ decision: 'ignore', reply: '这个归后端' }))
+      const dmText = (words) => `【aven 私聊指示】${words}\n\n【指示针对的群消息（任务 om_g1，当前 running）】\n导出按钮`
+      const privStop = task({ status: 'ignored', text: dmText('这个不归我们，找后端'), privateOrigin: { anchorId: 'om_g1', anchorHead: '导出按钮', senderOpenId: 'ou_aven' } }, cls({ decision: 'ignore', reply: '这个归后端' }))
       assert.deepEqual(await run({ ok: true, task: privStop }), body({ ignored: true, anchorClosed: 'om_g1' }))
       assert.deepEqual(calls.at(-1), ['close', { id: 'om_g1', operator: 'ou_aven', messageId: 'om_me', closureReason: 'no_longer_needed' }])
       assert.deepEqual(said.slice(1), [['deliverNoted', { config: cfg, store: st, task: { ...privStop, privateOrigin: null }, reply: '这个归后端' }], ['sendPrincipalNote', { config: cfg, store: st, text: '记下了，「导出按钮」这条不用动手；原来在跑的那条也关掉了，不再回群结论。', taskId: 'om_me', kind: 'ignored_after_ack' }]])
@@ -727,27 +750,36 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
         assert.equal(calls.at(-1)[1].id, 'om_g1', `${status} 也是活动态，一并结掉`)
       }
       anchorTask = { id: 'om_g1', status: 'queued', epoch: 1 }
-      await run({ ok: true, task: task({ status: 'ignored', privateOrigin: { anchorId: 'om_g1', anchorHead: '导出按钮' } }, cls({ decision: 'ignore', reply: null, forMe: false })) })
-      assert.equal(calls.at(-1)[1].operator, 'ou_qa', 'privateOrigin 没记发送人 → 回落到任务 operator；forMe=false 没 reply 也算明确拒绝')
-      // 11-03 合入前 review：aven 对「开始做」私信回「收到 / 知道了」→ 指示任务判 ignore，原先照样把在跑的锚点结掉。只有明确拒绝才结：
-      // forMe=false，或 reply 非空且 forMe 不是 true；reason 说寒暄 / 知会、或负责人原话整句是寒暄的不算
+      await run({ ok: true, task: task({ status: 'ignored', text: dmText('不做了'), privateOrigin: { anchorId: 'om_g1', anchorHead: '导出按钮' } }, cls({ decision: 'ignore', reply: null })) })
+      assert.equal(calls.at(-1)[1].operator, 'ou_qa', 'privateOrigin 没记发送人 → 回落到任务 operator；分类器没写 reply 也按原话结')
+      // 拒绝不拒绝按负责人原话判（11-03 第二次 review，取代按 reply 有无 + reason 关键词判）：原话是拒绝 / 归属才结锚点、回群那句礼貌拒绝；
+      // 寒暄（含「收到，谢谢」「好的辛苦了」「ok 收到」「嗯嗯好的」这类组合）不结、不回群；认不出的不结，他说怎么回群照旧回群。
+      // 原来两头都错：寒暄组合不匹配词表、分类器写了 reply 就被当拒绝结掉在跑的锚点；真拒绝的 reason 写「负责人知会归后端」又被「知会」豁免
       anchorTask = { id: 'om_g1', status: 'running', epoch: 1 }
       await eachCase([
-        { name: '寒暄：reply 空', c: cls({ decision: 'ignore', reply: null }) },
-        { name: '明确是我们的活（forMe=true）', c: cls({ decision: 'ignore', reply: '好的', forMe: true }) },
-        { name: 'reason 是知会', c: cls({ decision: 'ignore', reply: '好的', reason: '负责人只是知会收到' }) },
-        { name: 'reason 是寒暄', c: cls({ decision: 'ignore', reply: '好的', reason: '寒暄' }) },
-        { name: '原话整句是「收到」', c: cls({ decision: 'ignore', reply: '好的' }), text: '【aven 私聊指示】收到\n\n【指示针对的群消息】导出按钮' },
-        { name: '原话整句是「知道了。」', c: cls({ decision: 'ignore', reply: '好的' }), text: '【aven 私聊指示】知道了。' },
-      ], async ({ c, text }) => {
+        { name: '原话「收到」', words: '收到', c: cls({ decision: 'ignore', reply: '好的' }), noted: false },
+        { name: '原话「知道了。」', words: '知道了。', c: cls({ decision: 'ignore', reply: '好的' }), noted: false },
+        { name: '原话「收到，谢谢」', words: '收到，谢谢', c: cls({ decision: 'ignore', reply: '好的', forMe: false }), noted: false },
+        { name: '原话「好的辛苦了」', words: '好的辛苦了', c: cls({ decision: 'ignore', reply: '好的' }), noted: false },
+        { name: '原话「ok 收到」', words: 'ok 收到', c: cls({ decision: 'ignore', reply: '好的' }), noted: false },
+        { name: '原话「嗯嗯好的」', words: '嗯嗯好的', c: cls({ decision: 'ignore', reply: '好的' }), noted: false },
+        { name: '寒暄、reply 空', words: '好的', c: cls({ decision: 'ignore', reply: null }), noted: false },
+        { name: '认不出、分类器说 forMe=false：不结，reply 照旧回群', words: '回他下周再排', c: cls({ decision: 'ignore', reply: '这个下周再排', forMe: false, reason: '寒暄' }), noted: true },
+        { name: '认不出（否定头 + 认不出的后半句）：不结', words: '不做，先放着', c: cls({ decision: 'ignore', reply: '先放着' }), noted: true },
+      ], async ({ words, c, noted }) => {
         calls.length = 0
-        assert.deepEqual(await run({ ok: true, task: task({ status: 'ignored', text, privateOrigin: { anchorId: 'om_g1', anchorHead: '导出按钮', senderOpenId: 'ou_aven' } }, c) }), body({ ignored: true }))
-        assert.deepEqual([calls.map(([name]) => name), said.at(-1)[1].text], [['resolveIntake'], '好，「导出按钮」那条照常在做，没动它。'])
-        // 原话整句是寒暄：分类器写了 reply 也不往群里回（只会是噪音）
-        if (text) assert.notEqual(said.at(-2)?.[0], 'deliverNoted', '寒暄不回群')
+        assert.deepEqual(await run({ ok: true, task: task({ status: 'ignored', text: dmText(words), privateOrigin: { anchorId: 'om_g1', anchorHead: '导出按钮', senderOpenId: 'ou_aven' } }, c) }), body({ ignored: true }))
+        assert.deepEqual([calls.map(([name]) => name), saidNames().includes('deliverNoted'), said.at(-1)[1].text], [['resolveIntake'], noted, '好，「导出按钮」那条照常在做，没动它。'])
       })
-      await run({ ok: true, task: task({ status: 'ignored', text: '【aven 私聊指示】不做，这是后端的', privateOrigin: { anchorId: 'om_g1', anchorHead: '导出按钮' } }, cls({ decision: 'ignore', reply: '这个归后端' })) })
-      assert.equal(calls.at(-1)[0], 'close', '原话是拒绝 + reply 礼貌拒绝 → 结掉')
+      await eachCase([
+        { name: '真拒绝、reason 写「负责人知会归后端」也结', words: '不做，这是后端的', c: cls({ decision: 'ignore', reply: '这个归后端', reason: '负责人知会归后端' }) },
+        { name: '原话拒绝、分类器说 forMe=true 也结', words: '不用了，后端在改', c: cls({ decision: 'ignore', reply: '后端在改', forMe: true }) },
+        { name: '原话分两行', words: '不做\n这是后端的', c: cls({ decision: 'ignore', reply: '这个归后端' }) },
+      ], async ({ words, c }) => {
+        calls.length = 0
+        await run({ ok: true, task: task({ status: 'ignored', text: dmText(words), privateOrigin: { anchorId: 'om_g1', anchorHead: '导出按钮' } }, c) })
+        assert.deepEqual([calls.at(-1)[0], saidNames().includes('deliverNoted')], ['close', true], '原话是拒绝 → 结掉，回群那句礼貌拒绝')
+      })
       calls.length = 0
       anchorTask = { id: 'om_g1', status: 'done' }
       assert.deepEqual(await run({ ok: true, task: privStop }), body({ ignored: true }))
