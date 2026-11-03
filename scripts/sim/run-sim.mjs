@@ -71,6 +71,13 @@ if (!existsSync(repoLink)) {
   if (cloned.status !== 0) throw new Error(`clone --shared 失败：${cloned.stderr.slice(0, 300)}`)
 }
 git(['fetch', '--quiet', 'origin', baseBranch], repoLink)
+// 只留基线分支的引用：clone 会带上主仓全部分支（含「未来」的提交），worker 翻 git log --all / 看 online 分支就能看到窗口之后的合入
+//（10-31 回放：bot 说「Justin 10-31 已合入 online」）。对象还在（shared），但不可达就翻不到。
+for (const ref of git(['for-each-ref', '--format=%(refname)', 'refs/remotes', 'refs/heads'], repoLink).stdout.split('\n').filter(Boolean)) {
+  if (ref === `refs/remotes/origin/${baseBranch}` || ref === 'refs/remotes/origin/HEAD') continue
+  git(['update-ref', '-d', ref], repoLink)
+}
+git(['config', 'remote.origin.fetch', `+refs/heads/${baseBranch}:refs/remotes/origin/${baseBranch}`], repoLink)
 if (git(['rev-parse', 'HEAD'], repoLink).stdout.trim() !== baseSha) {
   const out = git(['checkout', '--quiet', '--detach', baseSha], repoLink)
   if (out.status !== 0) throw new Error(`checkout 基线失败：${out.stderr.slice(0, 300)}`)
