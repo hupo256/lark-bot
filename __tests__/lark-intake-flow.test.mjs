@@ -356,15 +356,27 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       anchor = { task: held, via: 'reply' }
       assert.equal(await run('就这样回'), true)
       assert.deepEqual(notes.pop(), { config, store, text: '「登录页报错」这条没有扣下的草稿，没什么可发的。', taskId: 'om_h', kind: 'private', idempotencyKey: 'om_p-pn' })
-      // 锚到的任务没草稿、另一条最近有草稿 → 放行那条（11-03 回放：放行 lives 草稿锚到了 preload）
+      // 锚到的任务没草稿、另一条最近有草稿 → 放行那条（11-03 回放：放行 lives 草稿锚到了 preload）——只限「最近一条」锚的、且锚点从没扣过草稿
       const other = store.upsert({ id: 'om_h3', status: 'done', chatId: 'oc_g', messageId: 'om_h3', operator: 'ou_qa', summary: '直播列表', text: '直播列表', createdAt: iso(now), receipts: [{ chatId: 'ou_aven', kind: 'done', createdAt: iso(now - 60_000) }] })
       noteHeld({ task: other, text: '草稿 2' })
+      // 11-03 合入前 review：引用回复 / 显式点名的就是说那条，不改找别的任务的草稿发进别的群（不可撤回）
+      for (const via of ['reply', 'explicit']) {
+        anchor = { task: held, via }
+        assert.equal(await run('就这样回'), true)
+        assert.deepEqual([notes.pop().text, releases.length], ['「登录页报错」这条没有扣下的草稿，没什么可发的。', 0], `via ${via} 不改找`)
+      }
+      anchor = { task: held, via: 'recent' }
       assert.equal(await run('就这样回'), true)
       assert.deepEqual([releases.pop(), notes.pop().text], ['om_h3', '已按原文回群（直播列表）。'])
-      noteAnswer({ task: other, text: '发了' })
-      noteAnswer({ task: held, text: '结论' })
+      noteAnswer({ task: held, text: '结论' }) // 放行是桩，om_h3 的草稿还挂着：锚点已发过结论的不改找它
       assert.equal(await run('就这样回'), true)
       assert.deepEqual([notes.pop().text, releases.length], ['「登录页报错」这条已经发过更新的结论了，没有待放行的草稿。', 0])
+      noteHeld({ task: held, text: '旧草稿' })
+      clearHeldDraft({ task: held })
+      assert.equal(await run('就这样回'), true)
+      assert.deepEqual([notes.pop().text, releases.length], ['「登录页报错」这条没有扣下的草稿，没什么可发的。', 0], '锚点扣过草稿（已清掉）也不改找')
+      noteAnswer({ task: other, text: '发了' })
+      noteAnswer({ task: held, text: '结论' })
       noteHeld({ task: held, text: '草稿' })
       assert.equal(await run('就这样回'), true)
       assert.deepEqual([releases, notes.pop()], [['om_h'], { config, store, text: '已按原文回群（登录页报错）。', taskId: 'om_h', kind: 'private', idempotencyKey: 'om_p-pn' }])
@@ -385,6 +397,8 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       anchor = { task: waiting, via: 'recent' }
       assert.equal(await run('用 508 号试'), true)
       assert.deepEqual([resumes.pop().resumeDirective, resumes.at(-1), notes.length, downloads.length], [undefined, undefined, 0, 0])
+      assert.equal(await run('不对，应该是 508 账号'), true)
+      assert.deepEqual([resumes.pop().parentTask.taskId, store.get('om_w').status, notes.length], ['om_w', 'waiting_confirmation', 0], '「不对，应该是…」是补料：续跑，不关单')
       // 11-03 静态 review R1：疑似单私信「是 → 继续任务 id 做；不是 → 取消任务 id」，aven 回「不是」原先当补料放行开跑。否定 → 关掉并回一句；拿不准 → 问一句不动
       const sus = store.upsert({ id: 'om_sus1', status: 'waiting_confirmation', suspected: true, chatId: 'oc_g', summary: '登录页报错', text: '登录页报错', createdAt: iso(now) })
       anchor = { task: sus, via: 'recent' }
@@ -414,7 +428,21 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
         { name: '算了', text: '算了', want: { kind: 'decline', closureReason: 'no_longer_needed' } },
         { name: '不做了', text: '不做了', want: { kind: 'decline', closureReason: 'no_longer_needed' } },
         { name: '取消', text: '取消', want: { kind: 'decline', closureReason: 'cancelled' } },
-        { name: '已经有人在改了', text: '已经有人在改了', want: { kind: 'decline', closureReason: 'no_longer_needed' } },
+        { name: '取消吧。', text: '取消吧。', want: { kind: 'decline', closureReason: 'cancelled' } },
+        { name: '不归我们', text: '不归我们', want: { kind: 'decline', closureReason: 'cancelled' } },
+        { name: '不，找后端', text: '不，找后端', want: { kind: 'decline', closureReason: 'cancelled' } },
+        { name: '不是，这个归 App', text: '不是，这个归 App', want: { kind: 'decline', closureReason: 'cancelled' } },
+        { name: '不对，运维那边的事', text: '不对，运维那边的事', want: { kind: 'decline', closureReason: 'cancelled' } },
+        // 11-03 合入前 review：后半句不是归属说法的是补料（原来「应该是 / 是 / 找」后面随便跟什么都算否定，补料被关单）
+        { name: '不对，应该是 508 账号（补料）', text: '不对，应该是 508 账号', want: null },
+        { name: '不是，这个是 B 页面（补料）', text: '不是，这个是 B 页面', want: null },
+        { name: '不，找 William 要账号（补料）', text: '不，找 William 要账号', want: null },
+        { name: '不，找后端要账号（补料）', text: '不，找后端要账号', want: null },
+        // 结单语族在私信这里最多问一句（补料里常带「不用管 / 取消那个 / 不用改了」），不直接关
+        { name: '用 508 账号，不用管验证码 → 只问', text: '用 508 账号，不用管验证码', want: { kind: 'unclear', closureReason: 'no_longer_needed' } },
+        { name: '取消那个弹窗，直接跳转 → 只问', text: '取消那个弹窗，直接跳转', want: { kind: 'unclear', closureReason: 'cancelled' } },
+        { name: '后端已经修了，不用改了，复测一下 → 只问', text: '后端已经修了，不用改了，复测一下', want: { kind: 'unclear', closureReason: 'no_longer_needed' } },
+        { name: '已经有人在改了 → 只问', text: '已经有人在改了', want: { kind: 'unclear', closureReason: 'no_longer_needed' } },
         { name: '别做了？', text: '别做了？', want: { kind: 'unclear', closureReason: 'cancelled' } },
         { name: '是', text: '是', want: null },
         { name: '做', text: '做', want: null },
@@ -508,6 +536,9 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
         { name: '都是实测、点名环境不相交：另起（11-03 r3-c：复测 OL 并进 uat 那条）', task: { ...me('verification'), envTargets: ['online'] }, target: { ...target('done', 'verification'), envTargets: ['uat'] }, want: false },
         { name: '都是实测、环境有交集：延续', task: { ...me('verification'), envTargets: ['uat', 'online'] }, target: { ...target('done', 'verification'), envTargets: ['uat'] }, want: true },
         { name: '只一边点名环境：按交付物', task: { ...me('verification'), envTargets: ['online'] }, target: target('done', 'verification'), want: true },
+        { name: '都是答疑、点名环境不相交：另起', task: { ...me('answer'), envTargets: ['pre'] }, target: { ...target('answered', 'answer'), envTargets: ['test'] }, want: false },
+        // 11-03 合入前 review：「test 环境 xx 按钮错位」改码单在跑，「pre 也有这个问题」continues 指它 → 改的是同一处代码，照交付物规则并入
+        { name: '都是改码、点名环境不相交：照交付物并入', task: { ...me('change'), envTargets: ['pre'] }, target: { ...target('running', 'change'), envTargets: ['test'] }, want: true },
         { name: '等补料：并进去', task: me('change'), target: target('waiting_confirmation', 'answer'), want: true },
         { name: '追问 → 原答疑', task: me('answer'), target: target('answered', 'answer'), want: true },
         { name: '补料 → 在跑的改码单', task: me('change'), target: target('running', 'change'), want: true },
@@ -681,7 +712,7 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       assert.deepEqual(await run({ ok: true, task: priv }), body({ ignored: true }))
       assert.deepEqual(said.slice(1), [['deliverNoted', { config: cfg, store: st, task: { ...priv, privateOrigin: null }, reply: '这个不改' }], ['sendPrincipalNote', { config: cfg, store: st, text: '记下了，「导出按钮」这条不用动手。', taskId: 'om_me', kind: 'ignored_after_ack' }]])
       await run({ ok: true, task: task({ status: 'ignored', privateOrigin: { anchorId: 'om_g1', anchorHead: '导出按钮' } }, cls({ decision: 'ignore', reply: null })) })
-      assert.deepEqual(saidNames(), ['notePerson', 'sendPrincipalNote'], '没说怎么回群就不回')
+      assert.deepEqual([saidNames(), said.at(-1)[1].text], [['notePerson', 'sendPrincipalNote'], '记下了，「导出按钮」这条不用动手。'], '没说怎么回群就不回；锚点不在活动态（这里不存在）照旧说不用动手')
       // 11-03 静态 review R3：锚点任务还在跑，负责人私信「不做，这是后端的」→ 指示任务判 ignore：锚点一并结掉（externalResolution，换代挡掉迟到回写），
       // 不再回群「改好了」；锚点已了结 / 不存在的不碰
       anchorTask = { id: 'om_g1', status: 'running', epoch: 1 }
@@ -696,8 +727,25 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
         assert.equal(calls.at(-1)[1].id, 'om_g1', `${status} 也是活动态，一并结掉`)
       }
       anchorTask = { id: 'om_g1', status: 'queued', epoch: 1 }
-      await run({ ok: true, task: task({ status: 'ignored', privateOrigin: { anchorId: 'om_g1', anchorHead: '导出按钮' } }, cls({ decision: 'ignore', reply: null })) })
-      assert.equal(calls.at(-1)[1].operator, 'ou_qa', 'privateOrigin 没记发送人 → 回落到任务 operator')
+      await run({ ok: true, task: task({ status: 'ignored', privateOrigin: { anchorId: 'om_g1', anchorHead: '导出按钮' } }, cls({ decision: 'ignore', reply: null, forMe: false })) })
+      assert.equal(calls.at(-1)[1].operator, 'ou_qa', 'privateOrigin 没记发送人 → 回落到任务 operator；forMe=false 没 reply 也算明确拒绝')
+      // 11-03 合入前 review：aven 对「开始做」私信回「收到 / 知道了」→ 指示任务判 ignore，原先照样把在跑的锚点结掉。只有明确拒绝才结：
+      // forMe=false，或 reply 非空且 forMe 不是 true；reason 说寒暄 / 知会、或负责人原话整句是寒暄的不算
+      anchorTask = { id: 'om_g1', status: 'running', epoch: 1 }
+      await eachCase([
+        { name: '寒暄：reply 空', c: cls({ decision: 'ignore', reply: null }) },
+        { name: '明确是我们的活（forMe=true）', c: cls({ decision: 'ignore', reply: '好的', forMe: true }) },
+        { name: 'reason 是知会', c: cls({ decision: 'ignore', reply: '好的', reason: '负责人只是知会收到' }) },
+        { name: 'reason 是寒暄', c: cls({ decision: 'ignore', reply: '好的', reason: '寒暄' }) },
+        { name: '原话整句是「收到」', c: cls({ decision: 'ignore', reply: '好的' }), text: '【aven 私聊指示】收到\n\n【指示针对的群消息】导出按钮' },
+        { name: '原话整句是「知道了。」', c: cls({ decision: 'ignore', reply: '好的' }), text: '【aven 私聊指示】知道了。' },
+      ], async ({ c, text }) => {
+        calls.length = 0
+        assert.deepEqual(await run({ ok: true, task: task({ status: 'ignored', text, privateOrigin: { anchorId: 'om_g1', anchorHead: '导出按钮', senderOpenId: 'ou_aven' } }, c) }), body({ ignored: true }))
+        assert.deepEqual([calls.map(([name]) => name), said.at(-1)[1].text], [['resolveIntake'], '好，「导出按钮」那条照常在做，没动它。'])
+      })
+      await run({ ok: true, task: task({ status: 'ignored', text: '【aven 私聊指示】不做，这是后端的', privateOrigin: { anchorId: 'om_g1', anchorHead: '导出按钮' } }, cls({ decision: 'ignore', reply: '这个归后端' })) })
+      assert.equal(calls.at(-1)[0], 'close', '原话是拒绝 + reply 礼貌拒绝 → 结掉')
       calls.length = 0
       anchorTask = { id: 'om_g1', status: 'done' }
       assert.deepEqual(await run({ ok: true, task: privStop }), body({ ignored: true }))
