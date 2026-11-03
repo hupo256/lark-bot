@@ -7,7 +7,7 @@ import { describe, it } from 'node:test'
 import {
   addressTo, changeFacts, chatLabel, dedupeMentions, firstClause, firstSentence, headline, humanizeLegacyResult, mentionTag, resolveOwnerMention,
   sayAck, sayBlockedAsk, sayDigest, sayDoneAnswerGroup, sayDoneAnswerPrincipal, sayDoneChangeGroup, sayDoneChangePrincipal, sayFailedNotice, sayFailedPrincipal,
-  sayHeldDraft, sayHeldFailed, sayHeldReleased, sayHeldStale, sayIgnoredAfterAck, sayIntakeFailed, sayNoChangeGroup, sayNoted, sayOps, sayOverdue, sayReminderGroup,
+  sayHeldDraft, sayHeldFailed, sayHeldReleased, sayHeldStale, sayIgnoredAfterAck, sayIntakeFailed, sayMergedSupplement, sayNoChangeGroup, sayNoted, sayOps, sayOverdue, sayReminderGroup,
   sayReminderPrincipal, sayStart, saySuspected, saySuspectedExpired, trimPunct,
 } from '../lib/lark-human-text.mjs'
 import { applyRunEvidence, collectRunEvidence, normalizeOutcome, normalizeReport, renderReport, unverifiedClaims } from '../lib/lark-report-render.mjs'
@@ -70,6 +70,11 @@ const CELLS = [
       sayDoneAnswerGroup({ outcome: { report: null }, asker: { name: 'Ache', openId: 'ou_a' }, mentions: [{ name: 'Kai', openId: 'ou_k', items: ['x'] }] }),
     ],
     want: ['<at user_id="ou_qa"></at> 不一样，test 比 pre 多 3 个提交。\n- a1 修复\n@Kai：复测充值；看日志\n材料在这里：https://d/4', '@Ache 群回复', ''],
+  },
+  {
+    name: '并入的补充（群，结论末行）：一人「你的」/ 多人「你们的」/ 没人空串',
+    got: () => [sayMergedSupplement({ mentions: [{ name: 'A', openId: 'ou_a' }] }), sayMergedSupplement({ mentions: [{ name: 'A', openId: 'ou_a' }, { name: '', openId: 'ou_b' }] }), sayMergedSupplement({ mentions: [] }), sayMergedSupplement({})],
+    want: ['@A 你的补充也一起处理了。', '@A <at user_id="ou_b"></at> 你们的补充也一起处理了。', '', ''],
   },
   { name: 'done · answer（aven）', got: () => sayDoneAnswerPrincipal({ chatLabel: G, firstLine: '不一样，test 比 pre 多 3 个提交' }), want: `💬 替你答了（${G}）：不一样，test 比 pre 多 3 个提交` },
   {

@@ -240,7 +240,7 @@ Lark 保留自己的任务生命周期、AI 分析、质量闸和本地提交链
 
 每条 **@bot / 负责人私信 / 回复 bot 消息** 都先建 `received` 任务（只 @ 负责人本人或 @所有人、没叫 bot 的消息 11-02 起不处理：判「是不是负责人的活」太复杂、准确性低，aven 决定先关掉，这些消息只作为后续 @bot 时的上下文），由 worker 的只读分类器（`lib/lark-classify-prompt.mjs`，五类 `bug / requirement / api_reply / question / ignore` + `deliverable` + `reply` + `forMe` + `continues` + `selfAnswer`）决定怎么落（`lib/lark-intake-resolve.mjs`）：开跑 / 自答（问 bot 自己的问题，分类器一句答完，不建执行）/ 追问（负责人的话拿不准）/ 疑似（私信负责人放行）/ 只记一笔 / 忽略。只有显式控制指令（取消 / 结单 / 重开 / 继续任务 `<id>`、绑定 PR-x）和负责人的运维指令（「运维：」或原话里的部署 / 发推）不过模型。
 
-分类器看得到的上下文（`lib/lark-conversation-bundle.mjs`）：被引用消息、话题其它回复、本群紧挨着的最近 20 条（含 bot 自己说的）、这个人 2h 内的任务与 bot 对他说过的话、本群 7 天候选任务、别人贴 bot 以前说过的话；15 分钟内的短指代句默认接 bot 上一句。分类出的 `continues` 命中已有任务 → 并入原任务（`lib/lark-task-merge.mjs`：未开跑追加、在跑完成后再跑一轮、已了结重开续答），本条落 superseded。
+分类器看得到的上下文（`lib/lark-conversation-bundle.mjs`）：被引用消息、话题其它回复、本群紧挨着的最近 20 条（含 bot 自己说的）、这个人 2h 内的任务与 bot 对他说过的话、本群 7 天候选任务、别人贴 bot 以前说过的话；15 分钟内的短指代句默认接 bot 上一句。分类出的 `continues` 命中已有任务 → 并入原任务（`lib/lark-task-merge.mjs`：未开跑追加、在跑完成后再跑一轮、已了结重开续答），本条落 superseded。追加 / 在跑并入的（结论仍回原消息）本轮结论末行 @ 并入人「你（们）的补充也一起处理了」；还欠一轮重跑时留给重跑那轮，@ 过的记 `mergedNotified` 不再 @。
 
 任务契约 `task.contract.deliverable ∈ change / verification / answer / record / ops` 只在分类回写时算一次（`lib/lark-task-contract.mjs`），任务性质、是否建 worktree、提示模式、出口都只读它。
 

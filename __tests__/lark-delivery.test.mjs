@@ -173,6 +173,38 @@ describe('任务的人话出口', () => {
       await deliverOutcome({ config, store, task: failed, status: 'failed', deps })
       assert.equal(group()[3].markdown, '<at user_id="ou_qa"></at> 查不到。', '没做成也是给提问人的结论；待跟进照旧只在做成时 @')
     })],
+    // 11-03 静态 review R8 后半：在跑 / 没开跑时并入的别人的消息（appended / rerun_after_done）只记 mergedFrom、结论仍回原消息，并入人只得到一句「收到」。
+    ['并入的别人的补充：结论末行 @ 那些提单人（去重；排除负责人 / 本任务提单人 / bot / 已 @ 的 / 已清掉的）；还欠一轮重跑的留给重跑那轮；@ 过的下一轮不再 @', () => quiet(async () => {
+      const cfg = { ...config, botOpenId: 'ou_bot' }
+      for (const [id, operator] of [['om_m1', 'ou_b1'], ['om_m2', 'ou_b1'], ['om_m3', 'ou_aven'], ['om_m4', 'ou_qa'], ['om_m5', 'ou_bot'], ['om_m6', 'ou_w'], ['om_m7', 'oc_g'], ['om_m8', 'ou_be']]) store.upsert({ id, chatId: 'oc_g', operator, status: 'superseded', supersededBy: 'om_1' })
+      const mergedFrom = ['om_m1', 'om_m2', 'om_m3', 'om_m4', 'om_m5', 'om_m6', 'om_m7', 'om_gone']
+      const t = task({ mergedFrom, rerunAfterDone: true, outcome: out({ summary: '第一轮修好了。' }) })
+      await deliverOutcome({ config: cfg, store, task: t, status: 'done', deps })
+      assert.equal(group()[0].markdown, '第一轮修好了。', '这轮没带上补充（跑完再跑一轮），先不 @ 并入人')
+      assert.equal(store.get('om_1').mergedNotified, undefined)
+      const rerun = store.get('om_1')
+      delete rerun.rerunAfterDone
+      rerun.epoch = 2
+      rerun.outcome = out({ summary: '带上补充又跑了一轮。' })
+      await deliverOutcome({ config: cfg, store, task: rerun, status: 'done', deps })
+      assert.equal(group()[1].markdown, '带上补充又跑了一轮。\n<at user_id="ou_b1"></at> <at user_id="ou_w">William</at> 你们的补充也一起处理了。')
+      assert.deepEqual(store.get('om_1').mergedNotified, mergedFrom, '这轮覆盖到的并入都记下')
+      const later = store.get('om_1')
+      later.epoch = 3
+      later.mergedFrom = [...mergedFrom, 'om_m8']
+      later.outcome = out({ summary: '第三轮。' })
+      await deliverOutcome({ config: cfg, store, task: later, status: 'done', deps })
+      assert.equal(group()[2].markdown, '第三轮。\n<at user_id="ou_be">后端</at> 你的补充也一起处理了。', '只 @ 新并入的')
+      const answer = task({ id: 'om_a', messageId: 'om_a', mergedFrom: ['om_m1', 'om_m6'], contract: { deliverable: 'answer' }, outcome: out({ report: { answer: '答案。', items: [] }, followUps: [{ owner: 'William', items: ['复测'] }] }) })
+      await deliverOutcome({ config: cfg, store, task: answer, status: 'done', deps })
+      assert.equal(group()[3].markdown, '<at user_id="ou_qa"></at> 答案。\n<at user_id="ou_w">William</at>：复测\n<at user_id="ou_b1"></at> 你的补充也一起处理了。', '已在待跟进里 @ 的不再进补充行')
+      const blocked = task({ id: 'om_b', messageId: 'om_b', mergedFrom: ['om_m1'], outcome: out({ blockers: ['负责人确认归属'] }) })
+      await deliverOutcome({ config: cfg, store, task: blocked, status: 'blocked', deps })
+      assert.equal(store.get('om_b').mergedNotified, undefined, '群里没发结论不记')
+      const held = task({ id: 'om_h', messageId: 'om_h', mergedFrom: ['om_m6'], outcome: out({ groupReply: '改了一半。' }) })
+      await deliverOutcome({ config: cfg, store, task: held, status: 'failed', deps })
+      assert.deepEqual([getObligation(held).heldDraft.text, getObligation(held).heldDraft.mentions.map((m) => m.openId), store.get('om_h').mergedNotified], ['改了一半。\n@William 你的补充也一起处理了。', ['ou_w'], undefined], '扣下的草稿带上并入人（放行时渲染 @）；没发不记')
+    })],
     ['change failed 有 groupReply：不发群、草稿私信（held）→ 「就这样回」按原文回群、义务 answered、草稿清掉 → 再放行 stale', () => quiet(async () => {
       const t = task({ outcome: out({ summary: '改了但没提交', groupReply: '登录页改好了，等发布。', blockers: [], detailDoc: '# 细节', followUps: [{ owner: '后端', items: ['x'] }], change: { committed: false, gate: 'lint', reason: '2 处' } }) })
       noteAck({ task: t, text: '收到，我看一下。' })
