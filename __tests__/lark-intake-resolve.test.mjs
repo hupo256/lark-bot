@@ -347,6 +347,13 @@ describe('对话层：契约、入队门槛、分类落态、归并', () => {
         { name: 'reopened 但新消息没带目标 / 提单人 → 保留目标自己的', into: fresh('done', { operator: 'ou_a', replyTarget: { messageId: 'into', inThread: false }, messageId: 'into', threadRootId: 'th_a' }), source: from({ operator: undefined, replyTarget: undefined, messageId: undefined, threadRootId: null }), mode: 'reopened', after: (into) => assert.deepEqual([into.operator, into.replyTarget.messageId, into.messageId, into.threadRootId], ['ou_a', 'into', 'into', 'th_a']) },
         { name: 'running → rerun_after_done：保持原目标 / 提单人（本轮结论还是回原消息）', into: fresh('running', { operator: 'ou_a', replyTarget: { messageId: 'into', inThread: false }, messageId: 'into' }), source: from({ operator: 'ou_b', replyTarget: { messageId: 'from', inThread: true }, messageId: 'from' }), mode: 'rerun_after_done', after: (into) => assert.deepEqual([into.operator, into.replyTarget.messageId, into.messageId], ['ou_a', 'into', 'into']) },
         { name: 'queued → appended：保持原目标 / 提单人', into: fresh('queued', { operator: 'ou_a', replyTarget: { messageId: 'into', inThread: false } }), source: from({ operator: 'ou_b', replyTarget: { messageId: 'from', inThread: false } }), mode: 'appended', after: (into) => assert.deepEqual([into.operator, into.replyTarget.messageId], ['ou_a', 'into']) },
+        // 11-03 第二次 review #4：worker 的「群里已先回了一句」读 ackReply——并入时换成来源那条已发出的「收到」（这次答应的是它）；
+        // 重开 / 续跑而来源还没发（routes 并入后才 flush，届时 flushPendingAck 再写到目标上）→ 目标那句是上一轮的，删掉；在跑 / 没开跑的那句这轮仍欠着，留着。
+        { name: 'ackReply：来源已发过 → 换成来源的', into: fresh('done', { ackReply: 'A 那句' }), source: from({ ackReply: 'B 那句' }), mode: 'reopened', after: (into) => assert.equal(into.ackReply, 'B 那句') },
+        { name: 'ackReply：重开 / 续跑、来源没发过 → 删掉目标上一轮那句', into: fresh('blocked', { ackReply: 'A 那句' }), mode: 'resumed', after: (into) => assert.equal('ackReply' in into, false) },
+        { name: 'ackReply：重开、来源没发过 → 删掉', into: fresh('answered', { ackReply: 'A 那句' }), mode: 'reopened', after: (into) => assert.equal('ackReply' in into, false) },
+        { name: 'ackReply：没开跑、来源没发过 → 目标那句留着（这轮还欠着）', into: fresh('queued', { ackReply: 'A 那句' }), mode: 'appended', after: (into) => assert.equal(into.ackReply, 'A 那句') },
+        { name: 'ackReply：在跑、来源已发过 → 换成来源的', into: fresh('running', { ackReply: 'A 那句' }), source: from({ ackReply: 'B 那句' }), mode: 'rerun_after_done', after: (into) => assert.equal(into.ackReply, 'B 那句') },
         { name: '疑似挂起 → appended_suspected：保持原目标', into: fresh('waiting_confirmation', { suspected: true, operator: 'ou_a' }), source: from({ operator: 'ou_b' }), mode: 'appended_suspected', after: (into) => assert.equal(into.operator, 'ou_a') },
       ], ({ into, source, mode, after, sourceEpoch = 1 }) => {
         const r = run(into, source)

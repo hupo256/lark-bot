@@ -116,7 +116,16 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       assert.equal(deliveries.length, 1)
       const fixed = store.upsert({ id: 'om_fx', status: 'received', ackPending: { at: iso(now) }, createdAt: iso(now) })
       assert.deepEqual(await flushPendingAck({ config, store, task: fixed, deliver }), { sent: true, usedReply: false })
-      assert.deepEqual([deliveries.at(-1), 'ackReply' in fixed, fixed.ackedInGroup], [['om_fx', null], false, true])
+      // 11-03 第二次 review #4：ackReply 记真正发出去的那句（固定句也记），worker 的「群里已先回了一句」只读它
+      assert.deepEqual([deliveries.at(-1), fixed.ackReply, fixed.ackedInGroup], [['om_fx', null], '收到，我看一下，稍后回你。', true])
+      // 并入后才发的「收到」（routes 先 mergeIntoTask 再 flush）：并入目标的 ackReply 换成这句——这次答应的是它；目标已被并掉的不写
+      const into = store.upsert({ id: 'om_into', status: 'queued', ackReply: '旧的那句', createdAt: iso(now) })
+      const merged = store.upsert({ id: 'om_m', status: 'superseded', supersededBy: 'om_into', ackPending: { at: iso(now) }, createdAt: iso(now) })
+      await flushPendingAck({ config, store, task: merged, reply: '好，我接着看', deliver })
+      assert.deepEqual([merged.ackReply, store.get('om_into').ackReply], ['好，我接着看', '好，我接着看'])
+      store.upsert(Object.assign(into, { status: 'superseded', ackReply: '旧的那句' }))
+      await flushPendingAck({ config, store, task: store.upsert({ ...merged, ackPending: { at: iso(now) } }), reply: '再一句', deliver })
+      assert.equal(store.get('om_into').ackReply, '旧的那句')
       const gated = store.upsert({ id: 'om_g', status: 'received', ackPending: { at: iso(now) }, createdAt: iso(now) })
       assert.deepEqual(await flushPendingAck({ config, store, task: gated, reply: 'r', deliver: async () => ({ ok: false, gated: true }) }), { sent: false, usedReply: false })
       assert.deepEqual([gated.ackedInGroup, gated.ackCoalesced, 'ackReply' in gated], [true, true, false], '闸拦下的也算回过')
@@ -125,7 +134,7 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       assert.deepEqual([failed.ackPending, failed.ackedInGroup], [null, undefined])
       const silent = store.upsert({ id: 'om_s', status: 'received', ackPending: { at: iso(now) }, createdAt: iso(now) })
       assert.deepEqual(await flushPendingAck({ config, store, task: silent, send: false, deliver }), { sent: false, usedReply: false })
-      assert.deepEqual([silent.ackPending, deliveries.length], [null, 2])
+      assert.deepEqual([silent.ackPending, deliveries.length], [null, 4])
       assert.deepEqual(await flushPendingAck({ config, store, task: null, deliver }), { sent: false, usedReply: false })
       // 「收到」已发过 / 被拦后单独回的那句：自答走 self_answer、追问走 ask_back（11-03 R11：按消息去重——两个人问同样的问题各自要得到答复——不按内容 24h、不按人 2 分钟拦）；空的不发
       const sends = []

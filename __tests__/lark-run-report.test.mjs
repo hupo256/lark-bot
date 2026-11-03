@@ -217,11 +217,12 @@ describe('worker 侧对话层：outcome / 契约映射 / 群回复补写 / 模�
       return eachCase([
         { name: '都没有 → 空', task: {}, want: '' },
         { name: '没任务 → 空', task: null, want: '' },
-        { name: '只有「收到」那句', task: { intake: { classification: { reply: '好，我查下发你' } } }, want: '群里已先回了一句：「好，我查下发你」' },
-        { name: 'reply 被挪走（replyDropped）→ 不算', task: { intake: { classification: { reply: null, replyDropped: '找后端' } } }, want: '' },
+        { name: '只有「收到」那句（真正发出去的 ackReply）', task: { ackReply: '好，我查下发你' }, want: '群里已先回了一句：「好，我查下发你」' },
+        // 11-03 第二次 review #4：分类器写了 reply 却没发（超 45 秒发了固定句 / 私聊指示不发 / 并入目标是 A 当初的分类）→ 不算说过
+        { name: '分类器的 reply 没发出去 → 不算', task: { intake: { classification: { reply: '好，我查下发你' } } }, want: '' },
         { name: '只有上一单结论', task: { priorConclusion: prior }, want: PRIOR_LINE },
         { name: '上一单没摘要', task: { priorConclusion: { ...prior, summary: null } }, want: '本条接着任务 om_prev，那单 bot 的结论（以前的记录，用前对一下）：\n- 标题翻译：18726–18742' },
-        { name: '两者都有：「收到」在前', task: { priorConclusion: prior, intake: { classification: { reply: '好' } } }, want: `群里已先回了一句：「好」\n${PRIOR_LINE}` },
+        { name: '两者都有：「收到」在前', task: { priorConclusion: prior, ackReply: '好' }, want: `群里已先回了一句：「好」\n${PRIOR_LINE}` },
       ], ({ task, want }) => {
         assert.equal(buildCarryOverBlock(task), want)
         const ctx = { projectId: 'PR-99999', projectName: 't', projectDocs: [], cwd: '/tmp/repo' }
