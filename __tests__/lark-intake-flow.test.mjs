@@ -709,7 +709,7 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       assert.deepEqual(await run({ ok: true, task: priv }), body({ ignored: true }))
       assert.deepEqual(said.slice(1), [['deliverNoted', { config: cfg, store: st, task: { ...priv, privateOrigin: null }, reply: '这个不改' }], ['sendPrincipalNote', { config: cfg, store: st, text: '记下了，「导出按钮」这条不用动手。', taskId: 'om_me', kind: 'ignored_after_ack' }]])
       await run({ ok: true, task: task({ status: 'ignored', privateOrigin: { anchorId: 'om_g1', anchorHead: '导出按钮' } }, cls({ decision: 'ignore', reply: null })) })
-      assert.deepEqual(saidNames(), ['notePerson', 'sendPrincipalNote'], '没说怎么回群就不回')
+      assert.deepEqual([saidNames(), said.at(-1)[1].text], [['notePerson', 'sendPrincipalNote'], '记下了，「导出按钮」这条不用动手。'], '没说怎么回群就不回；锚点不在活动态（这里不存在）照旧说不用动手')
       // 11-03 静态 review R3：锚点任务还在跑，负责人私信「不做，这是后端的」→ 指示任务判 ignore：锚点一并结掉（externalResolution，换代挡掉迟到回写），
       // 不再回群「改好了」；锚点已了结 / 不存在的不碰
       anchorTask = { id: 'om_g1', status: 'running', epoch: 1 }
@@ -724,8 +724,25 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
         assert.equal(calls.at(-1)[1].id, 'om_g1', `${status} 也是活动态，一并结掉`)
       }
       anchorTask = { id: 'om_g1', status: 'queued', epoch: 1 }
-      await run({ ok: true, task: task({ status: 'ignored', privateOrigin: { anchorId: 'om_g1', anchorHead: '导出按钮' } }, cls({ decision: 'ignore', reply: null })) })
-      assert.equal(calls.at(-1)[1].operator, 'ou_qa', 'privateOrigin 没记发送人 → 回落到任务 operator')
+      await run({ ok: true, task: task({ status: 'ignored', privateOrigin: { anchorId: 'om_g1', anchorHead: '导出按钮' } }, cls({ decision: 'ignore', reply: null, forMe: false })) })
+      assert.equal(calls.at(-1)[1].operator, 'ou_qa', 'privateOrigin 没记发送人 → 回落到任务 operator；forMe=false 没 reply 也算明确拒绝')
+      // 11-03 合入前 review：aven 对「开始做」私信回「收到 / 知道了」→ 指示任务判 ignore，原先照样把在跑的锚点结掉。只有明确拒绝才结：
+      // forMe=false，或 reply 非空且 forMe 不是 true；reason 说寒暄 / 知会、或负责人原话整句是寒暄的不算
+      anchorTask = { id: 'om_g1', status: 'running', epoch: 1 }
+      await eachCase([
+        { name: '寒暄：reply 空', c: cls({ decision: 'ignore', reply: null }) },
+        { name: '明确是我们的活（forMe=true）', c: cls({ decision: 'ignore', reply: '好的', forMe: true }) },
+        { name: 'reason 是知会', c: cls({ decision: 'ignore', reply: '好的', reason: '负责人只是知会收到' }) },
+        { name: 'reason 是寒暄', c: cls({ decision: 'ignore', reply: '好的', reason: '寒暄' }) },
+        { name: '原话整句是「收到」', c: cls({ decision: 'ignore', reply: '好的' }), text: '【aven 私聊指示】收到\n\n【指示针对的群消息】导出按钮' },
+        { name: '原话整句是「知道了。」', c: cls({ decision: 'ignore', reply: '好的' }), text: '【aven 私聊指示】知道了。' },
+      ], async ({ c, text }) => {
+        calls.length = 0
+        assert.deepEqual(await run({ ok: true, task: task({ status: 'ignored', text, privateOrigin: { anchorId: 'om_g1', anchorHead: '导出按钮', senderOpenId: 'ou_aven' } }, c) }), body({ ignored: true }))
+        assert.deepEqual([calls.map(([name]) => name), said.at(-1)[1].text], [['resolveIntake'], '好，「导出按钮」那条照常在做，没动它。'])
+      })
+      await run({ ok: true, task: task({ status: 'ignored', text: '【aven 私聊指示】不做，这是后端的', privateOrigin: { anchorId: 'om_g1', anchorHead: '导出按钮' } }, cls({ decision: 'ignore', reply: '这个归后端' })) })
+      assert.equal(calls.at(-1)[0], 'close', '原话是拒绝 + reply 礼貌拒绝 → 结掉')
       calls.length = 0
       anchorTask = { id: 'om_g1', status: 'done' }
       assert.deepEqual(await run({ ok: true, task: privStop }), body({ ignored: true }))
