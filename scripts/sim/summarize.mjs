@@ -20,6 +20,9 @@ const ROUNDS = [
   { label: '基线', prefix: 'full' },
   { label: '第二轮', prefix: 'fix' },
   { label: '第三轮', prefix: 'r3' },
+  // 第五 / 六轮每段切两半并行跑（docs §28 / §33）：a = a1（3 天）+ a2（2 天），b = b1 + b2，c = c1 + c2，合并成一段统计
+  { label: '第五轮（fix12 前）', prefix: 'r5', parts: { a: [['a1', 3], ['a2', 2]], b: [['b1', 3], ['b2', 2]], c: [['c1', 2], ['c2', 2]] } },
+  { label: '第六轮（最终版）', prefix: 'r6', parts: { a: [['a1', 3], ['a2', 2]], b: [['b1', 3], ['b2', 2]], c: [['c1', 2], ['c2', 2]] } },
 ]
 const SEGMENTS = [
   { key: 'a', days: 5, range: '10-20→10-24' },
@@ -78,6 +81,22 @@ const loadSim = (name, segment) => {
   }
 }
 
+// 切半跑的段：各半合并（done = 都完成；fed / outbox / judge / tasks 拼接；进度写各半）。一半都没有就 null。
+const loadParts = (round, segment) => {
+  const parts = round.parts[segment.key].map(([key, days]) => loadSim(`${round.prefix}-${key}`, { ...segment, days }))
+  if (parts.every((p) => !p)) return null
+  const got = parts.filter(Boolean)
+  return {
+    name: got.map((p) => p.name).join('+'),
+    done: parts.every((p) => p?.done),
+    progress: parts.map((p, i) => `${round.parts[segment.key][i][0]} ${p ? p.progress : '没起'}`).join('，'),
+    fed: got.flatMap((p) => p.fed),
+    outbox: got.flatMap((p) => p.outbox),
+    judge: got.flatMap((p) => p.judge),
+    tasks: got.flatMap((p) => p.tasks),
+  }
+}
+
 const dupes = (outbox) => {
   const seen = new Set()
   let n = 0
@@ -97,7 +116,7 @@ const betterCell = (rows) => {
 
 const rounds = ROUNDS.map((round) => ({
   ...round,
-  segs: SEGMENTS.map((segment) => ({ segment, sim: loadSim(`${round.prefix}-${segment.key}`, segment) })),
+  segs: SEGMENTS.map((segment) => ({ segment, sim: round.parts ? loadParts(round, segment) : loadSim(`${round.prefix}-${segment.key}`, segment) })),
 }))
 
 const lines = ['# falive 回放模拟总览', '', `生成于 ${new Date().toISOString()}；数据目录 ${join(replayRoot, 'sim')}`, '']
