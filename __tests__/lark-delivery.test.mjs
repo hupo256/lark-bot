@@ -98,6 +98,28 @@ describe('任务的人话出口', () => {
       assert.deepEqual([getObligation(t).state, getObligation(t).answerText], ['answered', '修好了。\n分支 fix/login · 改了 2 个文件\n@后端：补接口\n详细见：https://doc/1'])
       assert.deepEqual(store.get('om_1').receipts.map((r) => r.kind), ['done', 'done'])
     })],
+    // 11-03 静态 review R12：docUrl 原先不持久化，回执没送达时 retryPendingReceipts 每 5 分钟重跑 deliverOutcome 都建一份细节文档（上限 12 份同内容）。
+    ['细节文档只建一次：同任务同代同状态重发（回执重试）复用第一次建成的 docUrl；换代另建', () => quiet(async () => {
+      const t = task({ contract: { deliverable: 'answer' }, outcome: out({ report: { subject: 'test / pre', answer: '不一样。', items: [] }, detailDoc: '# 三行提交' }) })
+      const published = []
+      let down = true
+      const publish = async (args) => { published.push(args); return { ok: true, url: `https://doc/${published.length}`, reason: null } }
+      const replyMarkdown = async (args) => (down ? { ok: false, messageId: null, reason: 'network down', via: null } : deps.replyMarkdown(args))
+      const first = await deliverOutcome({ config, store, task: t, status: 'done', deps: { ...deps, publish, replyMarkdown } })
+      assert.deepEqual([first.ok, first.docUrl, published.length], [false, 'https://doc/1', 1])
+      assert.deepEqual(store.get('om_1').publishedDoc, { key: 'om_1-e1-done', url: 'https://doc/1' }, '第一次建成的 docUrl 记在任务上')
+      down = false
+      const second = await deliverOutcome({ config, store, task: store.get('om_1'), status: 'done', deps: { ...deps, publish, replyMarkdown } })
+      assert.deepEqual([second.ok, second.docUrl, published.length], [true, 'https://doc/1', 1], '重试复用，不再建第二份')
+      assert.equal(group().at(-1).markdown, '不一样。\n材料在这里：https://doc/1', '群里附的是复用的那份')
+      const next = store.get('om_1')
+      next.epoch = 2
+      const third = await deliverOutcome({ config, store, task: next, status: 'done', deps: { ...deps, publish, replyMarkdown } })
+      assert.deepEqual([third.docUrl, published.length, store.get('om_1').publishedDoc.key], ['https://doc/2', 2, 'om_1-e2-done'], '换代是新一轮结论，另建')
+      const failedDoc = task({ id: 'om_nodoc', messageId: 'om_nodoc', contract: { deliverable: 'answer' }, outcome: out({ report: { subject: 's', answer: '答', items: [] }, detailDoc: '# x' }) })
+      await deliverOutcome({ config, store, task: failedDoc, status: 'done', deps: { ...deps, publish: async () => ({ ok: false, url: null, reason: 'quota' }) } })
+      assert.equal('publishedDoc' in store.get('om_nodoc'), false, '建不成不记（下次再试）')
+    })],
     ['change done 群里被闸拦下：不算已回，私信说「群里没发」，义务 owed；aven 私信发起的不另发私信', () => quiet(async () => {
       const t = task({ outcome: out({ summary: '修好了。' }) })
       noteAck({ task: t, text: '收到。' })
