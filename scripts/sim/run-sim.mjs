@@ -5,7 +5,7 @@
  *   node scripts/sim/run-sim.mjs --sim day1020 --from 2026-10-20T08:00+04:00 --to 2026-10-20T20:00+04:00 [--reset] [--effort medium] [--intent-effort high]
  *        [--max-wait-min 30] [--settle-sec 25] [--dry]（只准备目录与事件，不起进程）
  * 产物：runtime/falive-replay/sim/<sim>/ 下 outbox.jsonl（bot 发了什么）、runtime/（任务 / 审计 / 发件簿 / 义务）、gateway.log / worker.log、events.ndjson。
- * 基线代码：按窗口起点把 falive-react 的 feature/phase-6-ol 钉到当时的提交（本仓 remote `sim` 指向自己，分支 sim-base-<日期>）。
+ * 基线代码：按窗口起点把 falive-react 的 feature/phase-6-ol 钉到当时的提交（主仓建分支 sim-base-<日期>；每个 sim 一份 clone --shared，origin = 主仓）。
  */
 import { spawn, spawnSync } from 'node:child_process'
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
@@ -61,16 +61,19 @@ const git = (cmd, cwd = FALIVE_REPO) => spawnSync('git', cmd, { cwd, encoding: '
 const baseSha = git(['rev-list', '-1', `--before=${new Date(fromMs).toISOString()}`, FALIVE_BRANCH]).stdout.trim()
 if (!baseSha) throw new Error(`falive-react 在 ${new Date(fromMs).toISOString()} 之前没有 ${FALIVE_BRANCH} 提交`)
 const baseBranch = `sim-base-${new Date(fromMs).toISOString().slice(0, 10)}`
-if (!git(['remote', 'get-url', 'sim']).stdout.trim()) git(['remote', 'add', 'sim', FALIVE_REPO])
 git(['branch', '-f', baseBranch, baseSha])
-// 业务仓副本：按基线提交检出的 git worktree（只读答疑直接在这里跑，临时 hotfix worktree 也从这里派生，都钉在当天的代码上）；
-// node_modules 软链主仓的（版本略有漂移，可接受）。
+// 业务仓副本：每个 sim 一份 `git clone --shared`（对象共享、分支 / worktree 各自独立——任务分支名 hotfix/adhoc-<id> 按任务 id 定死，
+// 多个 sim 共用一个仓会互相撞分支：11-03 full-a 的造数任务因为 smoke 留下的同名分支「已有提交但不包含本次基线」直接 failed），
+// 检出到基线提交；只读答疑在这里跑，临时 hotfix worktree 从这里派生。node_modules 软链主仓的（版本略有漂移，可接受）。
 const repoLink = join(simDir, 'repos', 'falive-react')
 if (!existsSync(repoLink)) {
-  const added = git(['worktree', 'add', '--detach', repoLink, baseSha])
-  if (added.status !== 0) throw new Error(`worktree add 失败：${added.stderr.slice(0, 300)}`)
-} else if (git(['rev-parse', 'HEAD'], repoLink).stdout.trim() !== baseSha) {
-  git(['checkout', '--detach', baseSha], repoLink)
+  const cloned = git(['clone', '--shared', '--no-checkout', FALIVE_REPO, repoLink])
+  if (cloned.status !== 0) throw new Error(`clone --shared 失败：${cloned.stderr.slice(0, 300)}`)
+}
+git(['fetch', '--quiet', 'origin', baseBranch], repoLink)
+if (git(['rev-parse', 'HEAD'], repoLink).stdout.trim() !== baseSha) {
+  const out = git(['checkout', '--quiet', '--detach', baseSha], repoLink)
+  if (out.status !== 0) throw new Error(`checkout 基线失败：${out.stderr.slice(0, 300)}`)
 }
 if (!existsSync(join(repoLink, 'node_modules'))) symlinkSync(join(FALIVE_REPO, 'node_modules'), join(repoLink, 'node_modules'))
 log(`业务仓基线 ${baseBranch} = ${baseSha.slice(0, 8)}（${git(['log', '-1', '--format=%ci %s', baseSha]).stdout.trim().slice(0, 100)}）`)
@@ -129,7 +132,7 @@ const env = {
   LARK_GATEWAY_URL: `http://127.0.0.1:${port}`,
   LARK_GATEWAY_SECRET: 'sim-secret',
   LARK_BOT_CONSUMER_ROOT: repoLink,
-  LARK_BASE_REMOTE: 'sim',
+  LARK_BASE_REMOTE: 'origin', // clone 的 origin = 主仓，主仓里有 sim-base-<日期> 分支
   LARK_BASE_BRANCH: baseBranch,
   LARK_DRAIN_RESTART: '0',
   LARK_WAKE_CATCHUP: '0',
@@ -165,7 +168,7 @@ const health = async () => {
 for (let i = 0; i < 60 && !(await health()); i += 1) await sleep(500)
 if (!(await health())) throw new Error('网关没起来，看 gateway.log')
 const worker = spawnNode('worker', join(larkBotRoot, 'runtime', 'lark-worker.mjs'))
-log(`网关 :${port} 与 worker 已起（基线 sim/${baseBranch}）`)
+log(`网关 :${port} 与 worker 已起（基线 origin/${baseBranch}）`)
 
 const ACTIVE = new Set(['received', 'queued', 'running', 'verifying', 'result_pending_receipt', 'done_pending_writeback'])
 const listTasks = async () => {
