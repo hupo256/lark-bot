@@ -414,6 +414,23 @@ describe('对话层：锚点、上下文、对话包、发件簿、义务、pers
       assert.ok(existsSync(file), '落盘到 LARK_OBLIGATIONS_DIR')
       assert.equal((statSync(file).mode & 0o777).toString(8), '600')
     }],
+    // 11-03 合入前 review：B 的消息并入 A 重开（mergeTaskObjects 把 B 记进 A.answerFor），结论发出时原先只记 A 的义务，B 的一直 acked。
+    ['obligations：重开并入的来源（answerFor）随结论一并记 answered；已答过的 / 没开过义务的不动', () => {
+      const chatId = 'oc_ob_merge'
+      const b = { id: 'om_b', chatId, operator: 'ou_b' }
+      const c = { id: 'om_c', chatId, operator: 'ou_c' }
+      noteAck({ task: b, text: '收到', now: NOW_MS })
+      noteAnswer({ task: c, text: 'c 的旧结论', now: NOW_MS })
+      const a = { id: 'om_a', chatId, operator: 'ou_b', answerFor: ['om_b', 'om_c', 'om_none'] }
+      const own = noteAnswer({ task: a, text: '差别是这三处', now: NOW_MS + HOUR })
+      assert.deepEqual([own.id, own.state], ['om_a', 'answered'], '返回的仍是本任务自己的义务')
+      const ob = getObligation(b)
+      assert.deepEqual([ob.state, ob.answeredAt, ob.answerTaskId, ob.answerText, ob.updatedAt, ob.ackText], ['answered', iso(NOW_MS + HOUR), 'om_a', '差别是这三处', iso(NOW_MS + HOUR), '收到'])
+      assert.deepEqual([getObligation(c).answerText, getObligation(c).answeredAt], ['c 的旧结论', iso(NOW_MS)], '已答过的不覆盖')
+      assert.equal(getObligation({ id: 'om_none', chatId }), null, '没开过义务的不凭空建')
+      assert.equal(noteAnswer({ task: { id: 'x', answerFor: ['om_b'] }, text: 'y' }), null, '没 chatId 记不了')
+      assert.equal(existsSync(join(dir, 'obligations', 'undefined.json')), false, '没 chatId 不落盘')
+    }],
     ['persona：读 / 截断 / 没文件；people：记一笔（upsert、主题去重 ≤10、原子 0600）、描述、画像块；测试里不给 path 不落盘', () => {
       const personaPath = join(dir, 'persona', 'aven.md')
       assert.equal(loadPersona({ path: personaPath }), null)
