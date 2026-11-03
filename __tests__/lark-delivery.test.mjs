@@ -115,7 +115,7 @@ describe('任务的人话出口', () => {
       down = false
       const second = await deliverOutcome({ config, store, task: store.get('om_1'), status: 'done', deps: { ...deps, publish, replyMarkdown } })
       assert.deepEqual([second.ok, second.docUrl, published.length], [true, 'https://doc/1', 1], '重试复用，不再建第二份')
-      assert.equal(group().at(-1).markdown, '不一样。\n材料在这里：https://doc/1', '群里附的是复用的那份')
+      assert.equal(group().at(-1).markdown, '<at user_id="ou_qa"></at> 不一样。\n材料在这里：https://doc/1', '群里附的是复用的那份')
       const next = store.get('om_1')
       next.epoch = 2
       const third = await deliverOutcome({ config, store, task: next, status: 'done', deps: { ...deps, publish, replyMarkdown } })
@@ -144,7 +144,7 @@ describe('任务的人话出口', () => {
     ['answer / verification：report 原样回群；他不是提单人才私信「替你答了」；没写回复、回过收到 → 义务 owed、不发群', () => quiet(async () => {
       const t = task({ contract: { deliverable: 'answer' }, outcome: out({ report: { subject: 'test / pre', answer: '不一样，test 比 pre 多 3 个提交。', items: ['a1 修复'] }, detailDoc: '# 三行提交' }) })
       assert.equal((await deliverOutcome({ config, store, task: t, status: 'done', deps })).ok, true)
-      assert.equal(group()[0].markdown, '不一样，test 比 pre 多 3 个提交。\n- a1 修复\n材料在这里：https://doc/1')
+      assert.equal(group()[0].markdown, '<at user_id="ou_qa"></at> 不一样，test 比 pre 多 3 个提交。\n- a1 修复\n材料在这里：https://doc/1')
       assert.deepEqual(dm(), [`💬 替你答了（${G}）：不一样，test 比 pre 多 3 个提交`])
       assert.equal(getObligation(t).state, 'answered')
       sent.length = 0
@@ -157,6 +157,21 @@ describe('任务的人话出口', () => {
       noteAck({ task: empty, text: '收到，我测一下。' })
       const result = await deliverOutcome({ config, store, task: empty, status: 'done', deps })
       assert.deepEqual([result.ok, result.reason, group().length, dm().length, getObligation(empty).state], [false, '没写群回复', 0, 0, 'owed'])
+    })],
+    // 11-03 falive 回放裁判 wrong_target：复测 / 代答结论回的是提问人的消息，正文却 @ 待跟进里点名的人（Kai / Encone），提问人没被 @，像在催别人。
+    ['代答 / 实测结论 @ 谁：行首 @ 提问人（回复原消息也 @）；待跟进只 @ 要动手的；提问人已在待跟进 / 私信发起的不另 @；没做成照样 @ 提问人', () => quiet(async () => {
+      const t = task({ contract: { deliverable: 'answer' }, outcome: out({ report: { answer: '查过了，是后端没返回。', items: [] }, followUps: [{ owner: 'William', items: [] }, { owner: '后端', items: ['补字段'] }] }) })
+      await deliverOutcome({ config, store, task: t, status: 'done', deps })
+      assert.equal(group()[0].markdown, '<at user_id="ou_qa"></at> 查过了，是后端没返回。\n<at user_id="ou_be">后端</at>：补字段', '提问人在行首；William 没事要做不 @')
+      const asked = task({ id: 'om_2', messageId: 'om_2', operator: 'ou_w', contract: { deliverable: 'verification' }, outcome: out({ report: { subject: '充值', items: [{ mark: 'ok', name: '充值' }] }, followUps: [{ owner: 'William', items: ['再测提现'] }] }) })
+      await deliverOutcome({ config, store, task: asked, status: 'done', deps })
+      assert.equal(group()[1].markdown, '充值\n- ✅ 充值\n<at user_id="ou_w">William</at>：再测提现', '提问人就在待跟进里：不在行首再 @ 一次')
+      const p2p = task({ id: 'om_3', messageId: 'om_3', chatType: 'p2p', contract: { deliverable: 'answer' }, outcome: out({ report: { answer: '私信里的答案。', items: [] } }) })
+      await deliverOutcome({ config, store, task: p2p, status: 'done', deps })
+      assert.equal(group()[2].markdown, '私信里的答案。', '私信发起的不 @')
+      const failed = task({ id: 'om_4', messageId: 'om_4', contract: { deliverable: 'answer' }, outcome: out({ report: { answer: '查不到。', items: [] }, followUps: [{ owner: '后端', items: ['补字段'] }] }) })
+      await deliverOutcome({ config, store, task: failed, status: 'failed', deps })
+      assert.equal(group()[3].markdown, '<at user_id="ou_qa"></at> 查不到。', '没做成也是给提问人的结论；待跟进照旧只在做成时 @')
     })],
     ['change failed 有 groupReply：不发群、草稿私信（held）→ 「就这样回」按原文回群、义务 answered、草稿清掉 → 再放行 stale', () => quiet(async () => {
       const t = task({ outcome: out({ summary: '改了但没提交', groupReply: '登录页改好了，等发布。', blockers: [], detailDoc: '# 细节', followUps: [{ owner: '后端', items: ['x'] }], change: { committed: false, gate: 'lint', reason: '2 处' } }) })

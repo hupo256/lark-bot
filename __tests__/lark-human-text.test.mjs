@@ -61,6 +61,16 @@ const CELLS = [
     ],
     want: ['不一样，test 比 pre 多 3 个提交。\n- a1 修复', '不一样，test 比 pre 多 3 个提交。\n- a1 修复\n材料在这里：https://d/2', '群回复', '查不到，得问后端。', ''],
   },
+  // 11-03 falive 回放 wrong_target：代答 / 实测结论正文 @ 的是待跟进里点名的人，提问人反而没 @，像在催别人。
+  {
+    name: 'done · answer（群）：行首 @ 提问人（有名字写 @名）；待跟进只列要动手的、每人一行在材料链接前',
+    got: () => [
+      sayDoneAnswerGroup({ outcome: { report: answerReport }, asker: { name: '', openId: 'ou_qa' }, mentions: [{ name: 'Kai', openId: 'ou_k', items: ['复测充值', '看日志'] }, { name: 'Eric', openId: 'ou_e', items: [] }], docUrl: 'https://d/4' }),
+      sayDoneAnswerGroup({ outcome: { report: null, groupReply: '群回复' }, asker: { name: 'Ache', openId: 'ou_a' } }),
+      sayDoneAnswerGroup({ outcome: { report: null }, asker: { name: 'Ache', openId: 'ou_a' }, mentions: [{ name: 'Kai', openId: 'ou_k', items: ['x'] }] }),
+    ],
+    want: ['<at user_id="ou_qa"></at> 不一样，test 比 pre 多 3 个提交。\n- a1 修复\n@Kai：复测充值；看日志\n材料在这里：https://d/4', '@Ache 群回复', ''],
+  },
   { name: 'done · answer（aven）', got: () => sayDoneAnswerPrincipal({ chatLabel: G, firstLine: '不一样，test 比 pre 多 3 个提交' }), want: `💬 替你答了（${G}）：不一样，test 比 pre 多 3 个提交` },
   {
     name: 'done · verification（群）：通了 a 项没通 b 项 + 条目符号 / 都通了',
