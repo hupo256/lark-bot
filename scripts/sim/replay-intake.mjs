@@ -91,15 +91,20 @@ const deps = {
     const items = (byChat.get(chatId) || []).filter((m) => m.atMs < beforeMs && !m.deleted).slice(-200).map(toListItem)
     return pickRecentContext(items, { beforeMs, excludeIds, botOpenIds: botIds, limit })
   },
+  // 时间线里的 localPath 已是绝对路径（11-03 发现：原来又拼到 raw/ 后面，L1 与模拟里的附件全部「下载失败」，分类器一张图都没看到）；
+  // 补拉的附件查 raw/resources-extra.json（build-context-cache.mjs）。
   downloadAttachments: async ({ messageId, attachments }) => {
     const src = byId.get(messageId)
     return attachments.map((a) => {
       const key = a.type === 'file' ? a.fileKey : a.imageKey
-      const hit = (src?.resources || []).find((r) => r.key === key && r.localPath)
-      return hit ? { ...a, localPath: join(replayRoot, 'raw', hit.localPath.replace(/^\.?\/?/, '')) } : { ...a, downloadError: '存档里没有这份附件' }
+      const fromTimeline = (src?.resources || []).find((r) => r.key === key && r.localPath)?.localPath || null
+      const path = [fromTimeline, extraResources[`${messageId}/${key}`]].find((p) => p && existsSync(p))
+      return path ? { ...a, localPath: path } : { ...a, downloadError: '存档里没有这份附件' }
     })
   },
 }
+const extraResourcesPath = join(replayRoot, 'raw', 'resources-extra.json')
+const extraResources = existsSync(extraResourcesPath) ? JSON.parse(readFileSync(extraResourcesPath, 'utf8')).resources || {} : {}
 const emptyStore = { list: () => [], listRecentForChat: () => [], findTaskByAnyReceipt: () => null, findByReceiptMessageId: () => null, has: () => false }
 
 const buildTask = async (m) => {
