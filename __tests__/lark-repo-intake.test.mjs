@@ -573,6 +573,19 @@ describe('#57：「收到」等分类结果，用分类器按上下文写的那�
       assert.ok(groupCards().some((c) => c.includes('收到，我查一下，稍后回复')))
       assert.equal(restarted.get('om_rv_ack3').ackedInGroup, true)
       assert.equal(await sweepPendingAcks({ store: restarted, now: t0 + 999_999 }), 0, '只发一次')
+      // 等分类期间单子被关（close = superseded + closureReason / 判不处理 = ignored）：到点只撤不发；手上是旧对象也看库里的最新状态
+      const before = posted.length
+      for (const [id, patch] of [['om_rv_ack4', { status: 'superseded', closureReason: 'completed_elsewhere' }], ['om_rv_ack5', { closureReason: 'cancelled' }], ['om_rv_ack6', { status: 'ignored' }]]) {
+        const stale = store.upsert({ id, chatId: GROUP, repo: 'falive', operator: ENCONE, text: 'x', status: 'received', ackPending: { at: new Date(t0).toISOString(), deadline: new Date(t0).toISOString() } })
+        const held = { ...stale }
+        store.upsert({ ...stale, ...patch })
+        assert.deepEqual(await flushPendingAck({ store, task: held, reply: '收到' }), { sent: false, usedReply: false }, id)
+        assert.equal(store.get(id).ackPending, null)
+        assert.notEqual(store.get(id).ackedInGroup, true)
+        assert.deepEqual([store.get(id).status, store.get(id).closureReason], [patch.status || 'received', patch.closureReason], '不把旧对象写回、关单状态保留')
+        assert.equal(held.ackPending, null, '手上的对象也撤掉')
+      }
+      assert.equal(posted.length, before, '关掉的单一条都不发')
       // 10-20 版留下的老格式（没有 deadline）按 at + 默认超时算
       restarted.upsert({ id: 'om_rv_ack4', chatId: GROUP, repo: 'falive', operator: AVEN, text: 'y', ackPending: { at: new Date(t0).toISOString() } })
       assert.equal(await sweepPendingAcks({ store: restarted, now: t0 + DEFAULT_ACK_TIMEOUT_MS + 1 }), 1)
