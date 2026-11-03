@@ -56,14 +56,46 @@ const renderRawContent = (msgType, rawContent, mentions = []) => {
   return typeof rawContent === 'string' ? rawContent : ''
 }
 
+// 话题回复（raw/threads/<omt>.json，build-context-cache.mjs 拉的）：按群拉历史只拿到每个话题的第一条，回复全漏
+//（11-03：漏 1781 条，其中真人 @bot 54 条、falive 当时分类过的 121 条）。同一格式（api 一份 + 渲染版一份），按 chat_id 并进各群。
+const loadThreadReplies = () => {
+  const dir = join(rawDir, 'threads')
+  const api = new Map()
+  const rendered = new Map()
+  if (!existsSync(dir)) return { api, rendered }
+  const parse = (text) => {
+    try {
+      const data = JSON.parse(text || '{}').data || {}
+      return data.items || data.messages || []
+    } catch {
+      return []
+    }
+  }
+  for (const file of readdirSync(dir)) {
+    if (!file.endsWith('.json')) continue
+    let cached
+    try { cached = readJson(join(dir, file)) } catch { continue }
+    for (const item of parse(cached.api)) {
+      if (!api.has(item.chat_id)) api.set(item.chat_id, [])
+      api.get(item.chat_id).push(item)
+    }
+    for (const view of parse(cached.rendered)) rendered.set(view.message_id, view)
+  }
+  return { api, rendered }
+}
+
 export const loadTimeline = () => {
   const messages = new Map()
+  const threads = loadThreadReplies()
   for (const group of GROUPS) {
     const apiPath = join(rawDir, `${group.key}.api.json`)
     const listPath = join(rawDir, `${group.key}.json`)
     const rendered = new Map()
     if (existsSync(listPath)) for (const m of readJson(listPath).data?.messages || []) rendered.set(m.message_id, m)
-    const apiItems = existsSync(apiPath) ? readJson(apiPath).data?.items || [] : []
+    for (const item of threads.api.get(group.chatId) || []) if (threads.rendered.has(item.message_id) && !rendered.has(item.message_id)) rendered.set(item.message_id, threads.rendered.get(item.message_id))
+    const groupItems = existsSync(apiPath) ? readJson(apiPath).data?.items || [] : []
+    const seenIds = new Set(groupItems.map((item) => item.message_id))
+    const apiItems = [...groupItems, ...(threads.api.get(group.chatId) || []).filter((item) => !seenIds.has(item.message_id) && seenIds.add(item.message_id))]
     const seen = new Set()
     for (const item of apiItems) {
       seen.add(item.message_id)
