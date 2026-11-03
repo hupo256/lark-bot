@@ -93,7 +93,7 @@ describe('摄入链路 / 上下文包 / 入群事件（真 store + 假 lark-cli�
       await ingestLarkEvent({ raw: event, config, store })
       assert.equal(JSON.stringify(store.get(event.message_id)), before)
     })],
-    ['只 @ 负责人 / @所有人（task_mention）不建任务（11-02 关掉）；bot 发的、不在白名单群的、私信非负责人的、空消息都丢', () => quiet(async () => {
+    ['只 @ 负责人 / @所有人（task_mention）不建任务（11-02 关掉）；bot 发的、不在白名单群的、私信非负责人的都丢（群里光 @bot 的 11-03 起进分类）', () => quiet(async () => {
       const count = store.list().length
       for (const event of [
         raw({ text: '@aven 登录页白屏了', mentions: [AVEN] }),
@@ -101,7 +101,6 @@ describe('摄入链路 / 上下文包 / 入群事件（真 store + 假 lark-cli�
         raw({ text: '@Aven.Bot 机器人自己说的', mentions: [BOT], senderType: 'bot' }),
         raw({ text: '@Aven.Bot 别的群', mentions: [BOT], chatId: 'oc_other' }),
         raw({ chatId: 'ou_qa', chatType: 'p2p', sender: 'ou_qa', text: '私信但不是负责人' }),
-        raw({ text: '@Aven.Bot', mentions: [BOT] }),
         raw({ text: '没叫机器人的群消息' }),
       ]) await ingestLarkEvent({ raw: event, config, store })
       assert.equal(store.list().length, count, '一条都没建')
@@ -183,6 +182,13 @@ describe('摄入链路 / 上下文包 / 入群事件（真 store + 假 lark-cli�
       await ingestLarkEvent({ raw: empty, config, store })
       const quoted = store.get(empty.message_id)
       assert.deepEqual([quoted.text, quoted.summary, quoted.quotedOwnCard, quoted.intake.anchorTaskId], ['【被引用消息】（K 11-01 09:00）\n原话\n\n【本条 @】（无附言）', '原话', false, null])
+      // 光一条「@bot」（没正文 / 附件 / 引用）：群里照样建任务进分类（11-03 falive 回放 10-26 被丢了两条）；私信空消息仍丢
+      const bare = atBot('')
+      await ingestLarkEvent({ raw: bare, config, store })
+      assert.deepEqual([store.get(bare.message_id)?.status, store.get(bare.message_id)?.text], ['received', '【本条 @】（无附言，只 @ 了机器人）'])
+      const bareDm = dm('')
+      await ingestLarkEvent({ raw: bareDm, config, store })
+      assert.equal(store.get(bareDm.message_id), undefined, '私信空消息不建任务')
       // 11-02 复核：回复「收到」——原任务还没分类 → 并进去一起分类（不建任务、不回第二句）；已排队（同代回执）+ 有内容 → 放行成带锚点的新任务，
       // 不再被续跑路径抓去回「不在等材料，续不了」；只问进度 → 「还在处理中」、不建任务
       const outboxBefore = cliCalls('+messages-reply')
@@ -310,7 +316,7 @@ describe('摄入链路 / 上下文包 / 入群事件（真 store + 假 lark-cli�
       assert.deepEqual([bare.text, bare.attachments, bare.threadSpeakers, bare.refText], ['只有这句', [], [], null])
       assert.equal(calls.at(-1).project, 'PR-01947')
       const noText = await buildConversationBundle({ msg: { ...msg, replyTo: null, createTimeMs: null, attachments: [], text: '' }, config, store: store2, deps })
-      assert.equal(noText.text, '')
+      assert.equal(noText.text, '【本条 @】（无附言，只 @ 了机器人）', '光 @ 没正文：标出来给分类器（11-03）')
     })],
     ['bundle：更早的文档——本条 / 引用 / 话题都没文档、且没引用时才从群里补最近那份（原话提到文档 / 同一人紧接着）；负责人发的不算；图 8 文件 4 上限', () => quiet(async () => {
       const download = async ({ attachments }) => attachments
