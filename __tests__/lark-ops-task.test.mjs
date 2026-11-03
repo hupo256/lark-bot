@@ -106,12 +106,12 @@ describe('运维指令：负责人私信下达固定动作', () => {
       const { run, calls } = fakeRun({ cherry: ok('- aaa1111\n'), info: ok(JSON.stringify(INFO)), draft: ok(`${JSON.stringify(DRAFT)}\n--- body ---\nHi Ops`), send: ok('{}') })
       const out = runDeployAction({ action: { action: 'deploy', env: 'online', autoSend: true, mergedFrom: 'uat' }, opts: config.opsActions, run })
       assert.equal(out.status, 'done')
-      assert.equal(out.text, `已发 online 部署信：\n- 主题：${DRAFT.subject}\n- Jobid：17996（c1a40982）\n- 收件人：sysops@x、dev@y\n运维部署好后会自动探测、在 online 复测并私信你。`)
+      assert.equal(out.text, `已发 online 部署信：\n- 主题：${DRAFT.subject}\n- Jobid：17996（c1a40982）\n- 收件人：sysops@x、dev@y\n部署好后要复测就私信我「online 复测」。`)
       const draftCall = calls.find((c) => c.includes('draft'))
       assert.deepEqual(draftCall, ['python3', '-I', '/m/deploy_mail.py', 'draft', '--env', 'online', '--subject-summary', '评论成功后申报新手和每日任务', '--update', '评论成功后申报新手和每日任务；其余为文档、测试与 CI 调整。'])
       assert.deepEqual(calls.at(-1), ['python3', '-I', '/m/deploy_mail.py', 'send', 'D1'])
       const pre = runDeployAction({ action: { action: 'deploy', env: 'pre', autoSend: true }, opts: config.opsActions, run: fakeRun({ info: ok(JSON.stringify(INFO)), draft: ok(JSON.stringify({ ...DRAFT, to: undefined })), send: ok('') }).run })
-      assert.match(pre.text, /- 收件人：\npre 部署后 bot 会自动探测并复测。$/)
+      assert.match(pre.text, /- 收件人：\n部署好后要复测就私信我「pre 复测」。$/)
     }],
     ['部署·起草 / 发送失败：报失败，发送失败带草稿 id', () => {
       const base = { info: ok(JSON.stringify(INFO)) }
