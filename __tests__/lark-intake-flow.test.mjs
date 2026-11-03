@@ -764,8 +764,8 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
         { name: '原话「ok 收到」', words: 'ok 收到', c: cls({ decision: 'ignore', reply: '好的' }), noted: false },
         { name: '原话「嗯嗯好的」', words: '嗯嗯好的', c: cls({ decision: 'ignore', reply: '好的' }), noted: false },
         { name: '寒暄、reply 空', words: '好的', c: cls({ decision: 'ignore', reply: null }), noted: false },
-        { name: '认不出、分类器说 forMe=false：不结，reply 照旧回群', words: '回他下周再排', c: cls({ decision: 'ignore', reply: '这个下周再排', forMe: false, reason: '寒暄' }), noted: true },
-        { name: '认不出（否定头 + 认不出的后半句）：不结', words: '不做，先放着', c: cls({ decision: 'ignore', reply: '先放着' }), noted: true },
+        { name: '认不出、分类器说 forMe=false：不结；锚点还在跑，reply 不回群（它自己会给结论，免得先拒绝后「改好了」）', words: '回他下周再排', c: cls({ decision: 'ignore', reply: '这个下周再排', forMe: false, reason: '寒暄' }), noted: false },
+        { name: '认不出（否定头 + 认不出的后半句）：不结、锚点在跑不回群', words: '不做，先放着', c: cls({ decision: 'ignore', reply: '先放着' }), noted: false },
       ], async ({ words, c, noted }) => {
         calls.length = 0
         assert.deepEqual(await run({ ok: true, task: task({ status: 'ignored', text: dmText(words), privateOrigin: { anchorId: 'om_g1', anchorHead: '导出按钮', senderOpenId: 'ou_aven' } }, c) }), body({ ignored: true }))
@@ -784,6 +784,7 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       anchorTask = { id: 'om_g1', status: 'done' }
       assert.deepEqual(await run({ ok: true, task: privStop }), body({ ignored: true }))
       assert.deepEqual([calls.map(([name]) => name), said.at(-1)[1].text], [['resolveIntake'], '记下了，「导出按钮」这条不用动手。'], '已了结的不碰')
+      assert.equal(said.at(-2)[0], 'deliverNoted', '锚点已了结：他说怎么回群照旧回')
       anchorTask = null
       const ign = task({ status: 'ignored' }, cls({ decision: 'ignore', reply: '不用我' }))
       assert.deepEqual(await run({ ok: true, task: ign }), body({ ignored: true }))
