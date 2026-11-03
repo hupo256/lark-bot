@@ -11,7 +11,7 @@ import { buildAiExecutorCommand, execAiExecutor, resolveAiModelConfig } from '..
 import { parseClaudeEnvelope } from '../lib/lark-ai-result.mjs'
 import { REQUIRED_CLAUDE_FLAGS, buildExecutorChecks, collectExecutorFacts } from '../lib/lark-executor-doctor.mjs'
 import { describePrdCacheDoc, detectShadowedAgentsDoc } from '../lib/lark-work-context.mjs'
-import { buildAnalysisPrompt, buildTaskPromptParts } from '../lib/lark-worker-prompts.mjs'
+import { buildAnalysisPrompt, buildTaskPromptParts, buildTriagePrompt } from '../lib/lark-worker-prompts.mjs'
 import { runAI } from '../lib/lark-worker-run.mjs'
 import { runSteps } from './support/steps.mjs'
 import { branchForEnv, describeBuild, parseLegacyVersion, parseWebNextCommit } from '../lib/lark-env-version.mjs'
@@ -60,13 +60,22 @@ describe('上下文分层升级：遮蔽检测 / 缓存标龄 / 视觉分流 / �
       assert.equal(describePrdCacheDoc('/c/prd.md', { now, stat: () => { throw new Error('ENOENT') } }), '/c/prd.md')
       assert.doesNotMatch(describePrdCacheDoc('/c/prd.md', { now, stat: stat(7) }), /可能已过期/, '正好 7 天不算过期')
     }],
-    ['带已下载截图的任务提示先 Read 截图；下载失败 / 无截图不提', () => {
+    ['带已下载截图的任务提示先 Read 截图；下载失败 / 无截图不提；有非本条附件时注明归属', () => {
       const user = (attachments) => buildTaskPromptParts(ctx, { id: 't', text: '按截图改', attachments }, 'claude', { ruleContext: { text: '', sources: [] } }).user
       assert.match(user([{ type: 'image', localPath: '/a/1.png' }, { type: 'image', localPath: '/a/2.png' }]), /附件里有 2 张截图：先用 Read 逐张打开/)
       assert.doesNotMatch(user([{ type: 'image', localPath: '/a/1.png', downloadError: 'x' }]), /张截图：先用 Read/)
       assert.doesNotMatch(user([]), /张截图：先用 Read/)
       // claude 实施续分析会话：增量提示不带任务正文，所以分析提示本身也要带（11-01 真实回放发现漏了）
       assert.match(buildAnalysisPrompt(ctx, { id: 't', text: 'x', attachments: [{ type: 'image', localPath: '/a/1.png' }] }, { text: '', sources: [] }), /附件里有 1 张截图：先用 Read/)
+      // 11-03 falive 回放 r3-c：上下文包把群里之前别人发的图挂进附件，结论说成提问人这条带的截图。有非本条附件时清单外注明归属。
+      const borrowed = [{ type: 'image', origin: '本条' }, { type: 'image', origin: '群里之前的消息 · Kaiser 10-30 17:27' }]
+      const note = /UNTRUSTED_TASK_INPUT\n+来源标「本条」的才是这条消息自己带的；其余是上下文里别人发的，只作前文证据，答复里别说成对方这条发的。/
+      assert.match(user(borrowed), note, '数据块之后（可信区）注明归属')
+      assert.match(user([{ type: 'file', origin: '话题回复 · A' }]), note)
+      assert.match(buildTaskPromptParts(ctx, { id: 't', text: 'x', attachments: borrowed, contract: { v: 1, deliverable: 'verification' } }, 'claude', { ruleContext: { text: '', sources: [] } }).user, note, '实测 / 代答单趟同样')
+      assert.match(buildAnalysisPrompt(ctx, { id: 't', text: 'x', attachments: borrowed }, { text: '', sources: [] }), note)
+      assert.match(buildTriagePrompt(ctx, { id: 't', text: 'x', attachments: borrowed }, 'facts'), note)
+      for (const own of [[], [{ type: 'image', origin: '本条' }], [{ type: 'image', localPath: '/a/1.png' }]]) assert.doesNotMatch(user(own), /来源标「本条」/, '只有本条 / 没标来源不加')
     }],
     ['Bash 命令头：剥 cd / 环境变量前缀；sed -n 算读、sed -i 不算', () => {
       assert.deepEqual(bashCommandHead('cd /x && grep -rn foo src'), { word: 'grep', isReader: true })
