@@ -97,6 +97,7 @@ const config = {
   claudeAnalysisModel: 'claude-opus-5-5',
   claudeAnalysisEffort: repo.claudeAnalysisEffort || 'high',
   repoLabel: 'falive-react（Falive Web 前端仓）',
+  commitPrefix: 'feat(bot)', // falive-react 的 commit-msg 钩子要求 <type>(<scope>): 主题（falive 当时的 repo profile 同值）
   consumerRoot: repoLink,
   intake: repo.intake || undefined,
   envSites: { pre: 'https://falivepre.fdsser.com' },
