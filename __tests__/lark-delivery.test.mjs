@@ -222,7 +222,22 @@ describe('任务的人话出口', () => {
       assert.equal(store.get('om_b').mergedNotified, undefined, '群里没发结论不记')
       const held = task({ id: 'om_h', messageId: 'om_h', mergedFrom: ['om_m6'], outcome: out({ groupReply: '改了一半。' }) })
       await deliverOutcome({ config: cfg, store, task: held, status: 'failed', deps })
-      assert.deepEqual([getObligation(held).heldDraft.text, getObligation(held).heldDraft.mentions.map((m) => m.openId), store.get('om_h').mergedNotified], ['改了一半。\n@William 你的补充也一起处理了。', ['ou_w'], undefined], '扣下的草稿带上并入人（放行时渲染 @）；没发不记')
+      assert.deepEqual([getObligation(held).heldDraft.text, getObligation(held).heldDraft.mentions.map((m) => m.openId), store.get('om_h').mergedNotified], ['改了一半。', [], undefined], '没做成的草稿不带并入人、不记（fix10 review：留给真出结论那轮）')
+      // 代答类 blocked / waiting / failed 也发群，但那不是结论：不 @ 并入人、不记 mergedNotified，否则真出结论时他们不再被 @（fix10 review）
+      const pending = task({ id: 'om_p', messageId: 'om_p', mergedFrom: ['om_m1'], contract: { deliverable: 'answer' }, outcome: out({ report: { answer: '还在等后端。', items: [] } }) })
+      for (const [i, status] of ['blocked', 'waiting_confirmation', 'failed'].entries()) {
+        pending.epoch = i + 1
+        await deliverOutcome({ config: cfg, store, task: pending, status, deps })
+        assert.deepEqual([group().at(-1).markdown, store.get('om_p').mergedNotified], ['<at user_id="ou_qa"></at> 还在等后端。', undefined], status)
+      }
+      const concluded = store.get('om_p')
+      concluded.epoch = 9
+      concluded.outcome = out({ report: { answer: '后端修好了。', items: [] } })
+      await deliverOutcome({ config: cfg, store, task: concluded, status: 'done', deps })
+      assert.deepEqual([group().at(-1).markdown, store.get('om_p').mergedNotified], ['<at user_id="ou_qa"></at> 后端修好了。\n<at user_id="ou_b1"></at> 你的补充也一起处理了。', ['om_m1']], '真出结论那轮 @ 并记下')
+      const noop = task({ id: 'om_n', messageId: 'om_n', mergedFrom: ['om_m6'], outcome: out({ summary: '是后端字段没返回。' }) })
+      await deliverOutcome({ config: cfg, store, task: noop, status: 'no_change_needed', deps })
+      assert.deepEqual([group().at(-1).markdown, store.get('om_n').mergedNotified], ['看过了，这个不用改前端：是后端字段没返回。\n<at user_id="ou_w">William</at> 你的补充也一起处理了。', ['om_m6']], '不用改也是结论')
     })],
     ['change failed 有 groupReply：不发群、草稿私信（held）→ 「就这样回」按原文回群、义务 answered、草稿清掉 → 再放行 stale', () => quiet(async () => {
       const t = task({ outcome: out({ summary: '改了但没提交', groupReply: '登录页改好了，等发布。', blockers: [], detailDoc: '# 细节', followUps: [{ owner: '后端', items: ['x'] }], change: { committed: false, gate: 'lint', reason: '2 处' } }) })
