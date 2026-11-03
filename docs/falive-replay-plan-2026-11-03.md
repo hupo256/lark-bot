@@ -17,7 +17,7 @@
 | B1 | 离线模拟器：`scripts/sim/{fake-lark-cli,lark-cli,virtual-clock,run-sim,compare-sim}.mjs` | ✅ 跑通（smoke：10-20 08:30–10:00Z 11 条）；业务仓副本改成按基线检出的 worktree |
 | B2 | L2 对话层回放：逐事件按时间推进，比每条 @bot 的下文 / 义务状态 vs falive 当时 | 🔄 `scripts/sim/run-days.sh 2026-10-20 2026-11-03 full` 跑中（同一 sim 跨天续跑，每天重起进程、重钉基线；非触发消息只等 3 秒） |
 | B3 | L3 执行层回放：与 B2 同一次模拟，worker 真跑 claude，baseRef 钉到当天的 falive-react 提交（不抽样，全跑） | 🔄 同上 |
-| C | 差异清单 → 修 → 只重跑受影响层 → 全量测试绿 → 合运行分支 | 🔄 三个修复分支已合到 lark/falive-fix3（943aa55，全量 639 绿；R7 重分类逻辑挪进 lark-intake-retry 过体量线，用例棘轮 619 → 622）；待：fix3b L1 裁判、变异扫描、基线模拟跑完后用修复版再跑一轮 L2 对照。原三个分支并行：lark/falive-fix2（R2 R6 R11 已修 3 commit，各自测试红→绿）、lark/falive-fix（R1 R3 R5 R7 R13 子代理在修）、lark/falive-fix3（分类提示 + continues 交付物兼容；fix3 一轮 L1 裁判 lark-bot 更好 25 / falive 11 / 一样 9，回归集 53/53；再收口径后 fix3b 跑中） |
+| C | 差异清单 → 修 → 只重跑受影响层 → 全量测试绿 → 合运行分支 | 🔄 三个修复分支已合到 lark/falive-fix3（943aa55，全量 639 绿；R7 重分类逻辑挪进 lark-intake-retry 过体量线，用例棘轮 619 → 622）；fix3b L1 裁判 28 / 8 / 11；变异 --diff fameex-stable 48 个抓 46、豁免 2、存活 0（066928e）。待：基线模拟跑完后用修复版再跑一轮 L2 / L3 对照。原三个分支并行：lark/falive-fix2（R2 R6 R11 已修 3 commit，各自测试红→绿）、lark/falive-fix（R1 R3 R5 R7 R13 子代理在修）、lark/falive-fix3（分类提示 + continues 交付物兼容；fix3 一轮 L1 裁判 lark-bot 更好 25 / falive 11 / 一样 9，回归集 53/53；再收口径后 fix3b 跑中） |
 
 ## 1. 数据（都在本机，只读）
 
