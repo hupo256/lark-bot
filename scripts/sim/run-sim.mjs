@@ -103,7 +103,7 @@ const config = {
   commitPrefix: 'feat(bot)', // falive-react 的 commit-msg 钩子要求 <type>(<scope>): 主题（falive 当时的 repo profile 同值）
   consumerRoot: repoLink,
   intake: repo.intake || undefined,
-  envSites: { pre: 'https://falivepre.fdsser.com' },
+  envSites: { pre: 'https://falivepre.fdsser.com', uat: 'https://faliveuat.fdsser.com', online: 'https://www.falive.com' }, // 时间线里出现的三个环境（10-30 回放：只给 pre 时「锁定 uat」却测了 pre）
   dailyReport: { enabled: false },
   chatRetention: { enabled: false },
   digest: { enabled: false },
