@@ -1,9 +1,9 @@
 {
   "docs": {
-    "at": "2026-11-03T12:16:59.648Z",
-    "urls": 119,
-    "fetched": 119,
-    "cached": 0,
+    "at": "2026-11-03T15:54:50.244Z",
+    "urls": 126,
+    "fetched": 7,
+    "cached": 119,
     "failed": [],
     "skipped": [
       {
@@ -17,25 +17,35 @@
       {
         "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/CfbhdAyS",
         "reason": "链接被截断，lib 不抓"
+      },
+      {
+        "url": "https://qfglxo2m3dc.sg.larksuite.com/wiki/NoBpw1PsyiY3QRkqAfol6pcegzW，谢谢",
+        "reason": "链接被截断，lib 不抓"
+      },
+      {
+        "url": "https://qfglxo2m3dc.sg.larksuite.com/wiki/XQw3wOLyliYAJvkXUlClixOigUf?table=tbltGlOlwMPz0ecC&view=vewKNr5VRc",
+        "reason": "多维表格（wiki?table=），lib 不按文档读"
       }
     ]
   },
   "bugs": {
-    "at": "2026-11-03T12:17:41.272Z",
-    "tableRecords": 1454,
-    "viewRecords": 241,
-    "mentionedBugIds": 149,
+    "at": "2026-11-03T15:55:06.304Z",
+    "tableRecords": 1458,
+    "viewRecords": 245,
+    "mentionedBugIds": 153,
     "missingBugIds": [
       "bug-4969"
     ],
-    "linkTokens": 11,
+    "linkTokens": 13,
     "unresolvedTokens": [
       "T6JTrrErBeusOkcxhqMlUhqWgjh",
-      "EK2hrQPeYeX7FPcvmH1lI1fSgXe"
+      "EK2hrQPeYeX7FPcvmH1lI1fSgXe",
+      "MSacrVAwBeo3ejckTeElsuiugHf",
+      "WtEsruG0detI2JcFXfblfM8qgNb"
     ],
-    "records": 149,
-    "fetched": 149,
-    "cached": 0,
+    "records": 153,
+    "fetched": 4,
+    "cached": 149,
     "failed": [],
     "shots": {
       "records": 7,
@@ -44,10 +54,10 @@
     }
   },
   "expanded": {
-    "at": "2026-11-03T12:18:43.498Z",
+    "at": "2026-11-03T16:05:28.359Z",
     "messages": 4,
-    "fetched": 4,
-    "cached": 0,
+    "fetched": 0,
+    "cached": 4,
     "failed": []
   },
   "resources": {

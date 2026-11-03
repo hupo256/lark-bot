@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * 回放上下文缓存（docs/falive-replay-plan-2026-11-03.md §6-1）：用 aven 的用户身份**只读**补拉模拟里 bot 读不到的上下文，
- * 落到 runtime/falive-replay/raw/ 下，由 scripts/sim/fake-lark-cli.mjs 原样回放。只调 lark-cli 的读命令
+ * 落到 replay/falive/raw/（仓库里跟版本） 下，由 scripts/sim/fake-lark-cli.mjs 原样回放。只调 lark-cli 的读命令
  * （docs +fetch / base +record-list / +record-get / +record-download-attachment / im +messages-mget / +messages-resources-download），不发消息、不写任何东西。
  *
  *   raw/docs/<token>.json            时间线里出现的云文档 / 知识库链接：docs +fetch 的原始 stdout（fetchedAt 是「现在」的版本，不是当时的）
@@ -21,12 +21,12 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { isAbsolute, join } from 'node:path'
 
 import { extractLarkDocUrls, isBitableUrl, isCompleteLarkDocUrl } from '../../lib/lark-doc.mjs'
-import { faliveRuntimeDir, rawDir, replayRoot } from './falive-data.mjs'
+import { datasetDir, faliveRuntimeDir, rawDir, replayRoot } from './falive-data.mjs'
 
 const REAL_CLI = process.env.REAL_LARK_CLI || 'lark-cli' // 不认 LARK_CLI_BIN：那是假 CLI
 const step = process.argv[2] && !process.argv[2].startsWith('--') ? process.argv[2] : 'all'
 const refresh = process.argv.includes('--refresh')
-const timeline = JSON.parse(readFileSync(join(replayRoot, 'dataset', 'timeline.json'), 'utf8'))
+const timeline = JSON.parse(readFileSync(join(datasetDir, 'timeline.json'), 'utf8'))
 const reportPath = join(rawDir, 'context-cache-report.json')
 const report = existsSync(reportPath) ? JSON.parse(readFileSync(reportPath, 'utf8')) : {}
 const now = () => new Date().toISOString()
@@ -230,6 +230,9 @@ const buildExpanded = async () => {
     const p = join(rawDir, `${g}.json`)
     if (existsSync(p)) for (const m of parse(readFileSync(p, 'utf8'))?.data?.messages || []) rendered.add(m.message_id)
   }
+  // 话题回复的渲染版在 raw/threads/<omt>.json 的 rendered 里（拉话题时一起拉了），不算缺（11-03：漏了这条，1781 条话题回复被逐条重拉）
+  const threadDir = join(rawDir, 'threads')
+  if (existsSync(threadDir)) for (const f of readdirSync(threadDir)) for (const m of parse(parse(readFileSync(join(threadDir, f), 'utf8'))?.rendered || 'null')?.data?.messages || []) rendered.add(m.message_id)
   for (const m of timeline) if (!rendered.has(m.id) && !m.deleted && m.senderType !== 'system') ids.push(m.id)
   const unique = [...new Set(ids)]
   const result = { at: now(), messages: unique.length, fetched: 0, cached: 0, failed: [] }

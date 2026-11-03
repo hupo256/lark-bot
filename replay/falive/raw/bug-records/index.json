@@ -1,5 +1,5 @@
 {
-  "fetchedAt": "2026-11-03T12:18:31.388Z",
+  "fetchedAt": "2026-11-03T15:55:07.933Z",
   "note": "全表 / 视图 record_id 列表与记录内容都是拉取时的版本；baseToken 不落盘，假 CLI 不校验 --base-token",
   "tableId": "tblbJYjrxZsPe40V",
   "viewId": "vewvqqPhkD",
@@ -1457,15 +1457,21 @@
     "reczz28V75FuGro7",
     "reczz28V77QDb4Gd",
     "reczz28V9KhaHtwW",
-    "reczz28V9X4cPpWg"
+    "reczz28V9X4cPpWg",
+    "reczz28VCvW7cxxl",
+    "reczz28VDK3Z8DrT",
+    "reczz28VDNOisiK9",
+    "reczz28VDOm2lGOO"
   ],
   "viewRecordIds": [
+    "reczz28V6G6SwsoA",
+    "reczz28VCvW7cxxl",
     "reczz28V6bh55gpO",
     "reczz28V75FuGro7",
-    "reczz28TyjcTRjAl",
+    "reczz28VDNOisiK9",
+    "reczz28VDOm2lGOO",
+    "reczz28VDK3Z8DrT",
     "reczz28UlIN1IRUJ",
-    "reczz28UfnIZ0Z1u",
-    "reczz28V2d5ibn9E",
     "reczz28UhOrIip3D",
     "reczz28UhyJ53wj9",
     "reczz28Ui3e6a5gH",
@@ -1481,12 +1487,12 @@
     "reczz28UkoaKWWQA",
     "reczz28V9KhaHtwW",
     "reczz28V9X4cPpWg",
-    "reczz28V6G6SwsoA",
-    "reczz28SK2rBwzys",
     "reczz28SLJt6xaN8",
     "reczz28SNfQhtX1i",
     "reczz28SNvsRZT2n",
     "reczz28QPVwwnxEj",
+    "reczz28SK2rBwzys",
+    "reczz28V2d5ibn9E",
     "reczz28SMNOlPpW4",
     "reczz28UleN71jLv",
     "reczz28UlqygoJU7",
@@ -1503,12 +1509,14 @@
     "reczz28V2B3rZm7N",
     "reczz28V65dfojvI",
     "reczz28V66TtQvxW",
+    "reczz28TyjcTRjAl",
     "reczz28UjNKZnvDa",
     "reczz28UdoUHNOps",
     "reczz28V6OWr3X41",
     "reczz28TRU23K9pI",
     "reczz28SKb4vuILF",
     "reczz28SKe8102xS",
+    "reczz28UfnIZ0Z1u",
     "reczz28SKHIzFGC9",
     "reczz28Sm4Z3fKnH",
     "reczz28Qm1gc1e6l",
@@ -7489,7 +7497,7 @@
     },
     "reczz28V6G6SwsoA": {
       "bugId": "Bug-5184",
-      "title": null
+      "title": "社区发帖列表图片加载不出来"
     },
     "reczz28V6OWr3X41": {
       "bugId": "Bug-5185",
@@ -7518,6 +7526,22 @@
     "reczz28V9X4cPpWg": {
       "bugId": "Bug-5191",
       "title": "[Falive App] 直播間點擊「分享」會呼叫 /api/group/searchById 產生500操作失敗"
+    },
+    "reczz28VCvW7cxxl": {
+      "bugId": "Bug-5192",
+      "title": "聊天-表情里面的贴纸加载失败"
+    },
+    "reczz28VDK3Z8DrT": {
+      "bugId": "Bug-5193",
+      "title": "个人主页不能修改头像"
+    },
+    "reczz28VDNOisiK9": {
+      "bugId": "Bug-5194",
+      "title": "Hichat聊天群组没有完成同步到falive上"
+    },
+    "reczz28VDOm2lGOO": {
+      "bugId": "Bug-5195",
+      "title": "Hichat头像和昵称没有同步到falive"
     }
   },
   "byBugId": {
@@ -8974,7 +8998,11 @@
     "bug-5188": "reczz28V75FuGro7",
     "bug-5189": "reczz28V77QDb4Gd",
     "bug-5190": "reczz28V9KhaHtwW",
-    "bug-5191": "reczz28V9X4cPpWg"
+    "bug-5191": "reczz28V9X4cPpWg",
+    "bug-5192": "reczz28VCvW7cxxl",
+    "bug-5193": "reczz28VDK3Z8DrT",
+    "bug-5194": "reczz28VDNOisiK9",
+    "bug-5195": "reczz28VDOm2lGOO"
   },
   "shareTokens": {
     "C6TmrUrNNe0nwOcyjVUlago1gve": {
@@ -9366,6 +9394,8 @@
     "reczz28RwPjCrQJ4",
     "reczz28Rx2nJMCET",
     "reczz28RxqwSNfUt",
+    "reczz28Ry4splyBM",
+    "reczz28Ry80twHkA",
     "reczz28RydF5moh1",
     "reczz28RyfzC3arb",
     "reczz28RyiRdOmgg",
@@ -9398,6 +9428,7 @@
     "reczz28Sei4XVJTV",
     "reczz28SfvQ6T8br",
     "reczz28SgXwoXdQA",
+    "reczz28Sgxon8HVY",
     "reczz28ShDEdyDiN",
     "reczz28ShFB8nVbD",
     "reczz28ShHJiMjnG",
@@ -9415,6 +9446,7 @@
     "reczz28SmeCg7xhO",
     "reczz28Smupgn1GR",
     "reczz28Sn8Bi0jkL",
+    "reczz28SqVPwmVgk",
     "reczz28T4ZK3pj1x",
     "reczz28T4n9xEcHc",
     "reczz28T5BCgQgDS",

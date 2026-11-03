@@ -1,6 +1,6 @@
 /**
  * falive 实战数据读取（只读；docs/falive-replay-plan-2026-11-03.md §1）。
- * 源：runtime/falive-replay/raw/ 下三个群的两份拉取（raw API 版：parent_id / root_id / 原始 content；+chat-messages-list 版：渲染文本、
+ * 源：replay/falive/raw/（仓库里跟版本） 下三个群的两份拉取（raw API 版：parent_id / root_id / 原始 content；+chat-messages-list 版：渲染文本、
  * sender 名、已下载附件）、~/Library/Logs/falive-lark/{gateway,worker}.log、lark-bot-falive 的台账与审计。
  * 产出统一的时间线消息（toEvent 可直接喂 ingestLarkEvent，形态同 lark-cli 拍平事件）与每条消息的 falive 基线。
  */

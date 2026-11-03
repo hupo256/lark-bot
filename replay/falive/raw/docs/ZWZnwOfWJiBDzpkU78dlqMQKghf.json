@@ -1,0 +1,26 @@
+{
+  "token": "ZWZnwOfWJiBDzpkU78dlqMQKghf",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/wiki/ZWZnwOfWJiBDzpkU78dlqMQKghf?blockId=LGZfdxOLdoWOfhxSGJDlEXVpghf&blockToken=OY5HwCRCyhyswZb44I5lecE1g9g&blockType=whiteboard&doc_app_id=501",
+  "fetchedAt": "2026-11-03T15:54:51.278Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/wiki/ZWZnwOfWJiBDzpkU78dlqMQKghf?blockId=LGZfdxOLdoWOfhxSGJDlEXVpghf&blockToken=OY5HwCRCyhyswZb44I5lecE1g9g&blockType=whiteboard&doc_app_id=501",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>falive功能导图-版本拆分</title>\\n\\n# Falive功能导图-版本拆分\\n\\n⬇️\\n\\n<whiteboard token=\\\"OY5HwCRCyhyswZb44I5lecE1g9g\\\"></whiteboard>\\n\\n\\n\\n---\\n\\nEnd。\",\n      \"document_id\": \"AAEFdMXAvopXJtxKZI1lrEp5gwb\",\n      \"revision_id\": 152\n    }\n  }\n}\n",
+  "stderr": ""
+}

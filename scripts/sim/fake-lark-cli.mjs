@@ -10,7 +10,7 @@
  *   cli-calls.log   每次调用的 argv（排错用）
  * 子命令：im +chat-list / +chat-messages-list / +messages-mget / +threads-messages-list / +messages-send / +messages-reply /
  * +messages-resources-download；event consume；docs +create / drive permission.public（记账）。
- * 上下文缓存（scripts/sim/build-context-cache.mjs 用 aven 身份只读拉好，落 runtime/falive-replay/raw/，都是「拉取时」的版本）：
+ * 上下文缓存（scripts/sim/build-context-cache.mjs 用 aven 身份只读拉好，落 replay/falive/raw/（仓库里跟版本），都是「拉取时」的版本）：
  *   docs +fetch                       raw/docs/<token>.json 的原始 stdout（sim 自己建的 simdoc 从 SIM_DIR/docs 读）
  *   base +record-list / +record-share-link-create / +record-get / +record-download-attachment   raw/bug-records/（tools/read-bug-record.mjs 的读法）
  *   +messages-mget / 列消息            raw/expanded/<id>.json 的 content 覆盖时间线里的（合并转发 / 渲染版缺失）
