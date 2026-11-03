@@ -186,6 +186,7 @@ describe('上下文分层升级：遮蔽检测 / 缓存标龄 / 视觉分流 / �
       assert.equal(buildEnvKnowledgeBlock({ envSites: { test: '  ' } }), '')
       const onlyKnowledge = buildEnvKnowledgeBlock({ knowledge: 'K' })
       assert.match(onlyKnowledge, /【环境与部署/)
+      assert.match(onlyKnowledge, /统一叫「老站」「新站」，不写 old site/, '对外叫法统一（11-03 群里冒过 old site）')
       assert.doesNotMatch(onlyKnowledge, /env-version/, '没配站点不提工具')
       const both = buildEnvKnowledgeBlock({ knowledge: 'K', envSites: { pre: 'https://p' } })
       assert.ok(both.includes(`node ${ENV_VERSION_TOOL}`) && both.includes('\nK\n'))
