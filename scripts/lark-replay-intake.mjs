@@ -6,7 +6,7 @@
  * --live：真跑 claude 分类器（与 worker 同一条命令），比 decision / deliverable / selfAnswer / continues，不一致退出码 1。
  * 改分类提示词（lib/lark-classify-prompt.mjs）或 intake 规则（lib/lark-intake-resolve.mjs）后跑一遍。
  *
- * 分类回归集（11-02，53 条，fixture 带 regression: true）：
+ * 分类回归集（11-02 起，56 条，fixture 带 regression: true）：
  *   node scripts/lark-replay-intake.mjs --fixture __tests__/fixtures/intake-regression-1102.json --live [--model m] [--effort e] [--conc 8] [--json]
  * 按运行配置（runtime/lark-bot.local.json 的 claudeIntentModel / claudeIntentEffort，没配沿用任务模型）真跑分类器，带 persona，
  * 逐条比 judgeIntakeCase（expected 是可接受值的集合），打印耗时中位 / P90。换分类模型 / 强度、改分类提示前先跑这个。

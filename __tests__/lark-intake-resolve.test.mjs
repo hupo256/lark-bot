@@ -24,7 +24,7 @@ const NOW = '2026-11-01T10:00:00.000Z'
 
 describe('对话层：契约、入队门槛、分类落态、归并', () => {
   it('deriveContract / isReadOnlyAsk / intakeActionable / applyIntakeClassification / mergeTaskObjects / store 委托', () => runSteps([
-    ['分类回归集（11-02）：judgeIntakeCase 按可接受集合判、缺字段不比、单值也行；fixture 53 条都能拼出提示、没漏真实 open_id', () => {
+    ['分类回归集（11-02）：judgeIntakeCase 按可接受集合判、缺字段不比、单值也行；fixture 56 条都能拼出提示、没漏真实 open_id', () => {
       const expected = { decision: ['bug', 'question'], deliverable: ['change'], continues: [null], selfAnswer: false }
       assert.deepEqual(judgeIntakeCase(expected, { decision: 'question', deliverable: 'change', continues: undefined, selfAnswer: false }), { ok: true, mismatches: [] })
       assert.deepEqual(judgeIntakeCase(expected, { decision: 'ignore', deliverable: null, continues: 'om_x', selfAnswer: true }).mismatches, [
@@ -38,7 +38,7 @@ describe('对话层：契约、入队门槛、分类落态、归并', () => {
       assert.deepEqual([groupTask.chatType, groupTask.intake.trigger, groupTask.addressedToBot, groupTask.operator, groupTask.conversation, groupTask.attachments.length, groupTask.privateOrigin], ['group', 'bot_mention', true, null, { anchor: null }, 1, true])
       const fixture = JSON.parse(readFileSync(new URL('./fixtures/intake-regression-1102.json', import.meta.url), 'utf8'))
       assert.equal(fixture.regression, true)
-      assert.equal(fixture.cases.length, 53)
+      assert.equal(fixture.cases.length, 56)
       assert.doesNotMatch(JSON.stringify(fixture), /ou_[0-9a-f]{20,}/, '真实 open_id 要换成占位')
       for (const item of fixture.cases) {
         assert.ok(Array.isArray(item.expected.decision) && item.expected.decision.length, `${item.id} 缺 expected.decision`)
