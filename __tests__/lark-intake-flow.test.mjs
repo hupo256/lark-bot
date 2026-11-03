@@ -536,6 +536,9 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
         { name: '都是实测、点名环境不相交：另起（11-03 r3-c：复测 OL 并进 uat 那条）', task: { ...me('verification'), envTargets: ['online'] }, target: { ...target('done', 'verification'), envTargets: ['uat'] }, want: false },
         { name: '都是实测、环境有交集：延续', task: { ...me('verification'), envTargets: ['uat', 'online'] }, target: { ...target('done', 'verification'), envTargets: ['uat'] }, want: true },
         { name: '只一边点名环境：按交付物', task: { ...me('verification'), envTargets: ['online'] }, target: target('done', 'verification'), want: true },
+        { name: '都是答疑、点名环境不相交：另起', task: { ...me('answer'), envTargets: ['pre'] }, target: { ...target('answered', 'answer'), envTargets: ['test'] }, want: false },
+        // 11-03 合入前 review：「test 环境 xx 按钮错位」改码单在跑，「pre 也有这个问题」continues 指它 → 改的是同一处代码，照交付物规则并入
+        { name: '都是改码、点名环境不相交：照交付物并入', task: { ...me('change'), envTargets: ['pre'] }, target: { ...target('running', 'change'), envTargets: ['test'] }, want: true },
         { name: '等补料：并进去', task: me('change'), target: target('waiting_confirmation', 'answer'), want: true },
         { name: '追问 → 原答疑', task: me('answer'), target: target('answered', 'answer'), want: true },
         { name: '补料 → 在跑的改码单', task: me('change'), target: target('running', 'change'), want: true },
