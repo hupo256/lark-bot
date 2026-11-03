@@ -110,4 +110,5 @@
    - **光一条「@Aven.Bot」（没正文）被摄入层直接丢掉**（2 条 missed）：人在自己上一条话后面单独 @ 一下是常见的催 / 接话方式，lark-ingest 对「没正文、没附件、没引用」的消息直接 return，根本没到分类器。falive 接上了前文。待修：群里直接 @bot 的一律进分类（上下文包会带前文），只有私信空消息才丢。
    - aven 私信「已部署」→ falive 把 bug 表从待推版改成已推版（bugpoll 流程），lark-bot 回「知道了」；这是 falive 线的约定，fameex 线由 bug-watch 处理，不改。
    - 结论 @ 了 Eric 而不是提问人（wrong_target，同 10-30 主题）。
+13. 10-31 基线补判 2 条：aven 私信「核对 online / uat 一致后发部署信」→ lark-bot 运维任务因模拟配置没有 opsActions（deployMail 脚本）直接 failed（回放台缺口，fameex 线有）；Arthur 回答 bot 自己提的问题（改资料后调 task/complete）→ lark-bot 判阻塞、反过来要接口文档并在群里发求助文档（wrong_content）——api_reply·change 进实施前的分析把「对方答复」当成缺料，待看修复版同一条。
 
