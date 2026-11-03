@@ -1,0 +1,26 @@
+{
+  "token": "Gu1Ld6xQ1ofehjxOAlsl0UaKgIh",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/Gu1Ld6xQ1ofehjxOAlsl0UaKgIh",
+  "fetchedAt": "2026-11-03T12:17:17.292Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/Gu1Ld6xQ1ofehjxOAlsl0UaKgIh",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>@Encone OL 换 www.falive.com（细节）</title>\\n\\n# OL php / bbsv2 换成 [www.falive.com](http://www.falive.com)（10-29）\\n\\n## 结论\\n\\n前端 online 的 php、bbsv2 地址已经换成 `www.falive.com`（https），hichat（`www.4ees1.xyz`）和 Go（`www.falive.com`）不变；pre / uat 没动。前端这次不用再改。nginx 配置等 Encone 找运维拿到后再一起对。\\n\\n## 实测（10-29，直连线上前台入口）\\n\\n| 接口 | 结果 |\\n|-|-|\\n| `https://www.falive.com/api/preload/lives` | HTTP 200，code 0 |\\n| `https://www.falive.com/bbsv2/index/index`（不带签名） | HTTP 407，code -800「非法请求」：已经转到 bbsv2 后端，只是缺签名，正常 |\\n| `https://www.falive.com/go-api/health` | HTTP 200，`{status: UP, service: portal}` |\",\n      \"document_id\": \"Gu1Ld6xQ1ofehjxOAlsl0UaKgIh\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

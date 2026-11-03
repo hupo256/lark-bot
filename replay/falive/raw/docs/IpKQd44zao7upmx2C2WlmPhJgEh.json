@@ -1,0 +1,26 @@
+{
+  "token": "IpKQd44zao7upmx2C2WlmPhJgEh",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/IpKQd44zao7upmx2C2WlmPhJgEh",
+  "fetchedAt": "2026-11-03T12:17:22.216Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/IpKQd44zao7upmx2C2WlmPhJgEh",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"# 社区帖子评论任务（Bug-5139）（完整内容）\\n\\n@Arthur 收到，uat 已经通了：按你的日志，Go 换成 2026103104 以后，每日回复评论 +30、社区帖子评论新手任务 +20 都到账了。你查不到的那个请求 ID 是 Justin 在生产测试时留下的，本来就不在 uat。前端申报不用改。想确认一下：这个版本发到生产了吗？发了的话请 Justin 或 Kaiser 用生产账号复测。\\n\\n- ⚠️ 生产 Bug-5139：要看 Go 新版本有没有发到生产，之后由 Justin / Kaiser 用生产号复测，Arthur 跟\\n- ✅ uat 社区帖子评论 / 每日回复评论申报：Go 换版本后两项都已完成并到账（Arthur 日志：+30、+20）；前端申报代码已在 uat 上  \\n待确认的几点在这里：https://qfglxo2m3dc.sg.larksuite.com/docx/FNYodDkiDop0TrxZiyHlTC1Ogrb\\n- Arthur：Go 2026103104 有没有发到 online？发了以后由 Justin（UID 466）或 Kaiser（UID 484）用生产账号复测 Bug-5139  \\n详细见：https://qfglxo2m3dc.sg.larksuite.com/docx/UHPFdKZjOoiEXuxQcYdlYmy3gpn\",\n      \"document_id\": \"IpKQd44zao7upmx2C2WlmPhJgEh\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

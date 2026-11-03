@@ -1,0 +1,26 @@
+{
+  "token": "D8AudrDTIosc7UxVXAWlM5wXgkb",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/D8AudrDTIosc7UxVXAWlM5wXgkb",
+  "fetchedAt": "2026-11-03T12:17:02.267Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/D8AudrDTIosc7UxVXAWlM5wXgkb",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>Google登录-待确认-2026-10-15</title>\\n\\n# Google 登录 pre 复测 — 待确认（2026-10-15）\\n\\n复测时间：2026-10-15 20:41（+8）/ 12:41 UTC。答复原文和复测记录见 reply/PM-3217-对接文档-答复-2026-10-15.md。\\n\\n## Arthur（Google 客户端配置方）\\n\\n- **要什么**：在 pre 的 Google OAuth client（`936185625672-prj7…`）的「已获授权的 JavaScript 来源」里加上 `http://localhost:3001`。\\n- **为什么**：前端本地跑 `pnpm dev:pre` 的地址就是它，不加的话本地联调 Google 按钮一直报 403。\\n- **我方现状**：pre 域名 `https://falivepre.fdsser.com` 已放行（按钮接口回 200）；`http://localhost:3001` 回 403，跟一个没配过的外部域名结果一样。\\n- **建议**：加好后在群里说一声，前端再用同样的请求复测一次。\\n\\n## aven（人工在 pre 上点）\\n\\n- **要什么**：用一个真实 Google 账号在 [https://falivepre.fdsser.com](https://falivepre.fdsser.com) 完整走一遍。\\n- **为什么**：bot 没有能完成 Google 授权的账号，选完账号之后的流程这次没测。\\n- **要点的地方**：\\n\\n  1. 新 Google 账号：点「使用 Google 继续」→ 应直接注册成功并登录（`/api/auth/google/register` 返回 token）。\\n  2. 已绑定的 Google 账号：注册接口回「Google account already bound」→ 应转入验证码步骤，验证码填 123456 → `/api/auth/google/login` 成功。\\n  3. 这个 Google 邮箱已用邮箱注册过：回「Google email already registered」→ 应提示改用邮箱登录。\\n  4. 登录成功后刷新页面，登录态还在；退出登录正常。\\n- 每一步记一下 HTTP 状态、code、msg；有不符合的，把响应发回来，前端再判断是前端还是 portal 的问题。\",\n      \"document_id\": \"D8AudrDTIosc7UxVXAWlM5wXgkb\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

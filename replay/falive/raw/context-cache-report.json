@@ -1,0 +1,109 @@
+{
+  "docs": {
+    "at": "2026-11-03T12:16:59.648Z",
+    "urls": 119,
+    "fetched": 119,
+    "cached": 0,
+    "failed": [],
+    "skipped": [
+      {
+        "url": "https://qfglxo2m3dc.sg.larksuite.com/wiki/XQw3wOLyliYAJvkXUlClixOigUf?table=tbltGlOlwMPz0ecC&view=vewRwlXeVh",
+        "reason": "多维表格（wiki?table=），lib 不按文档读"
+      },
+      {
+        "url": "https://qfglxo2m3dc.sg.larksuite.com/wiki/VtEmw9rlMipoRQkV7tllMXb7ggw?table=tblbJYjrxZsPe40V&view=vewvqqPhkD",
+        "reason": "多维表格（wiki?table=），lib 不按文档读"
+      },
+      {
+        "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/CfbhdAyS",
+        "reason": "链接被截断，lib 不抓"
+      }
+    ]
+  },
+  "bugs": {
+    "at": "2026-11-03T12:17:41.272Z",
+    "tableRecords": 1454,
+    "viewRecords": 241,
+    "mentionedBugIds": 149,
+    "missingBugIds": [
+      "bug-4969"
+    ],
+    "linkTokens": 11,
+    "unresolvedTokens": [
+      "T6JTrrErBeusOkcxhqMlUhqWgjh",
+      "EK2hrQPeYeX7FPcvmH1lI1fSgXe"
+    ],
+    "records": 149,
+    "fetched": 149,
+    "cached": 0,
+    "failed": [],
+    "shots": {
+      "records": 7,
+      "files": 15,
+      "failed": []
+    }
+  },
+  "expanded": {
+    "at": "2026-11-03T12:18:43.498Z",
+    "messages": 4,
+    "fetched": 4,
+    "cached": 0,
+    "failed": []
+  },
+  "resources": {
+    "at": "2026-11-03T12:31:06.170Z",
+    "mapped": 442,
+    "retried": 4,
+    "fetched": 0,
+    "failed": [
+      {
+        "id": "om_x100b63557f74ed00eeb74d94abd28be",
+        "key": "file_v3_00168_5a4a7ef9-abf4-4a9a-96aa-0c35954c3chu",
+        "type": "file",
+        "msgType": "file",
+        "ownBot": false,
+        "atMs": 1791365915632,
+        "at": "2026-10-07T09:38:35.632Z",
+        "reason": "HTTP 400: {\"code\":9499,\"msg\":\"Bad Request\",\"error\":{\"log_id\":\"20261103203108DDC8D6F7425D7C7E4B90\"}}"
+      },
+      {
+        "id": "om_x100b63557f779ca4eecfa8805d9d9e5",
+        "key": "file_v3_00168_6e2fca7b-a889-4b91-b653-ff315d7b5dhu",
+        "type": "file",
+        "msgType": "file",
+        "ownBot": false,
+        "atMs": 1791365915677,
+        "at": "2026-10-07T09:38:35.677Z",
+        "reason": "HTTP 400: {\"code\":9499,\"msg\":\"Bad Request\",\"error\":{\"log_id\":\"202611032031108063D4EBAD78767FACEF\"}}"
+      },
+      {
+        "id": "om_x100b63005faf24b0e0b12fe69ff25eb",
+        "key": "file_v3_00166_f1529140-0e1c-43a3-bf0c-6ac2d12c91hu",
+        "type": "file",
+        "msgType": "file",
+        "ownBot": false,
+        "atMs": 0,
+        "at": "1970-01-01T00:00:00.000Z",
+        "reason": "HTTP 400: {\"code\":9499,\"msg\":\"Bad Request\",\"error\":{\"log_id\":\"20261103203114F1BC58F9D6CA437E10C5\"}}"
+      },
+      {
+        "id": "om_x100b63004e6004a4e2e6a5b26a7133f",
+        "key": "file_v3_00166_79f14e5e-633b-4a54-8b5d-ad2be4aa1bhu",
+        "type": "file",
+        "msgType": "file",
+        "ownBot": false,
+        "atMs": 0,
+        "at": "1970-01-01T00:00:00.000Z",
+        "reason": "HTTP 400: {\"code\":9499,\"msg\":\"Bad Request\",\"error\":{\"log_id\":\"202611032031163E678433494827805353\"}}"
+      }
+    ]
+  },
+  "threads": {
+    "at": "2026-11-03T12:21:56.939Z",
+    "threads": 204,
+    "fetched": 204,
+    "cached": 0,
+    "failed": [],
+    "replies": 1781
+  }
+}

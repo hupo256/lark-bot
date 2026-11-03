@@ -19,7 +19,8 @@
  */
 import { appendFileSync, closeSync, copyFileSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { basename, dirname, join, resolve } from 'node:path'
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const simDir = process.env.SIM_DIR
 if (!simDir) {
@@ -53,7 +54,8 @@ const fail = (message) => {
 }
 
 // —— 上下文缓存（raw/，build-context-cache.mjs 产出） ——
-const rawDir = process.env.FALIVE_REPLAY_RAW || join(process.env.FALIVE_REPLAY_DIR || join(homedir(), 'github', 'lark-bot', 'runtime', 'falive-replay'), 'raw')
+const rawDir = process.env.FALIVE_REPLAY_RAW || join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'replay', 'falive', 'raw') // case 数据在仓库 replay/falive/raw/
+const resolveRaw = (p) => (!p ? null : isAbsolute(p) ? p : join(rawDir, p))
 const cacheLog = (outcome, kind, key, reason = '') => {
   const line = `${new Date().toISOString()} ${outcome} ${kind} ${key}${reason ? ` ${reason}` : ''}\n`
   appendFileSync(join(simDir, 'context-cache.log'), line)
@@ -346,7 +348,7 @@ if (domain === 'event' && command === 'consume') {
   const extra = readRaw('resources-extra.json')?.resources || {}
   const archive = join(rawDir, 'lark-im-resources')
   const byKey = key && existsSync(archive) ? readdirSync(archive).find((f) => f === key || f.startsWith(`${key}.`)) : null
-  const src = [resources[id], resources[key], extra[id], byKey ? join(archive, byKey) : null].find((p) => p && existsSync(p))
+  const src = [resources[id], resources[key], extra[id], byKey ? join(archive, byKey) : null].map(resolveRaw).find((p) => p && existsSync(p))
   if (!src) miss('resource', id, '存档里没有这份附件')
   cacheLog('hit', 'resource', id)
   const dst = resolve(process.cwd(), String(opts.output || basename(src)))

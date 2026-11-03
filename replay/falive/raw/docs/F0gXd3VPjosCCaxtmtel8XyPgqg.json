@@ -1,0 +1,26 @@
+{
+  "token": "F0gXd3VPjosCCaxtmtel8XyPgqg",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/F0gXd3VPjosCCaxtmtel8XyPgqg",
+  "fetchedAt": "2026-11-03T12:17:11.540Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/F0gXd3VPjosCCaxtmtel8XyPgqg",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"# 修改头像复测（完整内容）\\n\\n@Arthur 修改头像复测：通了 3 项，没通 1 项\\n\\n- ⚠️ 接了但还不能用 上传头像：测试号带有效 token 传 PNG，网关和直连 Go 都回 503「Internal server error」，没有落库，需要 Go 后端查（存储、三端开关或并发）\\n- ✅ 通了 头像接口部署（原 404）：404 已修，上传和查状态两个接口都找得到了，不带 token 回「未授权」\\n- ✅ 通了 查修改状态：查不存在的记录回「头像修改记录不存在」，无效 token 回 -700，都和文档一致；查到成功记录要等上传通了再测\\n- ✅ 通了 Web 换头像页面：已登录本人主页正常打开；上传失败时提示后端信息，保留原图可重试，不用改  \\n待确认的几点在这里：https://qfglxo2m3dc.sg.larksuite.com/docx/RlnbdGeJSooB0tx2JS6lgXJ7g2b\\n- Arthur：pre 上传头像带有效 token 回 503「Internal server error」（网关和直连都一样），请查一下上传存储、三端开关或并发配置，修好后说一声；前端拿不到 Go 的 HTTP 状态码，所有 code=-1 都先按原 ID 查一次再让用户重试；如果 400 场景不该这样处理，请说明（不阻塞）  \\n详细见：https://qfglxo2m3dc.sg.larksuite.com/docx/S26NdZu2gozsjYxdugilYToagLd\",\n      \"document_id\": \"F0gXd3VPjosCCaxtmtel8XyPgqg\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

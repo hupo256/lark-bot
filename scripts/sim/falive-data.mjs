@@ -6,11 +6,19 @@
  */
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, isAbsolute, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
+// case 数据（原始拉取 raw/ + 整理后的 dataset/）跟仓库走、进版本：replay/falive/（aven 11-03「case 与回放脚本、计划和进度都放到 lark-bot 下，要跟踪版本」）。
+// 回放产物（sim/<轮>-<段>/、l1/<run>/、ai-cache/、quota-pause.json）体量大、可重跑，仍在 runtime/falive-replay/（gitignore）；每轮的裁判与总账另存 replay/falive/rounds/。
+export const casesDir = process.env.FALIVE_CASES_DIR || join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'replay', 'falive')
 export const replayRoot = process.env.FALIVE_REPLAY_DIR || join(homedir(), 'github', 'lark-bot', 'runtime', 'falive-replay')
-export const rawDir = join(replayRoot, 'raw')
-export const datasetDir = join(replayRoot, 'dataset')
+export const rawDir = join(casesDir, 'raw')
+export const datasetDir = join(casesDir, 'dataset')
+export const roundsDir = join(casesDir, 'rounds')
+// 附件路径在 case 数据里存成相对 raw/ 的（lark-im-resources/<file>），用时拼回绝对路径；老的绝对路径原样返回。
+export const resolveRaw = (p) => (!p ? null : isAbsolute(p) ? p : join(rawDir, p))
+export { replayRoot as outputRoot }
 export const faliveRuntimeDir = join(homedir(), 'github', 'lark-bot-falive', 'runtime')
 export const faliveLogDir = join(homedir(), 'Library', 'Logs', 'falive-lark')
 

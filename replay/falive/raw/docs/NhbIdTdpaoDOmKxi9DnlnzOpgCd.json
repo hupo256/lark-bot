@@ -1,0 +1,26 @@
+{
+  "token": "NhbIdTdpaoDOmKxi9DnlnzOpgCd",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/NhbIdTdpaoDOmKxi9DnlnzOpgCd",
+  "fetchedAt": "2026-11-03T12:17:05.409Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/NhbIdTdpaoDOmKxi9DnlnzOpgCd",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"# Falive Web 一期 · 日报（2026-10-21）\\n\\n## 总体进度：95.6%（✅ 49 / 55）\\n\\n<callout emoji=\\\"📝\\\">\\n**aven：**负责 30 项，30 项 ✅\\n**henry：**负责 10 项，10 项 ✅\\n**adrian：**负责 10 项，4 项 ✅；没完成的 #14 卡在 G3（等 Go 后端）；#17 #19 卡在 L2（观看心跳归属未定）、P2（等产品）、G6（等 Go 后端）；#18 #20 卡在 G2（等 Go 后端），#20 另卡 P7（等产品）；#21 卡在 G1（等 Go 后端）\\n**eric：**负责 2 项，2 项 ✅\\n**broker：**负责 3 项，3 项 ✅\\n</callout>\\n\\n## 一、功能进度总览（白板一期 54 项 + 产品 10-12 新增搜索 1 项 + 10-16 新增修改密码 1 项 = 56）\\n\\n✅ = origin/pre 上写完且接了真实接口。没打勾的写明还剩什么、卡在哪、找谁。\\n\\n| # | 功能 | 负责人 | 状态 | 还剩什么 · 卡在哪 | 需要谁支持 |\\n|-|-|-|-|-|-|\\n| 1 | 用户资料 | henry | ✅ | -- | -- |\\n| 2 | 登录 / 注册 | aven | ✅ | -- | -- |\\n| 3 | 直播预告-节目表 | aven | ✅ | -- | -- |\\n| 4 | 直播预告-预约 | aven | ✅ | -- | -- |\\n| 5 | 首页 banner | aven | ✅ | -- | -- |\\n| 6 | 正在直播-标签 | aven | ✅ | -- | -- |\\n| 7 | 正在直播-封面 | aven | ✅ | -- | -- |\\n| 8 | 首页直播推荐 | aven | ✅ | -- | -- |\\n| 9 | 首页推荐视频 | aven | ✅ | -- | -- |\\n| 10 | 主播推荐→个人主页 | aven | ✅ | -- | -- |\\n| 11 | 首页热门新闻 | aven | ✅ | -- | -- |\\n| 12 | 积分总额 | adrian | ✅ | -- | -- |\\n| 13 | 每日签到 | adrian | ✅ | -- | -- |\\n| 14 | 补签 | adrian | ⬜ | 补签接口参数待 Go 确认，见对接文档 G3 | Go 后端（Arthur） |\\n| 15 | 七日大礼包 | adrian | ✅ | -- | -- |\\n| 16 | 积分流水 | adrian | ✅ | -- | -- |\\n| 17–20 | 新手 / 每日任务（直播、fameex 联动） | adrian | ⬜ | 看直播心跳全仓没人调（L2）；见对接文档 P2 / P7 / G2 / G6 | adrian / henry（L2 归属）；Go 后端；产品 |\\n| 21 | 积分兑换 | adrian | ⬜ | 兑换要 profile/my 的 hasFameExAccount，Go 没返回，见对接文档 G1 | Go 后端 |\\n| 22 | 任务中心热门新闻 | aven | ✅ | -- | -- |\\n| 23 | 客服 | henry | ✅ | -- | -- |\\n| 24 | 群组 | henry | ✅ | -- | -- |\\n| 25 | 私聊 | henry | ✅ | -- | -- |\\n| 26 | 热门主播卡 | aven | ✅ | -- | -- |\\n| 27 | 热门主播→个人主页 | aven | ✅ | -- | -- |\\n| 28 | 主播主页-直播存档 | broker | ✅ | -- | -- |\\n| 29 | 正在直播列表 | aven | ✅ | -- | -- |\\n| 30 | 录播 tab | aven | ✅ | -- | -- |\\n| 31 | 直播频道热门新闻 | aven | ✅ | -- | -- |\\n| 32 | 直播视频区域 | henry | ✅ | -- | -- |\\n| 33 | 直播间公屏 | henry | ✅ | -- | -- |\\n| 34 | 直播间私聊 | henry | ✅ | -- | -- |\\n| 35 | 直播间群组 | henry | ✅ | -- | -- |\\n| 36 | 排行榜 | aven | ✅ | -- | -- |\\n| 37 | 直播间直播预告 | aven | ✅ | -- | -- |\\n| 38 | 礼物（付费） | aven | ✅ | -- | -- |\\n| 39 | 表情 | aven | ✅ | -- | -- |\\n| 40 | 热门直播 | aven | ✅ | -- | -- |\\n| 41 | 留言板（= 举报） | aven | ✅ | -- | -- |\\n| 42 | 直播间直播推荐 | aven | ✅ | -- | -- |\\n| 43 | 直播间热门新闻 | aven | ✅ | -- | -- |\\n| 44 | 社区广场 | aven | ✅ | -- | -- |\\n| 45 | 新闻 | aven | ✅ | -- | -- |\\n| 46 | 个人主页基础信息 | henry | ✅ | -- | -- |\\n| 47 | fameex 入口 | eric | ✅ | -- | -- |\\n| 48 | 个人简介 | henry | ✅ | -- | -- |\\n| 49 | 个人主页-直播存档 | broker | ✅ | -- | -- |\\n| 50 | 基础送礼 | aven | ✅ | -- | -- |\\n| 51 | 行情跑马灯 | eric | ✅ | -- | -- |\\n| 52 | 一键跟单 | broker | ✅ | -- | -- |\\n| 53 | SEO | aven | ✅ | -- | -- |\\n| 54 | adjust 与 ex 对接 | 后端 | ✅ | -- | -- |\\n| 55 | 搜索（新增） | aven | ✅ | -- | -- |\\n| 56 | 修改密码（新增） | aven | ✅ | -- | -- |\\n\\n**计数**（不含 #54）：✅ 49 项（aven 30、adrian 4、henry 10、broker 3、eric 2）。未完成 6 项：\\n\\n- adrian 6 项：#14 #17 #18 #19 #20 #21\\n\\n## 二、测试 Bug\\n\\n- 共 31 个，今天新增 31：待处理 18、修复中 1、待推版 1、已推版 4、Pre测试通过 5、产品后续优化 2\\n- 待处理 / 修复中按负责人：HQUCEncone 8、Henry 7、Adrian 2、Ache.l 2\\n\\n## 三、需要再跟进的工作（剩 3 行，今日删 16 行）\\n\\n| 事项 | 说明 | 负责人 |\\n|-|-|-|\\n| 直播间送礼改「即将开启」（#38 / #50） | 产品 Mateo 10-21 在话题里定本期不做送礼，点送礼只提示「即将开启」。写进 PRD、后端给出入口开关字段后再改 | **aven** |\\n| 合入 `codex/points-task-center`，修生产启动 MSW 的开关，登记 MSW handler；「看直播领积分」弹窗改读任务中心接口 | 还剩：游客打开 /tasks 直接显示「未授权」原文，点签到也不弹登录；手动绑定域名白名单 `VITE_POINTS_MANUAL_BIND_ORIGINS` 还没配 | **adrian** |\\n| 产品：一期全项目问题 P1–P12 | 见对接文档 P1–P12；预约 Tab 内容口径见待确认文档 | 产品 |\",\n      \"document_id\": \"NhbIdTdpaoDOmKxi9DnlnzOpgCd\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

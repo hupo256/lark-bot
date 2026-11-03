@@ -1,0 +1,46 @@
+{
+  "threadId": "omt_19b2cc1d84cf1855",
+  "fetchedAt": "2026-11-03T12:23:11.426Z",
+  "ok": true,
+  "commands": [
+    [
+      "lark-cli",
+      "api",
+      "GET",
+      "/open-apis/im/v1/messages",
+      "--as",
+      "user",
+      "--params",
+      "{\"container_id_type\":\"thread\",\"container_id\":\"omt_19b2cc1d84cf1855\",\"page_size\":50,\"sort_type\":\"ByCreateTimeAsc\"}",
+      "--page-all",
+      "--page-limit",
+      "0",
+      "--format",
+      "json"
+    ],
+    [
+      "lark-cli",
+      "im",
+      "+threads-messages-list",
+      "--as",
+      "user",
+      "--thread",
+      "omt_19b2cc1d84cf1855",
+      "--order",
+      "asc",
+      "--page-size",
+      "50",
+      "--page-all",
+      "--page-limit",
+      "100",
+      "--no-reactions",
+      "--download-resources",
+      "--format",
+      "json"
+    ]
+  ],
+  "api": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"items\": [\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"我在回去的路上 你們先聊\\\"}\"\n        },\n        \"chat_default_name\": \"Falive产研技术沟通群\",\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1792495969892\",\n        \"deleted\": false,\n        \"message_id\": \"om_x100b624158d0d0b0ffca38414652f80\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b62400387a0a0ff96f5fbb3407f6\",\n        \"root_id\": \"om_x100b62400387a0a0ff96f5fbb3407f6\",\n        \"sender\": {\n          \"id\": \"ou_9c6ebed1f44bd1fa7b59f32236c1932f\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"149af6980f06577c\"\n        },\n        \"thread_id\": \"omt_19b2cc1d84cf1855\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"1792495969892\",\n        \"updated\": false\n      }\n    ],\n    \"page_token\": \"\"\n  }\n}\n",
+  "apiStderr": "[page 1] fetching...\n",
+  "rendered": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"messages\": [\n      {\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"content\": \"我在回去的路上 你們先聊\",\n        \"create_time\": \"2026-10-20 15:32\",\n        \"deleted\": false,\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_40621901e1583e623f6133e8c66d352e\\u0026open_thread_id=omt_19b2cc1d84cf1855\\u0026openchatid=oc_40621901e1583e623f6133e8c66d352e\\u0026openthreadid=omt_19b2cc1d84cf1855\\u0026thread_position=0\",\n        \"message_id\": \"om_x100b624158d0d0b0ffca38414652f80\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_9c6ebed1f44bd1fa7b59f32236c1932f\",\n          \"id_type\": \"open_id\",\n          \"name\": \".Ache.l\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"149af6980f06577c\"\n        },\n        \"thread_id\": \"omt_19b2cc1d84cf1855\",\n        \"thread_message_position\": \"0\",\n        \"updated\": false\n      }\n    ],\n    \"page_token\": \"\",\n    \"thread_id\": \"omt_19b2cc1d84cf1855\",\n    \"total\": 1\n  },\n  \"meta\": {\n    \"pagination\": {\n      \"complete\": true,\n      \"pages\": 1,\n      \"items\": 1\n    }\n  }\n}\n",
+  "renderedStderr": ""
+}

@@ -1,0 +1,26 @@
+{
+  "token": "LSW7dzskXoeWCOx2MtolloHagCg",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/LSW7dzskXoeWCOx2MtolloHagCg",
+  "fetchedAt": "2026-11-03T12:17:22.007Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/LSW7dzskXoeWCOx2MtolloHagCg",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"# 生产社区帖子评论任务（完整内容）\\n\\n@Arthur @Kaiser @Arthur 生产前端已经是新版（评论后会申报新手和每日两个任务），但评论后到账这次 bot 没测成：bot 发不了生产评论，要 Kaiser 用测试号发一条再对比；另外麻烦确认 Go 2026103104 有没有发到生产。\\n\\n- ❌ 生产新手「社区帖子评论」完成 + 到账：这次没测：测试号 484 现在仍是去完成、余额 420；bot 没法在生产发评论，需 Kaiser 用 484 发一条后再对比；Justin 上午生产实测 Go 回成功但没记完成，请 Arthur 确认 Go 新版是否已发生产\\n- ✅ 生产前端评论后申报任务：线上 JS 已含评论成功后同时申报新手「社区帖子评论」和每日回复评论\\n- ➖ 生产每日回复评论：484 今天已完成过（+30 已到账），这次验证不了  \\n待确认的几点在这里：https://qfglxo2m3dc.sg.larksuite.com/docx/FNYodDkiDop0TrxZiyHlTC1Ogrb\\n- Arthur：确认 Go 2026103104（uat 修好评论任务那版）有没有发到生产\\n- Kaiser：用测试号 484 在生产帖子下发一条评论，bot 再对比新手任务是否完成、是否 +20  \\n详细见：https://qfglxo2m3dc.sg.larksuite.com/docx/Tb4PdBHwxoATMCxueYulVLWIgGd\",\n      \"document_id\": \"LSW7dzskXoeWCOx2MtolloHagCg\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

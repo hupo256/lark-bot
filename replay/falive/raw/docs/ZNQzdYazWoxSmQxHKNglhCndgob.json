@@ -1,0 +1,26 @@
+{
+  "token": "ZNQzdYazWoxSmQxHKNglhCndgob",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/ZNQzdYazWoxSmQxHKNglhCndgob",
+  "fetchedAt": "2026-11-03T12:17:22.916Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/ZNQzdYazWoxSmQxHKNglhCndgob",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>社区帖子评论任务生产复测-待确认-2026-10-31</title>\\n\\n# 社区帖子评论任务生产复测（Bug-5139）待确认 — 2026-10-31\\n\\n## 已核实（bot 10-31 实测）\\n\\n- 生产前端已是新版：www.falive.com 线上入口 JS（`index-CPBOhc3T.js`）里，评论发布成功事件会同时申报新手「社区帖子评论」(DISCUZ) 和每日「帖子回复评论」(SQUARE_POST_REPLY_COMMENT)。\\n- 生产测试号 uid 484 当前状态（Go `task/list`、`myPoints`，code 0）：\\n\\n  - 新手「社区帖子评论」(任务 8，+20)：taskStatus 0，未完成；任务中心页面显示「去完成」。\\n  - 每日「帖子回复评论」(任务 15，+30)：今天已完成，流水里有 replyreply +30，所以这次只能验证新手任务。\\n  - 积分余额 420。\\n- 之前 Justin 用生产号 uid 466 实测：评论成功后前端调了 `task/complete {taskId: 8}`，Go 回 code 0，但任务没完成、没加分（请求 ID `267bc284-3ac3-44ab-8f6f-72c8d6491056`）。uat 上 Go 换成 2026103104 后同样流程已到账。\\n\\n## Arthur（Go）\\n\\n- 要什么：确认 Go 2026103104（uat 上修好评论任务的那版）有没有发到生产。\\n- 为什么：前端申报生产已经发出去了，Justin 那次 Go 回 0 但没记完成，和 uat 修复前的表现一样。\\n- 建议：没发的话发到生产后通知一声，再复测。\\n\\n## Kaiser（测试号 uid 484 持有人）\\n\\n- 要什么：用 484 在生产随便一个帖子下发一条评论（不用审核的那种）。\\n- 为什么：bot 没有能在生产页面上发评论的浏览器，生产评论接口也不能用脚本直接打（生产加密 key 和 pre 不同），只能读状态。\\n- 我方现状：发评论前的状态已记下（新手任务未完成、余额 420）；评论后 bot 可以再读一次任务状态和流水，对比新手任务有没有变成已完成、有没有 +20。\\n\\n## 11-02 复测（pre 11-02 15:20 部署后）\\n\\n- 这次 pre 部署只带了手机号 + 密码登录的修复（Bug-5145），和评论任务无关。\\n- 评论任务的前端申报 pre 和生产都已上线（本轮直接拉两站入口 JS 核对：生产 `index-CPBOhc3T.js`（和 10-31 是同一版）、pre `index-BSoFdcsU.js`，都含 `square:commentPublishedConfirmed` → 同时申报 DISCUZ 和 SQUARE_POST_REPLY_COMMENT）。\\n- 端到端（发评论 → 任务完成 → +20 / +30 到账）这次还是没测到：\\n\\n  - pre：测试号 uid 508 登录后任务中心「新手任务 / 每日任务」两栏都是空的（截图 `/tmp/lark-verify/remote/shots/site-tasks-1793618813117.png`），没有评论任务可测。\\n  - 生产：bot 没有生产账号，生产发评论也没法用脚本打，只能等持有生产号的同学点。\\n- 还要人做的：\\n\\n  - **Arthur（Go）**：告诉我们生产 Go 是否已是 10-31 uat 修好评论任务的那版（2026103104）。\\n  - **Kaiser / Justin（生产号 uid 484 / 466）**：Go 确认已发生产后，在生产任一帖子下发一条评论，看「社区帖子评论」是否变成已完成、积分是否 +20。\\n\\n## 11-02 复测（pre 11-02 17:20 部署后）\\n\\n- 这次 pre 部署带的是帖子详情取数和首页轮播的改动，和评论任务无关。\\n- 评论任务的前端申报两站都还在：本轮拉入口 JS 核对，pre 新版 `index-BJKCnLgP.js`、生产 `index-CPBOhc3T.js`（和 10-31 同一版）都含 `square:commentPublishedConfirmed`。\\n- 端到端（发评论 → 任务完成 → 积分到账）这次还是没测到：\\n\\n  - pre：测试号 uid 508 登录后任务中心「新手任务 / 每日任务」两栏仍是空的（页面工具实测，截图 `/tmp/lark-verify/remote/shots/site-tasks-1793625941947.png`），没有评论任务可测；同页积分商城 `mallRights/getList` 回 code -1「商城暂未上线权益！」。\\n  - 生产：bot 仍没有生产账号，生产发评论也没法用脚本打；Arthur 还没回复生产 Go 是否已是 2026103104。\\n- 还要人做的（新增一条）：\\n\\n  - **Arthur（Go）**：pre Go 给测试号 508 配上新手 / 每日任务（至少「社区帖子评论」和「帖子回复评论」），bot 就能在 pre 自己跑完整条链路；上面「生产 Go 版本」那条仍等回复。\",\n      \"document_id\": \"ZNQzdYazWoxSmQxHKNglhCndgob\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

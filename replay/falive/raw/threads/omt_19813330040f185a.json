@@ -1,0 +1,46 @@
+{
+  "threadId": "omt_19813330040f185a",
+  "fetchedAt": "2026-11-03T12:24:24.997Z",
+  "ok": true,
+  "commands": [
+    [
+      "lark-cli",
+      "api",
+      "GET",
+      "/open-apis/im/v1/messages",
+      "--as",
+      "user",
+      "--params",
+      "{\"container_id_type\":\"thread\",\"container_id\":\"omt_19813330040f185a\",\"page_size\":50,\"sort_type\":\"ByCreateTimeAsc\"}",
+      "--page-all",
+      "--page-limit",
+      "0",
+      "--format",
+      "json"
+    ],
+    [
+      "lark-cli",
+      "im",
+      "+threads-messages-list",
+      "--as",
+      "user",
+      "--thread",
+      "omt_19813330040f185a",
+      "--order",
+      "asc",
+      "--page-size",
+      "50",
+      "--page-all",
+      "--page-limit",
+      "100",
+      "--no-reactions",
+      "--download-resources",
+      "--format",
+      "json"
+    ]
+  ],
+  "api": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"items\": [\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"Bug单吗@_user_1\\\"}\"\n        },\n        \"chat_default_name\": \"Falive产研技术沟通群\",\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1793375336029\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_ac2fb8eacd2c5ea9231d605c49c8c881\",\n            \"id_type\": \"open_id\",\n            \"key\": \"@_user_1\",\n            \"name\": \"Kaiser\",\n            \"tenant_key\": \"164beab51542977c\"\n          }\n        ],\n        \"message_id\": \"om_x100b617f88b2f0a0ffee32cb972f738\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b617ff15faca0ff6d702f35f89db\",\n        \"root_id\": \"om_x100b617ff15faca0ff6d702f35f89db\",\n        \"sender\": {\n          \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19813330040f185a\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"1793375336075\",\n        \"updated\": true\n      }\n    ],\n    \"page_token\": \"\"\n  }\n}\n",
+  "apiStderr": "[page 1] fetching...\n",
+  "rendered": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"messages\": [\n      {\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"content\": \"Bug单吗@Kaiser\",\n        \"create_time\": \"2026-10-30 19:48\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_ac2fb8eacd2c5ea9231d605c49c8c881\",\n            \"key\": \"@_user_1\",\n            \"name\": \"Kaiser\"\n          }\n        ],\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_40621901e1583e623f6133e8c66d352e\\u0026open_thread_id=omt_19813330040f185a\\u0026openchatid=oc_40621901e1583e623f6133e8c66d352e\\u0026openthreadid=omt_19813330040f185a\\u0026thread_position=0\",\n        \"message_id\": \"om_x100b617f88b2f0a0ffee32cb972f738\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n          \"id_type\": \"open_id\",\n          \"name\": \"World\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19813330040f185a\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"2026-10-30 19:48\",\n        \"updated\": true\n      }\n    ],\n    \"page_token\": \"\",\n    \"thread_id\": \"omt_19813330040f185a\",\n    \"total\": 1\n  },\n  \"meta\": {\n    \"pagination\": {\n      \"complete\": true,\n      \"pages\": 1,\n      \"items\": 1\n    }\n  }\n}\n",
+  "renderedStderr": ""
+}

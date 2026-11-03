@@ -1,0 +1,20 @@
+{
+  "messageId": "om_x100b6134c0b14ca0eed3fa70e0f0382",
+  "fetchedAt": "2026-11-03T12:18:45.525Z",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "im",
+    "+messages-mget",
+    "--as",
+    "user",
+    "--message-ids",
+    "om_x100b6134c0b14ca0eed3fa70e0f0382",
+    "--no-reactions",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"messages\": [\n      {\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"content\": \"\\u003cforwarded_messages\\u003e\\n[2026-10-26T10:35:17+04:00] HQUCEncone:\\n    https://qfglxo2m3dc.sg.larksuite.com/record/YLIjrjq0me1BRccJyaMltk4Tgug\\n    bug-4932  任务中心\\u003e关注主播 积分没有到账\\n    该任务完成规则\\n    \\n    1、关注流程 使用 live api 关注|取消\\n    2、关注 成功返回状态--\\u003e前端主动调一次 go 的 任务完成 api \\n    \\n    3、下一版本会全部更换为 go 的api \\n    \\n    @Arthur.a @Aven.tong\\n\\u003c/forwarded_messages\\u003e\",\n        \"create_time\": \"2026-10-27 06:14\",\n        \"deleted\": false,\n        \"message_app_link\": \"https://applink.larksuite.com/client/chat/open?openChatId=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026position=810\",\n        \"message_id\": \"om_x100b6134c0b14ca0eed3fa70e0f0382\",\n        \"message_position\": \"810\",\n        \"msg_type\": \"merge_forward\",\n        \"sender\": {\n          \"id\": \"ou_0474e2a35ff1054cdbc0bb9d9d9c9766\",\n          \"id_type\": \"open_id\",\n          \"name\": \"HQUCEncone\",\n          \"sender_i18n_names\": {\n            \"zh_cn\": \"Encone\"\n          },\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"144dc2a94988d77e\"\n        },\n        \"updated\": false\n      }\n    ],\n    \"total\": 1\n  }\n}\n",
+  "stderr": ""
+}

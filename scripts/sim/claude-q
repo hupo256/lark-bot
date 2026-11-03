@@ -1,0 +1,3 @@
+#!/bin/sh
+# 回放用 claude 额度闸壳（见 claude-quota.mjs）
+exec node "$(dirname "$0")/claude-quota.mjs" "$@"

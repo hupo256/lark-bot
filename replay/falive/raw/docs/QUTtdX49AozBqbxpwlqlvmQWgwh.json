@@ -1,0 +1,26 @@
+{
+  "token": "QUTtdX49AozBqbxpwlqlvmQWgwh",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/QUTtdX49AozBqbxpwlqlvmQWgwh",
+  "fetchedAt": "2026-11-03T12:17:16.366Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/QUTtdX49AozBqbxpwlqlvmQWgwh",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>Encone（portal 后端）又 @bot 问一遍（细节）</title>\\n\\n# OL 社区广场为什么没有 bbsv2 请求（10-29 复核）\\n\\n## 结论\\n\\n线上（www.falive.com）跑的是 online 分支 10-28 的前端包。那一版打包时线上没配 bbsv2 地址，打包工具把「社区服务是否可用」写死成了 **false**，前端看到 false 就直接显示「加载失败」，**不会发出任何 bbsv2 请求**。所以 Network 里过滤 bbsv2 是空的。\\n\\n## 实测（10-29 16:13 之后）\\n\\n| 检查 | 结果 |\\n|-|-|\\n| 线上 /square 页面加载的主脚本里的服务开关 | `{\\\"php\\\":true,\\\"golang\\\":false,\\\"hichat\\\":true,\\\"bbsv2\\\":false}`，社区是关的 |\\n| `https://www.falive.com/bbsv2/thread/listCursor`（不带签名） | HTTP 407，`{\\\"code\\\":-800,\\\"msg\\\":\\\"非法请求\\\"}`：入口已转到 bbsv2 后端，只是缺签名，正常 |\\n\\n## 修复在哪\\n\\n10-29 上午的前端改动已给 online 补上社区地址（和 php 同源，浏览器走同站点 /bbsv2/）。这个改动已在 pre、uat 分支，**online 分支还没有**。\\n\\n## 下一步\\n\\n- 前端（aven）：把这版合进 online 并发布，发布后线上就会发 bbsv2 请求。\\n- 后端：不用改。\",\n      \"document_id\": \"QUTtdX49AozBqbxpwlqlvmQWgwh\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

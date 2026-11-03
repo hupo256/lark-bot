@@ -1,0 +1,46 @@
+{
+  "threadId": "omt_19812203070f197c",
+  "fetchedAt": "2026-11-03T12:24:24.292Z",
+  "ok": true,
+  "commands": [
+    [
+      "lark-cli",
+      "api",
+      "GET",
+      "/open-apis/im/v1/messages",
+      "--as",
+      "user",
+      "--params",
+      "{\"container_id_type\":\"thread\",\"container_id\":\"omt_19812203070f197c\",\"page_size\":50,\"sort_type\":\"ByCreateTimeAsc\"}",
+      "--page-all",
+      "--page-limit",
+      "0",
+      "--format",
+      "json"
+    ],
+    [
+      "lark-cli",
+      "im",
+      "+threads-messages-list",
+      "--as",
+      "user",
+      "--thread",
+      "omt_19812203070f197c",
+      "--order",
+      "asc",
+      "--page-size",
+      "50",
+      "--page-all",
+      "--page-limit",
+      "100",
+      "--no-reactions",
+      "--download-resources",
+      "--format",
+      "json"
+    ]
+  ],
+  "api": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"items\": [\n      {\n        \"body\": {\n          \"content\": \"{\\\"title\\\":\\\"\\\",\\\"content\\\":[[{\\\"tag\\\":\\\"img\\\",\\\"image_key\\\":\\\"img_v3_0216v_91843cae-335a-438d-ac4c-50f08c6a27hu\\\",\\\"width\\\":1300,\\\"height\\\":1158}],[{\\\"tag\\\":\\\"at\\\",\\\"user_id\\\":\\\"@_user_1\\\",\\\"user_name\\\":\\\"Arthur.a\\\",\\\"style\\\":[]},{\\\"tag\\\":\\\"text\\\",\\\"text\\\":\\\" \\\",\\\"style\\\":[]},{\\\"tag\\\":\\\"at\\\",\\\"user_id\\\":\\\"@_user_2\\\",\\\"user_name\\\":\\\"HQUCEncone\\\",\\\"style\\\":[]},{\\\"tag\\\":\\\"text\\\",\\\"text\\\":\\\"  cc \\\",\\\"style\\\":[]},{\\\"tag\\\":\\\"at\\\",\\\"user_id\\\":\\\"@_user_3\\\",\\\"user_name\\\":\\\"Kaiser\\\",\\\"style\\\":[]},{\\\"tag\\\":\\\"text\\\",\\\"text\\\":\\\" \\\",\\\"style\\\":[]},{\\\"tag\\\":\\\"at\\\",\\\"user_id\\\":\\\"@_user_4\\\",\\\"user_name\\\":\\\"World\\\",\\\"style\\\":[]},{\\\"tag\\\":\\\"text\\\",\\\"text\\\":\\\"\\\",\\\"style\\\":[]}]],\\\"content_v2\\\":[[{\\\"tag\\\":\\\"img\\\",\\\"image_key\\\":\\\"img_v3_0216v_91843cae-335a-438d-ac4c-50f08c6a27hu\\\",\\\"width\\\":1300,\\\"height\\\":1158}],[{\\\"tag\\\":\\\"at\\\",\\\"user_id\\\":\\\"@_user_1\\\",\\\"user_name\\\":\\\"Arthur.a\\\",\\\"style\\\":[]},{\\\"tag\\\":\\\"text\\\",\\\"text\\\":\\\" \\\",\\\"style\\\":[]},{\\\"tag\\\":\\\"at\\\",\\\"user_id\\\":\\\"@_user_2\\\",\\\"user_name\\\":\\\"HQUCEncone\\\",\\\"style\\\":[]},{\\\"tag\\\":\\\"text\\\",\\\"text\\\":\\\"  cc \\\",\\\"style\\\":[]},{\\\"tag\\\":\\\"at\\\",\\\"user_id\\\":\\\"@_user_3\\\",\\\"user_name\\\":\\\"Kaiser\\\",\\\"style\\\":[]},{\\\"tag\\\":\\\"text\\\",\\\"text\\\":\\\" \\\",\\\"style\\\":[]},{\\\"tag\\\":\\\"at\\\",\\\"user_id\\\":\\\"@_user_4\\\",\\\"user_name\\\":\\\"World\\\",\\\"style\\\":[]},{\\\"tag\\\":\\\"text\\\",\\\"text\\\":\\\"\\\",\\\"style\\\":[]}]]}\"\n        },\n        \"chat_default_name\": \"Falive PHP后端群\",\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1793370905318\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_a0c48d661b36b1e16bf0d89b4a3bb775\",\n            \"id_type\": \"open_id\",\n            \"key\": \"@_user_1\",\n            \"name\": \"Arthur.a\",\n            \"tenant_key\": \"164beab51542977c\"\n          },\n          {\n            \"id\": \"ou_0474e2a35ff1054cdbc0bb9d9d9c9766\",\n            \"id_type\": \"open_id\",\n            \"key\": \"@_user_2\",\n            \"name\": \"HQUCEncone\",\n            \"tenant_key\": \"144dc2a94988d77e\"\n          },\n          {\n            \"id\": \"ou_ac2fb8eacd2c5ea9231d605c49c8c881\",\n            \"id_type\": \"open_id\",\n            \"key\": \"@_user_3\",\n            \"name\": \"Kaiser\",\n            \"tenant_key\": \"164beab51542977c\"\n          },\n          {\n            \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n            \"id_type\": \"open_id\",\n            \"key\": \"@_user_4\",\n            \"name\": \"World\",\n            \"tenant_key\": \"164beab51542977c\"\n          }\n        ],\n        \"message_id\": \"om_x100b617eff5ea4a4ed04600bc21fcd8\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"post\",\n        \"parent_id\": \"om_x100b617ee26f9ca0ed09abb8bac648f\",\n        \"root_id\": \"om_x100b617ee26f9ca0ed09abb8bac648f\",\n        \"sender\": {\n          \"id\": \"ou_91861d6da6cf6822e08045ba1868241e\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19812203070f197c\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"1793370905540\",\n        \"updated\": true\n      }\n    ],\n    \"page_token\": \"\"\n  }\n}\n",
+  "apiStderr": "[page 1] fetching...\n",
+  "rendered": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"messages\": [\n      {\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"content\": \"![Image](img_v3_0216v_91843cae-335a-438d-ac4c-50f08c6a27hu)\\n@Arthur.a @HQUCEncone  cc @Kaiser @World\",\n        \"create_time\": \"2026-10-30 18:35\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_a0c48d661b36b1e16bf0d89b4a3bb775\",\n            \"key\": \"@_user_1\",\n            \"name\": \"Arthur.a\"\n          },\n          {\n            \"id\": \"ou_0474e2a35ff1054cdbc0bb9d9d9c9766\",\n            \"key\": \"@_user_2\",\n            \"name\": \"HQUCEncone\"\n          },\n          {\n            \"id\": \"ou_ac2fb8eacd2c5ea9231d605c49c8c881\",\n            \"key\": \"@_user_3\",\n            \"name\": \"Kaiser\"\n          },\n          {\n            \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n            \"key\": \"@_user_4\",\n            \"name\": \"World\"\n          }\n        ],\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026open_thread_id=omt_19812203070f197c\\u0026openchatid=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026openthreadid=omt_19812203070f197c\\u0026thread_position=0\",\n        \"message_id\": \"om_x100b617eff5ea4a4ed04600bc21fcd8\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"post\",\n        \"resources\": [\n          {\n            \"key\": \"img_v3_0216v_91843cae-335a-438d-ac4c-50f08c6a27hu\",\n            \"local_path\": \"lark-im-resources/img_v3_0216v_91843cae-335a-438d-ac4c-50f08c6a27hu.jpg\",\n            \"message_id\": \"om_x100b617eff5ea4a4ed04600bc21fcd8\",\n            \"size_bytes\": 473839,\n            \"type\": \"image\"\n          }\n        ],\n        \"sender\": {\n          \"id\": \"ou_91861d6da6cf6822e08045ba1868241e\",\n          \"id_type\": \"open_id\",\n          \"name\": \"Aven.tong\",\n          \"sender_i18n_names\": {\n            \"zh_cn\": \"Aven\"\n          },\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19812203070f197c\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"2026-10-30 18:35\",\n        \"updated\": true\n      }\n    ],\n    \"page_token\": \"\",\n    \"thread_id\": \"omt_19812203070f197c\",\n    \"total\": 1\n  },\n  \"meta\": {\n    \"pagination\": {\n      \"complete\": true,\n      \"pages\": 1,\n      \"items\": 1\n    }\n  }\n}\n",
+  "renderedStderr": ""
+}

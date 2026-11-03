@@ -1,0 +1,26 @@
+{
+  "token": "JTeIdsutKoGANExH5vgldy3Gg0p",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/JTeIdsutKoGANExH5vgldy3Gg0p",
+  "fetchedAt": "2026-11-03T12:17:09.243Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/JTeIdsutKoGANExH5vgldy3Gg0p",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"# 修改头像对接（完整内容）\\n\\n@Arthur 修改头像对接：通了 1 项，没通 2 项\\n\\n- ⚠️ 接了但还不能用 换头像：上传到 Go（选图 → 校验 → 上传 → 用新头像更新页面）：前端已按 10-23 的文档接好，这个功能是个人主页里的换头像，Web 由 aven 对接（原 henry）；但 pre 上 Go 的上传接口回 404，还没部署\\n- ⚠️ 接了但还不能用 换头像：结果不明时查处理状态：前端已接（用同一个 ID 有限次重查）；pre 上 Go 的查询接口同样回 404\\n- ✅ 通了 下线 php 旧头像接口（预设头像 / 上传审核）：Web 已不再调用 php 的头像上传、预设头像和审核状态接口，按文档只走 Go  \\n待确认的几点在这里：https://qfglxo2m3dc.sg.larksuite.com/docx/M9FXdcYCkoB9BBxib9LlzdVfgqc\\n- Arthur：请 Go 后端把 POST /api/auth/avatar/upload 和 GET /api/auth/avatar/requests/{request_id} 部署到 pre（12:00 复测仍 404），部署后在群里说一声，我们用测试号走一遍；前端拿不到 Go 的 HTTP 状态码，所有 code=-1 都先按原 request_id 查一次，再保留原 ID 和原文件给用户重试；如果 400 场景不该这样做，请说明（不阻塞）  \\n详细见：https://qfglxo2m3dc.sg.larksuite.com/docx/W6JTdIuLHomcPOxQIrqlOtq3g7f\",\n      \"document_id\": \"JTeIdsutKoGANExH5vgldy3Gg0p\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

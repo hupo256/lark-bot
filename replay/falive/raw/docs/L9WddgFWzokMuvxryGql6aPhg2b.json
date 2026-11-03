@@ -1,0 +1,26 @@
+{
+  "token": "L9WddgFWzokMuvxryGql6aPhg2b",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/L9WddgFWzokMuvxryGql6aPhg2b",
+  "fetchedAt": "2026-11-03T12:17:08.658Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/L9WddgFWzokMuvxryGql6aPhg2b",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>Bug-4988商城兑换复测-待确认-2026-10-26</title>\\n\\n# Bug-4988 商城兑换复测 — 待确认（2026-10-26）\\n\\n## HTStone（测试）\\n\\n- **要什么**：一个已绑定 FameEX、积分不少于 3000 的 pre 账号（或给现有账号 uid 19483 绑定 FameEX 并加积分）。\\n- **为什么**：前端流程是先查 `member/profile/my` 的 `hasFameExAccount`，未绑定就跳 FameEX 绑定页、不调兑换接口；只有绑定后才弹确认框并 `POST /api/mallRights/exchange/{id}`。\\n- **我方现状**：10-26 用你给的账号实测 `hasFameExAccount=false`、积分 40，所以点兑换只会跳转（截图里只有 `oneTimeToken/v2` 正是这一步），属预期；真正的兑换请求这次走不到。\\n- **建议**：给到账号后复测「确认框 → exchange 请求 → 成功提示 → 积分扣减」。前端问题找 adrian（任务中心负责人），兑换失败 / 积分没扣算后端。\",\n      \"document_id\": \"L9WddgFWzokMuvxryGql6aPhg2b\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

@@ -9,7 +9,8 @@
  */
 import { spawn } from 'node:child_process'
 import { appendFileSync, existsSync, readFileSync, readdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { AVEN_OPEN_ID, datasetDir, replayRoot } from './falive-data.mjs'
 
@@ -171,7 +172,7 @@ ${contextOf(m) || '（无）'}
 }
 
 const callJudge = async (prompt) => {
-  const child = spawn('claude', ['-p', '--permission-mode', 'plan', '--tools', '', '--model', 'claude-opus-5-5', '--effort', 'high', '--strict-mcp-config', '--setting-sources', 'project', '--no-session-persistence', '--json-schema', schema, '--output-format', 'json', prompt], { cwd: replayRoot, stdio: ['ignore', 'pipe', 'pipe'] })
+  const child = spawn(join(dirname(fileURLToPath(import.meta.url)), 'claude-q'), ['-p', '--permission-mode', 'plan', '--tools', '', '--model', 'claude-opus-5-5', '--effort', 'high', '--strict-mcp-config', '--setting-sources', 'project', '--no-session-persistence', '--json-schema', schema, '--output-format', 'json', prompt], { cwd: replayRoot, stdio: ['ignore', 'pipe', 'pipe'] })
   let out = ''
   let err = ''
   child.stdout.on('data', (c) => { out += c })

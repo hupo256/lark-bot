@@ -1,0 +1,46 @@
+{
+  "threadId": "omt_19a6ea927d8f5981",
+  "fetchedAt": "2026-11-03T12:22:02.297Z",
+  "ok": true,
+  "commands": [
+    [
+      "lark-cli",
+      "api",
+      "GET",
+      "/open-apis/im/v1/messages",
+      "--as",
+      "user",
+      "--params",
+      "{\"container_id_type\":\"thread\",\"container_id\":\"omt_19a6ea927d8f5981\",\"page_size\":50,\"sort_type\":\"ByCreateTimeAsc\"}",
+      "--page-all",
+      "--page-limit",
+      "0",
+      "--format",
+      "json"
+    ],
+    [
+      "lark-cli",
+      "im",
+      "+threads-messages-list",
+      "--as",
+      "user",
+      "--thread",
+      "omt_19a6ea927d8f5981",
+      "--order",
+      "asc",
+      "--page-size",
+      "50",
+      "--page-all",
+      "--page-limit",
+      "100",
+      "--no-reactions",
+      "--download-resources",
+      "--format",
+      "json"
+    ]
+  ],
+  "api": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"items\": [\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"稍后哈，我整理一下\\\"}\"\n        },\n        \"chat_default_name\": \"Falive产研技术沟通群\",\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1791189641826\",\n        \"deleted\": false,\n        \"message_id\": \"om_x100b63026651d0a8e2deaf559ec5a49\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b63026b7834a4e2df7a5b0dd1516\",\n        \"root_id\": \"om_x100b63026b7834a4e2df7a5b0dd1516\",\n        \"sender\": {\n          \"id\": \"ou_91861d6da6cf6822e08045ba1868241e\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19a6ea927d8f5981\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"1791189641826\",\n        \"updated\": false\n      }\n    ],\n    \"page_token\": \"\"\n  }\n}\n",
+  "apiStderr": "[page 1] fetching...\n",
+  "rendered": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"messages\": [\n      {\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"content\": \"稍后哈，我整理一下\",\n        \"create_time\": \"2026-10-05 12:40\",\n        \"deleted\": false,\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_40621901e1583e623f6133e8c66d352e\\u0026open_thread_id=omt_19a6ea927d8f5981\\u0026openchatid=oc_40621901e1583e623f6133e8c66d352e\\u0026openthreadid=omt_19a6ea927d8f5981\\u0026thread_position=0\",\n        \"message_id\": \"om_x100b63026651d0a8e2deaf559ec5a49\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_91861d6da6cf6822e08045ba1868241e\",\n          \"id_type\": \"open_id\",\n          \"name\": \"Aven.tong\",\n          \"sender_i18n_names\": {\n            \"zh_cn\": \"Aven\"\n          },\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19a6ea927d8f5981\",\n        \"thread_message_position\": \"0\",\n        \"updated\": false\n      }\n    ],\n    \"page_token\": \"\",\n    \"thread_id\": \"omt_19a6ea927d8f5981\",\n    \"total\": 1\n  },\n  \"meta\": {\n    \"pagination\": {\n      \"complete\": true,\n      \"pages\": 1,\n      \"items\": 1\n    }\n  }\n}\n",
+  "renderedStderr": ""
+}

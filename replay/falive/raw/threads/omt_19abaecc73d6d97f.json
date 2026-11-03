@@ -1,0 +1,46 @@
+{
+  "threadId": "omt_19abaecc73d6d97f",
+  "fetchedAt": "2026-11-03T12:22:37.806Z",
+  "ok": true,
+  "commands": [
+    [
+      "lark-cli",
+      "api",
+      "GET",
+      "/open-apis/im/v1/messages",
+      "--as",
+      "user",
+      "--params",
+      "{\"container_id_type\":\"thread\",\"container_id\":\"omt_19abaecc73d6d97f\",\"page_size\":50,\"sort_type\":\"ByCreateTimeAsc\"}",
+      "--page-all",
+      "--page-limit",
+      "0",
+      "--format",
+      "json"
+    ],
+    [
+      "lark-cli",
+      "im",
+      "+threads-messages-list",
+      "--as",
+      "user",
+      "--thread",
+      "omt_19abaecc73d6d97f",
+      "--order",
+      "asc",
+      "--page-size",
+      "50",
+      "--page-all",
+      "--page-limit",
+      "100",
+      "--no-reactions",
+      "--download-resources",
+      "--format",
+      "json"
+    ]
+  ],
+  "api": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"items\": [\n      {\n        \"body\": {\n          \"content\": \"{\\\"image_key\\\":\\\"img_v3_0216e_66846dde-c205-4ff0-95ff-e17c2d636bhu\\\"}\"\n        },\n        \"chat_default_name\": \"Falive PHP后端群\",\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1791896141303\",\n        \"deleted\": false,\n        \"message_id\": \"om_x100b63d6ea039ca4ffe267e6c052459\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"image\",\n        \"parent_id\": \"om_x100b63d62e98d13ced3764d9e7b72c3\",\n        \"root_id\": \"om_x100b63d62e98d13ced3764d9e7b72c3\",\n        \"sender\": {\n          \"id\": \"ou_2211e110d70b3dd5f5150d6f0cf8fe23\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19abaecc73d6d97f\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"1791896141303\",\n        \"updated\": false\n      }\n    ],\n    \"page_token\": \"\"\n  }\n}\n",
+  "apiStderr": "[page 1] fetching...\n",
+  "rendered": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"messages\": [\n      {\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"content\": \"[Image: img_v3_0216e_66846dde-c205-4ff0-95ff-e17c2d636bhu]\",\n        \"create_time\": \"2026-10-13 16:55\",\n        \"deleted\": false,\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026open_thread_id=omt_19abaecc73d6d97f\\u0026openchatid=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026openthreadid=omt_19abaecc73d6d97f\\u0026thread_position=0\",\n        \"message_id\": \"om_x100b63d6ea039ca4ffe267e6c052459\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"image\",\n        \"resources\": [\n          {\n            \"key\": \"img_v3_0216e_66846dde-c205-4ff0-95ff-e17c2d636bhu\",\n            \"local_path\": \"lark-im-resources/img_v3_0216e_66846dde-c205-4ff0-95ff-e17c2d636bhu.jpg\",\n            \"message_id\": \"om_x100b63d6ea039ca4ffe267e6c052459\",\n            \"size_bytes\": 36369,\n            \"type\": \"image\"\n          }\n        ],\n        \"sender\": {\n          \"id\": \"ou_2211e110d70b3dd5f5150d6f0cf8fe23\",\n          \"id_type\": \"open_id\",\n          \"name\": \"Eddie\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19abaecc73d6d97f\",\n        \"thread_message_position\": \"0\",\n        \"updated\": false\n      }\n    ],\n    \"page_token\": \"\",\n    \"thread_id\": \"omt_19abaecc73d6d97f\",\n    \"total\": 1\n  },\n  \"meta\": {\n    \"pagination\": {\n      \"complete\": true,\n      \"pages\": 1,\n      \"items\": 1\n    }\n  }\n}\n",
+  "renderedStderr": ""
+}

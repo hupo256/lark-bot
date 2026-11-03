@@ -1,0 +1,26 @@
+{
+  "token": "Zf19db7LDoLBzTxcZDulVJdagTc",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/Zf19db7LDoLBzTxcZDulVJdagTc",
+  "fetchedAt": "2026-11-03T12:17:21.145Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/Zf19db7LDoLBzTxcZDulVJdagTc",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"# aven 把 Kaiser 在话题里补充的信息转给 bot，让 bot 结合起来看 OL falive.com/hc/tasks 任务中心新手任务的问题（完整内容）\\n\\n@Arthur 「aven 把 Kaiser 在话题里补充的信息转给 bot，让 bot 结合起来看 OL falive.com/hc/tasks 任务中心新手任务的问题」这边卡住了，需要你们帮忙：\\n\\n- 拿不到 online 接口实际返回：要 Kaiser 账号 `GET /go-api/api/points/task/list` 里「社区帖子评论」「完善资料」两条的 id / taskType / taskCode / taskStatus / finishTime，还有那次评论 `POST /bbsv2/post/create` 的返回（pid、pending）和时间。截图看不出 taskType，没法确定「社区帖子评论」是 DISCUZ 还是 SQUARE_POST_REPLY_COMMENT。\\n- 「社区帖子评论」（DISCUZ，PRD N008）按后端契约由社区服务端回调 Go `/api/discuz/callback/complete_task` 完成，前端只刷新。要社区后端和 Go（Arthur）确认 online 回调已部署并查这次的日志，前端没有能补的地方。\\n- 「完善资料（头像+昵称）」（COMPLETE_PROFILE）没有任何完成触发契约：不在 Go 的 16 项前端申报清单里，falive 改资料走 php `updateInfo`，Go 收不到。要 Go 和产品决定是 Go 侧侦测资料完成后自动完成，还是开放前端在改资料成功后调 `points/task/complete`，前端不能自己决定。\",\n      \"document_id\": \"Zf19db7LDoLBzTxcZDulVJdagTc\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

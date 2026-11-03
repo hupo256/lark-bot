@@ -1,0 +1,26 @@
+{
+  "token": "I7vqd3t7yovkWtxkx7xl72blgbh",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/I7vqd3t7yovkWtxkx7xl72blgbh",
+  "fetchedAt": "2026-11-03T12:17:19.250Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/I7vqd3t7yovkWtxkx7xl72blgbh",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"# uat /hc-ws 行情推送复测（完整内容）\\n\\n@Ache uat /hc-ws 行情推送复测\\n\\n- ⚠️ 接了但还不能用 uat /hc-ws 握手：运维已加转发但没配对：/hc-ws 回 301 跳 /hc-ws/（浏览器 WebSocket 不跟跳转），/hc-ws/ 再被 Cloudflare 回 409；hichat 上游直连和 pre 都是 101，要运维照 pre 配置改  \\n待确认的几点在这里：https://qfglxo2m3dc.sg.larksuite.com/docx/XKrcd0Lv7oSKaRxGYVvlxIT7gy6\\n- Ache：uat 的 /hc-ws 不要 301 跳到 /hc-ws/，不带斜杠也要直接转发；转到 uat-hailiao.hai-liao-uat.com 的 /ws/im/echo 时，上游 Host 和 SNI 要设成 hichat 域名（现在被 Cloudflare 回 409），照 pre 的配置抄  \\n详细见：https://qfglxo2m3dc.sg.larksuite.com/docx/JKnvdKXEXo5b5OxVg00l80IzgVi\",\n      \"document_id\": \"I7vqd3t7yovkWtxkx7xl72blgbh\",\n      \"revision_id\": 4\n    }\n  }\n}\n",
+  "stderr": ""
+}

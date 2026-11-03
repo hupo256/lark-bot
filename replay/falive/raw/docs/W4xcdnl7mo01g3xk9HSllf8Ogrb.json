@@ -1,0 +1,26 @@
+{
+  "token": "W4xcdnl7mo01g3xk9HSllf8Ogrb",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/W4xcdnl7mo01g3xk9HSllf8Ogrb",
+  "fetchedAt": "2026-11-03T12:17:02.900Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/W4xcdnl7mo01g3xk9HSllf8Ogrb",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"# aven-后端待办-复测反馈-2026-10-15\\n\\n【aven · live 后端回复复测】2026-10-15 17:20–17:30（+04）\\n\\n针对《aven-后端待办-缺接口缺数据报错-2026-10-15-回复》，在 pre 逐条复测。  \\n测试号：aven-pretest@probe.test，**uid 508**（以后 pre 测试都用它）。\\n\\n━━━━━━━━━━━━━━━━  \\n一、新报错（阻塞，请先看）  \\n━━━━━━━━━━━━━━━━\\n\\nR1 · ~~预约链路全部报错（live-3·1 / LN7 / LN6）~~**21:5x 复测已恢复并通过**：uid 508 预约 1194 → is_reserve=1，再调 → 0；游客翻 1 / 2 / 3 页 current_page 正确（LN7 ✓）；封面 / 头像全是完整地址（LN6 ✓）。原文：  \\n· 下面这些接口，游客和登录（uid 508）都一样，回 -1：  \\n`TUserReserve::getUserReserveByUid(): Argument #1 ($uid) must be of type int, string given`（ALiveReserve.php:52）\\n\\n- front/upcoming、preload/upcoming（任何 page / limit）\\n- POST live/reserveMatch（live_id 1205、1221）\\n- li_stre/getReserveLiveList?uid=428（uid 431、260 正常，回空）  \\n· 影响：/upcoming 页、首页和直播间「直播推荐」、预约按钮、直播间「直播预告」全部没数据  \\n· LN7 翻页、LN6 封面 / 头像因此还测不了，修好后一起复测\\n\\n━━━━━━━━━━━━━━━━  \\n二、要补数据（给 UID / 参数即可）  \\n━━━━━━━━━━━━━━━━\\n\\nR2 · ~~L4 送礼：请给~~ **~~uid 508~~** ~~加钻石~~**21:5x 已到账 10000**，送礼复测通过（gift_id 1 → 房间 128，code 0，余额 10000 → 9991）\\n\\nR3 · ~~LN1 热门主播（#26）~~**23:1x（+8） 复测已修**：type=1&side=10 回 total=8，首页 6 条（uid 426–431）。原文：前端已按你们的口径改成 type=1，side 照 x9 直播频道用 10  \\n· pre 上 type=1&side=10 现在 0 条（type=1 不带 side 也是 0 条）  \\n· 请按 type=1&side=10 灌几条；如果 side 不是 10，回个数就行\\n\\nR4 · ~~LN1 主播头像~~**23:1x（+8） 复测已修**：type=1&side=10、type=2&side=4 的 user.avatar 都是 [https://falivepre.fdsser.com/upload/default/avatar.png](https://falivepre.fdsser.com/upload/default/avatar.png)，打开 200。原文：anchor/sort 的 user.avatar 回的是相对路径 `/avatar.png`  \\n· 前端域名 falivepre.fdsser.com/avatar.png → 404  \\n· 请回完整地址（和其它接口一样用 [https://falivepre.fdsser.com/upload/](https://falivepre.fdsser.com/upload/)...）\\n\\nR6 · upcoming 每条重复（21:5x 新增，**23:1x（+8） 复测未修，变成重复 4 次**）：`front/upcoming` / `preload/upcominglimit=100` 回 `total=112`（= 28 × 4）、本页 100 行只有 25 个 `live_id`，每个连续出现 4 次（1194×4、1195×4…），重复行字段完全一样；`limit=10` 时 `last_page=12`，第 1 页只有 3 个节目，第 2 页从 1196 的后两条接着来。21:5x 时是 56 行 / 28 个（重复 2 次）。根因在接口，前端不去重（去重会让每页条数和分页都不对），请接口侧去重\\n\\nR5 · ~~L23 标签~~**23:1x（+8） 复测已修**：字典换成 区块链(39) / BTC(40) / ETH(41) / 合约(42)；front/lives 24 个房间里有标签的每间挂 1 个、名称和字典一致、分布在不同房间，切 tab 能看出过滤。下面「热门 / 足球…」「PRE-tag-热门」的描述作废。原文：字典有了（热门 / 足球 / 篮球 / 电竞）  \\n· 但 6 个房间都同时挂了 1 / 2 / 3，所以筛 1 / 2 / 3 结果完全一样，电竞 0 条，切 tab 看不出过滤效果  \\n· 房间上的标签名是「PRE-tag-热门」，字典里是「热门」  \\n· 请给不同房间挂不同标签，名称和字典保持一致\\n\\n━━━━━━━━━━━━━━━━  \\n三、已复测通过  \\n━━━━━━━━━━━━━━━━\\n\\n· LN4 新闻详情：不带访客头，headlinesGetInfo id 1 / 2 / 20 都回 code 0；pre 站 /news/16 的 SSR 标题已经是新闻标题  \\n· LN9 搜索新闻：搜「PRE-」回 9 条，全是中文，和新闻列表一致  \\n· LN2 新闻：zh-CN 9 条、3 个分类，按分类 17 / 18 过滤各 4 条  \\n· L25 排行榜：260、128 的贡献榜周 / 月各 8 条，话痨榜日 / 周各 8 条；前端解析通过  \\n· LN1 首页推荐：type=2&side=4 回 8 条（platform 1 / 2 各一套）；头像问题见 R4  \\n· robotManualList：17:20 一度回 -1「tags 值只支持一维 LIST 数组」（CFront.php:454），17:27 已恢复 16 条，不用再看\\n\\n━━━━━━━━━━━━━━━━  \\n四、仍等运维 / 运营（17:2x 复测，无变化）  \\n━━━━━━━━━━━━━━━━\\n\\n· live-3·8 / O11：260 仍是 islive=1，pull flv 404，没有持续推流的房间  \\n· LN3：uid 83 / 87 / 140 / 144 播放源没变，还是坏的  \\n· live-3·4：getHot 的 webDownloadPageLinkList 仍是 []\\n\\n有问题按 R 编号回即可。\",\n      \"document_id\": \"W4xcdnl7mo01g3xk9HSllf8Ogrb\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

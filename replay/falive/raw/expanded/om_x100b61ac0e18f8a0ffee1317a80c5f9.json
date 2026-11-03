@@ -1,0 +1,20 @@
+{
+  "messageId": "om_x100b61ac0e18f8a0ffee1317a80c5f9",
+  "fetchedAt": "2026-11-03T12:18:44.015Z",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "im",
+    "+messages-mget",
+    "--as",
+    "user",
+    "--message-ids",
+    "om_x100b61ac0e18f8a0ffee1317a80c5f9",
+    "--no-reactions",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"messages\": [\n      {\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"content\": \"@HQUCEncone 目前登入異常，原本能登入的帳號目前都外部調用失敗\\n![Image](img_v3_02173_06910fd0-0928-4d0d-bb19-91c2448551hu)\",\n        \"create_time\": \"2026-11-03 10:49\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_0474e2a35ff1054cdbc0bb9d9d9c9766\",\n            \"key\": \"@_user_1\",\n            \"name\": \"HQUCEncone\"\n          }\n        ],\n        \"message_app_link\": \"https://applink.larksuite.com/client/chat/open?openChatId=oc_40621901e1583e623f6133e8c66d352e\\u0026position=766\",\n        \"message_id\": \"om_x100b61ac0e18f8a0ffee1317a80c5f9\",\n        \"message_position\": \"766\",\n        \"msg_type\": \"post\",\n        \"sender\": {\n          \"id\": \"ou_76eea7f1089ccfb66678300fe4bc4a40\",\n          \"id_type\": \"open_id\",\n          \"name\": \"HTStone.z\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"149af6980f06577c\"\n        },\n        \"update_time\": \"2026-11-03 10:49\",\n        \"updated\": true\n      }\n    ],\n    \"total\": 1\n  }\n}\n",
+  "stderr": ""
+}

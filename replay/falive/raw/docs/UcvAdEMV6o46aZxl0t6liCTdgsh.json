@@ -1,0 +1,26 @@
+{
+  "token": "UcvAdEMV6o46aZxl0t6liCTdgsh",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/UcvAdEMV6o46aZxl0t6liCTdgsh",
+  "fetchedAt": "2026-11-03T12:17:21.488Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/UcvAdEMV6o46aZxl0t6liCTdgsh",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>Kaiser 报 OL（falive.com/hc/tasks）注册/登录弹窗里提示「Google 登录组件加载失败」（完整内容）</title>\\n\\n这句提示是浏览器没加载到 Google 官方登录脚本（accounts.google.com），不是 falive 配置问题：刚实测 online 的 client_id、Google 授权来源都已就绪，我们这边能正常打开。pre/uat 之前也没为这句改过配置，是当时那台电脑的网络连不上 Google；麻烦 Kaiser 开代理或换能上 Google 的网络、关掉广告拦截插件后刷新再试，还不行把控制台 gsi/client 请求截图发我。\\n\\n# OL 登录弹窗「Google 登录组件加载失败」排查（10-31）\\n\\n## 这句提示什么时候出现\\n\\n前端只在一种情况下显示这句：浏览器去加载 Google 官方登录脚本 `https://accounts.google.com/gsi/client` 失败（脚本没下载下来，或下载了但里面没有 Google 登录对象）。\\n\\n- 如果是 client_id 或「授权来源」没配好，Google 按钮本身会报错（403 / origin mismatch），不会是这句话。\\n- 所以出现这句，说明当时那台电脑的浏览器连不上 accounts.google.com。\\n\\n## 10-31 实测 online（www.falive.com）\\n\\n| 检查项 | 结果 |\\n|-|-|\\n| `https://www.falive.com/hc/tasks` 响应头 | 200，没有 Content-Security-Policy，不会拦 Google 脚本 |\\n| online 前端包 | `assets/index-BqkX4KVN.js` 里已带 Google client_id `936185625672-…` |\\n| `accounts.google.com/gsi/client` | 我们这边 200，约 283KB，能正常下载 |\\n| Google 按钮接口，来源 `https://www.falive.com` | 200（已在授权来源里；10-29 当时还是 403，现在已补上） |\\n| Google 按钮接口，来源 `https://faliveuat.fdsser.com` | 200 |\\n| 对照：来源 `https://example.org` | 403（说明上面的 200 是真的在名单里） |\\n\\n## pre / uat 之前\\n\\n仓库和对接记录里没有为这句提示改过代码或配置。之前 uat 的 Google 相关问题是另一件事：授权来源缺 `www.falive.com`，后端已补，10-30 已结。这句「组件加载失败」是浏览器所在网络连不上 Google，换网络就好了。\\n\\n## 建议 Kaiser 这样试\\n\\n1. 在同一个浏览器里直接打开 `https://accounts.google.com/gsi/client`，看能不能打开（打不开就是网络连不上 Google，要开代理或换网络）。\\n2. 关掉广告拦截 / 隐私插件（有的会拦 accounts.google.com），或用无痕窗口再试。\\n3. 刷新页面重新打开登录弹窗（脚本加载失败后，下次打开弹窗会重新加载）。\\n4. 如果第 1 步能打开但弹窗还是报这句，把 F12 → Network 里 `gsi/client` 那条请求的状态截图发出来，再继续查。\",\n      \"document_id\": \"UcvAdEMV6o46aZxl0t6liCTdgsh\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

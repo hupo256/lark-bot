@@ -1,0 +1,26 @@
+{
+  "token": "FOyhdaMCAojAGIxuK5TlbXgQgqb",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/FOyhdaMCAojAGIxuK5TlbXgQgqb",
+  "fetchedAt": "2026-11-03T12:17:11.055Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/FOyhdaMCAojAGIxuK5TlbXgQgqb",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>Arthur（账号后端）问 bot 在 14（细节）</title>\\n\\n# 修改头像上传 503：复现 curl 与报错\\n\\n> 14:44 那条群消息说「见文档」但链接漏发了，这份就是当时整理的内容。以下结果是 10-26 18:30（+8）前后实测的。\\n\\n## 结论\\n\\n测试号 uid 508 带有效 token 上传 PNG，网关和直连 Go 都回 **HTTP 503**，`{\\\"code\\\":-1,\\\"msg\\\":\\\"Internal server error\\\",\\\"data\\\":[]}`。用同一个 request_id 查状态回「头像修改记录不存在」，说明请求没有落库。不带 token 回「未授权」、无效 token 回 -700，所以路由和鉴权都已生效，问题出在通过鉴权之后的处理。\\n\\n## 测试账号\\n\\n- 邮箱：aven-pretest@probe.test\\n- 密码：Probe12345\\n- uid：508\\n\\n## 复现步骤（curl）\\n\\n### 1. 登录拿 token\\n\\n```bash\\nTOKEN=$(curl -s -X POST 'https://falivepre.fdsser.com/go-api/api/auth/login' \\\\\\n  -H 'Content-Type: application/json' \\\\\\n  -d '{\\\"username\\\":\\\"aven-pretest@probe.test\\\",\\\"password\\\":\\\"Probe12345\\\",\\\"platform_code\\\":\\\"hichat\\\",\\\"device_type\\\":\\\"pc\\\"}' \\\\\\n  | jq -r .data.token)\\necho \\\"$TOKEN\\\"\\n```\\n\\n返回：HTTP 200，`code: 0`，`data.token` 有值。\\n\\n### 2. 上传头像（网关）\\n\\n准备一张普通 PNG（我们用的是 32×32 / 64×64，几百字节，远低于 5 MiB 和 4096 像素的上限）：\\n\\n```bash\\nREQ_ID=$(uuidgen | tr 'A-Z' 'a-z')\\ncurl -i -X POST 'https://falivepre.fdsser.com/go-api/api/auth/avatar/upload' \\\\\\n  -H \\\"Authorization: hiApp $TOKEN\\\" \\\\\\n  -H \\\"X-Request-ID: avatar-curl-$(date +%s)\\\" \\\\\\n  -F \\\"request_id=$REQ_ID\\\" \\\\\\n  -F 'file=@avatar.png;type=image/png'\\n```\\n\\n表单只有 `request_id` 和 `file` 两个字段，和文档 3.1 一致；Web 页面发的也是这个格式（`Authorization: hiApp <token>`，hiApp 后面一个空格，multipart 的 boundary 由浏览器自动加）。\\n\\n返回（原文）：\\n\\n```\\nHTTP/1.1 503 Service Unavailable\\n{\\\"code\\\":-1,\\\"msg\\\":\\\"Internal server error\\\",\\\"data\\\":[],\\\"sec\\\":\\\"kB9WH5b4gdV7W1C/ukUkhg==\\\"}\\n```\\n\\n### 3. 上传头像（直连 Go，绕开网关）\\n\\n```bash\\ncurl -i -X POST 'http://falivego.fdsser.com/api/auth/avatar/upload' \\\\\\n  -H \\\"Authorization: hiApp $TOKEN\\\" \\\\\\n  -H \\\"X-Request-ID: avatar-curl-$(date +%s)\\\" \\\\\\n  -F \\\"request_id=$(uuidgen | tr 'A-Z' 'a-z')\\\" \\\\\\n  -F 'file=@avatar.png;type=image/png'\\n```\\n\\n返回：和网关完全一样，HTTP 503，`{\\\"code\\\":-1,\\\"msg\\\":\\\"Internal server error\\\",\\\"data\\\":[]}`。\\n\\n### 4. 用同一个 request_id 查状态\\n\\n```bash\\ncurl -s \\\"https://falivepre.fdsser.com/go-api/api/auth/avatar/requests/$REQ_ID\\\" \\\\\\n  -H \\\"Authorization: hiApp $TOKEN\\\"\\n```\\n\\n返回：HTTP 200，`{\\\"code\\\":-1,\\\"msg\\\":\\\"头像修改记录不存在\\\",\\\"data\\\":[]}`。\\n\\n## 测试时间（方便查日志）\\n\\n| 时间（+8） | 时间（UTC） | 地址 | 结果 |\\n|-|-|-|-|\\n| 10-26 18:30 之前几分钟，连续 3 次（具体秒数没记） | 10:30 之前 | 网关 | 都是 503：新 ID、同 ID 同文件、同 ID 换文件 |\\n| 10-26 18:30:58 | 10:30:58 | 网关 `falivepre.fdsser.com/go-api` | 503，带了 `X-Request-ID: avatar-probe-<毫秒时间戳>` |\\n| 10-26 18:31:03 | 10:31:03 | 直连 `falivego.fdsser.com` | 503，带了 `X-Request-ID: avatar-probe-<毫秒时间戳>` |\\n\\n日志里可以按 uid 508 加上面的时间去找；这几次请求的 request_id 当时没有单独记下来。\\n\\n## 其它情况\\n\\n| 场景 | 返回 |\\n|-|-|\\n| 不带 token 上传 | code -700「未授权」 |\\n| 带无效 token 上传 | HTTP 200，code -700「Token 无效」 |\\n| 查一个不存在的 request_id | HTTP 200，code -1「头像修改记录不存在」 |\\n| 上传前后查 `GET /api/auth/profile` | avatar 都是 `/upload/default_avatar/64bb1a161e15dc3344648bb72fa13897.jpg`，没变 |\\n\\n10-26 18:43（+8）又复核了一次（只读：登录、查状态、查资料）：登录 code 0，查状态仍回「头像修改记录不存在」，测试号头像还是默认图。\\n\\n## 想请后端确认\\n\\n文档第 5 节说 503 可能是三种原因：上传存储没配、三端功能开关没开、并发满了。麻烦按上面的时间查一下是哪一种。修好后在群里说一声，我们用测试号把文档第 6 节的验收项走一遍。\",\n      \"document_id\": \"FOyhdaMCAojAGIxuK5TlbXgQgqb\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

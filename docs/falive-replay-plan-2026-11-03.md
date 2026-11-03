@@ -1,5 +1,7 @@
 # falive 实战数据回放 lark-bot（立于 2026-11-03）
 
+> **位置（11-03 起）**：本文件、回放脚本 `scripts/sim/`、case 数据 `replay/falive/`（原始拉取 raw/、dataset/、case 清单 cases.md、每轮裁判 rounds/）都在 lark-bot 仓库里跟版本走；下文早期条目里的 `runtime/falive-replay/raw|dataset` 即现在的 `replay/falive/raw|dataset`，回放产物（sim/、l1/）仍在 `runtime/falive-replay/`。
+
 > 一句话：这两天的升级（上下文分层 11-01、对话层重建 11-02）没经过实战。拿 falive bot 10-20 → 11-02 的真实运行数据，
 > 在 lark-bot 现在的代码上**先跑基线、再修、再跑**，差异清单驱动迭代；静态 review 并行，但它的发现只进同一张清单，不单独改码。
 > 范围：只做主链「消息进来 → 分类 / 接话 → 执行 → 回复」；bug 表轮询、邮件转评分、每日报告不回放（aven 11-03）。预算不限。
@@ -165,4 +167,18 @@
    - 已缓存（aven 身份只读）：云文档 / 知识库 119 个、bug 记录 149 条（+15 张截图）、话题 204 个、补拉附件 2 份（4 份一直 400 拉不到）。离线重放缺口 23 → 0。
    - 缓存是「现在」的版本，会泄露未来信息（10-21 读到的 Bug-4905 已是 10-28 复验通过的状态）——子代理在做按当时版本钉住（文档修订、bug 字段历史）。
    新数据集上 L1 两版（v2-base = 运行分支代码、v2-final = 集成分支）并行在跑。之前所有 L1 / L2 结论都是在「没图、缺话题回复」下得出的，只作参考。
+38. **12:56 完整确认 r7 起跑（aven：「用最新的 lark-bot 跑 falive 的所有 case，不用纠结版本，读全上下文」）**：停掉版本钉住与 AI 缓存两个子代理（只跑一次用不上缓存；缓存脚本未入库、run-sim 里改成 --ai-cache 才加载）、停掉基线 L1。r7 = 集成分支 lark/falive-fix4（1fbc855），10-20 → 11-02 整条时间线一个 sim、按天重钉业务仓基线、不切段；上下文：话题回复已并进时间线（4152 条，@bot 190）、附件绝对路径 + 补拉、云文档 / bug 记录按缓存供数（现在的版本）、bug 表占位配置。喂事件改成事件驱动的真实节奏（忙时虚拟时间按真实速度走、到点就喂，空闲直接跳）——冒烟 31 条 10 分钟、附件 6/6、读取缺口 0。跑完自动 judge-sim --all（/tmp/r7-finish.sh）。
 
+39. **13:05 r7 串行太慢 → r8 分段并行（aven：「注意任务并行，现在这个太慢了，后面可能还会多轮迭代」）**：r7 停掉（只跑了 4 分钟）。r8 = 同一代码（lark/falive-fix4 + 回放脚本 fb54001），`bash scripts/sim/run-round.sh r8 3180`：
+   时间线 **10-14 → 11-03**（原来漏了 10-14～10-19 的 41 条 @bot）切 8 段并行，每段先热身前一个工作日（bot 照常干活，留下跨天的任务 / 义务 / 发件，裁判 `--score-from` 不计分），
+   跨天接续统计：14>15、15>16、17>19、21>22 都只隔一个工作日，热身接得住；21>28、22>27 这种隔周的少（6 条），靠话题历史供数。不触发 bot 的消息喂完只等 0.2 秒（网关直接丢，只进上下文）。
+   每段跑完自动裁判；`node scripts/sim/round-report.mjs --round r8 --issues` 出进度 + 总账。同时两个子代理修已知小尾巴：fix17 续跑（rerun_after_done）刷新 priorConclusion、fix18 归并先于「收到」导致 worker 不知道群里已回过一句（核实：d2e3e9f 已修，flushPendingAck 按 supersededBy 写到目标，五种归并模式端到端都对，撤销）。
+40. **13:30 r8 → r9：代码换成真正最新**（aven 问「现在是在用最新的 lark-bot 跑全量吗」——核对发现 fix4 少了运行分支今天的两个提交 1cc516e 令牌缓存、3e7e539 关单撤「收到」）。新集成分支 lark/falive-latest（worktree ~/github/lark-bot-latest）= fix4 + fameex-stable + fix17。
+   合并时测试抓到 3e7e539 与并入流程的冲突：它把 superseded 一律当关单撤「收到」，而 routes 是先 mergeIntoTask（来源落 superseded + supersededBy）再 flush——**线上追问 / 补充被并入后发问的人一句都收不到**（线上日志尚未触发）。
+   热修 c331067（只认 closureReason / ignored / 没有承接方的 superseded 为关单）已直接合进 fameex-stable（全量 637 绿、变异 6 抓 6，排空重启上线）。r8 停掉，r9 用 latest 起跑：`bash scripts/sim/run-round.sh r9 3190`。
+41. **14:44 r9 撞 Claude 额度（「session limit · resets 6:40pm」）**：8 段并行约 1 小时用完 5 小时窗口，之后分类 / 执行全失败（r9 各段 intake_failed 一片），r9 作废停掉。线上 bot 与回放共用一个账号（这次线上没撞上）。
+   结论：一轮的快慢卡在额度上，不在机器；并行段数再多也快不了。改法：`scripts/sim/claude-q`（claude-quota.mjs）额度闸——撞限额写 runtime/falive-replay/quota-pause.json（到重置 + 1 分钟），
+   各 sim 冻住虚拟时钟、不喂消息，本次调用到点重试，不把假失败交给 lark-bot；lark-bot 的真实时间超时在 sim 里放大，原超时（无输出 600s、分类 120s、执行 1800s）由闸按真实耗时执行。judge-sim 也走闸。run-round 同时最多 5 段（MAX_PARALLEL），给线上留额度。
+42. **aven：「case 与回放脚本、计划和进度都放到 lark-bot 下相应的目录，且要跟踪版本」**：case 数据从 runtime/falive-replay/{raw,dataset}（gitignore）搬到仓库 `replay/falive/`（144M，含 441 份附件；附件路径改存相对 raw/ 的，`resolveRaw` 拼回；dry 验证 442/442 都在），
+   新增 `replay/falive/cases.{jsonl,md}`（285 条 case 清单，`list-cases.mjs` 生成）与 README；本计划从 lark-bot-conv 搬到 `docs/`（conv 里的留指针）；每轮裁判 + 总账跑完拷进 `replay/falive/rounds/<轮>/`；回放产物仍在 runtime。
+   原来没入库的 claude-cache / context-versions 脚本一并入库（--ai-cache 才用，未在整轮里验证过）。分支 lark/falive-latest（worktree ~/github/lark-bot-latest），随集成分支合进 fameex-stable。

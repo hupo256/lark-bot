@@ -1,0 +1,26 @@
+{
+  "token": "F3U5d7edro6JuNx4YbVlafp0gUf",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/F3U5d7edro6JuNx4YbVlafp0gUf",
+  "fetchedAt": "2026-11-03T12:17:07.396Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/F3U5d7edro6JuNx4YbVlafp0gUf",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>Bug-4942 简介转义（细节）</title>\\n\\n# Bug-4942 简介转义核对（2026-10-24）\\n\\n## 结论\\n\\n后端 Member/info 返回的 signature 仍是转义后的值，Web 显示正常，前端不用改。\\n\\n## 证据\\n\\n- 用户在 Web 上看到的：pre 个人主页（测试号 uid 508）简介显示 `I'm QA.`。\\n- API 实际返回：`GET /api/Member/info` code 0，`\\\"signature\\\": \\\"I&#039;m QA.\\\"`（原文，单引号 `'` 被 htmlspecialchars 转成了 `&#039;`）。\\n- 契约期望：存什么就读回什么，即 `I'm QA.`。\\n- 为什么 William 看到两句一样：Lark 消息会把 `&#039;` 显示成 `'`，所以 bot 之前那条消息里的「I&#039;m QA.」在群里看起来就是「I'm QA.」。在浏览器 Network 面板或 Postman 里看原始响应就能确认。\\n\\n## 影响\\n\\n- Web 端：显示前已经还原，不受影响。\\n- 其他直接用这个字段、但没有还原的端（比如 App），会把 `&#039;` 原样显示出来；按长度算字数时，带引号或 & 的简介也会被多算。\\n\\n## 需要后端处理\\n\\n两种做法选一个：\\n\\n1. Member/info 和 updateInfo 改成存、返原文；\\n2. 和产品确认保留转义，由各端自己还原。\\n\\n定下来以后就可以关掉 Bug-4942。\",\n      \"document_id\": \"F3U5d7edro6JuNx4YbVlafp0gUf\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

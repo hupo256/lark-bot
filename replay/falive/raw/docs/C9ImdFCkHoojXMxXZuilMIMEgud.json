@@ -1,0 +1,26 @@
+{
+  "token": "C9ImdFCkHoojXMxXZuilMIMEgud",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/C9ImdFCkHoojXMxXZuilMIMEgud",
+  "fetchedAt": "2026-11-03T12:17:18.392Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/C9ImdFCkHoojXMxXZuilMIMEgud",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"# uat / OL 的 Google 登录授权来源（完整内容）\\n\\n@William @William 感谢！我直接问 Google 核对过了：uat 已经可以用；OL 只加了 falive.com，但网站实际在 [www.falive.com](http://www.falive.com) 上，还会被拒，麻烦再加一条 [https://www.falive.com](https://www.falive.com)，加好回我一声我再核对。\\n\\n- ⚠️ 接了但还不能用 OL Google 登录（www.falive.com）：后台只加了不带 www 的 falive.com，用户实际访问的 [www.falive.com](http://www.falive.com) 仍被 Google 拒绝，麻烦 @William 再加一条 [https://www.falive.com](https://www.falive.com)\\n- ✅ 通了 uat Google 登录（faliveuat.fdsser.com）：Google 已放行这个来源；client_id 已打进 uat 包，新包发上去后按钮就会显示  \\n待确认的几点在这里：https://qfglxo2m3dc.sg.larksuite.com/docx/B9yNdlZSEoSngSxyGhvle8IAgAp\\n- William：Google Console 给这个 client_id 再加授权来源 [https://www.falive.com](https://www.falive.com)（带 www）；现在只加了 falive.com，线上实际站点仍被拒  \\n详细见：https://qfglxo2m3dc.sg.larksuite.com/docx/WqOCdz9YDokDWHx9aV5lhSQXgNf\",\n      \"document_id\": \"C9ImdFCkHoojXMxXZuilMIMEgud\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

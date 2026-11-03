@@ -1,0 +1,46 @@
+{
+  "threadId": "omt_19baea80cf0f185a",
+  "fetchedAt": "2026-11-03T12:23:41.798Z",
+  "ok": true,
+  "commands": [
+    [
+      "lark-cli",
+      "api",
+      "GET",
+      "/open-apis/im/v1/messages",
+      "--as",
+      "user",
+      "--params",
+      "{\"container_id_type\":\"thread\",\"container_id\":\"omt_19baea80cf0f185a\",\"page_size\":50,\"sort_type\":\"ByCreateTimeAsc\"}",
+      "--page-all",
+      "--page-limit",
+      "0",
+      "--format",
+      "json"
+    ],
+    [
+      "lark-cli",
+      "im",
+      "+threads-messages-list",
+      "--as",
+      "user",
+      "--thread",
+      "omt_19baea80cf0f185a",
+      "--order",
+      "asc",
+      "--page-size",
+      "50",
+      "--page-all",
+      "--page-limit",
+      "100",
+      "--no-reactions",
+      "--download-resources",
+      "--format",
+      "json"
+    ]
+  ],
+  "api": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"items\": [\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"每周二的日会时间是 +4 11:00，大家注意一下哈\\\"}\"\n        },\n        \"chat_default_name\": \"Falive产研技术沟通群\",\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1793024692476\",\n        \"deleted\": false,\n        \"message_id\": \"om_x100b62c2658b74a0ffe9519ba8ca8bb\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b62c26a531ca0ff6924ce53c6203\",\n        \"root_id\": \"om_x100b62c26a531ca0ff6924ce53c6203\",\n        \"sender\": {\n          \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19baea80cf0f185a\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"1793024692476\",\n        \"updated\": false\n      },\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"从今天开始所有日会、周会的时间统一为+4 11:00，请知悉\\\"}\"\n        },\n        \"chat_default_name\": \"Falive产研技术沟通群\",\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1793167230273\",\n        \"deleted\": false,\n        \"message_id\": \"om_x100b612cb92e28a0fe2093b7d8cc762\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b62c26a531ca0ff6924ce53c6203\",\n        \"root_id\": \"om_x100b62c26a531ca0ff6924ce53c6203\",\n        \"sender\": {\n          \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19baea80cf0f185a\",\n        \"thread_message_position\": \"1\",\n        \"update_time\": \"1793167230273\",\n        \"updated\": false\n      }\n    ],\n    \"page_token\": \"\"\n  }\n}\n",
+  "apiStderr": "[page 1] fetching...\n",
+  "rendered": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"messages\": [\n      {\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"content\": \"每周二的日会时间是 +4 11:00，大家注意一下哈\",\n        \"create_time\": \"2026-10-26 18:24\",\n        \"deleted\": false,\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_40621901e1583e623f6133e8c66d352e\\u0026open_thread_id=omt_19baea80cf0f185a\\u0026openchatid=oc_40621901e1583e623f6133e8c66d352e\\u0026openthreadid=omt_19baea80cf0f185a\\u0026thread_position=0\",\n        \"message_id\": \"om_x100b62c2658b74a0ffe9519ba8ca8bb\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n          \"id_type\": \"open_id\",\n          \"name\": \"World\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19baea80cf0f185a\",\n        \"thread_message_position\": \"0\",\n        \"updated\": false\n      },\n      {\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"content\": \"从今天开始所有日会、周会的时间统一为+4 11:00，请知悉\",\n        \"create_time\": \"2026-10-28 10:00\",\n        \"deleted\": false,\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_40621901e1583e623f6133e8c66d352e\\u0026open_thread_id=omt_19baea80cf0f185a\\u0026openchatid=oc_40621901e1583e623f6133e8c66d352e\\u0026openthreadid=omt_19baea80cf0f185a\\u0026thread_position=1\",\n        \"message_id\": \"om_x100b612cb92e28a0fe2093b7d8cc762\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n          \"id_type\": \"open_id\",\n          \"name\": \"World\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19baea80cf0f185a\",\n        \"thread_message_position\": \"1\",\n        \"updated\": false\n      }\n    ],\n    \"page_token\": \"\",\n    \"thread_id\": \"omt_19baea80cf0f185a\",\n    \"total\": 2\n  },\n  \"meta\": {\n    \"pagination\": {\n      \"complete\": true,\n      \"pages\": 1,\n      \"items\": 2\n    }\n  }\n}\n",
+  "renderedStderr": ""
+}

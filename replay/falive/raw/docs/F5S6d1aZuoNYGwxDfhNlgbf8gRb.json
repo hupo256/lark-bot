@@ -1,0 +1,26 @@
+{
+  "token": "F5S6d1aZuoNYGwxDfhNlgbf8gRb",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/F5S6d1aZuoNYGwxDfhNlgbf8gRb",
+  "fetchedAt": "2026-11-03T12:17:08.542Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/F5S6d1aZuoNYGwxDfhNlgbf8gRb",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>我要直播-待确认-2026-10-22</title>\\n\\n# 我要直播（web 开播）待确认 · 2026-10-22\\n\\n前端已照 x9 迁移：本人页主播入口「我要直播」→ `/user/stream`（开播记录、开播 / 关播、开播设置弹窗：分类 / 主副标题 / 个性标签 / 开播时间 / 封面 / 推流地址）。\\n\\n## Encone（live 后端）\\n\\n1. **要一个 pre 主播测试号，或把测试号 uid 508 设成主播**：508 的 `Member/info.is_anchor=0`、`getRoomList` 0 条，主播侧流程（取推流地址、创建 / 修改、开播 / 关播、上传封面）在 pre 还没法走通。10-22 起开播设置弹窗新增「直播间介绍」（Bug-4944 `intro`），`createRoom` / `updateLive` 写入、`getRoomList` 回填、直播间介绍卡展示这一整圈同样要靠主播号才能实测（pre 现有房间 `intro` 都是空串）。\\n2. **确认 `localUpload` 返回形状**：文档示例是 `data: { data: \\\"地址\\\" }`，x9 按 `data` 直接是字符串解析，前端照 x9；如果实际是对象请告知。\\n3. **确认 `createRoom` / `updateLive` 支持 POST JSON 带 `tag_ids` 数组**（x9 同样传，文档参数表没列 `tag_ids`）。\\n4. **~~开播设置的「语言」字段~~** ✅ **10-23 已接**：Encone 10-23 答复后端不另加参数，live 侧前端写死「中文」「英文（美国）」两项，直播间显示对应国旗。x9 本地 `main`（及本地 pre / test 各分支）开播弹窗都没有语言下拉、直播间也没有国旗，所以照后端实际字段做：pre 实测 `updateLive` 带 `lang`（1 中文 / 2 英文）会写入，`getRoomList` 回 `lang` / `lang_name` / `last_live_lang`，`getRoomInfo` 回 `info.lang` / `lang_name`。前端：开播设置加必填「语言」下拉（中文 = 1、英文（美国）= 2），`createRoom` / `updateLive` 带 `lang`，修改时按 `getRoomList.lang` 回填；直播间标题前按 `getRoomInfo.info.lang` 显示中国 / 美国国旗，其他取值不显示。用场次 1260 实测改英文、改回中文都生效。**还要 Encone 确认两点**：① `lang` 不在 `createRoom` / `updateLive` 文档参数表里，请补进文档（10-23 已用 508 实测 `createRoom` 带 `lang`：新建场次 1263–1268 写入成功，1267 带 `lang=2` 后 `getRoomList.lang=2`）；② 场次改了语言后，`getRoomInfo`（508 的直播间）的 `lang` 仍是 1，是否要到 `startRoom` 时才从场次同步（没开播，未实测）。\\n5. **「标题与队伍相同 / 标题与赛事相同」勾选**：UI 稿有，但它只在选了赛事（足球 / 篮球 / 电竞）后回填标题用；falive 开播分类只有区块链 / 其他、不选赛事，x9 本地代码对这两类也不显示，前端没做。如果 falive 要开放赛事分类，请告知赛事列表接口与分类取值。\\n6. **~~web 开播（新建）报「请求失败 (POST /api/live/createRoom)」~~**（Encone 10-23 反馈「接口直测正常、web 开播 500」）✅ **前端已修，等合入 pre 并部署**：10-23 用 508 经网关 `falivepre.fdsser.com` 复测。\\n\\n   - 原因：OPS pre 现在部署的前端是 407 修复之前的版本（`/brand/flags/cn.svg` 404、`stream` chunk 里 `createRoom` 不带 `lang`、验签参数不剔除数组）。web 用 POST JSON 带 `tag_ids: []`，旧版把 `tag_ids=` 拼进签名串，后端验签不计数组，回 **HTTP 407 / code -800**（服务端签名串不含 `tag_ids`）。web 对非 2xx 只显示「请求失败 (POST …)」，看起来像服务端错误。Encone 在文档工具里直测不经过前端签名，所以是正常的。\\n   - 修复：开发分支 `feature/phase-4-api` 的 5df6b03 和 ba493a9 已改成 JSON body 只取字符串 / 数字 / 布尔参与验签（同 x9 fetch-helper），还没合进 `pre`。用新签法、同一个请求体（`id/type/lang/title_main/title_sub/intro/thumb/starttime/tag_ids`）打 `createRoom` 回 **code 0**；单独换 `lang=2`、`tag_ids=[1,2]`、介绍带换行和 emoji 也都是 code 0。`thumb` 为空时回业务错「直播间封面不能为空」（code -1，HTTP 200），会如实弹后端 msg。\\n   - 后端不用改。前端合入 pre 并部署后，请 Encone 再点一次 web 开播。\",\n      \"document_id\": \"F5S6d1aZuoNYGwxDfhNlgbf8gRb\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

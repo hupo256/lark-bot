@@ -8,6 +8,7 @@ round=${1:?round name}
 port=${2:-3180}
 cd "$(dirname "$0")/../.."
 root="$HOME/github/lark-bot/runtime/falive-replay/sim"
+MAX_PARALLEL=${MAX_PARALLEL:-5} # 回放和线上 bot 共用一个 Claude 账号：同时最多跑几段，给线上留额度（撞限额由 claude-q 整体暂停，见 claude-quota.mjs）
 # 段  热身起点    计分起点    结束（不含）
 SEGMENTS="
 a 2026-10-14 2026-10-14 2026-10-18
@@ -25,6 +26,7 @@ while read -r seg warm score end; do
   sim="$round-$seg"
   mkdir -p "$root/$sim"
   rm -f "$root/$sim/DONE"
+  while [ "$(jobs -rp | wc -l)" -ge "$MAX_PARALLEL" ]; do sleep 20; done
   (
     sh scripts/sim/run-days.sh "$warm" "$end" "$sim" "$((port + i))" > "$root/$sim/run-days.out" 2>&1
     node scripts/sim/judge-sim.mjs --sim "$sim" --all --score-from "${score}T00:00:00+00:00" --conc 3 > "$root/$sim/judge.out" 2>&1
@@ -34,4 +36,9 @@ while read -r seg warm score end; do
   sleep 20 # 错开起跑：每段要 clone 业务仓、起网关
 done <<< "$SEGMENTS"
 wait
+# 每轮的裁判与总账进版本：replay/falive/rounds/<轮>/（sim 目录本身体量大、可重跑，留在 runtime）
+out="replay/falive/rounds/$round"
+mkdir -p "$out"
+for d in "$root/$round"-*; do [ -f "$d/judge.jsonl" ] && cp "$d/judge.jsonl" "$out/$(basename "$d").judge.jsonl"; done
+node scripts/sim/round-report.mjs --round "$round" --issues --md "$out/report.md"
 echo "ROUND-DONE $round"

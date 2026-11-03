@@ -1,0 +1,26 @@
+{
+  "token": "FYbQdCxJRo0VBExeysWlTtbxgZe",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/FYbQdCxJRo0VBExeysWlTtbxgZe",
+  "fetchedAt": "2026-11-03T12:17:11.641Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/FYbQdCxJRo0VBExeysWlTtbxgZe",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"# 行情 symbol/list 接口不通 — 待确认（2026-10-26）\\n\\n> 来源：群里 @bot「测试 [https://falivepre.fdsser.com/hc-api/api/fameEx/market/symbol/list](https://falivepre.fdsser.com/hc-api/api/fameEx/market/symbol/list) 能不能请求通」。  \\n> 实测时间 2026-10-26 17:32（UTC+4），测试号 aven-pretest@probe.test / uid 508，token 取自 portal `/api/auth/login` 返回的 `hichat_token`，请求头 `Authorization: hiApp<hichat_token>`（与前端行情跑马灯一致）。\\n\\n## 结论\\n\\npre 站点的 `/hc-api` 网关转发到的 hichat 服务上没有这支接口（回 Spring 404）；直连 hichat pre 上游同一个 token 能拿到数据。另外「不登录也能调」还没生效。\\n\\n> 17:50 复测（Arthur 17:44 说「恢复了」之后）：结果和 17:32 完全一样，仍未通，见文末「复测（2026-10-26 17:50）」。\\n\\n## 实测记录\\n\\n| # | 请求 | 结果 |\\n|-|-|-|\\n| 1 | `GET https://falivepre.fdsser.com/hc-api/api/fameEx/market/symbol/list`（不带 token，GET / POST 都试） | HTTP 200，`{\\\"code\\\":401,\\\"message\\\":\\\"Full authentication is required to access this resource\\\"}` |\\n| 2 | 同上，带 `Authorization: hiApp<hichat_token>` | HTTP 404，`{\\\"status\\\":404,\\\"error\\\":\\\"Not Found\\\",\\\"path\\\":\\\"/api/fameEx/market/symbol/list\\\"}` |\\n| 3 | 同一网关 `/hc-api/api/member/profile/my`、`/hc-api/api/thirdConfigManage/getStatus`（带 token） | 都是 HTTP 404 Spring Not Found |\\n| 4 | 直连上游 `GET https://pre-hailiao.hai-liao-pre.com/api/fameEx/market/symbol/list`，同一 token | HTTP 200，`code 200`，`data=[{symbol:\\\"bnbusdt\\\",pairName:\\\"BNB/USDT\\\",changeRate24h:\\\"-0.537195\\\",currentPrice:\\\"596.19\\\"}]` |\\n| 5 | 直连上游同一路径，不带 token | `code 401` Full authentication is required |\\n| 6 | `GET https://falivepre.fdsser.com/go-api/api/thirdConfigManage/getStatus`，不带 token | `code -700`「未授权」 |\\n| 7 | 浏览器：pre 站点首页登录测试号 | 页面发出 `GET /hc-api/api/fameEx/market/symbol/list` → HTTP 404，行情跑马灯不显示 |\\n\\n## 运维（/hc-api 网关）\\n\\n- **要什么**：确认 falivepre.fdsser.com 的 `/hc-api/` 去前缀后转发到哪个上游；应指向 `https://pre-hailiao.hai-liao-pre.com/`（与 `docs/ops/dev-auto-deploy.md`、`build/service-hosts.ts` 一致）。\\n- **为什么**：同一 token 直连该上游 200 有数据，经网关是 404，说明网关上游不是这台或这台没部署这些接口。\\n- **我方现状**：前端按约定走同源 `/hc-api/api/fameEx/market/symbol/list`，不改成直连 hichat 域名绕过。\\n- **建议**：修好后用上面第 2 条请求复测应回 `code 200`。\\n\\n## Arthur（hichat 后端）\\n\\n- **要什么**：按 Eric 15:20 的要求，`/api/fameEx/market/symbol/list` 去掉登录校验。\\n- **为什么**：未登录时行情也要显示；目前网关和上游不带 token 都回 401。\\n- **我方现状**：前端行情跑马灯目前只在登录后请求；免登录生效后由前端负责人 eric 决定何时放开未登录请求。\\n- **建议**：上线后不带 token 请求第 4 条地址应回 `code 200`。\\n\\n## Go 后端（getStatus）\\n\\n- **要什么**：`/api/thirdConfigManage/getStatus` 同样去掉登录校验（Eric 15:20 同一要求）。\\n- **我方现状**：不登录回 `code -700`「未授权」；登录后页面能走到 symbol/list，说明登录态下开关正常。\\n\\n## 复测（2026-10-26 17:50，UTC+4）\\n\\n> 起因：Arthur 17:44 回「恢复了」后复测。测试号同上（uid 508），portal `/api/auth/login` 登录 code 0，返回 `hichat_token`（`hichat_token_head` = `hiApp`）。同一接口串行请求、间隔 1s。\\n\\n| # | 请求 | 17:50 结果 | 与 17:32 比 |\\n|-|-|-|-|\\n| 1 | 网关 `GET/POST /hc-api/api/fameEx/market/symbol/list`，不带 token | HTTP 200，`{\\\"code\\\":401,\\\"message\\\":\\\"Full authentication is required to access this resource\\\"}` | 没变 |\\n| 2 | 同上，带 `Authorization: hiApp<hichat_token>` | HTTP 404，Spring `Not Found`，`path=/api/fameEx/market/symbol/list` | 没变（仍 404） |\\n| 3 | 网关 `/hc-api/api/thirdConfigManage/getStatus`、`/hc-api/api/member/profile/my`，带 token | 都是 HTTP 404 Spring `Not Found` | 没变 |\\n| 4a | 直连上游 `https://pre-hailiao.hai-liao-pre.com/api/fameEx/market/symbol/list`，带 token | HTTP 200，`code 200`，`data=[{symbol:\\\"bnbusdt\\\",pairName:\\\"BNB/USDT\\\",changeRate24h:\\\"-0.537195\\\",currentPrice:\\\"596.19\\\"}]` | 没变（上游一直正常） |\\n| 4b | 直连上游，不带 token | `code 401` Full authentication is required | 没变（免登录未生效） |\\n| 5 | `GET /go-api/api/thirdConfigManage/getStatus`，不带 token | `code -700`「未授权」 | 没变（免登录未生效） |\\n| 5b | 同上，带 portal `Authorization: hiApp <token>`（前端实际请求方式） | `code 0`，`data.cryptocurrencyMarketTicker=true` | 新增：登录态下开关是开的 |\\n| 6 | 浏览器：pre 站点首页登录测试号 | 页面发出 `GET /hc-api/api/fameEx/market/symbol/list` → HTTP 404，页面没有「BNB/USDT」，跑马灯不显示 | 没变 |\\n\\n**结论**：「恢复了」在 pre 网关上还没体现。`/hc-api` 转发到的服务仍不是 hichat pre 上游（同一 token 网关 404、直连 200），首页跑马灯仍不显示。symbol/list 和 getStatus 的免登录也都还没生效。上面运维 / Arthur / Go 后端三节的诉求不变。前端按约定走同源 `/hc-api`，不改代码。\",\n      \"document_id\": \"FYbQdCxJRo0VBExeysWlTtbxgZe\",\n      \"revision_id\": 5\n    }\n  }\n}\n",
+  "stderr": ""
+}

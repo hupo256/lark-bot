@@ -1,0 +1,26 @@
+{
+  "token": "J2kmd9rBpoEBJgx4y1QlKp1Egoc",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/J2kmd9rBpoEBJgx4y1QlKp1Egoc",
+  "fetchedAt": "2026-11-03T12:17:15.029Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/J2kmd9rBpoEBJgx4y1QlKp1Egoc",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"# SSR 内网直连与 uat/online 上线对接（细节）\\n\\n## SSR 内网直连（10-29）\\n\\n- pre 打包：服务端渲染默认上游中，php、bbsv2 → `http://php-swoole.internal`，路径原样拼接（`/api/*`、`/bbsv2/*`）；golang 仍走 `https://falivepre.fdsser.com/go-api`，hichat 仍走 `https://pre-hailiao.hai-liao-pre.com`。\\n- 浏览器端请求不变，仍走同源 `/api`、`/bbsv2`、`/go-api`、`/hc-api`。内网地址只出现在服务端包里，客户端包里搜不到。\\n- 本地开发（`pnpm dev:pre`）不受影响，继续走 pre 网关。\\n- dev-03 预览机不在运维内网，已在 pm2 配置里用 `API_ORIGINS` 把 php、bbsv2 覆盖回 `https://falivepre.fdsser.com`（改完要在云电脑重跑 setup）。\\n- 运行时可以用 `API_ORIGINS`（JSON）按服务临时覆盖上游，不用重新打包。\\n- uat/online 这次没动，等 pre 验证通过、全环境地址确认后再切。\\n\\n## 验证\\n\\n- 打包测试：`build:pre` 成功，服务端包里的默认上游为 `{\\\"php\\\":\\\"http://php-swoole.internal\\\",\\\"golang\\\":\\\"https://falivepre.fdsser.com/go-api\\\",\\\"hichat\\\":\\\"https://pre-hailiao.hai-liao-pre.com\\\",\\\"bbsv2\\\":\\\"http://php-swoole.internal\\\"}`，客户端包里没有命中。\\n- 运行时覆盖：按 dev-03 的配置起打包后的服务，`/hc/lives` 返回 200，首屏带出 pre 直播间（room/19668）。\\n- 单测：网关和内网路由共 15 条全部通过；类型检查通过。\\n\\n## UAT 显示 PRE 数据\\n\\n前端 uat 分支用 `build:uat`（`API_ENV=uat`）打包，php 上游是 `http://streamuat.fdsser.com`。请运维核对：UAT 机部署的是不是 uat 分支的包；pm2 有没有配 `API_ORIGINS` 或 `BASE_API_HOST` 指向 pre。\",\n      \"document_id\": \"J2kmd9rBpoEBJgx4y1QlKp1Egoc\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

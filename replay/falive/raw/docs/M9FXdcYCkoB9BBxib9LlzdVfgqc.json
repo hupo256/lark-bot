@@ -1,0 +1,26 @@
+{
+  "token": "M9FXdcYCkoB9BBxib9LlzdVfgqc",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/M9FXdcYCkoB9BBxib9LlzdVfgqc",
+  "fetchedAt": "2026-11-03T12:17:09.586Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/M9FXdcYCkoB9BBxib9LlzdVfgqc",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>修改头像接口-待确认-2026-10-26</title>\\n\\n# 修改头像接口 — 待确认（2026-10-26）\\n\\n> 来源：Arthur 10-23 发的《修改头像接口文档》（`docs/delivery/pending/修改头像接口文档.md`）。Web 前端（aven）10-26 已按文档接入。\\n\\n## Go 后端（Arthur / William）\\n\\n1. **pre 部署头像接口**\\n\\n   - 要什么：把 `POST /api/auth/avatar/upload`、`GET /api/auth/avatar/requests/{request_id}` 部署到 pre。\\n   - 为什么：10-26 10:5x（+04）用测试号 uid 508 实测、12:00 复测仍是 404：`http://falivego.fdsser.com` 和网关 `https://falivepre.fdsser.com/go-api` 下这两支都回 HTTP 404 `404 page not found`（不带 token 的 POST upload 也是 404，路由在的话应先回 -700）；同一 token 的 `GET /api/auth/profile` 是 code 0，说明登录和域名都没问题，只是接口不在。\\n   - 我方现状：前端已改成只走这两支接口（php 头像上传 / 预设头像 / 审核态已按文档下线），部署前 Web 上换头像会提示上传失败。\\n   - 建议：部署后在群里说一声，我们用测试号在 pre 走一遍上传、查状态、三端头像一致性。\\n2. **HTTP 状态码前端拿不到区分（确认即可，不阻塞）**\\n\\n   - 文档第 5 节按 400 / 200 / 503 给了不同处理；前端请求层对 Go 的非 2xx 只回信封（`code=-1` + msg），不区分 HTTP 码。\\n   - 我方现状：所有 `code=-1` 一律先按原 `request_id` 查一次状态，查不到就提示后端 msg，并保留原 ID + 原文件给用户「重试」（同 ID + 同文件重复提交按文档不会重复修改）。如果后端认为 400 场景不该带原 ID 重试，请说明。\",\n      \"document_id\": \"M9FXdcYCkoB9BBxib9LlzdVfgqc\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

@@ -1,0 +1,26 @@
+{
+  "token": "Hkxudj6SroIbifx24PslN54ughe",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/Hkxudj6SroIbifx24PslN54ughe",
+  "fetchedAt": "2026-11-03T12:17:12.825Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/Hkxudj6SroIbifx24PslN54ughe",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>首页UI走查-待确认-2026-10-27</title>\\n\\n# 首页 UI 走查（Ace 10-27）— 待确认\\n\\n来源：Figma 走查帧 `1249:67887`（首页1920 UI走查｜2026-10-27），对照设计稿「首页1920」`1249:66805`。\\n\\n前端已改：02 侧栏选中项底色改成纯 surface（#141619），和设计稿一致。01（行情横条）、05（推荐视频时长）、06（眼睛图标）此前已修，测试截图早于那次部署。下面是还要别人跟进的事。\\n\\n## 后端 / 后台配置（Encone）\\n\\n### 03 直播分类图标不对\\n\\n- **要什么**：在后台给直播标签配上和设计稿一致的图标（BTC 用币图标、ETH 用菱形图标等），没配的补上。\\n- **为什么**：侧栏「直播」下的子项和首页「正在直播」分类 tab 的图标，直接取标签字典 `/api/live_streaming/tags` 每一项的 `icon`，前端原样显示。\\n- **我方现状（10-27 pre 实测）**：`GET /api/live_streaming/tags` 返回 4 项：区块链 `icon=live_tag_02.webp`、BTC `icon=live_tag_31.webp`（截图里显示成胶片图标）、ETH `icon=\\\"\\\"`、合约 `icon=\\\"\\\"`。icon 为空时前端只能显示默认的「直播」图标。\\n- **建议**：后台按设计稿上传各分类图标。前端不按标签名写死图标，免得后台改名或新增分类就对不上。\\n- 另记：设计稿上的分类是行情分析 / KOL 实盘 / BTC / ETH / 山寨币 / DeFi / NFT，pre 后台配的是区块链 / BTC / ETH / 合约。分类以后台配置为准，前端不改；要和设计稿一致需要后台改配置。\\n\\n### 05 推荐视频时长\\n\\n- `GET /api/front/robotManualList` 返回 8 条，每条都不带时长字段。前端是异步读播放源算时长，读不到的卡就不显示时长（不造假值）。如果要求每张卡都稳定显示时长，需要后端在这支接口里加时长字段。\\n\\n## 产品（Mateo）\\n\\n### 09 首页任务中心游客态\\n\\n- **要什么**：确认游客（未登录）态下首页任务中心要怎么展示。\\n- **为什么**：测试截图是游客态，现在显示积分「--」、不出七日签到格，点「签到」会弹登录。设计稿只画了登录态，没有游客态。\\n- **我方现状**：已登录时会读积分和签到数据，展示完整；加载中有骨架。\\n- **建议**：如果游客态需要明确的引导文案（比如「登录后签到领积分」），请在 PRD / 设计稿里补上，前端照着做。\",\n      \"document_id\": \"Hkxudj6SroIbifx24PslN54ughe\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

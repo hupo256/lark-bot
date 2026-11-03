@@ -1,0 +1,26 @@
+{
+  "token": "AAIEdvICnoXbV3xfsTMl9Kz9gib",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/AAIEdvICnoXbV3xfsTMl9Kz9gib",
+  "fetchedAt": "2026-11-03T12:17:14.269Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/AAIEdvICnoXbV3xfsTMl9Kz9gib",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"# Henry 这几张 Bug 单（完整内容）\\n\\n@Henry @Max @Mateo Henry 这几张 Bug 单：通了 0 项，没通 3 项\\n\\n- ⚠️ 接了但还不能用 Bug-4997 群头像 / 用户头像：接口返回的头像是空的，属于「群同步」，等后端 Max / mainly 同步数据，前端不用改\\n- ❌ 没接 Bug-4937 / 5048 勋章：后端和产品 10-28 都答复了：一期不做，前端隐藏。pre 上也确实没有勋章接口，等 Henry 把 tab 去掉\\n- ❌ 没接 Bug-4952 搜索助理昵称：等产品 Mateo 定查到的助理会话放在群组 tab 还是私聊  \\n待确认的几点在这里：https://qfglxo2m3dc.sg.larksuite.com/docx/O9C8dFk8bov7nJxFv6PlalYygkd\\n- Henry：Bug-4937 / Bug-5048：产品已定一期不做勋章，请隐藏个人中心和个人主页的「勋章」tab\\n- Max：Bug-4997：getChatRoomList 返回的群头像 pic 全是空，Hichat 用户（sender 19507 / 263 / 254 / 386 / 262 等）的 avatar 也是空，请把 Hichat 的头像同步到 live php；mainly 一起跟\\n- Mateo：Bug-4952：按昵称查到的助理会话，是放进直播间「群组」tab，还是放到「聊天」页私聊里？  \\n详细见：https://qfglxo2m3dc.sg.larksuite.com/docx/XrQwdORAWomIPfxLoUYlt8VKgKe\",\n      \"document_id\": \"AAIEdvICnoXbV3xfsTMl9Kz9gib\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

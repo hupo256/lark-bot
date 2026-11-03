@@ -1,0 +1,26 @@
+{
+  "token": "ItTVdrc5ZoYYLKxlfSsljrwogch",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/ItTVdrc5ZoYYLKxlfSsljrwogch",
+  "fetchedAt": "2026-11-03T12:17:13.870Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/ItTVdrc5ZoYYLKxlfSsljrwogch",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>Arthur（hichat / 账号后端）直接 @ aven 和 bot，请他们核实（细节）</title>\\n\\n# 权益兑换请求头里的 X-Hc-Uid\\n\\n## 结论\\n\\n- 有带。权益兑换和积分商城的 Go 接口都走同一个请求封装，每个请求都带 `X-Hc-Uid`。\\n- 值：浏览器第一次访问时用 `crypto.randomUUID` 生成，存在 localStorage `falive__hc_uid`，之后一直复用。它是设备标识（照 hichat 的 X-Hc-Uid 用法），**不是** hichat 用户 id，也不是 live uid。清掉浏览器缓存会换一个新值。\\n- 用户身份：登录后带 `Authorization: hiApp <portal 登录返回的 token>`。\\n\\n## 兑换请求长这样\\n\\n```\\nPOST https://falivepre.fdsser.com/go-api/api/mallRights/exchange/{权益id}\\nAccept: application/json\\nX-Device-Type: 1\\nX-Hc-Uid: <本地生成的 UUID，例如 3f2a…-…>\\nX-Version: <任务中心接口版本号>\\nAccept-Language: zh-CN 或 en-US\\nAuthorization: hiApp <portal token>\\n```\\n\\n（没有 body；同一套请求头也用在 `/api/mallRights/getList`、`/api/member/profile/my` 等商城配套接口上。）\\n\\n## 没在 pre 实测的原因\\n\\n- 兑换是写接口（会扣积分），按规定不在 pre 上直接调；目前测试号也没有已绑 FameEX、积分够的账号（Bug-4988 还在等测试账号）。\\n- 以上结论按当前代码得出，这部分代码在 pre 分支上和开发分支一致。\",\n      \"document_id\": \"ItTVdrc5ZoYYLKxlfSsljrwogch\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

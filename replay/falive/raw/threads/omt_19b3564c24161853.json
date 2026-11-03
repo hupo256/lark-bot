@@ -1,0 +1,46 @@
+{
+  "threadId": "omt_19b3564c24161853",
+  "fetchedAt": "2026-11-03T12:23:02.052Z",
+  "ok": true,
+  "commands": [
+    [
+      "lark-cli",
+      "api",
+      "GET",
+      "/open-apis/im/v1/messages",
+      "--as",
+      "user",
+      "--params",
+      "{\"container_id_type\":\"thread\",\"container_id\":\"omt_19b3564c24161853\",\"page_size\":50,\"sort_type\":\"ByCreateTimeAsc\"}",
+      "--page-all",
+      "--page-limit",
+      "0",
+      "--format",
+      "json"
+    ],
+    [
+      "lark-cli",
+      "im",
+      "+threads-messages-list",
+      "--as",
+      "user",
+      "--thread",
+      "omt_19b3564c24161853",
+      "--order",
+      "asc",
+      "--page-size",
+      "50",
+      "--page-all",
+      "--page-limit",
+      "100",
+      "--no-reactions",
+      "--download-resources",
+      "--format",
+      "json"
+    ]
+  ],
+  "api": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"items\": [\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"@_user_1 麻烦看一下\\\"}\"\n        },\n        \"chat_default_name\": \"Falive产研技术沟通群\",\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1792484374184\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_0474e2a35ff1054cdbc0bb9d9d9c9766\",\n            \"id_type\": \"open_id\",\n            \"key\": \"@_user_1\",\n            \"name\": \"HQUCEncone\",\n            \"tenant_key\": \"144dc2a94988d77e\"\n          }\n        ],\n        \"message_id\": \"om_x100b62460fafb8a0fe1e815db89bdce\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b6259a69dad30fffe22e4261acb4\",\n        \"root_id\": \"om_x100b6259a69dad30fffe22e4261acb4\",\n        \"sender\": {\n          \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19b3564c24161853\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"1792484374333\",\n        \"updated\": true\n      },\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"没有新版，后台还是原来的地址\\\"}\"\n        },\n        \"chat_default_name\": \"Falive产研技术沟通群\",\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1792484396766\",\n        \"deleted\": false,\n        \"message_id\": \"om_x100b62460c07bca4ffbe97bd1dff9be\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b6259a69dad30fffe22e4261acb4\",\n        \"root_id\": \"om_x100b6259a69dad30fffe22e4261acb4\",\n        \"sender\": {\n          \"id\": \"ou_0474e2a35ff1054cdbc0bb9d9d9c9766\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"144dc2a94988d77e\"\n        },\n        \"thread_id\": \"omt_19b3564c24161853\",\n        \"thread_message_position\": \"1\",\n        \"update_time\": \"1792484396766\",\n        \"updated\": false\n      },\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"@_user_1 OK\\\"}\"\n        },\n        \"chat_default_name\": \"Falive产研技术沟通群\",\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1792484437517\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_0474e2a35ff1054cdbc0bb9d9d9c9766\",\n            \"id_type\": \"open_id\",\n            \"key\": \"@_user_1\",\n            \"name\": \"HQUCEncone\",\n            \"tenant_key\": \"144dc2a94988d77e\"\n          }\n        ],\n        \"message_id\": \"om_x100b62460b9ad0b4ffd36578b453be4\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b6259a69dad30fffe22e4261acb4\",\n        \"root_id\": \"om_x100b6259a69dad30fffe22e4261acb4\",\n        \"sender\": {\n          \"id\": \"ou_76eea7f1089ccfb66678300fe4bc4a40\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"149af6980f06577c\"\n        },\n        \"thread_id\": \"omt_19b3564c24161853\",\n        \"thread_message_position\": \"2\",\n        \"update_time\": \"1792484437657\",\n        \"updated\": true\n      }\n    ],\n    \"page_token\": \"\"\n  }\n}\n",
+  "apiStderr": "[page 1] fetching...\n",
+  "rendered": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"messages\": [\n      {\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"content\": \"@HQUCEncone 麻烦看一下\",\n        \"create_time\": \"2026-10-20 12:19\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_0474e2a35ff1054cdbc0bb9d9d9c9766\",\n            \"key\": \"@_user_1\",\n            \"name\": \"HQUCEncone\"\n          }\n        ],\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_40621901e1583e623f6133e8c66d352e\\u0026open_thread_id=omt_19b3564c24161853\\u0026openchatid=oc_40621901e1583e623f6133e8c66d352e\\u0026openthreadid=omt_19b3564c24161853\\u0026thread_position=0\",\n        \"message_id\": \"om_x100b62460fafb8a0fe1e815db89bdce\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n          \"id_type\": \"open_id\",\n          \"name\": \"World\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19b3564c24161853\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"2026-10-20 12:19\",\n        \"updated\": true\n      },\n      {\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"content\": \"没有新版，后台还是原来的地址\",\n        \"create_time\": \"2026-10-20 12:19\",\n        \"deleted\": false,\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_40621901e1583e623f6133e8c66d352e\\u0026open_thread_id=omt_19b3564c24161853\\u0026openchatid=oc_40621901e1583e623f6133e8c66d352e\\u0026openthreadid=omt_19b3564c24161853\\u0026thread_position=1\",\n        \"message_id\": \"om_x100b62460c07bca4ffbe97bd1dff9be\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_0474e2a35ff1054cdbc0bb9d9d9c9766\",\n          \"id_type\": \"open_id\",\n          \"name\": \"HQUCEncone\",\n          \"sender_i18n_names\": {\n            \"zh_cn\": \"Encone\"\n          },\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"144dc2a94988d77e\"\n        },\n        \"thread_id\": \"omt_19b3564c24161853\",\n        \"thread_message_position\": \"1\",\n        \"updated\": false\n      },\n      {\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"content\": \"@HQUCEncone OK\",\n        \"create_time\": \"2026-10-20 12:20\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_0474e2a35ff1054cdbc0bb9d9d9c9766\",\n            \"key\": \"@_user_1\",\n            \"name\": \"HQUCEncone\"\n          }\n        ],\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_40621901e1583e623f6133e8c66d352e\\u0026open_thread_id=omt_19b3564c24161853\\u0026openchatid=oc_40621901e1583e623f6133e8c66d352e\\u0026openthreadid=omt_19b3564c24161853\\u0026thread_position=2\",\n        \"message_id\": \"om_x100b62460b9ad0b4ffd36578b453be4\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_76eea7f1089ccfb66678300fe4bc4a40\",\n          \"id_type\": \"open_id\",\n          \"name\": \"HTStone.z\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"149af6980f06577c\"\n        },\n        \"thread_id\": \"omt_19b3564c24161853\",\n        \"thread_message_position\": \"2\",\n        \"update_time\": \"2026-10-20 12:20\",\n        \"updated\": true\n      }\n    ],\n    \"page_token\": \"\",\n    \"thread_id\": \"omt_19b3564c24161853\",\n    \"total\": 3\n  },\n  \"meta\": {\n    \"pagination\": {\n      \"complete\": true,\n      \"pages\": 1,\n      \"items\": 3\n    }\n  }\n}\n",
+  "renderedStderr": ""
+}

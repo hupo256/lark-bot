@@ -1,0 +1,46 @@
+{
+  "threadId": "omt_198773fc270f584c",
+  "fetchedAt": "2026-11-03T12:24:08.269Z",
+  "ok": true,
+  "commands": [
+    [
+      "lark-cli",
+      "api",
+      "GET",
+      "/open-apis/im/v1/messages",
+      "--as",
+      "user",
+      "--params",
+      "{\"container_id_type\":\"thread\",\"container_id\":\"omt_198773fc270f584c\",\"page_size\":50,\"sort_type\":\"ByCreateTimeAsc\"}",
+      "--page-all",
+      "--page-limit",
+      "0",
+      "--format",
+      "json"
+    ],
+    [
+      "lark-cli",
+      "im",
+      "+threads-messages-list",
+      "--as",
+      "user",
+      "--thread",
+      "omt_198773fc270f584c",
+      "--order",
+      "asc",
+      "--page-size",
+      "50",
+      "--page-all",
+      "--page-limit",
+      "100",
+      "--no-reactions",
+      "--download-resources",
+      "--format",
+      "json"
+    ]
+  ],
+  "api": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"items\": [\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"https://faliveuat.fdsser.com/hc  \\\\nUAT 的 web 端已经部署完成，最新代码已上线\\\"}\"\n        },\n        \"chat_default_name\": \"Falive产研技术沟通群\",\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1793260485103\",\n        \"deleted\": false,\n        \"message_id\": \"om_x100b611bf29d84acfe2557272f96529\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b611bfd9d9ca4fe011ea693f732a\",\n        \"root_id\": \"om_x100b611bfd9d9ca4fe011ea693f732a\",\n        \"sender\": {\n          \"id\": \"ou_91861d6da6cf6822e08045ba1868241e\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_198773fc270f584c\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"1793260485103\",\n        \"updated\": false\n      },\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"@_user_1 BUG-5022 需要你看下，用户注册需要额外再提供一个 guest_token 不然注册后的用户没办法继承游客时期的聊天记录\\\"}\"\n        },\n        \"chat_default_name\": \"Falive产研技术沟通群\",\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1793260552788\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_91861d6da6cf6822e08045ba1868241e\",\n            \"id_type\": \"open_id\",\n            \"key\": \"@_user_1\",\n            \"name\": \"Aven.tong\",\n            \"tenant_key\": \"164beab51542977c\"\n          }\n        ],\n        \"message_id\": \"om_x100b611b8e47d0a8ffa9df5338ad654\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b611bfd9d9ca4fe011ea693f732a\",\n        \"root_id\": \"om_x100b611bfd9d9ca4fe011ea693f732a\",\n        \"sender\": {\n          \"id\": \"ou_178b10c243b33c567f5074901e0d85ab\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"1975ae86cae6d94b\"\n        },\n        \"thread_id\": \"omt_198773fc270f584c\",\n        \"thread_message_position\": \"1\",\n        \"update_time\": \"1793260552942\",\n        \"updated\": true\n      },\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"@_user_1 @_user_2 目前有一些已推版的bug，麻烦方便的时候验证一下\\\"}\"\n        },\n        \"chat_default_name\": \"Falive产研技术沟通群\",\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1793273112842\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_76eea7f1089ccfb66678300fe4bc4a40\",\n            \"id_type\": \"open_id\",\n            \"key\": \"@_user_1\",\n            \"name\": \"HTStone.z\",\n            \"tenant_key\": \"149af6980f06577c\"\n          },\n          {\n            \"id\": \"ou_ac2fb8eacd2c5ea9231d605c49c8c881\",\n            \"id_type\": \"open_id\",\n            \"key\": \"@_user_2\",\n            \"name\": \"Kaiser\",\n            \"tenant_key\": \"164beab51542977c\"\n          }\n        ],\n        \"message_id\": \"om_x100b61069f4114a0ffbb2fe4090c9c0\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b611bfd9d9ca4fe011ea693f732a\",\n        \"root_id\": \"om_x100b611bfd9d9ca4fe011ea693f732a\",\n        \"sender\": {\n          \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_198773fc270f584c\",\n        \"thread_message_position\": \"2\",\n        \"update_time\": \"1793273112899\",\n        \"updated\": true\n      }\n    ],\n    \"page_token\": \"\"\n  }\n}\n",
+  "apiStderr": "[page 1] fetching...\n",
+  "rendered": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"messages\": [\n      {\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"content\": \"https://faliveuat.fdsser.com/hc  \\nUAT 的 web 端已经部署完成，最新代码已上线\",\n        \"create_time\": \"2026-10-29 11:54\",\n        \"deleted\": false,\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_40621901e1583e623f6133e8c66d352e\\u0026open_thread_id=omt_198773fc270f584c\\u0026openchatid=oc_40621901e1583e623f6133e8c66d352e\\u0026openthreadid=omt_198773fc270f584c\\u0026thread_position=0\",\n        \"message_id\": \"om_x100b611bf29d84acfe2557272f96529\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_91861d6da6cf6822e08045ba1868241e\",\n          \"id_type\": \"open_id\",\n          \"name\": \"Aven.tong\",\n          \"sender_i18n_names\": {\n            \"zh_cn\": \"Aven\"\n          },\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_198773fc270f584c\",\n        \"thread_message_position\": \"0\",\n        \"updated\": false\n      },\n      {\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"content\": \"@Aven.tong BUG-5022 需要你看下，用户注册需要额外再提供一个 guest_token 不然注册后的用户没办法继承游客时期的聊天记录\",\n        \"create_time\": \"2026-10-29 11:55\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_91861d6da6cf6822e08045ba1868241e\",\n            \"key\": \"@_user_1\",\n            \"name\": \"Aven.tong\"\n          }\n        ],\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_40621901e1583e623f6133e8c66d352e\\u0026open_thread_id=omt_198773fc270f584c\\u0026openchatid=oc_40621901e1583e623f6133e8c66d352e\\u0026openthreadid=omt_198773fc270f584c\\u0026thread_position=1\",\n        \"message_id\": \"om_x100b611b8e47d0a8ffa9df5338ad654\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_178b10c243b33c567f5074901e0d85ab\",\n          \"id_type\": \"open_id\",\n          \"name\": \"mainly\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"1975ae86cae6d94b\"\n        },\n        \"thread_id\": \"omt_198773fc270f584c\",\n        \"thread_message_position\": \"1\",\n        \"update_time\": \"2026-10-29 11:55\",\n        \"updated\": true\n      },\n      {\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"content\": \"@HTStone.z @Kaiser 目前有一些已推版的bug，麻烦方便的时候验证一下\",\n        \"create_time\": \"2026-10-29 15:25\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_76eea7f1089ccfb66678300fe4bc4a40\",\n            \"key\": \"@_user_1\",\n            \"name\": \"HTStone.z\"\n          },\n          {\n            \"id\": \"ou_ac2fb8eacd2c5ea9231d605c49c8c881\",\n            \"key\": \"@_user_2\",\n            \"name\": \"Kaiser\"\n          }\n        ],\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_40621901e1583e623f6133e8c66d352e\\u0026open_thread_id=omt_198773fc270f584c\\u0026openchatid=oc_40621901e1583e623f6133e8c66d352e\\u0026openthreadid=omt_198773fc270f584c\\u0026thread_position=2\",\n        \"message_id\": \"om_x100b61069f4114a0ffbb2fe4090c9c0\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n          \"id_type\": \"open_id\",\n          \"name\": \"World\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_198773fc270f584c\",\n        \"thread_message_position\": \"2\",\n        \"update_time\": \"2026-10-29 15:25\",\n        \"updated\": true\n      }\n    ],\n    \"page_token\": \"\",\n    \"thread_id\": \"omt_198773fc270f584c\",\n    \"total\": 3\n  },\n  \"meta\": {\n    \"pagination\": {\n      \"complete\": true,\n      \"pages\": 1,\n      \"items\": 3\n    }\n  }\n}\n",
+  "renderedStderr": ""
+}

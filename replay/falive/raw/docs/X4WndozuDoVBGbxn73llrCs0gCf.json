@@ -1,0 +1,26 @@
+{
+  "token": "X4WndozuDoVBGbxn73llrCs0gCf",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/X4WndozuDoVBGbxn73llrCs0gCf",
+  "fetchedAt": "2026-11-03T12:17:20.124Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/X4WndozuDoVBGbxn73llrCs0gCf",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>uat 访客注册带 guest_token（细节）</title>\\n\\n# uat 访客注册带 guest_token 核对（2026-10-30）\\n\\n## 结论\\n\\n前端「注册带 guest_token」已在 uat 上，前端无需改动；uat 访客私聊没继承的问题出在后端链路。\\n\\n## 前端行为\\n\\n- 注册前是游客、本地有 php 下发的游客 token（响应头 b2b-visitor-token）时，邮箱 / 手机注册（Go `/register`）和 Google 注册（Go `/google/register`）的请求体都会带 `guest_token`。\\n- 已登录或游客 token 为空时不带，这是设计如此。\\n\\n## 证据\\n\\n1. 分支：引入这段代码的提交（10-29，Bug-5022）已在 pre / uat / online 三个分支；uat 最新一次合入在 10-30 07:58 UTC。\\n2. uat 站点：抓取 [https://faliveuat.fdsser.com/hc](https://faliveuat.fdsser.com/hc) 的 121 个 JS 分包，其中一个分包里有 `function wG({loginToken:e,guestToken:t}){const r=t.trim();return!e.trim()&&r?{guest_token:r}:{}}`，注册请求体是 `{...,otp_code,password,nickname,platform_code,...R3(),...O3()}`（R3 就是 guest_token），`/google/register` 也一样。\\n\\n## 需要后端查\\n\\n- uat 上 Go 注册接口有没有收到 guest_token，并转给 php issueToken。\\n- php issueToken 在 uat 上能不能用 guest_token 解出游客 id，把游客的私聊归到新账号。\\n- uat 用户 / 群组数据是否已同步完（HTStone 12:47 说还没同步完）。\\n\\n## 怎么自查\\n\\n在 uat 用游客身份打开站点（先进直播间或联系客服，拿到游客 token），再注册新账号，在 Network 里看注册请求体有没有 `guest_token`。\",\n      \"document_id\": \"X4WndozuDoVBGbxn73llrCs0gCf\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

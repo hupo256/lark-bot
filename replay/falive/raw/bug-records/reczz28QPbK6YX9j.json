@@ -1,0 +1,26 @@
+{
+  "recordId": "reczz28QPbK6YX9j",
+  "why": "bug-4946",
+  "fetchedAt": "2026-11-03T12:18:12.912Z",
+  "version": "now",
+  "note": "拉取时的最新状态（状态 / 备注 / 测试结果可能晚于消息当时）",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "base",
+    "+record-get",
+    "--as",
+    "user",
+    "--base-token",
+    "<bugTable.appToken>",
+    "--table-id",
+    "tblbJYjrxZsPe40V",
+    "--record-id",
+    "reczz28QPbK6YX9j",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"data\": [\n      [\n        \"Bug-4946\",\n        null,\n        [\n          \"Pre测试通过\"\n        ],\n        null,\n        null,\n        \"PM-3254\",\n        \"2026-10-29T16:12:05.000+04:00\",\n        \"Web,Backend\",\n        \"2026-10-22T13:47:07.000+04:00\",\n        null,\n        \"Falive\",\n        null,\n        null,\n        [\n          {\n            \"id\": \"ou_57bd40c686c743f8def7d503c70e8491\",\n            \"name\": \"HTJames.y\"\n          }\n        ],\n        null,\n        \"1. 用戶登入 Falive \\u003e 進入 【個人主頁】\\n2. 點擊 【設定圖示】 \\n3. 點擊任意頭像\\n4. 驗證顯示 \\\"头像已更新\\\"\\n3. 用戶登入 Hichat \\u003e 點擊 【個人】\\n4. Falive 頭像同步到 Hichat 失敗\",\n        \"2026-10-22T13:47:08.471+04:00\",\n        \"【falive一期】后端/web/app\",\n        \"Falive 頭像同步到 Hichat 失敗\",\n        null,\n        \"2026-10-29T00:00:00.000+04:00\",\n        [\n          \"Pre\"\n        ],\n        [\n          {\n            \"id\": \"ou_c03810195f4db6115f3acb45d04a7fec\",\n            \"name\": \"HTShellyhsu\"\n          }\n        ],\n        [\n          {\n            \"file_token\": \"VaKdbirTRobtclxTUpJl35I4gkb\",\n            \"name\": \"Falive頭像更新成功.png\",\n            \"size\": 457005\n          },\n          {\n            \"file_token\": \"TAd7b6JJJovW82xjqJ6lsRmcgnf\",\n            \"name\": \"Hichat同步Falive頭像失敗.png\",\n            \"size\": 60407\n          }\n        ],\n        [\n          {\n            \"id\": \"ou_a0c48d661b36b1e16bf0d89b4a3bb775\",\n            \"name\": \"Arthur.a\"\n          },\n          {\n            \"id\": \"ou_f429a72d959a341cd2fdd1b18a0d3772\",\n            \"name\": \"Henry\"\n          }\n        ],\n        \"pre测试中\",\n        [\n          \"Backend\"\n        ],\n        \"10-22 核对：Falive 换头像调 live php /api/member/updateInfo?avatar=…（上传自定义头像走 /api/avatar/uploadAvatar 进审核），code 0 后才提示「头像已更新」，即 live 侧已写入；pre 实测 uid 508 的 Member/info 与 bbsv2 member/info 头像一致（社区随 live 同步），Go /go-api/api/member/profile/my 只回 id / memberId、不带头像。没同步到 Hichat 是后端缺 live 用户 → Hichat 会员的头像同步，前端没有写 Hichat 头像的出口。请 HQUCEncone 在账号打通侧补同步（需要 live php 发事件 / 回调的请拉 .Ache.l），与 Bug-4945 是同一条同步链路的两个方向。\\n【10-29 bot 复测：已同步】换头像链路 10-26 起已改走 Go 统一头像接口（Web 端 1f3cd9b4 接入 POST /go-api/api/auth/avatar/upload，Go 负责同步 Live / HiChat / Discuz，不再调 php updateInfo），10-22 备注里的旧链路已不存在。falivepre 部署版实测（测试号 uid 508 / hichat_id 129180）：个人主页 \\u003e 设置 \\u003e 上传新头像，upload 回 code 0、status REFRESH_PENDING、avatar=…/u129180/49ee5e7c…/avatar.jpg；随即用该号的 hichat_token 查 HiChat /api/member/profile/my，icon 已是同一张 …/49ee5e7c…/avatar.jpg，live Member/info 同样一致。HiChat 已同步，改「已推版」，请 HTJames.y 在 Hichat「個人」复测（注意要用 Falive 当前的换头像入口，即上传图片）。\",\n        \"1.0.3\"\n      ]\n    ],\n    \"field_id_list\": [\n      \"fldmxTvHTq\",\n      \"fld0Pe5U7G\",\n      \"fld1i6PDQT\",\n      \"fld1u0NBC5\",\n      \"fld4kVwoLs\",\n      \"fld52WVyfK\",\n      \"fld7ChUvSH\",\n      \"fld8fzIptW\",\n      \"fld8Q2XlJB\",\n      \"fldAh2Kyj0\",\n      \"fldBuyLemA\",\n      \"fldcuNmiVK\",\n      \"fldD77oYrZ\",\n      \"fldEiiSdHh\",\n      \"fldERqfLpq\",\n      \"fldGsVI1Y0\",\n      \"fldHgasO5A\",\n      \"fldhpTkoXE\",\n      \"fldIuAN6te\",\n      \"fldJ9rdSbO\",\n      \"fldMLCmFW2\",\n      \"fldPyoP99S\",\n      \"fldsV39i3n\",\n      \"fldu80s8wJ\",\n      \"fldw1TK5PO\",\n      \"fldwobTvnQ\",\n      \"fldyh4ldX6\",\n      \"fldYisQZkD\",\n      \"fldZHrw01k\"\n    ],\n    \"field_type_list\": [\n      \"auto_number\",\n      \"text\",\n      \"select\",\n      \"lookup\",\n      \"link\",\n      \"text\",\n      \"updated_at\",\n      \"lookup\",\n      \"created_at\",\n      \"text\",\n      \"lookup\",\n      \"select\",\n      \"attachment\",\n      \"user\",\n      \"datetime\",\n      \"text\",\n      \"datetime\",\n      \"lookup\",\n      \"text\",\n      \"attachment\",\n      \"datetime\",\n      \"select\",\n      \"updated_by\",\n      \"attachment\",\n      \"user\",\n      \"lookup\",\n      \"select\",\n      \"text\",\n      \"text\"\n    ],\n    \"fields\": [\n      \"Bug编号\",\n      \"测试结果\",\n      \"状态\",\n      \"测试人员所在部门\",\n      \"父記錄\",\n      \"需求ID\",\n      \"最后更新时间\",\n      \"解决人员所在部门\",\n      \"创建时间\",\n      \"项目备注\",\n      \"所属项目组\",\n      \"严重程度\",\n      \"测试结果截图\",\n      \"测试人员\",\n      \"预计上线时间\",\n      \"问题描述（复现步骤）\",\n      \"bug填写日期\",\n      \"需求名称\",\n      \"问题标题\",\n      \"附件\",\n      \"修复完成时间\",\n      \"环境\",\n      \"记录最后修改人\",\n      \"问题截图\",\n      \"负责RD\",\n      \"需求阶段\",\n      \"涉及端口\",\n      \"备注\",\n      \"Sprint\"\n    ],\n    \"has_more\": false,\n    \"record_id_list\": [\n      \"reczz28QPbK6YX9j\"\n    ],\n    \"rev\": 21326,\n    \"timezone\": \"Asia/Dubai\"\n  }\n}\n",
+  "stderr": ""
+}

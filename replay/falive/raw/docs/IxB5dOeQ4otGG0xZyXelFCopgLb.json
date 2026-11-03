@@ -1,0 +1,26 @@
+{
+  "token": "IxB5dOeQ4otGG0xZyXelFCopgLb",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/IxB5dOeQ4otGG0xZyXelFCopgLb",
+  "fetchedAt": "2026-11-03T12:17:15.016Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/IxB5dOeQ4otGG0xZyXelFCopgLb",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>aven 转来 Encone 的提问，让 bot 详细解答（细节）</title>\\n\\n# /hc-ws 是做什么的（10-29）\\n\\n## 一句话\\n\\n`/hc-ws` 只给**行情跑马灯**（一期功能表 #51，前端负责人 eric）收实时行情推送用。浏览器不直连 hichat 域名，而是连本站同源的 `/hc-ws`，由网关反代到 hichat 的全局 WebSocket `/ws/im/echo`。\\n\\n## 跑马灯的数据怎么来\\n\\n1. 先调接口拿一次列表：Go `GET /go-api/api/thirdConfigManage/getStatus`（看 `cryptocurrencyMarketTicker` 开关）→ 开了再调 hichat `GET /hc-api/api/fameEx/market/symbol/list` 拿币对和价格。\\n2. 用户有 hichat token 时，再连 WebSocket 收实时价格：\\n\\n   - 浏览器连 `wss://<本站域名>/hc-ws`\\n   - 服务端发 `SRV_NEED_AUTH` → 前端回 `CLI_AUTH`（`token = hiApp<hichat_token>`）\\n   - 收到 `SRV_AUTH` 后前端发 `SRV_MARKET_TICKER_UPDATE` 订阅帧\\n   - 之后服务端推 `SRV_MARKET_TICKER_UPDATE`，前端按 `symbol` 合并 `tickerList` 更新价格\\n   - 协议照嗨聊 Flutter 端\\n3. 没有 hichat token（游客）不连 WebSocket，改为每 60 秒重新调一次接口刷新。\\n\\n## 为什么走同源 /hc-ws，而不是直连 hichat\\n\\n- 和 `/hc-api` 一样走本站网关：没有跨域问题，各环境的 hichat 域名不用打进前端包，换环境只改网关。\\n- 本地开发时由 Vite 代理：`/hc-ws` → `wss://pre-hailiao.hai-liao-pre.com/ws/im/echo`；生产要靠 nginx 网关做同样的转发（需要透传 `Upgrade` / `Connection`，超时调长）。\\n- 直播间聊天 WebSocket 走的是另一条 `/wss/`，和 `/hc-ws` 没关系。\\n\\n## 10-29 实测（+04 11:01 左右）\\n\\n| 检查 | 结果 |\\n|-|-|\\n| `wss://falivepre.fdsser.com/hc-ws` 握手 | **101**（10-28 是 404，今早复测是 301） |\\n| 连上后第一帧 | hichat 的 `{\\\"chatType\\\":\\\"SRV_NEED_AUTH\\\", ...}`，说明已经转到 hichat 的 `/ws/im/echo` |\\n| 对照 `wss://falivepre.fdsser.com/wss/`（直播聊天） | 101 |\\n| `GET /go-api/api/thirdConfigManage/getStatus`（游客） | code 0，`cryptocurrencyMarketTicker: true` |\\n| `GET /hc-api/api/fameEx/market/symbol/list`（游客） | code 200，1 条（BNB/USDT，现价 596.19） |\\n\\n结论：**pre 的 `/hc-ws` 反代已经通了**，10-28 bot 分类的「等运维加反代」可以结。\\n\\n## 还剩什么\\n\\n- uat / online 的网关也要配同样的 `/hc-ws` 反代：uat → `uat-hailiao.hai-liao-uat.com/ws/im/echo`，online → `www.4ees1.xyz/ws/im/echo`。已写在《对接-后端运维-uat与online上线-2026-10-29》的反代表里。\\n- 登录后鉴权、订阅、收到价格推送这一整段，这次没用账号跑（要有行情变化才会推），属跑马灯负责人 eric 的端到端验收。\",\n      \"document_id\": \"IxB5dOeQ4otGG0xZyXelFCopgLb\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

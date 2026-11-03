@@ -1,0 +1,26 @@
+{
+  "token": "A3dddDQ6DoCe7FxUfPxlUaNogsn",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/A3dddDQ6DoCe7FxUfPxlUaNogsn",
+  "fetchedAt": "2026-11-03T12:17:08.258Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/A3dddDQ6DoCe7FxUfPxlUaNogsn",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"# 新帖 18610 翻译 / AI 识图测试（完整内容）\\n\\n@William 新帖 18610 翻译 / AI 识图测试：通了 1 项，没通 3 项\\n\\n- ⚠️ 接了但还不能用 帖子和评论译文：英文请求（en-us）在发帖后当时、90 秒后和 3.5 分钟后各请求了一次，帖子详情和评论都还是中文原文，content_locale 是 zh-cn，source_locale 是空的，看起来机翻和语言检测都没跑；只有提示语变成了英文\\n- ⚠️ 待验证 英文页面显示帖子：英文打开 18610，界面是英文，标题和正文是中文，和接口返回一致；后端返回译文后前端会直接显示，不用改；这次没实测\\n- ❌ 没接 AI 识图：带图帖 18610 的详情响应里没有任何识图字段；PRD 和接口文档里也没有，需要说明是哪个页面、走哪个接口\\n- ✅ 通了 新发帖和评论：测试号新发中文带图帖 tid 18610（23:47 发帖，不用审核直接可见），下面发了一条中文评论 pid 26908  \\n待确认的几点在这里：https://qfglxo2m3dc.sg.larksuite.com/docx/Hvq6dtcIMosjdOxmZt1loJexgyz\\n- William：新帖 18610 和评论 26908 用英文请求，3.5 分钟内还是中文原文、content_locale=zh-cn，source_locale 也是空的，请确认 pre 的机翻和语言检测有没有开，修好后用 18610 复测；AI 识图：请说明是哪个页面、走哪个接口、返回什么字段；带图帖 18610 的详情响应里没有识图相关字段\",\n      \"document_id\": \"A3dddDQ6DoCe7FxUfPxlUaNogsn\",\n      \"revision_id\": 4\n    }\n  }\n}\n",
+  "stderr": ""
+}

@@ -1,0 +1,26 @@
+{
+  "token": "W4H8dFvnFor8noxZOHflr17Qgmb",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/W4H8dFvnFor8noxZOHflr17Qgmb",
+  "fetchedAt": "2026-11-03T12:17:15.439Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/W4H8dFvnFor8noxZOHflr17Qgmb",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>aven 让 bot 详细回复 Arthur 关于 Bug-5022 的提问（细节）</title>\\n\\n# Bug-5022 游客注册后聊天归并：Go 要做什么\\n\\n## 一句话\\n\\nGo **不需要返回**游客 token。游客 token 是**前端带给 Go**的，Go 只要在建号后调 php `issueToken` 时把它**原样转过去**，并带上 `is_register=1`。字段按 mainly 的技术文档（第五 / 十节）。\\n\\n## 整条链路\\n\\n1. 游客打开站点，php `getHot` 在响应头 `b2b-visitor-token` 里下发游客 token，前端存起来。之后游客跟助理的私聊都挂在这个游客身上。\\n2. 游客注册时，前端在注册请求体里多带一个字段：\\n\\n   - `guest_token`：上面那个 php 游客 token，原样传。\\n   - 只在**未登录且手上有游客 token**时带；已登录不带。\\n   - 带的接口：邮箱 / 手机注册 `POST {auth}/register`、Google 注册 `POST {auth}/google/register`。\\n   - **登录接口不带**（密码登录、验证码登录、Google 登录都不变）。\\n3. **Go（要改的部分）**：注册校验通过、新建账号后，照现在的流程调 php `/api/internal/issueToken` 按用户 ID 签发 `live_token` 时，在这次调用里加两个参数：\\n\\n   - `guest_token`：注册请求里收到的值，原样转，不解析、不改。\\n   - `is_register=1`：告诉 php 这是新注册，需要归并游客数据。\\n   - 请求里没有 `guest_token` 时照旧调，不加这两个参数也不报错。\\n4. php `issueToken` 解出游客 id，把游客跟助理的私聊转到新账号（mainly 那边已做好）。\\n5. 注册接口的返回不用加字段，前端拿到 `live_token` 后照常进入登录态。\\n\\n## 前端请求体示例（邮箱注册）\\n\\n```json\\n{\\n  \\\"email\\\": \\\"xxx@example.com\\\",\\n  \\\"otp_code\\\": \\\"<邮件验证码>\\\",\\n  \\\"password\\\": \\\"<密码>\\\",\\n  \\\"nickname\\\": \\\"<昵称>\\\",\\n  \\\"platform_code\\\": \\\"hichat\\\",\\n  \\\"guest_token\\\": \\\"<getHot 响应头 b2b-visitor-token 的值>\\\"\\n}\\n```\\n\\n手机注册把 `email` 换成 `phone` + `country`；Google 注册是 `id_token` + `platform_code` + `guest_token`。\\n\\n## 当前状态\\n\\n| 环节 | 状态 |\\n|-|-|\\n| php 游客 token 下发（getHot） | pre 实测 code 0（10-29 本轮）；14:0x 实测响应头下发 96 位 token |\\n| Web 注册带 guest_token | 已合入 pre（hotfix-5022），邮箱 / 手机 / Google 注册都带 |\\n| php issueToken 归并 | mainly 已按文档做好 |\\n| **Go 转发 guest_token + is_register=1** | **还没做**：10-29 14:01 pre 实测，游客和助理 James 聊过后带 guest_token 注册（新用户 19710），新号私聊列表为空，聊天仍在游客身上 |\\n\\n## 改好后的验收（按 mainly 文档第九节）\\n\\n1. 不登录，在 pre 打开站点，找一位助理私聊发几句。\\n2. 用能收验证码的新邮箱 / 手机注册（pre 已是真实验证码）。\\n3. 注册成功后打开私聊列表，刚才和助理的会话和消息应该都在。\\n4. 不在的话把注册时间和账号发群里，前端可以对一下请求体里带的 guest_token，Go 可以对一下转给 issueToken 的参数。\",\n      \"document_id\": \"W4H8dFvnFor8noxZOHflr17Qgmb\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

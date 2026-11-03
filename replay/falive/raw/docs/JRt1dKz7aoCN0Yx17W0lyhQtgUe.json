@@ -1,0 +1,26 @@
+{
+  "token": "JRt1dKz7aoCN0Yx17W0lyhQtgUe",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/JRt1dKz7aoCN0Yx17W0lyhQtgUe",
+  "fetchedAt": "2026-11-03T12:17:19.709Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/JRt1dKz7aoCN0Yx17W0lyhQtgUe",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>他人主页 Go 资料接口传参（细节）</title>\\n\\n# 他人主页 influencers 传参修复（2026-10-30）\\n\\n## 问题\\n\\n他人主页（/user/）调 Go `GET /go-api/api/b2b/influencers/{memberId}` 时直接传了 live user_id（例：登录 user_id 448，请求 /influencers/448；正确应是 hichat_id 236241）。\\n\\n## 修复\\n\\n- 他人主页不再调 Go influencers：资料头（昵称 / 头像 / 简介 / 粉丝 / 关注 / 关注态 / 主播标记）全部取 bbsv2 `member/otherInfo?uid=<live uid>` + `member/threadsCount?uid=<live uid>`。\\n- 页面 ID、关注、私聊始终用路由 live uid，不再用 Go 返回的 id。\\n- Go 接口函数保留，入参改名 hichatId，只在拿到真实 hichat_id 时调用。\\n- 顺带：游客看他人主页不再因 Go 这支回 -700 而失败。\\n\\n## 实测（pre，测试号 uid 508）\\n\\n- `/bbsv2/member/otherInfo?uid=260`：code 0，follower 18、is_anchor 1、等级卡两张\\n- `/bbsv2/member/threadsCount?uid=260`：code 0\\n- 项目 zod schema 对两支真实响应校验：ok\\n\\n## 待 Arthur 确认\\n\\n页面只有对方 live uid，如何拿到 hichat_id：\\n\\n1. bbsv2 otherInfo 返回 hichat_id；\\n2. Go influencers 支持按 live user_id 查；\\n3. 另给换算接口。  \\n定了之后前端恢复调用 `influencers/{hichat_id}`，补回 Go 的主播公告。\\n\\n分支：lark/falive-26351f74（本地，未推送）\",\n      \"document_id\": \"JRt1dKz7aoCN0Yx17W0lyhQtgUe\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

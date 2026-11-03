@@ -1,0 +1,26 @@
+{
+  "token": "DB4wdqRBQo7mCOxbtFQld0Hlgad",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/DB4wdqRBQo7mCOxbtFQld0Hlgad",
+  "fetchedAt": "2026-11-03T12:17:04.383Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/DB4wdqRBQo7mCOxbtFQld0Hlgad",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>PM-2954-图片解密-待确认-2026-10-21</title>\\n\\n# PM-2954 图片解密（App 对接文档 1.10）待确认 — 2026-10-21\\n\\n> 依据：PM-2954-App对接文档 1.10（Encone 10-21 发）。前端已在广场列表、帖子详情和搜索帖子卡上按 1.10 解密（对应 对接-一期全项目问题 C1）。\\n\\n## 运维\\n\\n1. **图片 CDN 加跨域头**\\n\\n   - 要什么：bbsv2 图片地址（现在是 `https://falivepre.fdsser.com/upload/discuz/bbsv2/...`）返回 `Access-Control-Allow-Origin`（`*` 即可）。uat / online 的图片域名同样要配。\\n   - 为什么：Web 要用 `fetch` 取到字节才能解密。图片和页面不同域时，没有这个头就取不到字节。1.10「注意」里写明由运维配置。\\n   - 我方现状：10-21 用 `curl -H \\\"Origin: http://localhost:3000\\\"` 测 tid 18596 的缩略图，返回 200，但没有 `Access-Control-Allow-Origin`。OPS pre 站和图片同域，所以不受影响。本地联调、dev-03 预览机，以及将来图片换域名或走 CDN 时，密文图会回落占位图。\\n   - 建议：给 `/upload/` 加 `Access-Control-Allow-Origin: *`，uat / online 上线前一并配好。\\n\\n## 社区后端（Encone）\\n\\n1. **分享卡片图（og:image）是密文**\\n\\n   - 要什么：确认帖子分享卡片用什么图。可以给一个明文缩略图字段，或者约定分享卡片只用站点默认图。\\n   - 为什么：`/square/<tid>` 落地页的 og:image 取 `picture[0]`。微信、Telegram 等爬虫不会解密，密文图在分享卡片里显示不出来。\\n   - 我方现状：前端按契约原样透传 `picture[0]`，没有做额外处理。\\n   - 建议：后端给出口径后，前端按新字段接入。\",\n      \"document_id\": \"DB4wdqRBQo7mCOxbtFQld0Hlgad\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

@@ -1,0 +1,26 @@
+{
+  "token": "L5qzdBtPWoe0Alxfk7vllA2LgQd",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/L5qzdBtPWoe0Alxfk7vllA2LgQd",
+  "fetchedAt": "2026-11-03T12:17:12.688Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/L5qzdBtPWoe0Alxfk7vllA2LgQd",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"# 首页 UI 走查（Figma 能打开）（完整内容）\\n\\n@Encone @Mateo 首页 UI 走查（Figma 能打开）：通了 3 项，没通 2 项\\n\\n- ⚠️ 接了但还不能用 03 分类图标：后台标签没配图标（ETH、合约为空，BTC 配错），要 Encone 在后台配\\n- ❌ 没接 09 任务中心游客态：截图是未登录状态，设计稿没画游客态，要 Mateo 定怎么展示\\n- ✅ 通了 02 侧栏选中项底色：改成和设计稿一致的纯深灰底，去掉多叠的渐变\\n- ✅ 通了 01 行情横条：之前已修，pre 游客首页已显示行情\\n- ✅ 通了 05 / 06 推荐视频时长和眼睛图标：之前已修并上线；接口没有时长字段，前端读播放源算时长  \\n待确认的几点在这里：https://qfglxo2m3dc.sg.larksuite.com/docx/Hkxudj6SroIbifx24PslN54ughe\\n- Encone：后台给直播标签配上和设计稿一致的图标：ETH、合约现在没配，BTC 配成了胶片图标；推荐视频接口 robotManualList 不带时长，要每张卡都稳定显示时长需要加时长字段\\n- Mateo：首页任务中心游客态（积分 --、无签到格、点签到弹登录）是否要加引导文案，设计稿只有登录态  \\n详细见：https://qfglxo2m3dc.sg.larksuite.com/docx/XNzqd7qO7opIBLxK0vKlOlUvgnc\",\n      \"document_id\": \"L5qzdBtPWoe0Alxfk7vllA2LgQd\",\n      \"revision_id\": 4\n    }\n  }\n}\n",
+  "stderr": ""
+}

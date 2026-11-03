@@ -1,0 +1,26 @@
+{
+  "token": "Mp7NdTBiooBpQRxrvBmlLHQDgVf",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/Mp7NdTBiooBpQRxrvBmlLHQDgVf",
+  "fetchedAt": "2026-11-03T12:17:13.142Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/Mp7NdTBiooBpQRxrvBmlLHQDgVf",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>Encone（portal 后端）引用了今天对接文档 C1 那一行（Bug-4994（细节）</title>\\n\\n# Bug-4994 发帖 500 复现材料\\n\\n- 账号：shellyhsu+klive1@htsoftware.co（live uid 19650），密码见 Bug-4994 描述（测试同学 HTShellyhsu 提供）\\n- 接口：POST [https://falivepre.fdsser.com/bbsv2/thread/create](https://falivepre.fdsser.com/bbsv2/thread/create)\\n- 请求体（来自 bug 单）：\\n\\n```json\\n{\\\"subject\\\":\\\"雪莉測試雪莉測試雪莉測試\\\",\\\"content\\\":\\\"雪莉測試雪莉測試雪莉測試\\\",\\\"images\\\":[8630],\\\"video\\\":8631,\\\"tags\\\":[9],\\\"channel_code\\\":\\\"hc\\\"}\\n```\\n\\n- 时间：10-26 11:55（+04）左右\\n- 对照：同样的请求结构用测试号 uid 508 发帖成功，code 0，tid 18623\\n- 10-26 对这个账号做过只读核对：member/info、member/groups、publishRule 都正常（中级会员，允许发帖发图）\",\n      \"document_id\": \"Mp7NdTBiooBpQRxrvBmlLHQDgVf\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

@@ -1,0 +1,26 @@
+{
+  "token": "CfbhdAySko3O0nxTSnhlbMqRg4e",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/CfbhdAySko3O0nxTSnhlbMqRg4e",
+  "fetchedAt": "2026-11-03T12:17:06.415Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/CfbhdAySko3O0nxTSnhlbMqRg4e",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>Bug-4927嗨聊老账号复测-待确认-2026-10-22</title>\\n\\n# Bug-4927 嗨聊老账号复测 · 待确认（2026-10-22）\\n\\n> 来自：aven（前端）  \\n> 背景：用 Encone 给的嗨聊老账号（uid 271 / hichat_id 9319）在 pre 复测 Bug-4927，登录、刷新保持登录态、Member/info、WS、嗨聊 token 都通过（见 `../reply/falive群-Bug-4927嗨聊老账号-答复-2026-10-22.md`）。下面是复测中顺带看到的一条，不影响 Bug-4927 本身。\\n\\n## live 后端（William / Encone）\\n\\n| # | 要什么 | 为什么 | 我方现状 | 建议 |\\n|-|-|-|-|-|\\n| 1 | 确认嗨聊老账号的头像文件在 pre 是否存在 | 登录返回和 `/api/Member/info` 的 `avatar` 都是 `/images/icon/06311b33-5cbb-4c0b-9de4-dbc104df9c4b.jpg`，但这个地址在 pre 回 404，顶栏只能显示默认头像 | 前端按返回的地址原样加载，失败回落默认头像，不自造地址 | 后端查一下嗨聊账号同步到 live 时头像文件有没有一起同步 / 存储路径是否对；补好后前端不用改 |\",\n      \"document_id\": \"CfbhdAySko3O0nxTSnhlbMqRg4e\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

@@ -1,0 +1,3 @@
+#!/bin/sh
+# 回放用 claude 包装壳：LARK_CLAUDE_BIN 指到这里（scripts/sim/run-sim.mjs 设置）；只读调用按规范化后的输入缓存，其余直通真 claude（见 claude-cache.mjs）。
+exec node "$(dirname "$0")/claude-cache.mjs" "$@"

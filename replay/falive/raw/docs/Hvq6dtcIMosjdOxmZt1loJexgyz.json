@@ -1,0 +1,26 @@
+{
+  "token": "Hvq6dtcIMosjdOxmZt1loJexgyz",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/Hvq6dtcIMosjdOxmZt1loJexgyz",
+  "fetchedAt": "2026-11-03T12:17:08.811Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/Hvq6dtcIMosjdOxmZt1loJexgyz",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"# 帖子多语言翻译 / AI 识图 — 待确认（2026-10-24）\\n\\n> 来源：William 10-24 19:18 让测帖子多语言翻译和 AI 识图，19:43 后要求「创建最新的帖子进行测试」。本轮用 pre 测试号（uid 508）新发帖实测。\\n\\n## 本轮实测（pre，2026-10-24 15:47 UTC = 23:47 北京时间）\\n\\n| 项 | 结果 |\\n|-|-|\\n| 新帖 | tid **18610**（pid 26907），标题「比特币本周行情复盘与下周展望」，中文正文约 90 字 + 1 张图（aid 8618），发帖返回 `pending: 0`，详情 `audit_status: 1`，直接可见 |\\n| 新评论 | pid **26908**，中文约 40 字，`pending: 0` |\\n| `GET /bbsv2/thread/detail?tid=18610`，`X-Accept-Language: zh-CN` | code 0，`content_locale: \\\"zh-cn\\\"`，`source_locale: \\\"\\\"`，subject / message 中文原文 |\\n| 同上，`X-Accept-Language: en-us` | code 0，msg「Operation successful」（提示语已是英文），但 `content_locale: \\\"zh-cn\\\"`、`source_locale: \\\"\\\"`，subject / message **仍为中文原文** |\\n| `GET /bbsv2/post/listCursor?tid=18610`（zh-CN / en-us） | code 0，1 条，`content_locale: \\\"zh-cn\\\"`，message 中文原文 |\\n| 发帖后 +90s、+210s 各重测一次 | 结果与 t0 完全相同，**未出现译文** |\\n| 英文页面 `https://falivepre.fdsser.com/square/18610`（cookie `language=en`，SSR 200） | 页面界面是英文（Log in / Comments / Send），帖子标题、正文为中文，和接口返回一致 |\\n| 响应里与识图相关的字段 | detail 的 thread 字段只有 `tid,fid,subject,authorid,dateline,views,replies,digest,heats,recommend,closed,displayorder,audit_status,mediatype,forum_name,message,tags,pid,picture,video,author,is_liked,is_favorited,favid,favorite_count,content_locale,source_locale,my_comment`，**没有任何图片识别 / 描述字段** |\\n\\n前端现状：英文下所有 bbsv2 请求都带 `X-Accept-Language: en-us`，帖子 / 评论正文原样显示接口返回的 subject / message，不在前端翻译；后端一返回译文，页面会直接显示，前端不用改。\\n\\n## William（live php / 社区后端）\\n\\n1. **机翻没生效**：新帖 18610 和评论 26908 在 en-us 请求下 3.5 分钟内都还是中文、`content_locale=zh-cn`。另外 `source_locale` 返回空字符串，看起来源语言检测也没跑。请确认 pre 的翻译任务（队列 / 开关 / 第三方 key）是否开启；修好后用 18610 复测即可。\\n2. 契约期望（CThread / CPost 文档）：「命中翻译时 content_locale 为目标语言，否则为原文语言 zh-cn」。现在首个出错位置是接口响应本身，前端不做补偿。\\n\\n## 产品 / William\\n\\n1. **AI 识图**：一期 PRD、功能表、接口文档都没有这个功能，web 没做；本轮发的带图帖（18610）的详情响应里也没有识图相关字段。请说明是哪个页面、走哪个接口、返回什么字段，给了才能测和接。\",\n      \"document_id\": \"Hvq6dtcIMosjdOxmZt1loJexgyz\",\n      \"revision_id\": 5\n    }\n  }\n}\n",
+  "stderr": ""
+}

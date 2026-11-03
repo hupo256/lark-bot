@@ -1,0 +1,26 @@
+{
+  "recordId": "reczz28TYFOUEXxc",
+  "why": "bug-5117",
+  "fetchedAt": "2026-11-03T12:18:16.984Z",
+  "version": "now",
+  "note": "拉取时的最新状态（状态 / 备注 / 测试结果可能晚于消息当时）",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "base",
+    "+record-get",
+    "--as",
+    "user",
+    "--base-token",
+    "<bugTable.appToken>",
+    "--table-id",
+    "tblbJYjrxZsPe40V",
+    "--record-id",
+    "reczz28TYFOUEXxc",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"data\": [\n      [\n        \"Bug-5117\",\n        \"[10/30 James.y] 複驗通過\",\n        [\n          \"UAT测试通过\"\n        ],\n        null,\n        null,\n        \"PM-3254\",\n        \"2026-10-30T17:22:06.000+04:00\",\n        \"Backend\",\n        \"2026-10-30T12:11:37.000+04:00\",\n        null,\n        \"Falive\",\n        null,\n        [\n          {\n            \"file_token\": \"QxOObdP6Po92coxZp3slJ3RVgvv\",\n            \"name\": \"Bug-5117-Pass.mov\",\n            \"size\": 2238521\n          }\n        ],\n        [\n          {\n            \"id\": \"ou_57bd40c686c743f8def7d503c70e8491\",\n            \"name\": \"HTJames.y\"\n          }\n        ],\n        null,\n        \"個人主頁 \\u003e 設定齒輪圖示 \\u003e 個人訊息 \\u003e 上傳頭像\\n顯示頭像已更新，但未顯示上傳的頭像\",\n        \"2026-10-30T12:11:37.812+04:00\",\n        \"【falive一期】后端/web/app\",\n        \"個人主頁-更新頭像失敗\",\n        null,\n        null,\n        [\n          \"Uat\"\n        ],\n        [\n          {\n            \"id\": \"ou_57bd40c686c743f8def7d503c70e8491\",\n            \"name\": \"HTJames.y\"\n          }\n        ],\n        [\n          {\n            \"file_token\": \"JkUGbRbeFoZWw4ximWpl1ATHglZ\",\n            \"name\": \"個人主頁-頭像更新-未顯示上傳後的頭像.png\",\n            \"size\": 300293\n          }\n        ],\n        [\n          {\n            \"id\": \"ou_0474e2a35ff1054cdbc0bb9d9d9c9766\",\n            \"name\": \"HQUCEncone\"\n          },\n          {\n            \"id\": \"ou_d24c070cfea7570478d3d61ced55de0c\",\n            \"name\": \"HQUCWilliam.m\"\n          }\n        ],\n        \"pre测试中\",\n        [\n          \"Backend\"\n        ],\n        \"10-30 bot 分类：Backend（Go 头像 HQUCWilliam.m + 网关 HQUCEncone），前端无需改动。证据：① 测试截图里 uat 上传接口 code 0，返回 data.avatar=[https://faliveuat.fdsser.com/avatar/u236241/](https://faliveuat.fdsser.com/avatar/u236241/)…（无 /go-api 前缀），前端按契约直接用这个地址显示，图片加载失败就显示默认头像；② 同样操作在 falivepre 用测试号实测正常：返回 [https://falivepre.fdsser.com/go-api/avatar/u129180/](https://falivepre.fdsser.com/go-api/avatar/u129180/)…/avatar.png，HTTP 200 image/png，个人信息页、顶栏、刷新后都显示新头像，php Member/info 也已是新头像；③ 网关路由对比：pre 的 /go-api/avatar/* 由 nginx 静态头像目录处理，/avatar/* 落到前端 SSR 返回 404 页；uat 的 /avatar/* 和 /go-api/avatar/* 都落到前端 SSR 返回 404 页，即 uat 没有头像文件的访问路由。需要后端：uat Go 头像公开地址前缀按 pre 配成 [https://faliveuat.fdsser.com/go-api](https://faliveuat.fdsser.com/go-api)，网关补 /go-api/avatar/ 到头像存储的转发；已上传的 uat 头像地址在数据库里也要一并修正。\",\n        \"1.0.3\"\n      ]\n    ],\n    \"field_id_list\": [\n      \"fldmxTvHTq\",\n      \"fld0Pe5U7G\",\n      \"fld1i6PDQT\",\n      \"fld1u0NBC5\",\n      \"fld4kVwoLs\",\n      \"fld52WVyfK\",\n      \"fld7ChUvSH\",\n      \"fld8fzIptW\",\n      \"fld8Q2XlJB\",\n      \"fldAh2Kyj0\",\n      \"fldBuyLemA\",\n      \"fldcuNmiVK\",\n      \"fldD77oYrZ\",\n      \"fldEiiSdHh\",\n      \"fldERqfLpq\",\n      \"fldGsVI1Y0\",\n      \"fldHgasO5A\",\n      \"fldhpTkoXE\",\n      \"fldIuAN6te\",\n      \"fldJ9rdSbO\",\n      \"fldMLCmFW2\",\n      \"fldPyoP99S\",\n      \"fldsV39i3n\",\n      \"fldu80s8wJ\",\n      \"fldw1TK5PO\",\n      \"fldwobTvnQ\",\n      \"fldyh4ldX6\",\n      \"fldYisQZkD\",\n      \"fldZHrw01k\"\n    ],\n    \"field_type_list\": [\n      \"auto_number\",\n      \"text\",\n      \"select\",\n      \"lookup\",\n      \"link\",\n      \"text\",\n      \"updated_at\",\n      \"lookup\",\n      \"created_at\",\n      \"text\",\n      \"lookup\",\n      \"select\",\n      \"attachment\",\n      \"user\",\n      \"datetime\",\n      \"text\",\n      \"datetime\",\n      \"lookup\",\n      \"text\",\n      \"attachment\",\n      \"datetime\",\n      \"select\",\n      \"updated_by\",\n      \"attachment\",\n      \"user\",\n      \"lookup\",\n      \"select\",\n      \"text\",\n      \"text\"\n    ],\n    \"fields\": [\n      \"Bug编号\",\n      \"测试结果\",\n      \"状态\",\n      \"测试人员所在部门\",\n      \"父記錄\",\n      \"需求ID\",\n      \"最后更新时间\",\n      \"解决人员所在部门\",\n      \"创建时间\",\n      \"项目备注\",\n      \"所属项目组\",\n      \"严重程度\",\n      \"测试结果截图\",\n      \"测试人员\",\n      \"预计上线时间\",\n      \"问题描述（复现步骤）\",\n      \"bug填写日期\",\n      \"需求名称\",\n      \"问题标题\",\n      \"附件\",\n      \"修复完成时间\",\n      \"环境\",\n      \"记录最后修改人\",\n      \"问题截图\",\n      \"负责RD\",\n      \"需求阶段\",\n      \"涉及端口\",\n      \"备注\",\n      \"Sprint\"\n    ],\n    \"has_more\": false,\n    \"record_id_list\": [\n      \"reczz28TYFOUEXxc\"\n    ],\n    \"rev\": 21326,\n    \"timezone\": \"Asia/Dubai\"\n  }\n}\n",
+  "stderr": ""
+}

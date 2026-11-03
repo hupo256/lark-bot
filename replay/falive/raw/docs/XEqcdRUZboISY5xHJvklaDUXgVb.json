@@ -1,0 +1,26 @@
+{
+  "token": "XEqcdRUZboISY5xHJvklaDUXgVb",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/XEqcdRUZboISY5xHJvklaDUXgVb",
+  "fetchedAt": "2026-11-03T12:17:21.607Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/XEqcdRUZboISY5xHJvklaDUXgVb",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>Arthur 回应 bot 17（细节）</title>\\n\\n# 社区帖子评论任务：测试账号说明\\n\\n## 卡片里那次生产实测（没完成、没加分）\\n\\n- 测试人：Justin，环境：生产 [www.falive.com](http://www.falive.com)，时间 10-31 20:05（首尔时间）\\n- 账号：UID 466（Justin 自己的生产号，请找 Justin）\\n- 过程：在自己的帖子 44650 下评论成功（pid 53931，pending 0）→ 前端调 `POST /go-api/api/points/task/complete{\\\"taskId\\\":8}` 回 HTTP 200 / code 0，请求 ID `267bc284-3ac3-44ab-8f6f-72c8d6491056`\\n- 回查：任务 8 仍 taskStatus 0、finishTime null；余额仍 260，流水没有新增。列表请求 ID `6a28e4d5-3307-407b-a02f-aefced1cfce5`，余额请求 ID `d2c79683-0618-4b65-98f3-667a988e9677`\\n\\n## bot 自己测过的号（密码不在文档里，由 aven 私发）\\n\\n| 环境 | uid | 说明 |\\n|-|-|-|\\n| pre | 19710（hichat_id 129320） | 10-31 13:35 / 14:17 pre 评论后 DISCUZ 40 秒仍未完成用的就是它；uat 上不存在 |\\n| 生产 | 484（hichat_id 370573，昵称 kaiser测试） | Kaiser 的测试号；之前说生产「一直未完成」看的是这个号 |\\n\\n## uat\\n\\n- bot 没有 uat 测试号：pre 的号在 uat Go 登录回「用户不存在」，uat 注册收不到验证码。\\n- 你截图里 uat「Discuz任务-社区帖子评论」已完成、流水 +20（21:50），这次 bot 没在 uat 复测。\",\n      \"document_id\": \"XEqcdRUZboISY5xHJvklaDUXgVb\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

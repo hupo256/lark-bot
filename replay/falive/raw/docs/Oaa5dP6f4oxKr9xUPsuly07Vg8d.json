@@ -1,0 +1,26 @@
+{
+  "token": "Oaa5dP6f4oxKr9xUPsuly07Vg8d",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/Oaa5dP6f4oxKr9xUPsuly07Vg8d",
+  "fetchedAt": "2026-11-03T12:17:13.414Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/Oaa5dP6f4oxKr9xUPsuly07Vg8d",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>游客看他人主页复测（细节）</title>\\n\\n# 游客看他人主页复测（2026-10-27）\\n\\n## 结论\\n\\n- 社区 bbsv2 `member/otherInfo`、`member/threadsCount` 对游客已开放：C3 / Bug-4905 / 4908 已修。\\n- 他人主页页面游客仍打不开资料：主资料走 Go `GET /go-api/api/b2b/influencers/{uid}`，游客回 -700「未授权」。\\n\\n## 接口实测（游客 = 只有 php 访客 token、没登录，B2B 签名，经 [https://falivepre.fdsser.com](https://falivepre.fdsser.com)）\\n\\n| 接口 | 结果 |\\n|-|-|\\n| `GET /bbsv2/member/otherInfo?uid=19694` | code 0，user.uid=19694，username=User5507 |\\n| `GET /bbsv2/member/threadsCount?uid=19694` | code 0 |\\n| `GET /bbsv2/member/otherInfo?uid=128` | code 0，is_anchor=1，live.status=1 |\\n| `GET /bbsv2/member/threadsCount?uid=128` | code 0，follower=6 |\\n\\n注：不带签名直接 curl 会回 -800「非法请求」，那是签名校验，正常。\\n\\n## 页面实测\\n\\n- 未登录打开 [https://falivepre.fdsser.com/user/19694](https://falivepre.fdsser.com/user/19694)：HTTP 200，资料区显示「资料加载失败，请稍后重试。」，存档 / 帖子 tab 正常显示。\\n- 页面请求 `GET /go-api/api/b2b/influencers/19694` → code -700「未授权」。他人主页的昵称 / 头像 / 简介 / 粉丝以这支 Go 接口为准，它失败资料头就出不来。\\n\\n## 请 Arthur\\n\\n- `b2b/influencers/{memberId}` 对游客开放只读（和 bbsv2 otherInfo 一样）。\",\n      \"document_id\": \"Oaa5dP6f4oxKr9xUPsuly07Vg8d\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

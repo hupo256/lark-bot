@@ -10,7 +10,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-import { AVEN_OPEN_ID, BOT_APP_ID, BOT_MENTION_IDS, datasetDir, replayRoot, toListItem, toSimEvent } from './falive-data.mjs'
+import { AVEN_OPEN_ID, BOT_APP_ID, BOT_MENTION_IDS, datasetDir, rawDir, replayRoot, resolveRaw, toListItem, toSimEvent } from './falive-data.mjs'
 
 // 运行目录指到主仓 runtime：persona、发件簿都在那；附件（raw/lark-im-resources）在它下面，执行器会 --add-dir 放行。
 if (!process.env.LARK_RUNTIME_DIR) process.env.LARK_RUNTIME_DIR = join(homedir(), 'github', 'lark-bot', 'runtime')
@@ -98,12 +98,12 @@ const deps = {
     return attachments.map((a) => {
       const key = a.type === 'file' ? a.fileKey : a.imageKey
       const fromTimeline = (src?.resources || []).find((r) => r.key === key && r.localPath)?.localPath || null
-      const path = [fromTimeline, extraResources[`${messageId}/${key}`]].find((p) => p && existsSync(p))
+      const path = [fromTimeline, extraResources[`${messageId}/${key}`]].map(resolveRaw).find((p) => p && existsSync(p))
       return path ? { ...a, localPath: path } : { ...a, downloadError: '存档里没有这份附件' }
     })
   },
 }
-const extraResourcesPath = join(replayRoot, 'raw', 'resources-extra.json')
+const extraResourcesPath = join(rawDir, 'resources-extra.json')
 const extraResources = existsSync(extraResourcesPath) ? JSON.parse(readFileSync(extraResourcesPath, 'utf8')).resources || {} : {}
 const emptyStore = { list: () => [], listRecentForChat: () => [], findTaskByAnyReceipt: () => null, findByReceiptMessageId: () => null, has: () => false }
 

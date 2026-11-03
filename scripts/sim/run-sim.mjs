@@ -15,7 +15,7 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { AVEN_OPEN_ID, BOT_APP_ID, GROUPS, datasetDir, replayRoot, toSimEvent } from './falive-data.mjs'
+import { AVEN_OPEN_ID, BOT_APP_ID, GROUPS, datasetDir, rawDir, replayRoot, resolveRaw, toSimEvent } from './falive-data.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const larkBotRoot = dirname(dirname(here))
@@ -52,9 +52,9 @@ writeFileSync(join(simDir, 'timeline.json'), JSON.stringify(timeline))
 writeFileSync(join(simDir, 'chats.json'), JSON.stringify(GROUPS.map((g) => ({ chat_id: g.chatId, name: g.name, external: g.external }))))
 const resources = {}
 // 时间线里的 localPath 已是绝对路径（11-03 发现：原来又拼到 raw/ 后面，所有模拟附件全部下载失败）；补拉的附件在 raw/resources-extra.json。
-for (const m of timeline) for (const r of m.resources || []) if (r.localPath) resources[`${m.id}/${r.key}`] = r.localPath
-const extraResourcesPath = join(replayRoot, 'raw', 'resources-extra.json')
-if (existsSync(extraResourcesPath)) Object.assign(resources, JSON.parse(readFileSync(extraResourcesPath, 'utf8')).resources || {})
+for (const m of timeline) for (const r of m.resources || []) if (r.localPath) resources[`${m.id}/${r.key}`] = resolveRaw(r.localPath)
+const extraResourcesPath = join(rawDir, 'resources-extra.json')
+if (existsSync(extraResourcesPath)) for (const [k, p] of Object.entries(JSON.parse(readFileSync(extraResourcesPath, 'utf8')).resources || {})) resources[k] = resolveRaw(p)
 writeFileSync(join(simDir, 'resources.json'), JSON.stringify(resources))
 if (!existsSync(join(simDir, 'meta.json'))) writeFileSync(join(simDir, 'meta.json'), JSON.stringify({ simStartMs: fromMs, createdAt: new Date().toISOString() }))
 const events = timeline.filter((m) => m.atMs >= fromMs && m.atMs < toMs && !m.ownBot && !m.deleted && m.senderType === 'user' && (m.text || m.resources?.length))
@@ -189,12 +189,32 @@ const env = {
   LARK_SELF_FIX: '0',
   LARK_WORKER_CONCURRENCY: value('--conc', '4'),
   LARK_CHAT_NAME_TTL_MS: '600000',
+  // 额度闸（claude-quota.mjs）：撞限额时等到重置再重试；lark-bot 的真实时间超时放大到 8 小时，原超时由闸按真实耗时执行（不算等额度的时间）
+  LARK_CLAUDE_BIN: join(here, 'claude-q'),
+  LARK_CLAUDE_IDLE_TIMEOUT_MS: String(8 * 3600_000),
+  LARK_INTENT_CLASSIFIER_TIMEOUT_MS: String(8 * 3600_000),
+  LARK_WORKER_AI_TIMEOUT_MS: String(8 * 3600_000),
+  SIM_ORIG_IDLE_MS: process.env.LARK_CLAUDE_IDLE_TIMEOUT_MS || '600000',
+  SIM_ORIG_INTENT_MS: process.env.LARK_INTENT_CLASSIFIER_TIMEOUT_MS || '120000',
+  SIM_ORIG_TOTAL_MS: process.env.LARK_WORKER_AI_TIMEOUT_MS || '1800000',
   ...aiCacheEnv,
+  ...(aiCache ? { SIM_REAL_CLAUDE: join(here, 'claude-q') } : {}),
 }
 const clockPath = join(simDir, 'clock.json')
 const setClock = (virtualMs) => writeFileSync(clockPath, JSON.stringify({ virtualMs, realMs: Date.now() }))
 let virtualNow = fromMs
 setClock(virtualNow)
+// 撞额度暂停期间冻住虚拟时钟（各进程每 200ms 读一次 clock.json）：等额度的真实时间不算虚拟时间，义务 / 催办 / 「收到」巡检都不往前走。
+const { pausedUntil } = await import('./claude-quota.mjs')
+let frozenAt = null
+let pausedMsTotal = 0
+setInterval(() => {
+  if (pausedUntil()) {
+    if (frozenAt == null) { frozenAt = clockNow(); log(`额度暂停：虚拟时钟冻在 ${new Date(frozenAt).toISOString()}`) }
+    setClock(frozenAt)
+    pausedMsTotal += 1000
+  } else if (frozenAt != null) { log('额度恢复：虚拟时钟接着走'); frozenAt = null }
+}, 1000).unref()
 const preload = join(here, 'virtual-clock.mjs')
 const spawnNode = (name, script, extra = []) => {
   const out = join(simDir, `${name}.log`)
@@ -229,9 +249,10 @@ const listTasks = async () => {
   }
 }
 const waitIdle = async (label, settle = settleMs) => {
-  const started = Date.now()
+  let started = Date.now()
   let idleSince = null
   for (;;) {
+    if (pausedUntil()) { await sleep(3000); started += 3000; continue }
     const tasks = await listTasks()
     const active = tasks ? tasks.filter((t) => ACTIVE.has(t.status) || t.ackPending) : []
     const elapsed = Date.now() - started
@@ -271,9 +292,10 @@ const byIdAll = new Map(timeline.map((m) => [m.id, m]))
 // 触发 bot 的（@bot / 私信 / 回复 bot 的消息）喂完等网关接住；其余只进上下文（读历史时按时钟从时间线取），网关直接丢，不用等。
 const triggersBot = (m) => m.atBot || m.chatKey === 'webhook-group' || Boolean(m.parentId && byIdAll.get(m.parentId)?.ownBot)
 const advanceTo = async (targetMs, label, settleMs = 1500) => {
-  const started = Date.now()
+  let started = Date.now()
   await sleep(settleMs) // 刚喂的消息先让网关接住（建任务 / 挂「收到」），再判空闲
   for (;;) {
+    if (pausedUntil()) { await sleep(2000); started += 2000; continue }
     if (clockNow() >= targetMs) return
     if (await isIdle()) {
       setClock(targetMs)

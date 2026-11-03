@@ -1,0 +1,26 @@
+{
+  "recordId": "reczz28SKtyfxzd9",
+  "why": "bug-5030",
+  "fetchedAt": "2026-11-03T12:18:01.279Z",
+  "version": "now",
+  "note": "拉取时的最新状态（状态 / 备注 / 测试结果可能晚于消息当时）",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "base",
+    "+record-get",
+    "--as",
+    "user",
+    "--base-token",
+    "<bugTable.appToken>",
+    "--table-id",
+    "tblbJYjrxZsPe40V",
+    "--record-id",
+    "reczz28SKtyfxzd9",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"data\": [\n      [\n        \"Bug-5030\",\n        null,\n        [\n          \"Pre测试通过\"\n        ],\n        \"QA\",\n        null,\n        \"PM-3254\",\n        \"2026-10-29T11:49:18.000+04:00\",\n        \"Web\",\n        \"2026-10-27T10:33:02.000+04:00\",\n        null,\n        \"Falive\",\n        null,\n        null,\n        [\n          {\n            \"id\": \"ou_76eea7f1089ccfb66678300fe4bc4a40\",\n            \"name\": \"HTStone.z\"\n          }\n        ],\n        null,\n        null,\n        \"2026-10-27T10:33:03.170+04:00\",\n        \"【falive一期】后端/web/app\",\n        \"首頁 \\u003e 進入直播間旁喇叭icon點擊無反應\",\n        null,\n        null,\n        [\n          \"Pre\"\n        ],\n        [\n          {\n            \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n            \"name\": \"World\"\n          }\n        ],\n        [\n          {\n            \"file_token\": \"VkMobJfbzo64NVxIwTSlnJj4gBe\",\n            \"name\": \"image.png\",\n            \"size\": 570367\n          }\n        ],\n        [\n          {\n            \"id\": \"ou_91861d6da6cf6822e08045ba1868241e\",\n            \"name\": \"Aven.tong\"\n          }\n        ],\n        \"pre测试中\",\n        [\n          \"Web\"\n        ],\n        \"【10-27 修复】根因：稿 53:9238 / 112:8787 里「进入直播间」旁的喇叭钮控制的是 Hero 画面的声音，前端只画了钮、没接直播预览，点了没反应。已改：Hero 主图位叠一层静音自动播放的直播预览（客户端拉 getRoomInfo 取签名播放地址，与直播间播放器同源；列表接口的 pull 缺主机名不能直接用），喇叭钮切换静音 / 开声音（图标随之切换），预览没播起来（未开播 / 无地址 / 加载失败）时钮为禁用态、只显示封面；桌面与手机态都改。\\n自测（本地 pre 生产包 + pre 网关，Playwright）：首页 Hero 预览播起来后喇叭钮可点，点一次 video.muted=false、图标变喇叭+声波、aria-label「静音」，再点回静音；手机态同。pre 上目前只有「播文件」的房间能播（m3u8 的直播间 CDN 回 403，没有真实推流，直播间页同样），这类房间 Hero 保持封面、钮禁用。\\nMR !140（hotfix-5030 → pre）：http://mgit.lgroup.co/hqoi/web/falive-react/-/merge_requests/140\",\n        \"1.0.3\"\n      ]\n    ],\n    \"field_id_list\": [\n      \"fldmxTvHTq\",\n      \"fld0Pe5U7G\",\n      \"fld1i6PDQT\",\n      \"fld1u0NBC5\",\n      \"fld4kVwoLs\",\n      \"fld52WVyfK\",\n      \"fld7ChUvSH\",\n      \"fld8fzIptW\",\n      \"fld8Q2XlJB\",\n      \"fldAh2Kyj0\",\n      \"fldBuyLemA\",\n      \"fldcuNmiVK\",\n      \"fldD77oYrZ\",\n      \"fldEiiSdHh\",\n      \"fldERqfLpq\",\n      \"fldGsVI1Y0\",\n      \"fldHgasO5A\",\n      \"fldhpTkoXE\",\n      \"fldIuAN6te\",\n      \"fldJ9rdSbO\",\n      \"fldMLCmFW2\",\n      \"fldPyoP99S\",\n      \"fldsV39i3n\",\n      \"fldu80s8wJ\",\n      \"fldw1TK5PO\",\n      \"fldwobTvnQ\",\n      \"fldyh4ldX6\",\n      \"fldYisQZkD\",\n      \"fldZHrw01k\"\n    ],\n    \"field_type_list\": [\n      \"auto_number\",\n      \"text\",\n      \"select\",\n      \"lookup\",\n      \"link\",\n      \"text\",\n      \"updated_at\",\n      \"lookup\",\n      \"created_at\",\n      \"text\",\n      \"lookup\",\n      \"select\",\n      \"attachment\",\n      \"user\",\n      \"datetime\",\n      \"text\",\n      \"datetime\",\n      \"lookup\",\n      \"text\",\n      \"attachment\",\n      \"datetime\",\n      \"select\",\n      \"updated_by\",\n      \"attachment\",\n      \"user\",\n      \"lookup\",\n      \"select\",\n      \"text\",\n      \"text\"\n    ],\n    \"fields\": [\n      \"Bug编号\",\n      \"测试结果\",\n      \"状态\",\n      \"测试人员所在部门\",\n      \"父記錄\",\n      \"需求ID\",\n      \"最后更新时间\",\n      \"解决人员所在部门\",\n      \"创建时间\",\n      \"项目备注\",\n      \"所属项目组\",\n      \"严重程度\",\n      \"测试结果截图\",\n      \"测试人员\",\n      \"预计上线时间\",\n      \"问题描述（复现步骤）\",\n      \"bug填写日期\",\n      \"需求名称\",\n      \"问题标题\",\n      \"附件\",\n      \"修复完成时间\",\n      \"环境\",\n      \"记录最后修改人\",\n      \"问题截图\",\n      \"负责RD\",\n      \"需求阶段\",\n      \"涉及端口\",\n      \"备注\",\n      \"Sprint\"\n    ],\n    \"has_more\": false,\n    \"record_id_list\": [\n      \"reczz28SKtyfxzd9\"\n    ],\n    \"rev\": 21326,\n    \"timezone\": \"Asia/Dubai\"\n  }\n}\n",
+  "stderr": ""
+}

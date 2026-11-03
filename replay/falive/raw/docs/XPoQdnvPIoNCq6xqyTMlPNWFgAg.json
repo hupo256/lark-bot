@@ -1,0 +1,26 @@
+{
+  "token": "XPoQdnvPIoNCq6xqyTMlPNWFgAg",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/XPoQdnvPIoNCq6xqyTMlPNWFgAg",
+  "fetchedAt": "2026-11-03T12:17:22.383Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/XPoQdnvPIoNCq6xqyTMlPNWFgAg",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>William（live php 后端）发了 OL Google 登录弹窗的截图，Network 里有一条 POST register（200），他问为什么点登（细节）</title>\\n\\n# Google 登录为什么先调 register\\n\\n## 结论\\n\\n截图 Network 里的 `register` 是 `POST /go-api/api/auth/google/register`（DevTools 的 Name 列只显示路径最后一段），是 Google 注册接口，不是账号密码注册。这是有意的流程设计。\\n\\n## 为什么先调 google/register\\n\\n按 portal（Go）对接文档：\\n\\n- `POST /api/auth/google/login`：只给**已绑定 Google** 的账号用，而且 **otp_code 必填**（先给账号的手机号或邮箱发验证码，再调本接口）。\\n- `POST /api/auth/google/register`：只要 `id_token`，新 Google 账号直接注册并返回登录态；已注册时回 `Google account already bound`。\\n- 后端**没有**「这个 Google 账号注册过没有」的查询接口。\\n\\n用户点「使用 Google 继续」时，前端只拿到 Google 的 id_token，不知道是新号还是老号，又不能不带验证码直接调 google/login，所以：\\n\\n1. 拿到 id_token → 调 `google/register`\\n2. 成功 → 新账号，直接登录完成\\n3. 回 `Google account already bound` → 弹出截图里的「Google 登录」验证码框（文案：该 Google 账号已注册，验证后即可登录）\\n4. 用户发码、填码后点「登录」→ 调 `google/login`（带 id_token + otp_code）\\n\\n所以截图那一刻（验证码框刚弹出、还没点登录）Network 里只有 register 是正常的；点了「登录」之后才会出现 `login` 请求。\\n\\n## 其它失败分支\\n\\n- `Google email already registered`（该 Google 邮箱已被普通邮箱方式注册）：提示「该 Google 邮箱已注册过账号，请用邮箱登录」，不进验证码步骤。这就是 Bug-5164 情境 A；情境 B（嗨聊三方绑的是别的邮箱）也落在这一类或 not bound。是否要补嗨聊那套「绑定账号」流程，Bug-5164 里待定。\\n- `用户名或密码错误`：实际是 Google token 无效，前端换成「Google 验证失败」类提示。\\n\\n## 线上\\n\\nonline 分支（c1a40982，10-31）上就是这套流程。这次没有在 OL 用真实 Google 账号重走一遍（需要真实 Google 登录，探针做不了）。\",\n      \"document_id\": \"XPoQdnvPIoNCq6xqyTMlPNWFgAg\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

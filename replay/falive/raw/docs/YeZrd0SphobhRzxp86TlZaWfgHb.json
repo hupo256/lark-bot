@@ -1,0 +1,26 @@
+{
+  "token": "YeZrd0SphobhRzxp86TlZaWfgHb",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/YeZrd0SphobhRzxp86TlZaWfgHb",
+  "fetchedAt": "2026-11-03T12:17:16.224Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/YeZrd0SphobhRzxp86TlZaWfgHb",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>Encone（portal 后端）@bot 问（细节）</title>\\n\\n# OL 为什么没有 bbsv2 请求\\n\\n## 结论\\n\\n线上（www.falive.com）现在跑的是 online 分支 10-28 的版本。这一版的环境地址表里，线上的 bbsv2 地址还是空的（写着「待后端给 online 的 bbsv2 域名」）。前端的规则是：某个服务没配地址时，正式包直接按「服务不可用」处理，**不会发请求**。所以浏览器里看不到 bbsv2 的请求，社区相关的区块会显示加载失败 / 空。\\n\\n## 已经修了\\n\\n10-29 上午前端补齐了 uat / online 的配置：线上 bbsv2 和 php 同源，浏览器统一走同站点的 `/bbsv2/` 入口。这个改动已在 pre、uat 分支里，**online 分支还没有**，合进 online 并发布后线上就会发 bbsv2 请求。\\n\\n## 实测（10-29）\\n\\n| 检查 | 结果 |\\n|-|-|\\n| `https://www.falive.com/bbsv2/thread/listCursor`（不带签名） | HTTP 407，`{\\\"code\\\":-800,\\\"msg\\\":\\\"非法请求\\\"}`：入口已转到 bbsv2 后端，只是缺签名（正常） |\\n| `https://falivepre.fdsser.com/bbsv2/thread/listCursor`（不带签名） | 同样 -800，和线上一致 |\\n| `https://www.falive.com/square` 页面 | HTTP 200；页面里没有 10-29 版才有的构建标记，说明线上还是 10-28 之前的包 |\\n\\n## 下一步\\n\\n- 前端（aven）：把 10-29 这版合进 online，再走发布。\\n- 后端：不用改，线上 /bbsv2/ 入口已通。\",\n      \"document_id\": \"YeZrd0SphobhRzxp86TlZaWfgHb\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

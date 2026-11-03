@@ -1,0 +1,26 @@
+{
+  "token": "DrVjdDQWkoST4Nx8a7klowPUgrc",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/DrVjdDQWkoST4Nx8a7klowPUgrc",
+  "fetchedAt": "2026-11-03T12:17:01.146Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/DrVjdDQWkoST4Nx8a7klowPUgrc",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>PM-3217-账号接口-待确认-2026-10-14</title>\\n\\n# PM-3217 账号接口 · 待确认（2026-10-14）\\n\\n> 发起：aven · 背景：10-14 群里定 #2 登录 / 注册（含 token 策略封装）前端改由 aven 负责；falive-golang（portal）pre 第一次部署中，部署完结后开工。\\\\*\\\\*10-14 aven 拍板：按 pre 域名和现有文档的 `/api/auth/*` 先接，不等路径定稿。\\\\*\\\\*现有文档：PM-3217-对接文档。\\n\\n## Encone（后端 portal）\\n\\n| # | 要什么 | 为什么 | 我方现状 | 建议 |\\n|-|-|-|-|-|\\n| E1 | falive-golang（portal）部署完结后的 pre 对外域名（以及 uat / online 计划域名） | 前端要把 portal 登记到域名表、按环境请求；没有域名就无法联调 | **pre 已答复（10-14 群消息原文：「http://falivego.fdsser.com」「部署域名来了，暂时只有 pre 环境的……其他环境后续会补上」）**：已登记到域名表 golang 行（同源 `/go-api`，转发去前缀）。10-14 实测 `/health` → `{\\\"status\\\":\\\"UP\\\",\\\"service\\\":\\\"portal\\\"}`、`/api/auth/profile` 无 token → `code -700`；https 连不上，只有 http。**10-14 已接**：dev:pre / build:pre（配了 golang 域名）时登录、注册、发验证码走 portal，uat / online 仍走 php | **uat / online 域名仍待给**；部署后的 pre 站点还要运维加 `/go-api/` 反代（对接-运维-2 O-P3） |\\n| E2 | 账号接口最终路径（是否已按文档 1.2 与 Live 对齐） | 路径决定前端是否能平滑切换、token 策略怎么封装 | **aven 10-14 拍板按现有 `/api/auth/*` 先接**；前缀只在前端一处常量维护，路径定稿后改一行即可 | 路径定稿后写进文档、发群 |\\n| E3 | 更新后的《PM-3217 账号接口对接文档》 | 拿到新版后 aven 直接开工封装登录 / 注册和 token 策略（供其他同事复用） | **aven 10-14 拍板按现有文档（2026-10-13 版）先接**，新版到了再对差异 | 更新后发群 |\\n\\n## 10-14 pre 实测（前端已接 portal 后，本地用项目真实请求层 + zod schema 直打 `http://falivego.fdsser.com`）\\n\\n| 接口 | 结果 |\\n|-|-|\\n| `GET /health` | 200 `{\\\"status\\\":\\\"UP\\\",\\\"service\\\":\\\"portal\\\"}` |\\n| `GET /api/auth/profile`（不带 token） | code -700「未授权」 |\\n| `POST /api/auth/login`（空 body） | HTTP 400 + `{code:-1,msg:\\\"参数错误\\\"}`，前端按信封透传 msg |\\n| `POST /api/auth/login`（不存在的邮箱） | code -1「用户不存在」 |\\n| `POST /api/auth/verification/email/send` | **code -1「外部服务调用失败」**（pre 发邮件不通，见下 E4） |\\n| `POST /api/auth/register`（邮箱，验证码 123456） | code 0，过注册响应 schema：user_id 469、hichat_id 129143、三种凭证齐全、expires_in 604800（三端已开启） |\\n| `POST /api/auth/login`（同账号密码登录） | code 0，过登录响应 schema；live_token 与 token 不同 |\\n| `GET /api/auth/profile`（`Authorization: hiApp <token>`） | code 0 |\\n| php `GET /api/Member/info`（`token` = live_token） | code 0（live_token 在 php 侧可用） |\\n\\n没测到的：手机短信（发送 / 登录 / 注册，country_code 写 `84` 还是 `VN` 未确认，见 E5）；`hichat_token` 能否过嗨聊 Java 校验（未联调）；部署后的 pre 站点（缺运维 `/go-api/` 反代，对接-运维-2 O-P3）；uat / online（无 portal 域名）。\\n\\n| # | 要什么 | 为什么 | 我方现状 | 建议 |\\n|-|-|-|-|-|\\n| E4 | pre 邮件验证码发送报「外部服务调用失败」 | 用户注册 / 验证码登录要先收邮件验证码；现在只能靠 pre 的固定码 123456 走通 | 前端已接 `verification/email/send`，失败时原样提示后端 msg | 后端看一下 pre 邮件通道配置 |\\n| E5 | 短信接口的 `country_code` 用数字区号（`84`）还是国家代码（`VN`）？短信国家表里有哪些？ | 文档 3.2 说两种写法不通用；前端表单现在传数字区号 | 前端发送、验证码登录都按数字区号传，未实测 | 回一句写法和支持的国家 |\\n\\n## 运维\\n\\n| # | 要什么 | 为什么 | 我方现状 | 建议 |\\n|-|-|-|-|-|\\n| O-P3 | pre 主域名 nginx 加 `/go-api/` → `http://falivego.fdsser.com` 反代（去前缀），详见 对接-运维-2 | portal 只有 http，https 站点浏览器不能直连；pre 构建的登录 / 注册已切到 portal | 本地 dev:pre 已通；部署站点没配之前不要发邮件部署这批改动 | 配好后用 `https://falivepre.fdsser.com/go-api/health` 自测 |\\n\\n## hichat 后端\\n\\n| # | 要什么 | 为什么 | 我方现状 | 建议 |\\n|-|-|-|-|-|\\n| H1 / H2 | portal 签发的 `hichat_token` 能否通过嗨聊 Java 校验（PM-3217 文档六-7） | 前端已把它原样存成 hichat 请求的 token，`hichat_id` 作 memberId | pre 注册 / 登录都返回了 `hichat_token` 和 `hichat_id`，未联调 | 拿一个 pre 账号的 hichat_token 调一个需登录的 hichat 接口确认 |\\n\\n## 产品\\n\\n| # | 要什么 | 为什么 | 我方现状 | 建议 |\\n|-|-|-|-|-|\\n| P25 | 注册表单新增的「昵称」输入框（位置、长度、规则）确认，详见 对接-产品与设计-2 | portal 注册昵称必填 | 已加在验证码下、密码上，只校验非空 | 确认或给设计稿 |\",\n      \"document_id\": \"DrVjdDQWkoST4Nx8a7klowPUgrc\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

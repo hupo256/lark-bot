@@ -1,0 +1,26 @@
+{
+  "recordId": "reczz28S049VQW3k",
+  "why": "bug-5004",
+  "fetchedAt": "2026-11-03T12:17:56.186Z",
+  "version": "now",
+  "note": "拉取时的最新状态（状态 / 备注 / 测试结果可能晚于消息当时）",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "base",
+    "+record-get",
+    "--as",
+    "user",
+    "--base-token",
+    "<bugTable.appToken>",
+    "--table-id",
+    "tblbJYjrxZsPe40V",
+    "--record-id",
+    "reczz28S049VQW3k",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"data\": [\n      [\n        \"Bug-5004\",\n        null,\n        [\n          \"产品后续优化\"\n        ],\n        null,\n        null,\n        \"PM-3254\",\n        \"2026-10-29T11:49:21.000+04:00\",\n        \"Web,Product\",\n        \"2026-10-26T14:06:25.000+04:00\",\n        null,\n        \"Falive\",\n        null,\n        null,\n        [\n          {\n            \"id\": \"ou_57bd40c686c743f8def7d503c70e8491\",\n            \"name\": \"HTJames.y\"\n          }\n        ],\n        null,\n        \"1. 進入 Falive \\n2. 點擊 【社區廣場】\\n3. 發帖 \\u003e 切換使用者\\n4. 對同一個評論，進行連續的回覆\",\n        \"2026-10-26T14:06:26.541+04:00\",\n        \"【falive一期】后端/web/app\",\n        \"社區廣場 \\u003e 回覆評論 - 多人回覆評論時，會分不清回覆的是哪一句\",\n        null,\n        null,\n        [\n          \"Pre\"\n        ],\n        [\n          {\n            \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n            \"name\": \"World\"\n          }\n        ],\n        [\n          {\n            \"file_token\": \"OkzSbOcF6o094mxMfAGlacAJgrh\",\n            \"name\": \"截圖 2026-10-26 下午5.57.37.png\",\n            \"size\": 256010\n          }\n        ],\n        [\n          {\n            \"id\": \"ou_91861d6da6cf6822e08045ba1868241e\",\n            \"name\": \"Aven.tong\"\n          },\n          {\n            \"id\": \"ou_089c0e5c53df38e1920e9c0013077f84\",\n            \"name\": \"Mateo\"\n          }\n        ],\n        \"pre测试中\",\n        [\n          \"Web\"\n        ],\n        \"10-26 分类：交互口径问题，待产品 Mateo 定（状态「产品后续优化」为测试同学填写，非 bot 设置）。现状：二级回复按接口契约 PM-2954 §2.4 展示「A 回复 B」；bbsv2 post/listCursor 的二级回复只给 reply_to_pid + reply_to_author，不带被回复那句的内容；PRD 未规定回复的展示形式。要产品定：二级回复是否引用被回复的原句（如「回复 B：原句摘要」），定了再看接口是否要补被回复内容。负责RD：aven（#44 社区广场）+ Mateo。\",\n        \"1.0.3\"\n      ]\n    ],\n    \"field_id_list\": [\n      \"fldmxTvHTq\",\n      \"fld0Pe5U7G\",\n      \"fld1i6PDQT\",\n      \"fld1u0NBC5\",\n      \"fld4kVwoLs\",\n      \"fld52WVyfK\",\n      \"fld7ChUvSH\",\n      \"fld8fzIptW\",\n      \"fld8Q2XlJB\",\n      \"fldAh2Kyj0\",\n      \"fldBuyLemA\",\n      \"fldcuNmiVK\",\n      \"fldD77oYrZ\",\n      \"fldEiiSdHh\",\n      \"fldERqfLpq\",\n      \"fldGsVI1Y0\",\n      \"fldHgasO5A\",\n      \"fldhpTkoXE\",\n      \"fldIuAN6te\",\n      \"fldJ9rdSbO\",\n      \"fldMLCmFW2\",\n      \"fldPyoP99S\",\n      \"fldsV39i3n\",\n      \"fldu80s8wJ\",\n      \"fldw1TK5PO\",\n      \"fldwobTvnQ\",\n      \"fldyh4ldX6\",\n      \"fldYisQZkD\",\n      \"fldZHrw01k\"\n    ],\n    \"field_type_list\": [\n      \"auto_number\",\n      \"text\",\n      \"select\",\n      \"lookup\",\n      \"link\",\n      \"text\",\n      \"updated_at\",\n      \"lookup\",\n      \"created_at\",\n      \"text\",\n      \"lookup\",\n      \"select\",\n      \"attachment\",\n      \"user\",\n      \"datetime\",\n      \"text\",\n      \"datetime\",\n      \"lookup\",\n      \"text\",\n      \"attachment\",\n      \"datetime\",\n      \"select\",\n      \"updated_by\",\n      \"attachment\",\n      \"user\",\n      \"lookup\",\n      \"select\",\n      \"text\",\n      \"text\"\n    ],\n    \"fields\": [\n      \"Bug编号\",\n      \"测试结果\",\n      \"状态\",\n      \"测试人员所在部门\",\n      \"父記錄\",\n      \"需求ID\",\n      \"最后更新时间\",\n      \"解决人员所在部门\",\n      \"创建时间\",\n      \"项目备注\",\n      \"所属项目组\",\n      \"严重程度\",\n      \"测试结果截图\",\n      \"测试人员\",\n      \"预计上线时间\",\n      \"问题描述（复现步骤）\",\n      \"bug填写日期\",\n      \"需求名称\",\n      \"问题标题\",\n      \"附件\",\n      \"修复完成时间\",\n      \"环境\",\n      \"记录最后修改人\",\n      \"问题截图\",\n      \"负责RD\",\n      \"需求阶段\",\n      \"涉及端口\",\n      \"备注\",\n      \"Sprint\"\n    ],\n    \"has_more\": false,\n    \"record_id_list\": [\n      \"reczz28S049VQW3k\"\n    ],\n    \"rev\": 21326,\n    \"timezone\": \"Asia/Dubai\"\n  }\n}\n",
+  "stderr": ""
+}

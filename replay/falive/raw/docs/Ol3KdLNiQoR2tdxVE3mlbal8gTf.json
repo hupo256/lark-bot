@@ -1,0 +1,26 @@
+{
+  "token": "Ol3KdLNiQoR2tdxVE3mlbal8gTf",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/Ol3KdLNiQoR2tdxVE3mlbal8gTf",
+  "fetchedAt": "2026-11-03T12:17:07.848Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/Ol3KdLNiQoR2tdxVE3mlbal8gTf",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"# 帖子多语言翻译 / AI 识图测试（完整内容）\\n\\n@Encone @提问人 / 产品 帖子多语言翻译 / AI 识图测试：通了 1 项，没通 2 项\\n\\n- ⚠️ 接了但还不能用 帖子 / 评论译文（社区后端）：英文请求下帖子详情、列表 10 条、评论都还是中文原文，content_locale 都是 zh-cn；10-20 发的帖也没译，需要 Encone 看下 pre 机翻有没有开\\n- ⚠️ 接了但还不能用 英文页面显示帖子：英文打开帖子详情，页面是英文但帖子标题、正文是中文，和接口返回一致；后端出了译文前端就会直接显示，不用改\\n- ✅ 通了 web 按语言请求帖子：切到英文后请求带 en-us，后端回的提示语已是英文「Operation successful」，英文页面整体是英文\\n- ➖ 不涉及接口 AI 识图：一期 PRD、功能表、接口文档都没有这个功能，web 也没做，测不了；麻烦说下是哪个页面、走哪个接口  \\n待确认的几点在这里：https://qfglxo2m3dc.sg.larksuite.com/docx/Hvq6dtcIMosjdOxmZt1loJexgyz\\n- Encone：pre 上英文请求帖子 / 评论仍返回中文原文、content_locale=zh-cn，请确认机翻是否开启，开了给一个已翻译的 tid 复测；英文请求下用户组称号 group_title 也是中文，请一起确认\\n- 提问人 / 产品：「AI 识图」在哪个页面、走哪个接口？PRD 和接口文档里都没有，web 没有这个功能  \\n详细见：https://qfglxo2m3dc.sg.larksuite.com/docx/G5abdoQnMoweYtx2yTBlPOBSg4e\",\n      \"document_id\": \"Ol3KdLNiQoR2tdxVE3mlbal8gTf\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

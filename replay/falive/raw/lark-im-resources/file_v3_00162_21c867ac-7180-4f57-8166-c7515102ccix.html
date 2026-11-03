@@ -1,0 +1,1048 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{color-scheme:light}*,*::before,*::after{box-sizing:border-box}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>HiChat 账号数据泳道图</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#F2F3EF; --surface:#FFFFFF; --lane-a:#FBFBF9; --lane-b:#F1F3EE; --lane-h:#E6E9E1;
+  --ink:#1B2027; --ink-2:#3A424C; --muted:#646D77; --rule:#D2D6CD; --edge:#4A535E; --chip:#FFFFFF; --code:#E8EBE3;
+  --user-f:#FFFFFF; --user-s:#5B6470;
+  --portal-f:#E6EEF7; --portal-s:#2D5D8F;
+  --store-f:#FAF0DA; --store-s:#8F620E;
+  --admin-f:#DFEFE8; --admin-s:#226C57;
+  --ext-f:#F1E6F4; --ext-s:#71458A;
+  --warn:#B23C28; --badge-t:#FFFFFF;
+  --sans:"Noto Sans SC","PingFang SC","Microsoft YaHei","Hiragino Sans GB",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Consolas,"Liberation Mono",monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#101418; --surface:#171C22; --lane-a:#161B21; --lane-b:#1B2128; --lane-h:#212831;
+    --ink:#E6E9ED; --ink-2:#C3C9D1; --muted:#949DA8; --rule:#2E3641; --edge:#AAB3BE; --chip:#171C22; --code:#232A33;
+    --user-f:#1B2128; --user-s:#A3ACB7;
+    --portal-f:#172A3E; --portal-s:#86B3E2;
+    --store-f:#302710; --store-s:#DDAF57;
+    --admin-f:#122F28; --admin-s:#5FC2A2;
+    --ext-f:#2A1E31; --ext-s:#C59AD8;
+    --warn:#EE8670; --badge-t:#101418;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#101418; --surface:#171C22; --lane-a:#161B21; --lane-b:#1B2128; --lane-h:#212831;
+  --ink:#E6E9ED; --ink-2:#C3C9D1; --muted:#949DA8; --rule:#2E3641; --edge:#AAB3BE; --chip:#171C22; --code:#232A33;
+  --user-f:#1B2128; --user-s:#A3ACB7;
+  --portal-f:#172A3E; --portal-s:#86B3E2;
+  --store-f:#302710; --store-s:#DDAF57;
+  --admin-f:#122F28; --admin-s:#5FC2A2;
+  --ext-f:#2A1E31; --ext-s:#C59AD8;
+  --warn:#EE8670; --badge-t:#101418;
+}
+body{background:var(--bg);color:var(--ink);font:15px/1.65 var(--sans);padding-inline:16px;padding-block:32px 72px}
+.wrap{max-width:1600px;margin-inline:auto}
+header{display:grid;gap:10px;max-width:980px}
+.eyebrow{font:500 12px/1.4 var(--mono);color:var(--muted);letter-spacing:.02em;margin:0}
+h1{font-size:clamp(28px,4vw,40px);line-height:1.15;font-weight:700;letter-spacing:-.01em;margin:0;text-wrap:balance}
+.lede{margin:0;max-width:68ch;color:var(--ink-2)}
+.legend{display:flex;flex-wrap:wrap;gap:8px 22px;margin-top:22px;font-size:13px;color:var(--ink-2);align-items:center}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.sw{display:inline-block;width:22px;height:14px;border-radius:4px;border:1.5px solid}
+.sw-user{background:var(--user-f);border-color:var(--user-s)}
+.sw-portal{background:var(--portal-f);border-color:var(--portal-s)}
+.sw-store{background:var(--store-f);border-color:var(--store-s)}
+.sw-admin{background:var(--admin-f);border-color:var(--admin-s)}
+.sw-ext{background:var(--ext-f);border-color:var(--ext-s)}
+.lg-line{width:34px;height:10px}
+.wdot{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:50%;background:var(--warn);color:var(--badge-t);font:700 11px/1 var(--sans);font-style:normal}
+nav{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+nav a{font-size:13px;padding:5px 13px;border:1px solid var(--rule);border-radius:999px;color:var(--ink);background:var(--surface);text-decoration:none}
+nav a:hover{border-color:var(--edge)}
+nav a:focus-visible,.scroll:focus-visible{outline:2px solid var(--portal-s);outline-offset:2px}
+section{margin-top:60px;scroll-margin-top:16px}
+h2{font-size:22px;line-height:1.3;font-weight:700;margin:0;text-wrap:balance}
+.sum{color:var(--ink-2);max-width:78ch;margin:6px 0 16px}
+figure{margin:0}
+.scroll{overflow-x:auto;border:1px solid var(--rule);border-radius:10px;background:var(--surface)}
+.scroll svg{display:block;width:100%;height:auto}
+figcaption{font-size:12.5px;color:var(--muted);margin-top:8px}
+.rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:24px 48px;margin-top:22px}
+.rules h3{font-size:12.5px;font-weight:600;letter-spacing:.08em;color:var(--muted);margin:0 0 10px}
+.rules h3.wh{margin-top:20px;color:var(--warn)}
+.rules ul{margin:0;padding:0;list-style:none;display:grid;gap:9px}
+.rules li{display:grid;grid-template-columns:22px 1fr;gap:10px;font-size:14px;line-height:1.65;max-width:76ch}
+.n{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--ink);color:var(--bg);font:600 11px/1 var(--mono);margin-top:2px}
+.n-dash{background:transparent;border:1.5px solid var(--rule)}
+.n-warn{background:var(--warn);color:var(--badge-t);font-family:var(--sans);font-weight:700}
+code{font:12.5px/1.5 var(--mono);background:var(--code);padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
+/* svg */
+.lane-a{fill:var(--lane-a)} .lane-b{fill:var(--lane-b)} .lane-h{fill:var(--lane-h)}
+.lsep{stroke:var(--rule);stroke-width:1}
+.lnm{font:600 12.5px var(--sans);fill:var(--ink)}
+.lsub{font:400 10.5px var(--sans);fill:var(--muted)}
+.bx{stroke-width:1.4}
+.nd-user .bx{fill:var(--user-f);stroke:var(--user-s)} .nd-user .bd{fill:var(--user-s)}
+.nd-portal .bx{fill:var(--portal-f);stroke:var(--portal-s)} .nd-portal .bd{fill:var(--portal-s)}
+.nd-store .bx{fill:var(--store-f);stroke:var(--store-s)} .nd-store .bd{fill:var(--store-s)}
+.nd-admin .bx{fill:var(--admin-f);stroke:var(--admin-s)} .nd-admin .bd{fill:var(--admin-s)}
+.nd-ext .bx{fill:var(--ext-f);stroke:var(--ext-s)} .nd-ext .bd{fill:var(--ext-s)}
+.bdt{font:600 10px var(--mono);fill:var(--badge-t)}
+.tt{font:600 12.5px var(--sans);fill:var(--ink)}
+.tt.m{font:500 11px var(--mono)}
+.ln{font:400 11px var(--sans);fill:var(--ink-2)}
+.ln.m{font:400 10px var(--mono)}
+.tag{font:500 8.5px var(--mono);fill:var(--store-s);letter-spacing:.06em}
+.wb{fill:var(--warn)}
+.wbt{font:700 11px var(--sans);fill:var(--badge-t)}
+.eg{fill:none;stroke:var(--edge);stroke-width:1.4}
+.eg.rd{stroke-dasharray:5 4}
+.ah{fill:var(--edge)}
+.ec{fill:var(--chip)}
+.el{font:500 10.5px var(--sans);fill:var(--ink-2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <p class="eyebrow">hichat · master @ fe2095d45 · 2026-09-29</p>
+  <h1>HiChat 账号数据泳道图</h1>
+  <p class="lede">注册、登录、授权登录三类动作在 hichat-portal、数据存储、hichat-admin 与外部系统之间怎样流转，每一步落到哪张表，admin 报表又按什么口径读取。每张图从左到右是时间顺序，图中编号对应下方规则。</p>
+</header>
+
+<div class="legend" aria-label="图例">
+  <span><i class="sw sw-user"></i>用户端 / 管理员</span>
+  <span><i class="sw sw-portal"></i>hichat-portal</span>
+  <span><i class="sw sw-store"></i>数据存储</span>
+  <span><i class="sw sw-admin"></i>hichat-admin</span>
+  <span><i class="sw sw-ext"></i>外部系统</span>
+  <span><svg class="lg-line" viewBox="0 0 34 10" aria-hidden="true"><path d="M1,5 H31" class="eg"/><path d="M26,1.5 L33,5 L26,8.5 z" class="ah"/></svg>调用 / 写入</span>
+  <span><svg class="lg-line" viewBox="0 0 34 10" aria-hidden="true"><path d="M1,5 H31" class="eg rd"/><path d="M26,1.5 L33,5 L26,8.5 z" class="ah"/></svg>读取 / 统计</span>
+  <span><i class="wdot">!</i>口径风险（见各节「注意」）</span>
+</div>
+<nav aria-label="泳道图目录">
+<a href="#register">注册</a>
+<a href="#login">每日登录</a>
+<a href="#google">Google 授权登录</a>
+<a href="#discuz">Discuz 注册</a>
+<a href="#fameex">FameEx 绑定</a>
+<a href="#admin-login">后台登录</a>
+</nav>
+
+<section id="register">
+  <h2>注册</h2>
+  <p class="sum">手机、邮箱、Google 三种注册都落到同一组表；admin 不参与注册，只在次日 05:00 读表出报表。</p>
+  <figure>
+    <div class="scroll" tabindex="0" aria-label="注册泳道图，可横向滚动">
+<svg viewBox="0 0 1588 558" width="1588" style="max-width:1588px;min-width:min(1588px,1180px)" role="img" aria-label="注册泳道图：用户提交注册，portal 校验验证码、创建会员、写注册画像与推广归因、完成积分任务；admin 次日 05:00 读取这些表生成新增、留存、分层统计，后台页面展示。" xmlns="http://www.w3.org/2000/svg">
+<defs><marker id="ah-register" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path class="ah" d="M0,0.8 L10,5 L0,9.2 z"/></marker></defs>
+<rect class="lane-a" x="0" y="0" width="1588" height="92"/>
+<rect class="lane-b" x="0" y="92" width="1588" height="104"/>
+<rect class="lane-a" x="0" y="196" width="1588" height="150"/>
+<rect class="lane-b" x="0" y="346" width="1588" height="112"/>
+<rect class="lane-a" x="0" y="458" width="1588" height="100"/>
+<rect class="lane-h" x="0" y="0" width="116" height="558"/>
+<text class="lnm" x="14" y="44">用户端</text>
+<text class="lsub" x="14" y="60">App · Web</text>
+<line class="lsep" x1="0" y1="92" x2="1588" y2="92"/>
+<text class="lnm" x="14" y="142">hichat-portal</text>
+<text class="lsub" x="14" y="158">C 端服务</text>
+<line class="lsep" x1="0" y1="196" x2="1588" y2="196"/>
+<text class="lnm" x="14" y="269">数据存储</text>
+<text class="lsub" x="14" y="285">MySQL · Redis</text>
+<line class="lsep" x1="0" y1="346" x2="1588" y2="346"/>
+<text class="lnm" x="14" y="400">admin 定时任务</text>
+<text class="lsub" x="14" y="416">次日 05:00</text>
+<line class="lsep" x1="0" y1="458" x2="1588" y2="458"/>
+<text class="lnm" x="14" y="506">admin 后台</text>
+<text class="lsub" x="14" y="522">页面 · 系统工具</text>
+<line class="lsep" x1="116" y1="0" x2="116" y2="558"/>
+<path class="eg" d="M292.0,46.0 L394.0,46.0 L394.0,120.5" marker-end="url(#ah-register)"/>
+<path class="eg rd" d="M394.0,167.5 L394.0,232.5" marker-end="url(#ah-register)"/>
+<path class="eg" d="M394.0,477.0 L394.0,309.5" marker-end="url(#ah-register)"/>
+<path class="eg" d="M472.0,144.0 L496.0,144.0" marker-end="url(#ah-register)"/>
+<path class="eg" d="M574.0,167.5 L574.0,232.5" marker-end="url(#ah-register)"/>
+<path class="eg" d="M652.0,144.0 L676.0,144.0" marker-end="url(#ah-register)"/>
+<path class="eg" d="M754.0,167.5 L754.0,232.5" marker-end="url(#ah-register)"/>
+<path class="eg" d="M832.0,144.0 L856.0,144.0" marker-end="url(#ah-register)"/>
+<path class="eg" d="M934.0,167.5 L934.0,225.0" marker-end="url(#ah-register)"/>
+<path class="eg" d="M1012.0,144.0 L1036.0,144.0" marker-end="url(#ah-register)"/>
+<path class="eg" d="M1114.0,175.0 L1114.0,240.0" marker-end="url(#ah-register)"/>
+<path class="eg rd" d="M754.0,309.5 L754.0,484.5" marker-end="url(#ah-register)"/>
+<path class="eg rd" d="M954.0,317.0 L954.0,484.5" marker-end="url(#ah-register)"/>
+<path class="eg rd" d="M1018.0,317.0 L1018.0,402.0 L1216.0,402.0" marker-end="url(#ah-register)"/>
+<path class="eg" d="M1294.0,363.5 L1294.0,309.5" marker-end="url(#ah-register)"/>
+<path class="eg rd" d="M1408.0,271.0 L1474.0,271.0 L1474.0,477.0" marker-end="url(#ah-register)"/>
+<g class="nd nd-user">
+<rect class="bx" x="136" y="15" width="156" height="62" rx="7"/>
+<circle class="bd" cx="152" cy="32" r="8.5"/><text class="bdt" x="152" y="35.6" text-anchor="middle">1</text>
+<text class="tt" x="166" y="36.5">提交注册</text>
+<text class="ln" x="146" y="51.5">手机 / 邮箱 + 验证码</text>
+<text class="ln" x="146" y="66.5">或 Google 直接注册</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="316" y="120.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="332" cy="137.5" r="8.5"/><text class="bdt" x="332" y="141.1" text-anchor="middle">2</text>
+<text class="tt" x="346" y="142">校验验证码</text>
+<text class="ln" x="326" y="157">普通验证码或测试码</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="316" y="232.5" width="156" height="77" rx="7"/>
+<text class="tag" x="463" y="247.5" text-anchor="end">REDIS</text>
+<text class="tt" x="326" y="254">验证码</text>
+<text class="ln m" x="326" y="269">portal:authCode:{账号}</text>
+<text class="ln" x="326" y="284">180 秒有效</text>
+<text class="ln m" x="326" y="299">portal:test:authCode</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="316" y="477" width="156" height="62" rx="7"/>
+<text class="tt" x="326" y="498.5">系统工具</text>
+<text class="ln" x="326" y="513.5">生成验证码 / 测试码</text>
+<text class="ln" x="326" y="528.5">SUPER_ADMIN · DEV</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="496" y="120.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="512" cy="137.5" r="8.5"/><text class="bdt" x="512" y="141.1" text-anchor="middle">3</text>
+<text class="tt" x="526" y="142">创建会员</text>
+<text class="ln" x="506" y="157">USER · 启用</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="491" y="232.5" width="166" height="77" rx="7"/>
+<text class="tag" x="648" y="247.5" text-anchor="end">MYSQL</text>
+<text class="tt m" x="501" y="254">ums_member</text>
+<text class="ln" x="501" y="269">member_type = 0</text>
+<text class="ln" x="501" y="284">status = 1</text>
+<text class="ln" x="501" y="299">Google 注册 → email 账号</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="676" y="120.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="692" cy="137.5" r="8.5"/><text class="bdt" x="692" y="141.1" text-anchor="middle">4</text>
+<text class="tt" x="706" y="142">写注册画像</text>
+<text class="ln m" x="686" y="157">insertMemberRegister</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="676" y="232.5" width="156" height="77" rx="7"/>
+<text class="tt m" x="686" y="254">ums_member_extend</text>
+<text class="ln" x="686" y="269">register_way 1 / 2 / 3</text>
+<text class="ln" x="686" y="284">手机 / 邮箱 / Google</text>
+<text class="ln" x="686" y="299">着陆页 · IP · 设备 · 国家</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="856" y="120.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="872" cy="137.5" r="8.5"/><text class="bdt" x="872" y="141.1" text-anchor="middle">5</text>
+<text class="tt" x="886" y="142">推广归因</text>
+<text class="ln m" x="866" y="157">dealPromoteGroup</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="856" y="225" width="196" height="92" rx="7"/>
+<text class="tt" x="866" y="246.5">推广归因（2 张表）</text>
+<text class="ln m" x="866" y="261.5">ums_promote_group_statistics</text>
+<text class="ln" x="866" y="276.5">group_link · market · channel</text>
+<text class="ln m" x="866" y="291.5">ums_group_member_register_log</text>
+<text class="ln" x="866" y="306.5">有效推广群时写入</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="1036" y="113" width="156" height="62" rx="7"/>
+<circle class="bd" cx="1052" cy="130" r="8.5"/><text class="bdt" x="1052" y="133.6" text-anchor="middle">6</text>
+<text class="tt" x="1066" y="134.5">完成积分任务</text>
+<text class="ln m" x="1046" y="149.5">LOGIN_REGISTER</text>
+<text class="ln" x="1046" y="164.5">发积分 · 同步 Discuz</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="1065" y="240" width="158" height="62" rx="7"/>
+<text class="tt" x="1075" y="261.5">积分任务</text>
+<text class="ln m" x="1075" y="276.5">ums_task_config</text>
+<text class="ln m" x="1075" y="291.5">ums_task_member_record</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="1216" y="363.5" width="156" height="77" rx="7"/>
+<circle class="bd" cx="1232" cy="380.5" r="8.5"/><text class="bdt" x="1232" y="384.1" text-anchor="middle">7</text>
+<text class="tt" x="1246" y="385">日报 &amp; 分层任务</text>
+<text class="ln" x="1226" y="400">每日新增 · N 日留存</text>
+<text class="ln" x="1226" y="415">新增 DAU · 有效激活</text>
+<text class="ln" x="1226" y="430">用户分层</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="1236" y="232.5" width="172" height="77" rx="7"/>
+<text class="tt" x="1246" y="254">统计结果</text>
+<text class="ln m" x="1246" y="269">stats_daily_member_count</text>
+<text class="ln m" x="1246" y="284">stats_daily_active_member</text>
+<text class="ln m" x="1246" y="299">ums_member_profile_daily</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="676" y="484.5" width="156" height="47" rx="7"/>
+<text class="tt" x="686" y="506">用户分析表</text>
+<text class="ln" x="686" y="521">实时查 member + extend</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="876" y="484.5" width="156" height="47" rx="7"/>
+<text class="tt" x="886" y="506">推广群统计</text>
+<text class="ln" x="886" y="521">按群 · 按日注册数</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="1396" y="477" width="156" height="62" rx="7"/>
+<circle class="bd" cx="1412" cy="494" r="8.5"/><text class="bdt" x="1412" y="497.6" text-anchor="middle">8</text>
+<text class="tt" x="1426" y="498.5">运营总览 · 分层</text>
+<text class="ln" x="1406" y="513.5">新增 · 留存率</text>
+<text class="ln" x="1406" y="528.5">新增 DAU 率 · 激活率</text>
+<circle class="wb" cx="1551" cy="478" r="8"/><text class="wbt" x="1551" y="482" text-anchor="middle">!</text>
+</g>
+<rect class="ec" x="327.5" y="30.0" width="31.0" height="16" rx="3"/><text class="el" x="332.5" y="41.8">提交</text>
+<rect class="ec" x="400.0" y="192.0" width="31.0" height="16" rx="3"/><text class="el" x="405.0" y="203.8">校验</text>
+<rect class="ec" x="400.0" y="385.3" width="31.0" height="16" rx="3"/><text class="el" x="405.0" y="397.1">写入</text>
+<rect class="ec" x="468.5" y="128.0" width="31.0" height="16" rx="3"/><text class="el" x="473.5" y="139.8">通过</text>
+<rect class="ec" x="580.0" y="192.0" width="51.6" height="16" rx="3"/><text class="el" x="585.0" y="203.8">INSERT</text>
+<rect class="ec" x="760.0" y="192.0" width="51.6" height="16" rx="3"/><text class="el" x="765.0" y="203.8">INSERT</text>
+<rect class="ec" x="940.0" y="188.3" width="51.6" height="16" rx="3"/><text class="el" x="945.0" y="200.1">INSERT</text>
+<rect class="ec" x="1120.0" y="199.5" width="51.6" height="16" rx="3"/><text class="el" x="1125.0" y="211.3">INSERT</text>
+<rect class="ec" x="760.0" y="389.0" width="52.0" height="16" rx="3"/><text class="el" x="765.0" y="400.8">实时查询</text>
+<rect class="ec" x="960.0" y="392.8" width="39.9" height="16" rx="3"/><text class="el" x="965.0" y="404.6">count</text>
+<rect class="ec" x="1034.8" y="386.0" width="164.4" height="16" rx="3"/><text class="el" x="1039.8" y="397.8">T+1 读 member · 归因 · 登录日志</text>
+<rect class="ec" x="1300.0" y="328.5" width="31.0" height="16" rx="3"/><text class="el" x="1305.0" y="340.3">写入</text>
+<rect class="ec" x="1480.0" y="366.0" width="31.0" height="16" rx="3"/><text class="el" x="1485.0" y="377.8">读取</text>
+</svg>
+    </div>
+    <figcaption>从左到右为时间顺序。实线表示调用或写入，虚线表示读取；编号对应下方规则。</figcaption>
+  </figure>
+  <div class="rules">
+    <div>
+      <h3>数据落点</h3>
+      <ul><li><span class="n">2</span><span>验证码存在 Redis <code>portal:authCode:{手机|邮箱}</code>，180 秒有效。admin 系统工具可以直接生成验证码，也可以设置不过期的全局测试码 <code>portal:test:authCode</code>（传空即删除）。</span></li>
+<li><span class="n">3</span><span><code>ums_member</code>：member_type = 0（USER）、status = 1、is_special = 1。Google 注册以 email 建号（country_calling_code = email）。</span></li>
+<li><span class="n">4</span><span><code>ums_member_extend</code>：register_way 1 手机 / 2 邮箱 / 3 Google，另记着陆页、IP、设备与系统版本、国家城市、系统语言。</span></li>
+<li><span class="n">5</span><span>有群链接或市场码时写 <code>ums_promote_group_statistics</code>（只有市场码时 group_link 用默认群）；群有效且同平台时再写 <code>ums_group_member_register_log</code>。市场码按 <code>_</code> 拆成 market / channel 回写会员表。</span></li>
+<li><span class="n">6</span><span>手机注册、邮箱注册、Google 直接注册都会完成 <code>LOGIN_REGISTER</code>：按 admin 配置发积分，同时同步注册到 Discuz。</span></li></ul>
+    </div>
+    <div>
+      <h3>admin 口径</h3><ul><li><span class="n">7</span><span>每日新增：<code>create_time</code> 在当天且为 USER，或 <code>delete_time</code> 在当天；没有手机和邮箱的视为游客丢弃；按跑批时的状态分为新增 / 删除 × 手机 / 邮箱。</span></li>
+<li><span class="n">7</span><span>推广渠道 = <code>group_link[_market][_channel]</code>，查不到归为 <code>other</code>，另有汇总行 <code>all</code>。</span></li>
+<li><span class="n">7</span><span>N 日留存（N = 1/3/5/7/30）：D−N 当天注册的 USER + 启用会员里，D 当天有登录日志的人数。</span></li>
+<li><span class="n">7</span><span>新增 DAU：当天注册且当天有登录日志或成功发过消息。有效激活：当天成功发消息、关注主播、或非游客观看直播 ≥ 10 秒。</span></li>
+<li><span class="n">7</span><span>用户分层：NEW 注册于 [D−2, D]；SUB_NEW 注册于 [D−14, D−3]；REGISTERED_DAY_7 注册于 D−6 当天。</span></li></ul>
+      <h3 class="wh">注意</h3><ul class="warns"><li><span class="n n-warn">!</span><span>删除分支不限定 member_type：后台建号、Discuz 账号的 phone 存的是流水号，删除时会计入「删除手机用户」。</span></li>
+<li><span class="n n-warn">!</span><span>当天注册、次日 05:00 跑批前就被删除的会员，只计删除不计新增。</span></li>
+<li><span class="n n-warn">!</span><span>新增 DAU 率、激活率的分子要求 status = 启用，分母（新增手机 + 邮箱）不要求。</span></li></ul>
+    </div>
+  </div>
+</section>
+<section id="login">
+  <h2>登录与每日活跃</h2>
+  <p class="sum">统计里的「登录」不是登录接口，而是用户当天打开 App 拉取过一次个人资料。</p>
+  <figure>
+    <div class="scroll" tabindex="0" aria-label="登录与每日活跃泳道图，可横向滚动">
+<svg viewBox="0 0 1588 558" width="1588" style="max-width:1588px;min-width:min(1588px,1180px)" role="img" aria-label="登录泳道图：用户登录后 portal 发 token；之后每次打开 App 拉取资料时，portal 每天记录一次登录日志；admin 次日读取登录日志计算活跃、留存和分层。" xmlns="http://www.w3.org/2000/svg">
+<defs><marker id="ah-login" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path class="ah" d="M0,0.8 L10,5 L0,9.2 z"/></marker></defs>
+<rect class="lane-a" x="0" y="0" width="1588" height="92"/>
+<rect class="lane-b" x="0" y="92" width="1588" height="104"/>
+<rect class="lane-a" x="0" y="196" width="1588" height="150"/>
+<rect class="lane-b" x="0" y="346" width="1588" height="112"/>
+<rect class="lane-a" x="0" y="458" width="1588" height="100"/>
+<rect class="lane-h" x="0" y="0" width="116" height="558"/>
+<text class="lnm" x="14" y="44">用户端</text>
+<text class="lsub" x="14" y="60">App · Web</text>
+<line class="lsep" x1="0" y1="92" x2="1588" y2="92"/>
+<text class="lnm" x="14" y="142">hichat-portal</text>
+<text class="lsub" x="14" y="158">C 端服务</text>
+<line class="lsep" x1="0" y1="196" x2="1588" y2="196"/>
+<text class="lnm" x="14" y="269">数据存储</text>
+<text class="lsub" x="14" y="285">MySQL · Redis</text>
+<line class="lsep" x1="0" y1="346" x2="1588" y2="346"/>
+<text class="lnm" x="14" y="400">admin 定时任务</text>
+<text class="lsub" x="14" y="416">次日 05:00</text>
+<line class="lsep" x1="0" y1="458" x2="1588" y2="458"/>
+<text class="lnm" x="14" y="506">admin 后台</text>
+<text class="lsub" x="14" y="522">页面 · 系统工具</text>
+<line class="lsep" x1="116" y1="0" x2="116" y2="558"/>
+<path class="eg" d="M292.0,46.0 L394.0,46.0 L394.0,113.0" marker-end="url(#ah-login)"/>
+<path class="eg" d="M394.0,175.0 L394.0,240.0" marker-end="url(#ah-login)"/>
+<path class="eg rd" d="M394.0,302.0 L394.0,484.5" marker-end="url(#ah-login)"/>
+<path class="eg" d="M472.0,144.0 L574.0,144.0 L574.0,69.5" marker-end="url(#ah-login)"/>
+<path class="eg" d="M652.0,46.0 L754.0,46.0 L754.0,113.0" marker-end="url(#ah-login)"/>
+<path class="eg rd" d="M754.0,175.0 L754.0,240.0" marker-end="url(#ah-login)"/>
+<path class="eg" d="M832.0,144.0 L950.0,144.0 L950.0,225.0" marker-end="url(#ah-login)"/>
+<path class="eg" d="M900.0,477.0 L900.0,317.0" marker-end="url(#ah-login)"/>
+<path class="eg rd" d="M1012.0,317.0 L1012.0,402.0 L1216.0,402.0" marker-end="url(#ah-login)"/>
+<path class="eg" d="M1294.0,363.5 L1294.0,302.0" marker-end="url(#ah-login)"/>
+<path class="eg rd" d="M1390.0,271.0 L1474.0,271.0 L1474.0,477.0" marker-end="url(#ah-login)"/>
+<g class="nd nd-user">
+<rect class="bx" x="136" y="15" width="156" height="62" rx="7"/>
+<circle class="bd" cx="152" cy="32" r="8.5"/><text class="bdt" x="152" y="35.6" text-anchor="middle">1</text>
+<text class="tt" x="166" y="36.5">登录</text>
+<text class="ln" x="146" y="51.5">手机密码 / 短信 / 邮箱</text>
+<text class="ln" x="146" y="66.5">Google 见下一张图</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="316" y="113" width="156" height="62" rx="7"/>
+<circle class="bd" cx="332" cy="130" r="8.5"/><text class="bdt" x="332" y="133.6" text-anchor="middle">2</text>
+<text class="tt" x="346" y="134.5">登录成功</text>
+<text class="ln" x="326" y="149.5">发 token · 设备信息</text>
+<text class="ln m" x="326" y="164.5">LOGIN_REGISTER 任务</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="302" y="240" width="184" height="62" rx="7"/>
+<text class="tt" x="312" y="261.5">推广助理日统计</text>
+<text class="ln m" x="312" y="276.5">ums_member_chat_daily_stats</text>
+<text class="ln m" x="312" y="291.5">first_login_time</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="316" y="484.5" width="156" height="47" rx="7"/>
+<text class="tt" x="326" y="506">推广员日报</text>
+<text class="ln" x="326" y="521">首次登录 · 最后登出</text>
+</g>
+<g class="nd nd-user">
+<rect class="bx" x="496" y="22.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="512" cy="39.5" r="8.5"/><text class="bdt" x="512" y="43.1" text-anchor="middle">3</text>
+<text class="tt" x="526" y="44">打开 App / 刷新资料</text>
+<text class="ln m" x="506" y="59">GET /member/my</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="676" y="113" width="156" height="62" rx="7"/>
+<circle class="bd" cx="692" cy="130" r="8.5"/><text class="bdt" x="692" y="133.6" text-anchor="middle">4</text>
+<text class="tt" x="706" y="134.5">记录当日登录</text>
+<text class="ln" x="686" y="149.5">异步 · 10 秒锁</text>
+<text class="ln" x="686" y="164.5">当天已记则跳过</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="645" y="240" width="190" height="62" rx="7"/>
+<text class="tag" x="826" y="255" text-anchor="end">REDIS</text>
+<text class="tt" x="655" y="261.5">当日标记</text>
+<text class="ln m" x="655" y="276.5">hichat:member:login:log:{id}</text>
+<text class="ln" x="655" y="291.5">有效期到次日 0 点</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="852" y="225" width="196" height="92" rx="7"/>
+<text class="tag" x="1039" y="240" text-anchor="end">MYSQL</text>
+<text class="tt m" x="862" y="246.5">ums_member_login_log</text>
+<text class="ln" x="862" y="261.5">每人每天一行 · INSERT IGNORE</text>
+<text class="ln" x="862" y="276.5">login_count = 累计登录天数</text>
+<text class="ln" x="862" y="291.5">continuous = 昨天有则 +1</text>
+<text class="ln" x="862" y="306.5">首条 group_link 取推广归因</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="846" y="477" width="156" height="62" rx="7"/>
+<text class="tt" x="856" y="498.5">重算连续登录</text>
+<text class="ln" x="856" y="513.5">系统工具 · 全表重算</text>
+<text class="ln" x="856" y="528.5">SUPER_ADMIN · DEV</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="1216" y="363.5" width="156" height="77" rx="7"/>
+<circle class="bd" cx="1232" cy="380.5" r="8.5"/><text class="bdt" x="1232" y="384.1" text-anchor="middle">5</text>
+<text class="tt" x="1246" y="385">日报 &amp; 分层任务</text>
+<text class="ln" x="1226" y="400">DAU / WAU / MAU</text>
+<text class="ln" x="1226" y="415">N 日留存（第 N 天当天）</text>
+<text class="ln" x="1226" y="430">分层：15 天内 ≥ 3 天</text>
+<circle class="wb" cx="1371" cy="364.5" r="8"/><text class="wbt" x="1371" y="368.5" text-anchor="middle">!</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="1214" y="240" width="176" height="62" rx="7"/>
+<text class="tt" x="1224" y="261.5">统计结果</text>
+<text class="ln m" x="1224" y="276.5">stats_daily_active_member</text>
+<text class="ln m" x="1224" y="291.5">ums_member_profile_daily</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="1396" y="477" width="156" height="62" rx="7"/>
+<circle class="bd" cx="1412" cy="494" r="8.5"/><text class="bdt" x="1412" y="497.6" text-anchor="middle">6</text>
+<text class="tt" x="1426" y="498.5">运营总览 · 分层</text>
+<text class="ln" x="1406" y="513.5">DAU · WAU · MAU</text>
+<text class="ln" x="1406" y="528.5">留存率 · 活跃分层</text>
+<circle class="wb" cx="1551" cy="478" r="8"/><text class="wbt" x="1551" y="482" text-anchor="middle">!</text>
+</g>
+<rect class="ec" x="327.5" y="30.0" width="31.0" height="16" rx="3"/><text class="el" x="332.5" y="41.8">登录</text>
+<rect class="ec" x="400.0" y="199.5" width="62.5" height="16" rx="3"/><text class="el" x="405.0" y="211.3">仅推广助理</text>
+<rect class="ec" x="400.0" y="385.3" width="61.7" height="16" rx="3"/><text class="el" x="405.0" y="397.1">03:00 汇总</text>
+<rect class="ec" x="491.0" y="128.0" width="64.1" height="16" rx="3"/><text class="el" x="496.0" y="139.8">返回 token</text>
+<rect class="ec" x="677.0" y="30.0" width="52.0" height="16" rx="3"/><text class="el" x="682.0" y="41.8">请求资料</text>
+<rect class="ec" x="760.0" y="199.5" width="61.9" height="16" rx="3"/><text class="el" x="765.0" y="211.3">查 / 设标记</text>
+<rect class="ec" x="842.8" y="128.0" width="96.3" height="16" rx="3"/><text class="el" x="847.8" y="139.8">INSERT IGNORE</text>
+<rect class="ec" x="906.0" y="389.0" width="51.6" height="16" rx="3"/><text class="el" x="911.0" y="400.8">UPDATE</text>
+<rect class="ec" x="1061.2" y="386.0" width="105.5" height="16" rx="3"/><text class="el" x="1066.2" y="397.8">T+1 读 login_date</text>
+<rect class="ec" x="1300.0" y="324.8" width="31.0" height="16" rx="3"/><text class="el" x="1305.0" y="336.6">写入</text>
+<rect class="ec" x="1480.0" y="366.0" width="31.0" height="16" rx="3"/><text class="el" x="1485.0" y="377.8">读取</text>
+</svg>
+    </div>
+    <figcaption>登录接口只发 token；登录日志由之后的资料请求触发，每人每天最多一行。</figcaption>
+  </figure>
+  <div class="rules">
+    <div>
+      <h3>数据落点</h3>
+      <ul><li><span class="n">2</span><span>手机密码、短信、邮箱登录都会完成 <code>LOGIN_REGISTER</code> 任务；Google 已绑定账号登录不会。</span></li>
+<li><span class="n">2</span><span>推广助理登录时写 <code>ums_member_chat_daily_stats.first_login_time</code>，每天 03:00 汇总成推广员日报。</span></li>
+<li><span class="n">4</span><span><code>GET /member/my</code> 异步记录，10 秒 Redis 锁；写成功后设置 <code>hichat:member:login:log:{id}</code> 到次日 0 点，当天后续请求直接跳过。</span></li>
+<li><span class="n">4</span><span><code>ums_member_login_log</code>：login_count = 之前的行数 + 1（累计登录天数）；continuous_login_count = 昨天有记录则 +1，否则为 1；首条 group_link 取推广归因，没有则为 <code>other</code>，之后沿用上一条。</span></li></ul>
+    </div>
+    <div>
+      <h3>admin 口径</h3><ul><li><span class="n">5</span><span>N 日留存看注册队列在第 N 天<strong>当天</strong>是否有登录日志，不是区间内任意一天。</span></li>
+<li><span class="n">5</span><span>分层活跃：注册满 14 天，且 [D−14, D] 内登录 ≥ 3 天；消息或直播观看 1–2 次为 ACTIVE，≥ 3 次为 ALWAYS_ACTIVE。</span></li>
+<li><span class="n n-dash"></span><span>系统工具 <code>POST /system/member/continuousLoginCount</code> 可全表重算连续登录天数（SUPER_ADMIN / DEV）。</span></li></ul>
+      <h3 class="wh">注意</h3><ul class="warns"><li><span class="n n-warn">!</span><span>DAU / WAU / MAU 不是去重人数：只取 D 当天登录的人，再数他们在 [D−N, D]（N+1 天）内的登录行数。DAU = D 活跃人数 + 其中 D−1 也活跃的人数。</span></li>
+<li><span class="n n-warn">!</span><span>留存代码注释写「时间范围内至少登录一次」，实现是「第 N 天当天登录」。</span></li>
+<li><span class="n n-warn">!</span><span>分层用到的消息和直播次数取全部历史，不是 14 天内；同一人可能同时是 ACTIVE 和 ALWAYS_ACTIVE。</span></li></ul>
+    </div>
+  </div>
+</section>
+<section id="google">
+  <h2>Google 授权登录</h2>
+  <p class="sum">首次授权先建一条未绑定的 oauth2 记录，注册后才绑定到会员；已绑定则直接登录。</p>
+  <figure>
+    <div class="scroll" tabindex="0" aria-label="Google 授权登录泳道图，可横向滚动">
+<svg viewBox="0 0 1408 540" width="1408" style="max-width:1408px;min-width:min(1408px,1180px)" role="img" aria-label="Google 授权登录泳道图：portal 按 Google sub 查询 ums_oauth2；无记录先建未绑定记录并引导注册；已绑定直接登录，直播主另签发 B2B token；admin 读取 oauth2 做账号类型筛选、物理删除 Gmail 注册用户，并用 B2B token 鉴权。" xmlns="http://www.w3.org/2000/svg">
+<defs><marker id="ah-google" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path class="ah" d="M0,0.8 L10,5 L0,9.2 z"/></marker></defs>
+<rect class="lane-a" x="0" y="0" width="1408" height="92"/>
+<rect class="lane-b" x="0" y="92" width="1408" height="84"/>
+<rect class="lane-a" x="0" y="176" width="1408" height="124"/>
+<rect class="lane-b" x="0" y="300" width="1408" height="140"/>
+<rect class="lane-a" x="0" y="440" width="1408" height="100"/>
+<rect class="lane-h" x="0" y="0" width="116" height="540"/>
+<text class="lnm" x="14" y="44">用户端</text>
+<text class="lsub" x="14" y="60">App · Web</text>
+<line class="lsep" x1="0" y1="92" x2="1408" y2="92"/>
+<text class="lnm" x="14" y="132">Google</text>
+<text class="lsub" x="14" y="148">外部授权</text>
+<line class="lsep" x1="0" y1="176" x2="1408" y2="176"/>
+<text class="lnm" x="14" y="236">hichat-portal</text>
+<text class="lsub" x="14" y="252">C 端服务</text>
+<line class="lsep" x1="0" y1="300" x2="1408" y2="300"/>
+<text class="lnm" x="14" y="368">数据存储</text>
+<text class="lsub" x="14" y="384">MySQL · Redis</text>
+<line class="lsep" x1="0" y1="440" x2="1408" y2="440"/>
+<text class="lnm" x="14" y="488">hichat-admin</text>
+<text class="lsub" x="14" y="504">后台 · 接口</text>
+<line class="lsep" x1="116" y1="0" x2="116" y2="540"/>
+<path class="eg" d="M292.0,46.0 L394.0,46.0 L394.0,110.5" marker-end="url(#ah-google)"/>
+<path class="eg" d="M472.0,134.0 L574.0,134.0 L574.0,193.0" marker-end="url(#ah-google)"/>
+<path class="eg" d="M574.0,255.0 L574.0,331.5" marker-end="url(#ah-google)"/>
+<path class="eg" d="M652.0,224.0 L754.0,224.0 L754.0,69.5" marker-end="url(#ah-google)"/>
+<path class="eg" d="M832.0,46.0 L934.0,46.0 L934.0,193.0" marker-end="url(#ah-google)"/>
+<path class="eg" d="M624.0,255.0 L624.0,288.0 L1074.0,288.0 L1074.0,255.0" marker-end="url(#ah-google)"/>
+<path class="eg" d="M1144.0,193.0 L1144.0,46.0 L1216.0,46.0" marker-end="url(#ah-google)"/>
+<path class="eg" d="M1192.0,236.0 L1294.0,236.0 L1294.0,339.0" marker-end="url(#ah-google)"/>
+<path class="eg rd" d="M574.0,408.5 L574.0,466.5" marker-end="url(#ah-google)"/>
+<path class="eg" d="M774.0,466.5 L774.0,396.0 L667.0,396.0" marker-end="url(#ah-google)"/>
+<path class="eg rd" d="M1294.0,401.0 L1294.0,459.0" marker-end="url(#ah-google)"/>
+<g class="nd nd-user">
+<rect class="bx" x="136" y="22.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="152" cy="39.5" r="8.5"/><text class="bdt" x="152" y="43.1" text-anchor="middle">1</text>
+<text class="tt" x="166" y="44">点 Google 登录</text>
+<text class="ln" x="146" y="59">App / Web</text>
+</g>
+<g class="nd nd-ext">
+<rect class="bx" x="316" y="110.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="332" cy="127.5" r="8.5"/><text class="bdt" x="332" y="131.1" text-anchor="middle">2</text>
+<text class="tt" x="346" y="132">回传凭证</text>
+<text class="ln" x="326" y="147">idToken：sub · email</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="496" y="193" width="156" height="62" rx="7"/>
+<circle class="bd" cx="512" cy="210" r="8.5"/><text class="bdt" x="512" y="213.6" text-anchor="middle">3</text>
+<text class="tt" x="526" y="214.5">按 sub 查绑定</text>
+<text class="ln" x="506" y="229.5">无记录则先建一条</text>
+<text class="ln" x="506" y="244.5">member_id 为空</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="481" y="331.5" width="186" height="77" rx="7"/>
+<text class="tag" x="658" y="346.5" text-anchor="end">MYSQL</text>
+<text class="tt m" x="491" y="353">ums_oauth2</text>
+<text class="ln" x="491" y="368">provider · provider_user_id</text>
+<text class="ln" x="491" y="383">member_id · bind_status</text>
+<text class="ln" x="491" y="398">set_password_status 0/1/2</text>
+</g>
+<g class="nd nd-user">
+<rect class="bx" x="676" y="22.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="692" cy="39.5" r="8.5"/><text class="bdt" x="692" y="43.1" text-anchor="middle">4</text>
+<text class="tt" x="706" y="44">未绑定 → 注册页</text>
+<text class="ln m" x="686" y="59">isGmailRegistered</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="856" y="193" width="156" height="62" rx="7"/>
+<circle class="bd" cx="872" cy="210" r="8.5"/><text class="bdt" x="872" y="213.6" text-anchor="middle">5</text>
+<text class="tt" x="886" y="214.5">Google 直接注册</text>
+<text class="ln" x="866" y="229.5">同「注册」3–6 步</text>
+<text class="ln" x="866" y="244.5">回写 oauth2 绑定</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="1036" y="193" width="156" height="62" rx="7"/>
+<circle class="bd" cx="1052" cy="210" r="8.5"/><text class="bdt" x="1052" y="213.6" text-anchor="middle">6</text>
+<text class="tt" x="1066" y="214.5">已绑定 → 登录</text>
+<text class="ln" x="1046" y="229.5">设备 · 失败次数清零</text>
+<text class="ln" x="1046" y="244.5">不触发积分任务</text>
+</g>
+<g class="nd nd-user">
+<rect class="bx" x="1216" y="22.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="1232" cy="39.5" r="8.5"/><text class="bdt" x="1232" y="43.1" text-anchor="middle">7</text>
+<text class="tt" x="1246" y="44">拿到 token</text>
+<text class="ln" x="1226" y="59">直播主另得 b2bToken</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="1202" y="339" width="184" height="62" rx="7"/>
+<text class="tag" x="1377" y="354" text-anchor="end">REDIS</text>
+<text class="tt" x="1212" y="360.5">B2B token</text>
+<text class="ln m" x="1212" y="375.5">hichat:b2b:login:token:{t}</text>
+<text class="ln" x="1212" y="390.5">仅直播主登录时签发</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="491" y="466.5" width="166" height="47" rx="7"/>
+<text class="tt" x="501" y="488">会员列表</text>
+<text class="ln" x="501" y="503">账号类型：无绑定 / Google</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="696" y="466.5" width="156" height="47" rx="7"/>
+<text class="tt" x="706" y="488">删除 Gmail 注册用户</text>
+<text class="ln" x="706" y="503">物理删 oauth2 + member</text>
+<circle class="wb" cx="851" cy="467.5" r="8"/><text class="wbt" x="851" y="471.5" text-anchor="middle">!</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="1216" y="459" width="156" height="62" rx="7"/>
+<text class="tt" x="1226" y="480.5">/b2b/** 鉴权</text>
+<text class="ln" x="1226" y="495.5">is_stream_host 校验</text>
+<text class="ln" x="1226" y="510.5">每次请求续期 30 分钟</text>
+</g>
+<rect class="ec" x="327.5" y="30.0" width="31.0" height="16" rx="3"/><text class="el" x="332.5" y="41.8">授权</text>
+<rect class="ec" x="496.6" y="118.0" width="52.8" height="16" rx="3"/><text class="el" x="501.6" y="129.8">idToken</text>
+<rect class="ec" x="580.0" y="285.3" width="71.9" height="16" rx="3"/><text class="el" x="585.0" y="297.1">查 / INSERT</text>
+<rect class="ec" x="760.0" y="138.8" width="41.5" height="16" rx="3"/><text class="el" x="765.0" y="150.6">未绑定</text>
+<rect class="ec" x="940.0" y="111.5" width="52.0" height="16" rx="3"/><text class="el" x="945.0" y="123.3">提交资料</text>
+<rect class="ec" x="828.3" y="272.0" width="41.5" height="16" rx="3"/><text class="el" x="833.3" y="283.8">已绑定</text>
+<rect class="ec" x="1160.0" y="30.0" width="39.9" height="16" rx="3"/><text class="el" x="1165.0" y="41.8">token</text>
+<rect class="ec" x="1300.0" y="279.5" width="41.5" height="16" rx="3"/><text class="el" x="1305.0" y="291.3">直播主</text>
+<rect class="ec" x="580.0" y="429.5" width="31.0" height="16" rx="3"/><text class="el" x="585.0" y="441.3">读取</text>
+<rect class="ec" x="694.7" y="380.0" width="51.6" height="16" rx="3"/><text class="el" x="699.7" y="391.8">DELETE</text>
+<rect class="ec" x="1300.0" y="422.0" width="61.9" height="16" rx="3"/><text class="el" x="1305.0" y="433.8">校验 · 续期</text>
+</svg>
+    </div>
+    <figcaption>步骤 3 之后分两路：未绑定走 4 → 5，已绑定走 6 → 7。</figcaption>
+  </figure>
+  <div class="rules">
+    <div>
+      <h3>数据落点</h3>
+      <ul><li><span class="n">3</span><span>按 provider = google + 加密后的 sub 查 <code>ums_oauth2</code>；没有记录就先 INSERT（provider_user_id、email 加密，member_id 为空、未绑定）。</span></li>
+<li><span class="n">5</span><span>直接注册：建 email 账号、register_way = 3，回写 oauth2 的 member_id 与 bind_status；完成 <code>LOGIN_REGISTER</code>，并走推广归因。</span></li>
+<li><span class="n">6</span><span>已绑定：校验 App 登录权限、写设备信息、失败次数清零；set_password_status 为 0 时提示设置密码（1 已设置，2 稍后设置）。推广助理更新首次登录时间；来自 FameEx 时跳转 FameEx。</span></li>
+<li><span class="n">7</span><span>直播主登录（isStreamHostLogin）额外签发 b2bToken，存入 <code>hichat:b2b:login:token:{token}</code>。</span></li>
+<li><span class="n n-dash"></span><span>已登录用户在设置里绑定 Google：写 oauth2，bind_status = true、set_password_status = 1。</span></li></ul>
+    </div>
+    <div>
+      <h3>admin 口径</h3><ul><li><span class="n n-dash"></span><span>会员列表 LEFT JOIN oauth2：账号类型 0 = 无绑定（provider 为空），1 = Google。</span></li>
+<li><span class="n n-dash"></span><span>统计中 Google 注册用户计入「新增邮箱」；用户分析表注册方式显示 Google。</span></li>
+<li><span class="n n-dash"></span><span><code>/b2b/**</code> 用 Redis 取 memberId；is_stream_host 为 false 时删除 token 并拒绝；通过后续期 30 分钟。</span></li></ul>
+      <h3 class="wh">注意</h3><ul class="warns"><li><span class="n n-warn">!</span><span>删除 Gmail 注册用户是物理删除，只删第一条 oauth2 和 ums_member，extend、登录日志等不删。</span></li>
+<li><span class="n n-warn">!</span><span><code>/b2b/public/**</code> 免鉴权，memberId 直接取自请求体。</span></li>
+<li><span class="n n-warn">!</span><span>授权后未完成注册的 oauth2 记录（member_id 为空）会一直留存。</span></li></ul>
+    </div>
+  </div>
+</section>
+<section id="discuz">
+  <h2>Discuz 注册（双向）</h2>
+  <p class="sum">Discuz 调 admin 建 HiChat 账号；反方向由 portal 在用户完成登录注册任务时同步到 Discuz。</p>
+  <figure>
+    <div class="scroll" tabindex="0" aria-label="Discuz 注册（双向）泳道图，可横向滚动">
+<svg viewBox="0 0 1588 454" width="1588" style="max-width:1588px;min-width:min(1588px,1180px)" role="img" aria-label="Discuz 注册泳道图：Discuz 调用 admin 外部注册接口，admin 校验签名后按 username 查重，已存在直接返回，否则生成 DZ 流水号并创建 DISCUZ 会员；反向由 portal 在用户完成登录注册任务时同步到 Discuz；admin 每天拉取论坛统计。" xmlns="http://www.w3.org/2000/svg">
+<defs><marker id="ah-discuz" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path class="ah" d="M0,0.8 L10,5 L0,9.2 z"/></marker></defs>
+<rect class="lane-a" x="0" y="0" width="1588" height="96"/>
+<rect class="lane-b" x="0" y="96" width="1588" height="122"/>
+<rect class="lane-a" x="0" y="218" width="1588" height="140"/>
+<rect class="lane-b" x="0" y="358" width="1588" height="96"/>
+<rect class="lane-h" x="0" y="0" width="116" height="454"/>
+<text class="lnm" x="14" y="46">Discuz 论坛</text>
+<text class="lsub" x="14" y="62">外部系统</text>
+<line class="lsep" x1="0" y1="96" x2="1588" y2="96"/>
+<text class="lnm" x="14" y="155">hichat-admin</text>
+<text class="lsub" x="14" y="171">/external · 定时任务</text>
+<line class="lsep" x1="0" y1="218" x2="1588" y2="218"/>
+<text class="lnm" x="14" y="286">数据存储</text>
+<text class="lsub" x="14" y="302">MySQL · Redis</text>
+<line class="lsep" x1="0" y1="358" x2="1588" y2="358"/>
+<text class="lnm" x="14" y="404">hichat-portal</text>
+<text class="lsub" x="14" y="420">C 端服务</text>
+<line class="lsep" x1="116" y1="0" x2="116" y2="454"/>
+<path class="eg" d="M301.0,48.0 L394.0,48.0 L394.0,118.5" marker-end="url(#ah-discuz)"/>
+<path class="eg" d="M472.0,157.0 L496.0,157.0" marker-end="url(#ah-discuz)"/>
+<path class="eg rd" d="M566.0,188.0 L566.0,257.0" marker-end="url(#ah-discuz)"/>
+<path class="eg" d="M652.0,157.0 L676.0,157.0" marker-end="url(#ah-discuz)"/>
+<path class="eg" d="M772.0,180.5 L772.0,232.5" marker-end="url(#ah-discuz)"/>
+<path class="eg" d="M832.0,157.0 L868.0,157.0" marker-end="url(#ah-discuz)"/>
+<path class="eg" d="M946.0,188.0 L946.0,308.0 L650.0,308.0" marker-end="url(#ah-discuz)"/>
+<path class="eg" d="M1024.0,157.0 L1114.0,157.0 L1114.0,79.0" marker-end="url(#ah-discuz)"/>
+<path class="eg" d="M604.0,126.0 L604.0,60.0 L1036.0,60.0" marker-end="url(#ah-discuz)"/>
+<path class="eg" d="M1294.0,375.0 L1294.0,71.5" marker-end="url(#ah-discuz)"/>
+<path class="eg rd" d="M1474.0,71.5 L1474.0,133.5" marker-end="url(#ah-discuz)"/>
+<path class="eg" d="M1474.0,180.5 L1474.0,264.5" marker-end="url(#ah-discuz)"/>
+<g class="nd nd-ext">
+<rect class="bx" x="135" y="17" width="166" height="62" rx="7"/>
+<circle class="bd" cx="151" cy="34" r="8.5"/><text class="bdt" x="151" y="37.6" text-anchor="middle">1</text>
+<text class="tt" x="165" y="38.5">调用注册接口</text>
+<text class="ln" x="145" y="53.5">username · nickname</text>
+<text class="ln" x="145" y="68.5">avatar · timestamp · sign</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="316" y="118.5" width="156" height="77" rx="7"/>
+<circle class="bd" cx="332" cy="135.5" r="8.5"/><text class="bdt" x="332" y="139.1" text-anchor="middle">2</text>
+<text class="tt" x="346" y="140">校验请求</text>
+<text class="ln" x="326" y="155">HMAC 签名 · ±5 分钟</text>
+<text class="ln" x="326" y="170">username 加 5 秒锁</text>
+<text class="ln" x="326" y="185">头像上传 hichat-fs</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="496" y="126" width="156" height="62" rx="7"/>
+<circle class="bd" cx="512" cy="143" r="8.5"/><text class="bdt" x="512" y="146.6" text-anchor="middle">3</text>
+<text class="tt" x="526" y="147.5">按 username 查重</text>
+<text class="ln" x="506" y="162.5">命中任意未删除会员</text>
+<text class="ln" x="506" y="177.5">→ 视为同一人</text>
+<circle class="wb" cx="651" cy="127" r="8"/><text class="wbt" x="651" y="131" text-anchor="middle">!</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="482" y="257" width="168" height="62" rx="7"/>
+<text class="tag" x="641" y="272" text-anchor="end">MYSQL</text>
+<text class="tt m" x="492" y="278.5">ums_member</text>
+<text class="ln" x="492" y="293.5">member_type = 4</text>
+<text class="ln" x="492" y="308.5">phone = 流水号（加密）</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="676" y="133.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="692" cy="150.5" r="8.5"/><text class="bdt" x="692" y="154.1" text-anchor="middle">4</text>
+<text class="tt" x="706" y="155">生成流水号</text>
+<text class="ln" x="686" y="170">DZ + yyyyMMdd + 3 位</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="673" y="232.5" width="206" height="47" rx="7"/>
+<text class="tag" x="870" y="247.5" text-anchor="end">REDIS</text>
+<text class="tt" x="683" y="254">流水号计数</text>
+<text class="ln m" x="683" y="269">hichat:disuz:serialNo:DZ:{日期}</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="868" y="126" width="156" height="62" rx="7"/>
+<circle class="bd" cx="884" cy="143" r="8.5"/><text class="bdt" x="884" y="146.6" text-anchor="middle">5</text>
+<text class="tt" x="898" y="147.5">创建会员</text>
+<text class="ln" x="878" y="162.5">DISCUZ · 固定密码</text>
+<text class="ln" x="878" y="177.5">只建记事本</text>
+</g>
+<g class="nd nd-ext">
+<rect class="bx" x="1036" y="17" width="156" height="62" rx="7"/>
+<circle class="bd" cx="1052" cy="34" r="8.5"/><text class="bdt" x="1052" y="37.6" text-anchor="middle">6</text>
+<text class="tt" x="1066" y="38.5">保存映射</text>
+<text class="ln" x="1046" y="53.5">HiChat id · avatarUrl</text>
+<text class="ln m" x="1046" y="68.5">isExisting</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="1216" y="375" width="156" height="62" rx="7"/>
+<circle class="bd" cx="1232" cy="392" r="8.5"/><text class="bdt" x="1232" y="395.6" text-anchor="middle">7</text>
+<text class="tt" x="1246" y="396.5">HiChat 注册 / 登录</text>
+<text class="ln" x="1226" y="411.5">完成 LOGIN_REGISTER</text>
+<text class="ln" x="1226" y="426.5">→ syncregister</text>
+</g>
+<g class="nd nd-ext">
+<rect class="bx" x="1216" y="24.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="1232" cy="41.5" r="8.5"/><text class="bdt" x="1232" y="45.1" text-anchor="middle">8</text>
+<text class="tt" x="1246" y="46">论坛同步建号</text>
+<text class="ln" x="1226" y="61">HiChat → Discuz</text>
+</g>
+<g class="nd nd-ext">
+<rect class="bx" x="1396" y="24.5" width="156" height="47" rx="7"/>
+<text class="tt" x="1406" y="46">论坛统计接口</text>
+<text class="ln" x="1406" y="61">发帖 · 访问 人数 / 次数</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="1396" y="133.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="1412" cy="150.5" r="8.5"/><text class="bdt" x="1412" y="154.1" text-anchor="middle">9</text>
+<text class="tt" x="1426" y="155">每日拉取论坛数据</text>
+<text class="ln" x="1406" y="170">05:00 · 全为 0 跳过</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="1386" y="264.5" width="176" height="47" rx="7"/>
+<text class="tt" x="1396" y="286">论坛日统计</text>
+<text class="ln m" x="1396" y="301">stats_daily_discuz_member</text>
+</g>
+<rect class="ec" x="255.9" y="32.0" width="183.3" height="16" rx="3"/><text class="el" x="260.9" y="43.8">POST /external/discuz/register</text>
+<rect class="ec" x="572.0" y="214.5" width="31.0" height="16" rx="3"/><text class="el" x="577.0" y="226.3">查询</text>
+<rect class="ec" x="643.3" y="141.0" width="41.5" height="16" rx="3"/><text class="el" x="648.3" y="152.8">不存在</text>
+<rect class="ec" x="778.0" y="198.5" width="37.7" height="16" rx="3"/><text class="el" x="783.0" y="210.3">INCR</text>
+<rect class="ec" x="772.2" y="292.0" width="51.6" height="16" rx="3"/><text class="el" x="777.2" y="303.8">INSERT</text>
+<rect class="ec" x="1037.8" y="141.0" width="62.5" height="16" rx="3"/><text class="el" x="1042.8" y="152.8">返回新会员</text>
+<rect class="ec" x="745.5" y="44.0" width="149.0" height="16" rx="3"/><text class="el" x="750.5" y="55.8">已存在：isExisting = true</text>
+<rect class="ec" x="1300.0" y="260.8" width="110.1" height="16" rx="3"/><text class="el" x="1305.0" y="272.6">portal 直连 Discuz</text>
+<rect class="ec" x="1480.0" y="94.5" width="31.0" height="16" rx="3"/><text class="el" x="1485.0" y="106.3">拉取</text>
+<rect class="ec" x="1480.0" y="214.5" width="51.6" height="16" rx="3"/><text class="el" x="1485.0" y="226.3">INSERT</text>
+</svg>
+    </div>
+    <figcaption>步骤 1–6 为 Discuz → HiChat；7–8 为 HiChat → Discuz；9 为每日统计拉取。</figcaption>
+  </figure>
+  <div class="rules">
+    <div>
+      <h3>数据落点</h3>
+      <ul><li><span class="n">2</span><span>签名串 <code>nickname=…&amp;timestamp=…&amp;username=…</code> 做 HMAC 校验；时间戳为毫秒，前后 5 分钟有效；头像必填，经 hichat-fs 上传。</span></li>
+<li><span class="n">3</span><span>username 命中任何未删除会员，直接返回该会员并标记 <code>isExisting = true</code>，不创建、不校验会员类型。</span></li>
+<li><span class="n">4</span><span>流水号 <code>DZ + yyyyMMdd + 3 位</code>，Redis 按天自增（1 小时过期，取不到回源数据库最大值）；流水号已存在同样返回已有会员。</span></li>
+<li><span class="n">5</span><span>member_type = 4、平台 HICHAT、phone = 加密流水号、country_calling_code = other、固定密码、状态启用；只建记事本，不写 extend 和登录日志。</span></li>
+<li><span class="n">9</span><span>每天从 Discuz 拉取发帖、访问的人数与次数，写 <code>stats_daily_discuz_member</code>。</span></li></ul>
+    </div>
+    <div>
+      <h3>admin 口径</h3><ul><li><span class="n n-dash"></span><span>Discuz 账号 member_type = 4，不计入新增、留存、分层。</span></li></ul>
+      <h3 class="wh">注意</h3><ul class="warns"><li><span class="n n-warn">!</span><span>username 撞到普通用户会被当成同一人返回给 Discuz。</span></li>
+<li><span class="n n-warn">!</span><span>HMAC 密钥与 Discuz 会员默认密码硬编码在代码里。</span></li>
+<li><span class="n n-warn">!</span><span>Discuz 账号被删除时会计入日报的「删除手机用户」。</span></li></ul>
+    </div>
+  </div>
+</section>
+<section id="fameex">
+  <h2>FameEx 授权绑定</h2>
+  <p class="sum">FameEx 回调绑定结果：任何结果都推送给 App，只有绑定成功才落库。</p>
+  <figure>
+    <div class="scroll" tabindex="0" aria-label="FameEx 授权绑定泳道图，可横向滚动">
+<svg viewBox="0 0 1408 416" width="1408" style="max-width:1408px;min-width:min(1408px,1180px)" role="img" aria-label="FameEx 授权绑定泳道图：FameEx 回调绑定结果，admin 校验 Access-Token 和会员后，任何结果都 WS 推送给 App，只有绑定成功才更新 fameex_status 与 fameex_register_time，用户分析表读取展示。" xmlns="http://www.w3.org/2000/svg">
+<defs><marker id="ah-fameex" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path class="ah" d="M0,0.8 L10,5 L0,9.2 z"/></marker></defs>
+<rect class="lane-a" x="0" y="0" width="1408" height="92"/>
+<rect class="lane-b" x="0" y="92" width="1408" height="116"/>
+<rect class="lane-a" x="0" y="208" width="1408" height="120"/>
+<rect class="lane-b" x="0" y="328" width="1408" height="88"/>
+<rect class="lane-h" x="0" y="0" width="116" height="416"/>
+<text class="lnm" x="14" y="44">FameEx</text>
+<text class="lsub" x="14" y="60">外部系统</text>
+<line class="lsep" x1="0" y1="92" x2="1408" y2="92"/>
+<text class="lnm" x="14" y="148">hichat-admin</text>
+<text class="lsub" x="14" y="164">/fameEx 回调</text>
+<line class="lsep" x1="0" y1="208" x2="1408" y2="208"/>
+<text class="lnm" x="14" y="266">数据存储</text>
+<text class="lsub" x="14" y="282">MySQL</text>
+<line class="lsep" x1="0" y1="328" x2="1408" y2="328"/>
+<text class="lnm" x="14" y="370">用户端</text>
+<text class="lsub" x="14" y="386">App</text>
+<line class="lsep" x1="116" y1="0" x2="116" y2="416"/>
+<path class="eg" d="M314.0,46.0 L394.0,46.0 L394.0,126.5" marker-end="url(#ah-fameex)"/>
+<path class="eg" d="M477.0,150.0 L496.0,150.0" marker-end="url(#ah-fameex)"/>
+<path class="eg rd" d="M574.0,173.5 L574.0,244.5" marker-end="url(#ah-fameex)"/>
+<path class="eg" d="M652.0,150.0 L676.0,150.0" marker-end="url(#ah-fameex)"/>
+<path class="eg" d="M754.0,173.5 L754.0,348.5" marker-end="url(#ah-fameex)"/>
+<path class="eg" d="M832.0,150.0 L855.0,150.0" marker-end="url(#ah-fameex)"/>
+<path class="eg" d="M1025.0,150.0 L1042.0,150.0" marker-end="url(#ah-fameex)"/>
+<path class="eg" d="M1120.0,173.5 L1120.0,237.0" marker-end="url(#ah-fameex)"/>
+<path class="eg rd" d="M1208.0,268.0 L1294.0,268.0 L1294.0,173.5" marker-end="url(#ah-fameex)"/>
+<g class="nd nd-ext">
+<rect class="bx" x="130" y="15" width="184" height="62" rx="7"/>
+<circle class="bd" cx="146" cy="32" r="8.5"/><text class="bdt" x="146" y="35.6" text-anchor="middle">1</text>
+<text class="tt" x="160" y="36.5">回调绑定结果</text>
+<text class="ln m" x="140" y="51.5">hichat_member_id</text>
+<text class="ln m" x="140" y="66.5">bind_status · register_time</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="311" y="126.5" width="166" height="47" rx="7"/>
+<circle class="bd" cx="327" cy="143.5" r="8.5"/><text class="bdt" x="327" y="147.1" text-anchor="middle">2</text>
+<text class="tt" x="341" y="148">校验 Access-Token</text>
+<text class="ln" x="321" y="163">不一致 → 403</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="496" y="126.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="512" cy="143.5" r="8.5"/><text class="bdt" x="512" y="147.1" text-anchor="middle">3</text>
+<text class="tt" x="526" y="148">查目标会员</text>
+<text class="ln" x="506" y="163">不存在 / 已删除 → 报错</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="496" y="244.5" width="156" height="47" rx="7"/>
+<text class="tag" x="643" y="259.5" text-anchor="end">MYSQL</text>
+<text class="tt m" x="506" y="266">ums_member</text>
+<text class="ln" x="506" y="281">status ≠ 99</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="676" y="126.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="692" cy="143.5" r="8.5"/><text class="bdt" x="692" y="147.1" text-anchor="middle">4</text>
+<text class="tt" x="706" y="148">WS 推送结果</text>
+<text class="ln" x="686" y="163">任何 bind_status 都推</text>
+</g>
+<g class="nd nd-user">
+<rect class="bx" x="666" y="348.5" width="176" height="47" rx="7"/>
+<circle class="bd" cx="682" cy="365.5" r="8.5"/><text class="bdt" x="682" y="369.1" text-anchor="middle">5</text>
+<text class="tt" x="696" y="370">App 收到绑定结果</text>
+<text class="ln m" x="676" y="385">SRV_FAMEEX_BIND_RESULT</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="855" y="119" width="170" height="62" rx="7"/>
+<circle class="bd" cx="871" cy="136" r="8.5"/><text class="bdt" x="871" y="139.6" text-anchor="middle">6</text>
+<text class="tt" x="885" y="140.5">bind_status = 1 ?</text>
+<text class="ln" x="865" y="155.5">2 冻结 · 3 无账号 · 4 已绑定</text>
+<text class="ln" x="865" y="170.5">→ 只推送，不落库</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="1042" y="126.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="1058" cy="143.5" r="8.5"/><text class="bdt" x="1058" y="147.1" text-anchor="middle">7</text>
+<text class="tt" x="1072" y="148">更新关联状态</text>
+<text class="ln" x="1052" y="163">已 RELATED 则跳过</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="1032" y="237" width="176" height="62" rx="7"/>
+<text class="tt m" x="1042" y="258.5">ums_member / extend</text>
+<text class="ln" x="1042" y="273.5">fameex_status = 1</text>
+<text class="ln" x="1042" y="288.5">fameex_register_time</text>
+<circle class="wb" cx="1207" cy="238" r="8"/><text class="wbt" x="1207" y="242" text-anchor="middle">!</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="1216" y="126.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="1232" cy="143.5" r="8.5"/><text class="bdt" x="1232" y="147.1" text-anchor="middle">8</text>
+<text class="tt" x="1246" y="148">用户分析表</text>
+<text class="ln" x="1226" y="163">关联 FameEx · 关联时间</text>
+</g>
+<rect class="ec" x="400.0" y="78.3" width="197.1" height="16" rx="3"/><text class="el" x="405.0" y="90.0">POST /fameEx/callback/bindResult</text>
+<rect class="ec" x="580.0" y="201.0" width="31.0" height="16" rx="3"/><text class="el" x="585.0" y="212.8">查询</text>
+<rect class="ec" x="760.0" y="218.0" width="65.8" height="16" rx="3"/><text class="el" x="765.0" y="229.8">WebSocket</text>
+<rect class="ec" x="1018.0" y="134.0" width="31.0" height="16" rx="3"/><text class="el" x="1023.0" y="145.8">成功</text>
+<rect class="ec" x="1126.0" y="197.3" width="51.6" height="16" rx="3"/><text class="el" x="1131.0" y="209.1">UPDATE</text>
+<rect class="ec" x="1300.0" y="212.8" width="31.0" height="16" rx="3"/><text class="el" x="1305.0" y="224.6">读取</text>
+</svg>
+    </div>
+    <figcaption>步骤 6 之后只有 bind_status = 1 继续往下走。</figcaption>
+  </figure>
+  <div class="rules">
+    <div>
+      <h3>数据落点</h3>
+      <ul><li><span class="n">2</span><span>请求头 Access-Token 与配置值比对，不一致返回 403。</span></li>
+<li><span class="n">6</span><span>bind_status：1 成功、2 冻结、3 无账号、4 已绑定；只有 1 会落库。</span></li>
+<li><span class="n">7</span><span>ums_member.fameex_status = 1（RELATED）；register_time（毫秒）有值才写 <code>fameex_register_time</code>；已是 RELATED 直接跳过，首次关联时间不会被覆盖。</span></li>
+<li><span class="n">8</span><span>用户分析表展示关联 FameEx、关联时间、首次入金；非 HICHAT 平台隐藏这些字段。</span></li></ul>
+    </div>
+    <div>
+      <h3>admin 口径</h3><ul><li><span class="n n-dash"></span><span>CEX 入口注册 UV = <code>fameex_conversion_log</code> 中 type = REGISTER 的去重 member_id，来源限 GROUP / MINI_PROGRAM / ONE_TAP / STREAM_LOBBY。</span></li>
+<li><span class="n n-dash"></span><span><code>/fameEx/members/appsflyerId</code> 只返回 USER + 启用会员的 AppsFlyer ID。</span></li></ul>
+      <h3 class="wh">注意</h3><ul class="warns"><li><span class="n n-warn">!</span><span>没有 extend 行的会员（Discuz、后台建号）更新 fameex_register_time 会静默失败。</span></li>
+<li><span class="n n-warn">!</span><span>回调 action 枚举里有 <code>register</code>，但没有对应处理器，调用会返回「当前 action 业务不支持」。</span></li></ul>
+    </div>
+  </div>
+</section>
+<section id="admin-login">
+  <h2>后台管理员登录</h2>
+  <p class="sum">后台账号独立于会员体系：失败计数和 token 都放 Redis，新登录会挤掉旧 token。</p>
+  <figure>
+    <div class="scroll" tabindex="0" aria-label="后台管理员登录泳道图，可横向滚动">
+<svg viewBox="0 0 1588 412" width="1588" style="max-width:1588px;min-width:min(1588px,1180px)" role="img" aria-label="后台管理员登录泳道图：admin 先查管理员账号，再检查 Redis 失败计数，校验密码失败则计数加一，成功后写登录日志并签发 JWT，Redis 只保存最新 token，过滤器每次请求比对 token 实现单端登录。" xmlns="http://www.w3.org/2000/svg">
+<defs><marker id="ah-admin-login" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path class="ah" d="M0,0.8 L10,5 L0,9.2 z"/></marker></defs>
+<rect class="lane-a" x="0" y="0" width="1588" height="88"/>
+<rect class="lane-b" x="0" y="88" width="1588" height="112"/>
+<rect class="lane-a" x="0" y="200" width="1588" height="116"/>
+<rect class="lane-b" x="0" y="316" width="1588" height="96"/>
+<rect class="lane-h" x="0" y="0" width="116" height="412"/>
+<text class="lnm" x="14" y="42">管理员</text>
+<text class="lsub" x="14" y="58">后台前端</text>
+<line class="lsep" x1="0" y1="88" x2="1588" y2="88"/>
+<text class="lnm" x="14" y="142">hichat-admin</text>
+<text class="lsub" x="14" y="158">/admin/login · 过滤器</text>
+<line class="lsep" x1="0" y1="200" x2="1588" y2="200"/>
+<text class="lnm" x="14" y="256">Redis</text>
+<text class="lsub" x="14" y="272">计数 · token</text>
+<line class="lsep" x1="0" y1="316" x2="1588" y2="316"/>
+<text class="lnm" x="14" y="362">MySQL</text>
+<text class="lsub" x="14" y="378">账号 · 日志</text>
+<line class="lsep" x1="116" y1="0" x2="116" y2="412"/>
+<path class="eg" d="M292.0,44.0 L394.0,44.0 L394.0,113.0" marker-end="url(#ah-admin-login)"/>
+<path class="eg rd" d="M394.0,175.0 L394.0,340.5" marker-end="url(#ah-admin-login)"/>
+<path class="eg" d="M472.0,144.0 L496.0,144.0" marker-end="url(#ah-admin-login)"/>
+<path class="eg rd" d="M574.0,167.5 L574.0,227.0" marker-end="url(#ah-admin-login)"/>
+<path class="eg" d="M652.0,144.0 L692.0,144.0" marker-end="url(#ah-admin-login)"/>
+<path class="eg" d="M770.0,167.5 L770.0,274.0 L693.0,274.0" marker-end="url(#ah-admin-login)"/>
+<path class="eg" d="M848.0,144.0 L866.0,144.0" marker-end="url(#ah-admin-login)"/>
+<path class="eg" d="M944.0,167.5 L944.0,340.5" marker-end="url(#ah-admin-login)"/>
+<path class="eg" d="M1022.0,144.0 L1036.0,144.0" marker-end="url(#ah-admin-login)"/>
+<path class="eg" d="M1114.0,167.5 L1114.0,227.0" marker-end="url(#ah-admin-login)"/>
+<path class="eg" d="M1192.0,144.0 L1294.0,144.0 L1294.0,67.5" marker-end="url(#ah-admin-login)"/>
+<path class="eg" d="M1372.0,44.0 L1474.0,44.0 L1474.0,113.0" marker-end="url(#ah-admin-login)"/>
+<path class="eg rd" d="M1474.0,175.0 L1474.0,258.0 L1218.0,258.0" marker-end="url(#ah-admin-login)"/>
+<g class="nd nd-user">
+<rect class="bx" x="136" y="20.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="152" cy="37.5" r="8.5"/><text class="bdt" x="152" y="41.1" text-anchor="middle">1</text>
+<text class="tt" x="166" y="42">输入账号密码</text>
+<text class="ln" x="146" y="57">email 或 username</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="316" y="113" width="156" height="62" rx="7"/>
+<circle class="bd" cx="332" cy="130" r="8.5"/><text class="bdt" x="332" y="133.6" text-anchor="middle">2</text>
+<text class="tt" x="346" y="134.5">查管理员</text>
+<text class="ln" x="326" y="149.5">先 email 后 username</text>
+<text class="ln" x="326" y="164.5">排除已删除 · 校验平台</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="316" y="340.5" width="156" height="47" rx="7"/>
+<text class="tt m" x="326" y="362">ums_admin_member</text>
+<text class="ln" x="326" y="377">status ≠ 99</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="496" y="120.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="512" cy="137.5" r="8.5"/><text class="bdt" x="512" y="141.1" text-anchor="middle">3</text>
+<text class="tt" x="526" y="142">检查失败次数</text>
+<text class="ln" x="506" y="157">≥ 6 次直接拒绝</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="487" y="227" width="206" height="62" rx="7"/>
+<text class="tt" x="497" y="248.5">失败计数</text>
+<text class="ln m" x="497" y="263.5">hichat:admin:login:failure:{id}</text>
+<text class="ln" x="497" y="278.5">每次失败 +1 · 重置 15 分钟</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="692" y="120.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="708" cy="137.5" r="8.5"/><text class="bdt" x="708" y="141.1" text-anchor="middle">4</text>
+<text class="tt" x="722" y="142">校验密码</text>
+<text class="ln" x="702" y="157">v1 / v2 先 AES 解密</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="866" y="120.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="882" cy="137.5" r="8.5"/><text class="bdt" x="882" y="141.1" text-anchor="middle">5</text>
+<text class="tt" x="896" y="142">登录成功</text>
+<text class="ln" x="876" y="157">清空失败计数</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="859" y="340.5" width="170" height="47" rx="7"/>
+<text class="tt m" x="869" y="362">ums_admin_login_log</text>
+<text class="ln" x="869" y="377">admin_id · ip · 时间</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="1036" y="120.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="1052" cy="137.5" r="8.5"/><text class="bdt" x="1052" y="141.1" text-anchor="middle">6</text>
+<text class="tt" x="1066" y="142">签发 JWT</text>
+<text class="ln" x="1046" y="157">有效 1 小时</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="1022" y="227" width="196" height="62" rx="7"/>
+<text class="tt" x="1032" y="248.5">登录 token</text>
+<text class="ln m" x="1032" y="263.5">hichat:admin:login:token:{id}</text>
+<text class="ln" x="1032" y="278.5">只存最新一个 · 3 小时</text>
+</g>
+<g class="nd nd-user">
+<rect class="bx" x="1216" y="20.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="1232" cy="37.5" r="8.5"/><text class="bdt" x="1232" y="41.1" text-anchor="middle">7</text>
+<text class="tt" x="1246" y="42">带 token 请求</text>
+<text class="ln" x="1226" y="57">Authorization 头</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="1396" y="113" width="156" height="62" rx="7"/>
+<circle class="bd" cx="1412" cy="130" r="8.5"/><text class="bdt" x="1412" y="133.6" text-anchor="middle">8</text>
+<text class="tt" x="1426" y="134.5">JWT 过滤器</text>
+<text class="ln" x="1406" y="149.5">与 Redis 不一致 → 过期</text>
+<text class="ln" x="1406" y="164.5">新登录挤掉旧 token</text>
+</g>
+<rect class="ec" x="289.1" y="28.0" width="107.9" height="16" rx="3"/><text class="el" x="294.1" y="39.8">POST /admin/login</text>
+<rect class="ec" x="400.0" y="216.7" width="31.0" height="16" rx="3"/><text class="el" x="405.0" y="228.5">查询</text>
+<rect class="ec" x="580.0" y="189.3" width="31.0" height="16" rx="3"/><text class="el" x="585.0" y="201.1">读取</text>
+<rect class="ec" x="696.9" y="258.0" width="69.2" height="16" rx="3"/><text class="el" x="701.9" y="269.8">失败：INCR</text>
+<rect class="ec" x="841.5" y="128.0" width="31.0" height="16" rx="3"/><text class="el" x="846.5" y="139.8">通过</text>
+<rect class="ec" x="950.0" y="211.4" width="51.6" height="16" rx="3"/><text class="el" x="955.0" y="223.2">INSERT</text>
+<rect class="ec" x="1120.0" y="189.3" width="30.8" height="16" rx="3"/><text class="el" x="1125.0" y="201.1">SET</text>
+<rect class="ec" x="1211.0" y="128.0" width="64.1" height="16" rx="3"/><text class="el" x="1216.0" y="139.8">返回 token</text>
+<rect class="ec" x="1397.0" y="28.0" width="52.0" height="16" rx="3"/><text class="el" x="1402.0" y="39.8">每次请求</text>
+<rect class="ec" x="1330.5" y="242.0" width="31.0" height="16" rx="3"/><text class="el" x="1335.5" y="253.8">比对</text>
+</svg>
+    </div>
+    <figcaption>步骤 4 失败时回写失败计数；步骤 8 每次请求都比对 Redis 中的最新 token。</figcaption>
+  </figure>
+  <div class="rules">
+    <div>
+      <h3>数据落点</h3>
+      <ul><li><span class="n">2</span><span>先按 email、再按 username 查 <code>ums_admin_member</code>（排除已删除），再校验账号状态与平台。</span></li>
+<li><span class="n">3</span><span>失败计数 ≥ 6 时，15 分钟内即使密码正确也拒绝；每次失败都把过期时间重置为 15 分钟。</span></li>
+<li><span class="n">5</span><span>成功后写 <code>ums_admin_login_log</code>（admin_id、IP、时间），清空失败计数；登录动作另经 BehaviorLog 切面记入后台操作日志。</span></li>
+<li><span class="n">6</span><span>JWT 有效 1 小时；Redis 只存最新 token（3 小时）。刷新时剩余有效期超过 30 分钟原样返回，否则签新 token 覆盖；登出删除该 key。</span></li></ul>
+    </div>
+    
+  </div>
+</section>
+</div>
+</body>
+</html>

@@ -1,0 +1,956 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{color-scheme:light}*,*::before,*::after{box-sizing:border-box}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>HiChat 聊天群组设计规则</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#F2F3EF; --surface:#FFFFFF; --lane-a:#FBFBF9; --lane-b:#F1F3EE; --lane-h:#E6E9E1;
+  --ink:#1B2027; --ink-2:#3A424C; --muted:#646D77; --rule:#D2D6CD; --edge:#4A535E; --chip:#FFFFFF; --code:#E8EBE3;
+  --user-f:#FFFFFF; --user-s:#5B6470;
+  --portal-f:#E6EEF7; --portal-s:#2D5D8F;
+  --store-f:#FAF0DA; --store-s:#8F620E;
+  --admin-f:#DFEFE8; --admin-s:#226C57;
+  --ext-f:#F1E6F4; --ext-s:#71458A;
+  --warn:#B23C28; --badge-t:#FFFFFF;
+  --sans:"Noto Sans SC","PingFang SC","Microsoft YaHei","Hiragino Sans GB",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Consolas,"Liberation Mono",monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#101418; --surface:#171C22; --lane-a:#161B21; --lane-b:#1B2128; --lane-h:#212831;
+    --ink:#E6E9ED; --ink-2:#C3C9D1; --muted:#949DA8; --rule:#2E3641; --edge:#AAB3BE; --chip:#171C22; --code:#232A33;
+    --user-f:#1B2128; --user-s:#A3ACB7;
+    --portal-f:#172A3E; --portal-s:#86B3E2;
+    --store-f:#302710; --store-s:#DDAF57;
+    --admin-f:#122F28; --admin-s:#5FC2A2;
+    --ext-f:#2A1E31; --ext-s:#C59AD8;
+    --warn:#EE8670; --badge-t:#101418;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#101418; --surface:#171C22; --lane-a:#161B21; --lane-b:#1B2128; --lane-h:#212831;
+  --ink:#E6E9ED; --ink-2:#C3C9D1; --muted:#949DA8; --rule:#2E3641; --edge:#AAB3BE; --chip:#171C22; --code:#232A33;
+  --user-f:#1B2128; --user-s:#A3ACB7;
+  --portal-f:#172A3E; --portal-s:#86B3E2;
+  --store-f:#302710; --store-s:#DDAF57;
+  --admin-f:#122F28; --admin-s:#5FC2A2;
+  --ext-f:#2A1E31; --ext-s:#C59AD8;
+  --warn:#EE8670; --badge-t:#101418;
+}
+body{background:var(--bg);color:var(--ink);font:15px/1.65 var(--sans);padding-inline:16px;padding-block:32px 72px}
+.wrap{max-width:1600px;margin-inline:auto}
+header{display:grid;gap:10px;max-width:980px}
+.eyebrow{font:500 12px/1.4 var(--mono);color:var(--muted);letter-spacing:.02em;margin:0}
+h1{font-size:clamp(28px,4vw,40px);line-height:1.15;font-weight:700;letter-spacing:-.01em;margin:0;text-wrap:balance}
+.lede{margin:0;max-width:68ch;color:var(--ink-2)}
+.legend{display:flex;flex-wrap:wrap;gap:8px 22px;margin-top:22px;font-size:13px;color:var(--ink-2);align-items:center}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.sw{display:inline-block;width:22px;height:14px;border-radius:4px;border:1.5px solid}
+.sw-user{background:var(--user-f);border-color:var(--user-s)}
+.sw-portal{background:var(--portal-f);border-color:var(--portal-s)}
+.sw-store{background:var(--store-f);border-color:var(--store-s)}
+.sw-admin{background:var(--admin-f);border-color:var(--admin-s)}
+.sw-ext{background:var(--ext-f);border-color:var(--ext-s)}
+.lg-line{width:34px;height:10px}
+.wdot{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:50%;background:var(--warn);color:var(--badge-t);font:700 11px/1 var(--sans);font-style:normal}
+nav{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+nav a{font-size:13px;padding:5px 13px;border:1px solid var(--rule);border-radius:999px;color:var(--ink);background:var(--surface);text-decoration:none}
+nav a:hover{border-color:var(--edge)}
+nav a:focus-visible,.scroll:focus-visible{outline:2px solid var(--portal-s);outline-offset:2px}
+section{margin-top:60px;scroll-margin-top:16px}
+h2{font-size:22px;line-height:1.3;font-weight:700;margin:0;text-wrap:balance}
+.sum{color:var(--ink-2);max-width:78ch;margin:6px 0 16px}
+figure{margin:0}
+.scroll{overflow-x:auto;border:1px solid var(--rule);border-radius:10px;background:var(--surface)}
+.scroll svg{display:block;width:100%;height:auto}
+figcaption{font-size:12.5px;color:var(--muted);margin-top:8px}
+.rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:24px 48px;margin-top:22px}
+.rules h3{font-size:12.5px;font-weight:600;letter-spacing:.08em;color:var(--muted);margin:0 0 10px}
+.rules h3.wh{margin-top:20px;color:var(--warn)}
+.rules ul{margin:0;padding:0;list-style:none;display:grid;gap:9px}
+.rules li{display:grid;grid-template-columns:22px 1fr;gap:10px;font-size:14px;line-height:1.65;max-width:76ch}
+.n{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--ink);color:var(--bg);font:600 11px/1 var(--mono);margin-top:2px}
+.n-dash{background:transparent;border:1.5px solid var(--rule)}
+.n-warn{background:var(--warn);color:var(--badge-t);font-family:var(--sans);font-weight:700}
+code{font:12.5px/1.5 var(--mono);background:var(--code);padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
+/* svg */
+.lane-a{fill:var(--lane-a)} .lane-b{fill:var(--lane-b)} .lane-h{fill:var(--lane-h)}
+.lsep{stroke:var(--rule);stroke-width:1}
+.lnm{font:600 12.5px var(--sans);fill:var(--ink)}
+.lsub{font:400 10.5px var(--sans);fill:var(--muted)}
+.bx{stroke-width:1.4}
+.nd-user .bx{fill:var(--user-f);stroke:var(--user-s)} .nd-user .bd{fill:var(--user-s)}
+.nd-portal .bx{fill:var(--portal-f);stroke:var(--portal-s)} .nd-portal .bd{fill:var(--portal-s)}
+.nd-store .bx{fill:var(--store-f);stroke:var(--store-s)} .nd-store .bd{fill:var(--store-s)}
+.nd-admin .bx{fill:var(--admin-f);stroke:var(--admin-s)} .nd-admin .bd{fill:var(--admin-s)}
+.nd-ext .bx{fill:var(--ext-f);stroke:var(--ext-s)} .nd-ext .bd{fill:var(--ext-s)}
+.bdt{font:600 10px var(--mono);fill:var(--badge-t)}
+.tt{font:600 12.5px var(--sans);fill:var(--ink)}
+.tt.m{font:500 11px var(--mono)}
+.ln{font:400 11px var(--sans);fill:var(--ink-2)}
+.ln.m{font:400 10px var(--mono)}
+.tag{font:500 8.5px var(--mono);fill:var(--store-s);letter-spacing:.06em}
+.wb{fill:var(--warn)}
+.wbt{font:700 11px var(--sans);fill:var(--badge-t)}
+.eg{fill:none;stroke:var(--edge);stroke-width:1.4}
+.eg.rd{stroke-dasharray:5 4}
+.ah{fill:var(--edge)}
+.ec{fill:var(--chip)}
+.el{font:500 10.5px var(--sans);fill:var(--ink-2)}
+
+.what{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:12px;margin-top:24px;max-width:1180px}
+.what div{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:14px 16px}
+.what h3{margin:0 0 6px;font-size:12.5px;color:var(--muted);font-weight:600;letter-spacing:.08em}
+.what p{margin:0;font-size:14px;line-height:1.65}
+.tbl{overflow-x:auto;margin-top:14px;border:1px solid var(--rule);border-radius:10px;background:var(--surface)}
+table.t{border-collapse:collapse;width:100%;min-width:900px;font-size:13.5px;line-height:1.6}
+.t th,.t td{padding:10px 14px;text-align:left;vertical-align:top;border-bottom:1px solid var(--rule)}
+.t th{font-weight:600;color:var(--muted);font-size:12.5px;letter-spacing:.04em;background:var(--lane-h);white-space:nowrap}
+.t tr:last-child td{border-bottom:0}
+.t td.loc{font:12px/1.6 var(--mono);color:var(--ink-2);white-space:nowrap}
+.t td.idx{font:600 12px var(--mono);color:var(--warn);width:36px}
+.pill{display:inline-block;padding:0 8px;border-radius:999px;font-size:12px;line-height:20px;border:1px solid;white-space:nowrap}
+.pill-a{color:var(--portal-s);border-color:var(--portal-s)}
+.pill-b{color:var(--ext-s);border-color:var(--ext-s)}
+.pill-no{color:var(--warn);border-color:var(--warn)}
+.n-wide{width:auto;min-width:20px;padding:0 5px;border-radius:10px;font-size:10px}
+.rules li{grid-template-columns:30px 1fr}
+section.plain{margin-top:48px}
+
+h3.sub{font-size:15px;font-weight:600;margin:28px 0 0}
+.t td.k{font:12.5px/1.6 var(--mono);white-space:nowrap}
+.t td.c{text-align:center;white-space:nowrap}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <p class="eyebrow">hichat · master @ fe2095d45 · 2026-10-01</p>
+  <h1>HiChat 聊天群组设计规则</h1>
+  <p class="lede">群组从创建、加入、发消息到退出、解散和后台管理的完整规则：每一步的权限判断、写入的数据，以及群组类型、角色权限和已知问题。文字版见同目录 <code>聊天群组设计规则.md</code>。</p>
+</header>
+
+<div class="what">
+  <div><h3>核心数据</h3><p><code>ums_group</code> 存群和群权限；<code>ums_member_group_relation</code> 存成员、群主 / 管理员标记、邀请状态、禁言；管理员权限另存 <code>ums_group_authority</code>。所有删除都是软删除。</p></div>
+  <div><h3>四种角色</h3><p>群主（全部权限，退群即解散）、管理员（逐项授权）、普通成员（受群权限约束）、审核账号（后台分配，可管理指定群）。BOT 发消息不受限。</p></div>
+  <div><h3>关键数字</h3><p>成员上限 10000（不含群主，含待接受）；单人禁言 24 小时；超过 200 个关系成为超级群；后台清理 30 天未活跃成员。</p></div>
+</div>
+
+
+<div class="legend" aria-label="图例">
+  <span><i class="sw sw-user"></i>用户 / 操作人</span>
+  <span><i class="sw sw-portal"></i>hichat-portal</span>
+  <span><i class="sw sw-admin"></i>hichat-im · admin · crontab · 推送</span>
+  <span><i class="sw sw-store"></i>数据存储</span>
+  <span><svg class="lg-line" viewBox="0 0 34 10" aria-hidden="true"><path d="M1,5 H31" class="eg"/><path d="M26,1.5 L33,5 L26,8.5 z" class="ah"/></svg>调用 / 写入</span>
+  <span><svg class="lg-line" viewBox="0 0 34 10" aria-hidden="true"><path d="M1,5 H31" class="eg rd"/><path d="M26,1.5 L33,5 L26,8.5 z" class="ah"/></svg>读取</span>
+  <span><i class="wdot">!</i>有问题（见「注意」与问题清单）</span>
+</div>
+<nav aria-label="目录">
+<a href="#create">建群与邀请</a>
+<a href="#join">通过链接加入</a>
+<a href="#send">发送群消息</a>
+<a href="#leave">退群 · 解散 · 移除 · 转让</a>
+<a href="#admin">后台管理 · 定时任务</a>
+<a href="#types">群组类型</a>
+<a href="#roles">角色与权限</a>
+<a href="#issues">问题清单</a>
+</nav>
+
+<section id="create">
+  <h2>建群与邀请</h2>
+  <p class="sum">App 建群时创建者即群主，被拉的人默认「待接受」；系统参数没打开邀请确认时，会自动替他们接受。</p>
+  <figure>
+    <div class="scroll" tabindex="0" aria-label="建群与邀请，可横向滚动">
+<svg viewBox="0 0 1588 516" width="1588" style="max-width:1588px;min-width:min(1588px,1180px)" role="img" aria-label="建群与邀请泳道图：群主提交建群，portal 校验后创建群和主邀请链接，写入被邀请人关系，按邀请开关决定是否自动接受，可一并设置管理员、禁言和禁用词；被邀请人收到邀请后接受或拒绝，群内广播。" xmlns="http://www.w3.org/2000/svg">
+<defs><marker id="ah-create" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path class="ah" d="M0,0.8 L10,5 L0,9.2 z"/></marker></defs>
+<rect class="lane-a" x="0" y="0" width="1588" height="96"/>
+<rect class="lane-b" x="0" y="96" width="1588" height="112"/>
+<rect class="lane-a" x="0" y="208" width="1588" height="120"/>
+<rect class="lane-b" x="0" y="328" width="1588" height="92"/>
+<rect class="lane-a" x="0" y="420" width="1588" height="96"/>
+<rect class="lane-h" x="0" y="0" width="116" height="516"/>
+<text class="lnm" x="14" y="46">群主</text>
+<text class="lsub" x="14" y="62">App</text>
+<line class="lsep" x1="0" y1="96" x2="1588" y2="96"/>
+<text class="lnm" x="14" y="150">hichat-portal</text>
+<text class="lsub" x="14" y="166">群组接口</text>
+<line class="lsep" x1="0" y1="208" x2="1588" y2="208"/>
+<text class="lnm" x="14" y="266">MySQL · 系统参数</text>
+<text class="lsub" x="14" y="282">群 · 关系 · 权限</text>
+<line class="lsep" x1="0" y1="328" x2="1588" y2="328"/>
+<text class="lnm" x="14" y="372">推送 · WebSocket</text>
+<text class="lsub" x="14" y="388">MQ · 推送</text>
+<line class="lsep" x1="0" y1="420" x2="1588" y2="420"/>
+<text class="lnm" x="14" y="466">被邀请人</text>
+<text class="lsub" x="14" y="482">App</text>
+<line class="lsep" x1="116" y1="0" x2="116" y2="516"/>
+<path class="eg" d="M303.0,48.0 L394.0,48.0 L394.0,121.0" marker-end="url(#ah-create)"/>
+<path class="eg" d="M472.0,152.0 L489.0,152.0" marker-end="url(#ah-create)"/>
+<path class="eg" d="M564.0,183.0 L564.0,229.5" marker-end="url(#ah-create)"/>
+<path class="eg" d="M659.0,152.0 L680.0,152.0" marker-end="url(#ah-create)"/>
+<path class="eg" d="M738.0,183.0 L738.0,288.0 L652.0,288.0" marker-end="url(#ah-create)"/>
+<path class="eg" d="M804.0,183.0 L804.0,374.0 L857.0,374.0" marker-end="url(#ah-create)"/>
+<path class="eg" d="M836.0,152.0 L856.0,152.0" marker-end="url(#ah-create)"/>
+<path class="eg rd" d="M944.0,183.0 L944.0,244.5" marker-end="url(#ah-create)"/>
+<path class="eg" d="M1024.0,152.0 L1035.0,152.0" marker-end="url(#ah-create)"/>
+<path class="eg" d="M1126.0,175.5 L1126.0,237.0" marker-end="url(#ah-create)"/>
+<path class="eg" d="M1023.0,374.0 L1122.0,374.0 L1122.0,444.5" marker-end="url(#ah-create)"/>
+<path class="eg" d="M1200.0,468.0 L1302.0,468.0 L1302.0,183.0" marker-end="url(#ah-create)"/>
+<path class="eg" d="M1386.0,152.0 L1474.0,152.0 L1474.0,350.5" marker-end="url(#ah-create)"/>
+<g class="nd nd-user">
+<rect class="bx" x="137" y="17" width="166" height="62" rx="7"/>
+<circle class="bd" cx="153" cy="34" r="8.5"/><text class="bdt" x="153" y="37.6" text-anchor="middle">1</text>
+<text class="tt" x="167" y="38.5">创建群组</text>
+<text class="ln m" x="147" y="53.5">POST /group/add</text>
+<text class="ln" x="147" y="68.5">群名 · 头像 · 成员 · 权限</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="316" y="121" width="156" height="62" rx="7"/>
+<circle class="bd" cx="332" cy="138" r="8.5"/><text class="bdt" x="332" y="141.6" text-anchor="middle">2</text>
+<text class="tt" x="346" y="142.5">校验</text>
+<text class="ln" x="326" y="157.5">群名非空、无敏感词</text>
+<text class="ln" x="326" y="172.5">一次最多 10000 人</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="489" y="121" width="170" height="62" rx="7"/>
+<circle class="bd" cx="505" cy="138" r="8.5"/><text class="bdt" x="505" y="141.6" text-anchor="middle">3</text>
+<text class="tt" x="519" y="142.5">建群 + 主链接</text>
+<text class="ln" x="499" y="157.5">10 位随机 group_link</text>
+<text class="ln" x="499" y="172.5">创建者为群主（编号 1）</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="476" y="229.5" width="176" height="77" rx="7"/>
+<text class="tag" x="643" y="244.5" text-anchor="end">MYSQL</text>
+<text class="tt" x="486" y="251">群 · 链接 · 关系</text>
+<text class="ln m" x="486" y="266">ums_group</text>
+<text class="ln m" x="486" y="281">ums_group_invitation_link</text>
+<text class="ln m" x="486" y="296">ums_member_group_relation</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="680" y="121" width="156" height="62" rx="7"/>
+<circle class="bd" cx="696" cy="138" r="8.5"/><text class="bdt" x="696" y="141.6" text-anchor="middle">4</text>
+<text class="tt" x="710" y="142.5">写入被邀请人</text>
+<text class="ln" x="690" y="157.5">默认待接受</text>
+<text class="ln" x="690" y="172.5">对方拉黑群主 → 已拒绝</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="856" y="121" width="168" height="62" rx="7"/>
+<circle class="bd" cx="872" cy="138" r="8.5"/><text class="bdt" x="872" y="141.6" text-anchor="middle">5</text>
+<text class="tt" x="886" y="142.5">邀请开关</text>
+<text class="ln m" x="866" y="157.5">GROUP_INVITATION_SWITCH</text>
+<text class="ln" x="866" y="172.5">未开启 → 自动接受</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="864" y="244.5" width="160" height="47" rx="7"/>
+<text class="tt" x="874" y="266">系统参数</text>
+<text class="ln" x="874" y="281">邀请需确认的开关</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="1035" y="128.5" width="174" height="47" rx="7"/>
+<circle class="bd" cx="1051" cy="145.5" r="8.5"/><text class="bdt" x="1051" y="149.1" text-anchor="middle">6</text>
+<text class="tt" x="1065" y="150">管理员 · 禁言 · 禁用词</text>
+<text class="ln" x="1045" y="165">建群时可一并设置</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="1041" y="237" width="170" height="62" rx="7"/>
+<text class="tag" x="1202" y="252" text-anchor="end">MYSQL</text>
+<text class="tt" x="1051" y="258.5">权限 · 禁用词</text>
+<text class="ln m" x="1051" y="273.5">ums_group_authority</text>
+<text class="ln m" x="1051" y="288.5">ums_group_disabled_word</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="857" y="350.5" width="166" height="47" rx="7"/>
+<circle class="bd" cx="873" cy="367.5" r="8.5"/><text class="bdt" x="873" y="371.1" text-anchor="middle">7</text>
+<text class="tt" x="887" y="372">邀请推送</text>
+<text class="ln" x="867" y="387">邀请消息 · 入群推送</text>
+</g>
+<g class="nd nd-user">
+<rect class="bx" x="1044" y="444.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="1060" cy="461.5" r="8.5"/><text class="bdt" x="1060" y="465.1" text-anchor="middle">8</text>
+<text class="tt" x="1074" y="466">收到邀请</text>
+<text class="ln" x="1054" y="481">接受 / 拒绝</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="1218" y="121" width="168" height="62" rx="7"/>
+<circle class="bd" cx="1234" cy="138" r="8.5"/><text class="bdt" x="1234" y="141.6" text-anchor="middle">9</text>
+<text class="tt" x="1248" y="142.5">处理邀请</text>
+<text class="ln" x="1228" y="157.5">接受：加入时间 = 现在</text>
+<text class="ln" x="1228" y="172.5">拒绝：软删除 · 已拒绝</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="1396" y="350.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="1412" cy="367.5" r="8.5"/><text class="bdt" x="1412" y="371.1" text-anchor="middle">10</text>
+<text class="tt" x="1426" y="372">群内广播</text>
+<text class="ln" x="1406" y="387">加入 / 离开系统消息</text>
+</g>
+<rect class="ec" x="333.0" y="32.0" width="31.0" height="16" rx="3"/><text class="el" x="338.0" y="43.8">提交</text>
+<rect class="ec" x="465.0" y="136.0" width="31.0" height="16" rx="3"/><text class="el" x="470.0" y="147.8">通过</text>
+<rect class="ec" x="570.0" y="198.3" width="51.6" height="16" rx="3"/><text class="el" x="575.0" y="210.1">INSERT</text>
+<rect class="ec" x="657.1" y="272.0" width="75.7" height="16" rx="3"/><text class="el" x="662.1" y="283.8">INSERT 关系</text>
+<rect class="ec" x="810.0" y="293.4" width="52.0" height="16" rx="3"/><text class="el" x="815.0" y="305.2">邀请消息</text>
+<rect class="ec" x="950.0" y="205.8" width="41.5" height="16" rx="3"/><text class="el" x="955.0" y="217.6">读开关</text>
+<rect class="ec" x="1132.0" y="198.3" width="51.6" height="16" rx="3"/><text class="el" x="1137.0" y="210.1">INSERT</text>
+<rect class="ec" x="1057.0" y="358.0" width="31.0" height="16" rx="3"/><text class="el" x="1062.0" y="369.8">推送</text>
+<rect class="ec" x="1308.0" y="317.5" width="61.9" height="16" rx="3"/><text class="el" x="1313.0" y="329.3">接受 / 拒绝</text>
+<rect class="ec" x="1480.0" y="243.3" width="31.0" height="16" rx="3"/><text class="el" x="1485.0" y="255.1">广播</text>
+</svg>
+    </div>
+    <figcaption>第 4 步写入被邀请人后，同时触发第 7 步的邀请推送。代码：hichat-portal UmsGroupServiceImpl.create。</figcaption>
+  </figure>
+  <div class="rules">
+    <div><h3>步骤说明</h3><ul><li><span class="n">2</span><span>群名不能为空，也不能包含系统敏感词；一次最多拉 10000 人。HQJ 平台只有 HQJ_VM 能建群；HICHAT 平台不能把 BOT 拉进群。</span></li>
+<li><span class="n">3</span><span>随机生成 10 位小写字母数字作为 <code>group_link</code>（重复就重新生成），同时写一条主邀请链接（MAIN）；创建者为群主，群内编号 1。</span></li>
+<li><span class="n">4</span><span>被拉的人默认 <code>invitation_status = 0</code>（待接受）；如果对方拉黑了群主，直接记为 2（已拒绝）。HQJ 的 BOT 直接记为 1（已接受）。</span></li>
+<li><span class="n">5</span><span>系统参数 <code>GROUP_INVITATION_SWITCH</code> <strong>未开启</strong>时，待接受的邀请立即自动改为已接受并广播「加入」；开启时才需要被邀请人确认。</span></li>
+<li><span class="n">6</span><span>建群请求里可以一并带上管理员名单及其权限、禁言名单、群禁用词；管理员名单会跳过拉黑了群主的人。</span></li>
+<li><span class="n">9</span><span>接受：<code>join_time</code> 改为当前时间并建立会话；拒绝：关系软删除、状态记为已拒绝，并清掉预设的管理员权限。</span></li></ul></div>
+    
+  </div>
+  
+</section>
+<section id="join">
+  <h2>通过邀请链接加入</h2>
+  <p class="sum">链接加入不需要审批，校验通过就直接成为已接受成员。</p>
+  <figure>
+    <div class="scroll" tabindex="0" aria-label="通过邀请链接加入，可横向滚动">
+<svg viewBox="0 0 1588 316" width="1588" style="max-width:1588px;min-width:min(1588px,1180px)" role="img" aria-label="通过邀请链接加入泳道图：用户提交邀请链接，portal 依次检查链接与群是否有效、成员上限、是否已在群、链接开关与次数期限、是否有待接受邀请，最后写入成员关系并广播。" xmlns="http://www.w3.org/2000/svg">
+<defs><marker id="ah-join" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path class="ah" d="M0,0.8 L10,5 L0,9.2 z"/></marker></defs>
+<rect class="lane-a" x="0" y="0" width="1588" height="96"/>
+<rect class="lane-b" x="0" y="96" width="1588" height="112"/>
+<rect class="lane-a" x="0" y="208" width="1588" height="108"/>
+<rect class="lane-h" x="0" y="0" width="116" height="316"/>
+<text class="lnm" x="14" y="46">用户端</text>
+<text class="lsub" x="14" y="62">App · Web</text>
+<line class="lsep" x1="0" y1="96" x2="1588" y2="96"/>
+<text class="lnm" x="14" y="150">hichat-portal</text>
+<text class="lsub" x="14" y="166">入群校验</text>
+<line class="lsep" x1="0" y1="208" x2="1588" y2="208"/>
+<text class="lnm" x="14" y="260">MySQL</text>
+<text class="lsub" x="14" y="276">链接 · 关系</text>
+<line class="lsep" x1="116" y1="0" x2="116" y2="316"/>
+<path class="eg" d="M292.0,48.0 L394.0,48.0 L394.0,121.0" marker-end="url(#ah-join)"/>
+<path class="eg rd" d="M394.0,183.0 L394.0,238.5" marker-end="url(#ah-join)"/>
+<path class="eg" d="M472.0,152.0 L496.0,152.0" marker-end="url(#ah-join)"/>
+<path class="eg rd" d="M574.0,183.0 L574.0,238.5" marker-end="url(#ah-join)"/>
+<path class="eg" d="M652.0,152.0 L676.0,152.0" marker-end="url(#ah-join)"/>
+<path class="eg" d="M832.0,152.0 L856.0,152.0" marker-end="url(#ah-join)"/>
+<path class="eg" d="M1024.0,152.0 L1044.0,152.0" marker-end="url(#ah-join)"/>
+<path class="eg" d="M1200.0,152.0 L1219.0,152.0" marker-end="url(#ah-join)"/>
+<path class="eg" d="M1306.0,183.0 L1306.0,231.0" marker-end="url(#ah-join)"/>
+<path class="eg" d="M1385.0,152.0 L1474.0,152.0 L1474.0,71.5" marker-end="url(#ah-join)"/>
+<g class="nd nd-user">
+<rect class="bx" x="136" y="17" width="156" height="62" rx="7"/>
+<circle class="bd" cx="152" cy="34" r="8.5"/><text class="bdt" x="152" y="37.6" text-anchor="middle">1</text>
+<text class="tt" x="166" y="38.5">点邀请链接</text>
+<text class="ln m" x="146" y="53.5">POST /group/join</text>
+<text class="ln" x="146" y="68.5">访客不可用</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="316" y="121" width="156" height="62" rx="7"/>
+<circle class="bd" cx="332" cy="138" r="8.5"/><text class="bdt" x="332" y="141.6" text-anchor="middle">2</text>
+<text class="tt" x="346" y="142.5">查链接和群</text>
+<text class="ln" x="326" y="157.5">不存在 / 群已删除</text>
+<text class="ln" x="326" y="172.5">→ 链接无效</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="309" y="238.5" width="170" height="47" rx="7"/>
+<text class="tag" x="470" y="253.5" text-anchor="end">MYSQL</text>
+<text class="tt" x="319" y="260">邀请链接</text>
+<text class="ln m" x="319" y="275">ums_group_invitation_link</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="496" y="121" width="156" height="62" rx="7"/>
+<circle class="bd" cx="512" cy="138" r="8.5"/><text class="bdt" x="512" y="141.6" text-anchor="middle">3</text>
+<text class="tt" x="526" y="142.5">成员上限</text>
+<text class="ln" x="506" y="157.5">直播主群不限</text>
+<text class="ln" x="506" y="172.5">10000（含待接受）</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="506" y="238.5" width="156" height="47" rx="7"/>
+<text class="tag" x="653" y="253.5" text-anchor="end">MYSQL</text>
+<text class="tt" x="516" y="260">成员关系</text>
+<text class="ln" x="516" y="275">未删除、非群主计数</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="676" y="128.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="692" cy="145.5" r="8.5"/><text class="bdt" x="692" y="149.1" text-anchor="middle">4</text>
+<text class="tt" x="706" y="150">已在群？</text>
+<text class="ln" x="686" y="165">已接受 → 直接返回</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="856" y="121" width="168" height="62" rx="7"/>
+<circle class="bd" cx="872" cy="138" r="8.5"/><text class="bdt" x="872" y="141.6" text-anchor="middle">5</text>
+<text class="tt" x="886" y="142.5">链接校验</text>
+<text class="ln" x="866" y="157.5">启用 · 深度链接开关</text>
+<text class="ln" x="866" y="172.5">计次 / 限期（无创建入口）</text>
+<circle class="wb" cx="1023" cy="122" r="8"/><text class="wbt" x="1023" y="126" text-anchor="middle">!</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="1044" y="128.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="1060" cy="145.5" r="8.5"/><text class="bdt" x="1060" y="149.1" text-anchor="middle">6</text>
+<text class="tt" x="1074" y="150">有待接受邀请？</text>
+<text class="ln" x="1054" y="165">有 → 视为接受邀请</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="1219" y="121" width="166" height="62" rx="7"/>
+<circle class="bd" cx="1235" cy="138" r="8.5"/><text class="bdt" x="1235" y="141.6" text-anchor="middle">7</text>
+<text class="tt" x="1249" y="142.5">加入</text>
+<text class="ln" x="1229" y="157.5">已接受 · 记录 link_id</text>
+<text class="ln" x="1229" y="172.5">建会话 · 群内广播</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="1216" y="231" width="176" height="62" rx="7"/>
+<text class="tag" x="1383" y="246" text-anchor="end">MYSQL</text>
+<text class="tt" x="1226" y="252.5">成员关系</text>
+<text class="ln m" x="1226" y="267.5">ums_member_group_relation</text>
+<text class="ln" x="1226" y="282.5">新建或恢复软删记录</text>
+</g>
+<g class="nd nd-user">
+<rect class="bx" x="1396" y="24.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="1412" cy="41.5" r="8.5"/><text class="bdt" x="1412" y="45.1" text-anchor="middle">8</text>
+<text class="tt" x="1426" y="46">进入群聊</text>
+<text class="ln" x="1406" y="61">拉取入群后的消息</text>
+</g>
+<rect class="ec" x="327.5" y="32.0" width="31.0" height="16" rx="3"/><text class="el" x="332.5" y="43.8">提交</text>
+<rect class="ec" x="400.0" y="202.8" width="31.0" height="16" rx="3"/><text class="el" x="405.0" y="214.6">查询</text>
+<rect class="ec" x="468.5" y="136.0" width="31.0" height="16" rx="3"/><text class="el" x="473.5" y="147.8">有效</text>
+<rect class="ec" x="580.0" y="202.8" width="39.9" height="16" rx="3"/><text class="el" x="585.0" y="214.6">count</text>
+<rect class="ec" x="648.5" y="136.0" width="31.0" height="16" rx="3"/><text class="el" x="653.5" y="147.8">未超</text>
+<rect class="ec" x="823.3" y="136.0" width="41.5" height="16" rx="3"/><text class="el" x="828.3" y="147.8">不在群</text>
+<rect class="ec" x="1018.5" y="136.0" width="31.0" height="16" rx="3"/><text class="el" x="1023.5" y="147.8">通过</text>
+<rect class="ec" x="1194.0" y="136.0" width="31.0" height="16" rx="3"/><text class="el" x="1199.0" y="147.8">没有</text>
+<rect class="ec" x="1312.0" y="199.0" width="103.0" height="16" rx="3"/><text class="el" x="1317.0" y="210.8">INSERT / UPDATE</text>
+<rect class="ec" x="1414.0" y="136.0" width="31.0" height="16" rx="3"/><text class="el" x="1419.0" y="147.8">成功</text>
+</svg>
+    </div>
+    <figcaption>其他加入方式（直播主群、推荐群、自动入群、推广群直接入群）见下方「加入方式」表。代码：UmsGroupServiceImpl.joinGroupByLink。</figcaption>
+  </figure>
+  <div class="rules">
+    <div><h3>步骤说明</h3><ul><li><span class="n">1</span><span>访客（GUEST）不能通过链接加入。</span></li>
+<li><span class="n">3</span><span>上限 10000 人不含群主，<strong>待接受的邀请也计入</strong>；直播主群不检查。重点推广群仍然检查（推广助理不计入）。</span></li>
+<li><span class="n">4</span><span>已经是已接受成员时直接返回群信息，不做后续校验。</span></li>
+<li><span class="n">5</span><span>链接必须启用；从深度链接进入时还要开启深度链接。计次链接按 <code>link_id</code> 统计已加入人数；限期链接按创建时间 + 有效期判断。</span></li>
+<li><span class="n">6</span><span>如果之前有待接受的邀请，就按「接受邀请」处理，不再新建关系。</span></li>
+<li><span class="n">7</span><span>没有关系记录就新建（群内编号取当前最大 + 1）；有软删记录就恢复。记录 <code>link_id</code>，广播「加入」。</span></li>
+<li><span class="n">8</span><span>群权限 <code>wholeHistory</code> 关闭时，新成员只能看到 <code>join_time</code> 之后的消息。</span></li></ul></div>
+    <div><h3 class="wh">注意</h3><ul class="warns"><li><span class="n n-warn">!</span><span>代码注释写「重点推广群不验证链接设置」，实际所有群都验证；群的 <code>is_major_promote_group</code> 为空时会空指针。</span></li>
+<li><span class="n n-warn">!</span><span>计次 / 限期链接没有创建入口；限期注释写秒、代码按毫秒比较。</span></li></ul></div>
+  </div>
+  <h3 class="sub">加入方式</h3><div class="tbl" tabindex="0"><table class="t"><thead><tr><th>方式</th><th>入口</th><th>状态</th><th>规则</th></tr></thead><tbody>
+<tr><td>被邀请</td><td><code>POST /group/addMember</code>（需 <code>addUser</code>）</td><td>待接受 → 接受 / 拒绝</td><td>邀请开关未开启时自动接受；被拉黑直接拒绝</td></tr>
+<tr><td>邀请链接</td><td><code>POST /group/join</code></td><td>直接已接受</td><td>见上方泳道图</td></tr>
+<tr><td>直播主群</td><td><code>POST /group/streamHost/{id}/join</code></td><td>直接已接受</td><td>不检查上限</td></tr>
+<tr><td>推荐群</td><td><code>POST /group/recommend/join</code></td><td>直接已接受</td><td>同平台、成员上限；<span class="pill pill-no">不校验是否在推荐列表</span></td></tr>
+<tr><td>自动入群</td><td>HICHAT_P / W 注册时带群链接</td><td>直接已接受</td><td>群须 <code>is_auto_join</code> 且同平台</td></tr>
+<tr><td>推广群直接入群</td><td>注册、助理分配等内部调用</td><td>直接已接受</td><td>成员上限（失败时异常被吞掉）</td></tr>
+</tbody></table></div>
+</section>
+<section id="send">
+  <h2>发送群消息的校验顺序</h2>
+  <p class="sum">所有群消息都经 hichat-im 校验，任一步不通过就拒绝（全站禁言除外，它是静默丢弃）。</p>
+  <figure>
+    <div class="scroll" tabindex="0" aria-label="发送群消息的校验顺序，可横向滚动">
+<svg viewBox="0 0 1588 400" width="1588" style="max-width:1588px;min-width:min(1588px,1180px)" role="img" aria-label="发送群消息校验泳道图：hichat-im 收到群消息后依次检查平台级禁言、成员关系、群禁言、群权限、禁用词与系统敏感词，通过后存储并推送给群成员。" xmlns="http://www.w3.org/2000/svg">
+<defs><marker id="ah-send" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path class="ah" d="M0,0.8 L10,5 L0,9.2 z"/></marker></defs>
+<rect class="lane-a" x="0" y="0" width="1588" height="92"/>
+<rect class="lane-b" x="0" y="92" width="1588" height="112"/>
+<rect class="lane-a" x="0" y="204" width="1588" height="108"/>
+<rect class="lane-b" x="0" y="312" width="1588" height="88"/>
+<rect class="lane-h" x="0" y="0" width="116" height="400"/>
+<text class="lnm" x="14" y="44">发送者</text>
+<text class="lsub" x="14" y="60">App</text>
+<line class="lsep" x1="0" y1="92" x2="1588" y2="92"/>
+<text class="lnm" x="14" y="146">hichat-im</text>
+<text class="lsub" x="14" y="162">群消息校验</text>
+<line class="lsep" x1="0" y1="204" x2="1588" y2="204"/>
+<text class="lnm" x="14" y="256">Redis · MySQL</text>
+<text class="lsub" x="14" y="272">缓存 · 记录</text>
+<line class="lsep" x1="0" y1="312" x2="1588" y2="312"/>
+<text class="lnm" x="14" y="354">群成员</text>
+<text class="lsub" x="14" y="370">App</text>
+<line class="lsep" x1="116" y1="0" x2="116" y2="400"/>
+<path class="eg" d="M292.0,46.0 L394.0,46.0 L394.0,117.0" marker-end="url(#ah-send)"/>
+<path class="eg rd" d="M394.0,179.0 L394.0,234.5" marker-end="url(#ah-send)"/>
+<path class="eg" d="M472.0,148.0 L496.0,148.0" marker-end="url(#ah-send)"/>
+<path class="eg rd" d="M574.0,179.0 L574.0,227.0" marker-end="url(#ah-send)"/>
+<path class="eg" d="M652.0,148.0 L676.0,148.0" marker-end="url(#ah-send)"/>
+<path class="eg" d="M832.0,148.0 L860.0,148.0" marker-end="url(#ah-send)"/>
+<path class="eg rd" d="M938.0,179.0 L938.0,227.0" marker-end="url(#ah-send)"/>
+<path class="eg" d="M1016.0,148.0 L1038.0,148.0" marker-end="url(#ah-send)"/>
+<path class="eg rd" d="M1122.0,179.0 L1122.0,234.5" marker-end="url(#ah-send)"/>
+<path class="eg" d="M1206.0,148.0 L1226.0,148.0" marker-end="url(#ah-send)"/>
+<path class="eg" d="M1306.0,179.0 L1306.0,227.0" marker-end="url(#ah-send)"/>
+<path class="eg" d="M1382.0,148.0 L1474.0,148.0 L1474.0,332.5" marker-end="url(#ah-send)"/>
+<g class="nd nd-user">
+<rect class="bx" x="136" y="22.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="152" cy="39.5" r="8.5"/><text class="bdt" x="152" y="43.1" text-anchor="middle">1</text>
+<text class="tt" x="166" y="44">发送群消息</text>
+<text class="ln" x="146" y="59">文字 · 图片 · 文件 · 语音…</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="316" y="117" width="156" height="62" rx="7"/>
+<circle class="bd" cx="332" cy="134" r="8.5"/><text class="bdt" x="332" y="137.6" text-anchor="middle">2</text>
+<text class="tt" x="346" y="138.5">全站禁言？</text>
+<text class="ln" x="326" y="153.5">后台禁言期间</text>
+<text class="ln" x="326" y="168.5">→ 静默丢弃</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="316" y="234.5" width="156" height="47" rx="7"/>
+<text class="tt" x="326" y="256">全站群禁言</text>
+<text class="ln" x="326" y="271">后台 banGroupPost</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="496" y="117" width="156" height="62" rx="7"/>
+<circle class="bd" cx="512" cy="134" r="8.5"/><text class="bdt" x="512" y="137.6" text-anchor="middle">3</text>
+<text class="tt" x="526" y="138.5">查成员关系</text>
+<text class="ln" x="506" y="153.5">无记录 → 不在群组</text>
+<text class="ln" x="506" y="168.5">不查退群 / 待接受</text>
+<circle class="wb" cx="651" cy="118" r="8"/><text class="wbt" x="651" y="122" text-anchor="middle">!</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="496" y="227" width="156" height="62" rx="7"/>
+<text class="tag" x="643" y="242" text-anchor="end">REDIS</text>
+<text class="tt" x="506" y="248.5">关系缓存</text>
+<text class="ln" x="506" y="263.5">3 小时</text>
+<text class="ln" x="506" y="278.5">未命中查 MySQL</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="676" y="117" width="156" height="62" rx="7"/>
+<circle class="bd" cx="692" cy="134" r="8.5"/><text class="bdt" x="692" y="137.6" text-anchor="middle">4</text>
+<text class="tt" x="706" y="138.5">群禁言？</text>
+<text class="ln" x="686" y="153.5">is_ban_post → 拒绝</text>
+<text class="ln" x="686" y="168.5">BOT · 审核账号除外</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="860" y="117" width="156" height="62" rx="7"/>
+<circle class="bd" cx="876" cy="134" r="8.5"/><text class="bdt" x="876" y="137.6" text-anchor="middle">5</text>
+<text class="tt" x="890" y="138.5">群权限</text>
+<text class="ln" x="870" y="153.5">只校验普通成员</text>
+<text class="ln" x="870" y="168.5">按消息类型查开关</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="860" y="227" width="156" height="62" rx="7"/>
+<text class="tt" x="870" y="248.5">群权限</text>
+<text class="ln m" x="870" y="263.5">ums_group.authority</text>
+<text class="ln" x="870" y="278.5">（缓存）</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="1038" y="117" width="168" height="62" rx="7"/>
+<circle class="bd" cx="1054" cy="134" r="8.5"/><text class="bdt" x="1054" y="137.6" text-anchor="middle">6</text>
+<text class="tt" x="1068" y="138.5">禁用词 / 敏感词</text>
+<text class="ln" x="1048" y="153.5">文字含群禁用词 → 拒绝</text>
+<text class="ln" x="1048" y="168.5">系统敏感词替换</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="1037" y="234.5" width="170" height="47" rx="7"/>
+<text class="tt" x="1047" y="256">群禁用词</text>
+<text class="ln m" x="1047" y="271">ums_group_disabled_word</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="1226" y="117" width="156" height="62" rx="7"/>
+<circle class="bd" cx="1242" cy="134" r="8.5"/><text class="bdt" x="1242" y="137.6" text-anchor="middle">7</text>
+<text class="tt" x="1256" y="138.5">存储并分发</text>
+<text class="ln" x="1236" y="153.5">写聊天记录</text>
+<text class="ln" x="1236" y="168.5">MQ 分发 · 刷新会话</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="1223" y="227" width="166" height="62" rx="7"/>
+<text class="tt" x="1233" y="248.5">聊天记录 · 会话</text>
+<text class="ln m" x="1233" y="263.5">ums_chat_history</text>
+<text class="ln" x="1233" y="278.5">Mongo RecentChat</text>
+</g>
+<g class="nd nd-user">
+<rect class="bx" x="1396" y="332.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="1412" cy="349.5" r="8.5"/><text class="bdt" x="1412" y="353.1" text-anchor="middle">8</text>
+<text class="tt" x="1426" y="354">群成员收到</text>
+<text class="ln" x="1406" y="369">在线 WS · 离线推送</text>
+</g>
+<rect class="ec" x="319.0" y="30.0" width="48.0" height="16" rx="3"/><text class="el" x="324.0" y="41.8">WS 发送</text>
+<rect class="ec" x="400.0" y="198.8" width="20.5" height="16" rx="3"/><text class="el" x="405.0" y="210.6">查</text>
+<rect class="ec" x="473.8" y="132.0" width="20.5" height="16" rx="3"/><text class="el" x="478.8" y="143.8">否</text>
+<rect class="ec" x="580.0" y="195.0" width="20.5" height="16" rx="3"/><text class="el" x="585.0" y="206.8">查</text>
+<rect class="ec" x="643.3" y="132.0" width="41.5" height="16" rx="3"/><text class="el" x="648.3" y="143.8">有记录</text>
+<rect class="ec" x="835.8" y="132.0" width="20.5" height="16" rx="3"/><text class="el" x="840.8" y="143.8">否</text>
+<rect class="ec" x="944.0" y="195.0" width="20.5" height="16" rx="3"/><text class="el" x="949.0" y="206.8">读</text>
+<rect class="ec" x="1011.5" y="132.0" width="31.0" height="16" rx="3"/><text class="el" x="1016.5" y="143.8">允许</text>
+<rect class="ec" x="1128.0" y="198.8" width="20.5" height="16" rx="3"/><text class="el" x="1133.0" y="210.6">读</text>
+<rect class="ec" x="1200.5" y="132.0" width="31.0" height="16" rx="3"/><text class="el" x="1205.5" y="143.8">通过</text>
+<rect class="ec" x="1312.0" y="195.0" width="51.6" height="16" rx="3"/><text class="el" x="1317.0" y="206.8">INSERT</text>
+<rect class="ec" x="1480.0" y="232.3" width="31.0" height="16" rx="3"/><text class="el" x="1485.0" y="244.1">推送</text>
+</svg>
+    </div>
+    <figcaption>代码：hichat-im ChatMessageHandlerImpl.dealGroupChat、ChatServiceImpl.dealGroupChat。</figcaption>
+  </figure>
+  <div class="rules">
+    <div><h3>步骤说明</h3><ul><li><span class="n">2</span><span>后台对用户设置的全站群禁言（<code>/member/{id}/banGroupPost</code>）生效期间，消息直接丢弃，不返回错误。</span></li>
+<li><span class="n">3</span><span>只判断关系记录是否存在。批量发送会额外判断是否真的在群内。</span></li>
+<li><span class="n">4</span><span><code>is_ban_post = true</code> 时报「已被禁言」；BOT 和有一般权限的审核账号不受限。</span></li>
+<li><span class="n">5</span><span>群主、管理员、BOT、审核账号不校验。普通成员：文字看 <code>sendMessage</code>；图片、视频看 <code>sendImage</code>；文件、语音看 <code>sendLink</code>；群通话记录看 <code>startGroupCall</code>；转发官方推文看 <code>sendOfficialPost</code>；礼物、信号不校验。</span></li>
+<li><span class="n">6</span><span>只检查文字消息：包含任一群禁用词就拒绝；HICHAT 平台、非 BOT 的文字再做系统敏感词替换。</span></li>
+<li><span class="n">7</span><span>写 <code>ums_chat_history</code>，更新各成员会话，在线成员走 WebSocket，离线成员发推送。</span></li></ul></div>
+    <div><h3 class="wh">注意</h3><ul class="warns"><li><span class="n n-warn">!</span><span>第 3 步不判断已退群（<code>is_deleted</code>）和待接受邀请，已退群或被移除的人理论上仍能发群消息，需确认客户端或网关是否另有拦截。</span></li>
+<li><span class="n n-warn">!</span><span>管理员权限里的 <code>sendMessage</code> 等 4 个开关不生效，管理员发消息不受限制。</span></li></ul></div>
+  </div>
+  
+</section>
+<section id="leave">
+  <h2>退群、解散、移除成员与转让群主</h2>
+  <p class="sum">群主退群等于解散；所有「删除」都是软删除，关系行保留。</p>
+  <figure>
+    <div class="scroll" tabindex="0" aria-label="退群、解散、移除成员与转让群主，可横向滚动">
+<svg viewBox="0 0 1588 384" width="1588" style="max-width:1588px;min-width:min(1588px,1180px)" role="img" aria-label="退群、解散、移除成员与转让群主泳道图：退群时先判断能否退出，群主退群即解散群组，普通成员只软删除自己的关系；移除成员需要 delUser 权限且有保护规则；转让群主需目标已接受邀请，原群主变普通成员。" xmlns="http://www.w3.org/2000/svg">
+<defs><marker id="ah-leave" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path class="ah" d="M0,0.8 L10,5 L0,9.2 z"/></marker></defs>
+<rect class="lane-a" x="0" y="0" width="1588" height="96"/>
+<rect class="lane-b" x="0" y="96" width="1588" height="176"/>
+<rect class="lane-a" x="0" y="272" width="1588" height="112"/>
+<rect class="lane-h" x="0" y="0" width="116" height="384"/>
+<text class="lnm" x="14" y="46">操作人</text>
+<text class="lsub" x="14" y="62">成员 · 群主 · 管理员</text>
+<line class="lsep" x1="0" y1="96" x2="1588" y2="96"/>
+<text class="lnm" x="14" y="182">hichat-portal</text>
+<text class="lsub" x="14" y="198">群组接口</text>
+<line class="lsep" x1="0" y1="272" x2="1588" y2="272"/>
+<text class="lnm" x="14" y="326">MySQL · Mongo</text>
+<text class="lsub" x="14" y="342">群 · 关系 · 会话</text>
+<line class="lsep" x1="116" y1="0" x2="116" y2="384"/>
+<path class="eg" d="M305.0,48.0 L400.0,48.0 L400.0,153.0" marker-end="url(#ah-leave)"/>
+<path class="eg" d="M485.0,184.0 L502.0,184.0" marker-end="url(#ah-leave)"/>
+<path class="eg" d="M658.0,184.0 L668.0,184.0 L668.0,142.0 L678.0,142.0" marker-end="url(#ah-leave)"/>
+<path class="eg" d="M658.0,184.0 L668.0,184.0 L668.0,226.0 L678.0,226.0" marker-end="url(#ah-leave)"/>
+<path class="eg" d="M764.0,257.0 L764.0,297.0" marker-end="url(#ah-leave)"/>
+<path class="eg" d="M850.0,142.0 L952.0,142.0 L952.0,297.0" marker-end="url(#ah-leave)"/>
+<path class="eg" d="M1197.0,48.0 L1288.0,48.0 L1288.0,145.5" marker-end="url(#ah-leave)"/>
+<path class="eg" d="M1288.0,222.5 L1288.0,297.0" marker-end="url(#ah-leave)"/>
+<path class="eg" d="M1486.0,71.5 L1486.0,145.5" marker-end="url(#ah-leave)"/>
+<path class="eg" d="M1480.0,222.5 L1480.0,297.0" marker-end="url(#ah-leave)"/>
+<g class="nd nd-user">
+<rect class="bx" x="135" y="24.5" width="170" height="47" rx="7"/>
+<circle class="bd" cx="151" cy="41.5" r="8.5"/><text class="bdt" x="151" y="45.1" text-anchor="middle">1</text>
+<text class="tt" x="165" y="46">退出群组</text>
+<text class="ln m" x="145" y="61">POST /group/leaveGroup</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="315" y="153" width="170" height="62" rx="7"/>
+<circle class="bd" cx="331" cy="170" r="8.5"/><text class="bdt" x="331" y="173.6" text-anchor="middle">2</text>
+<text class="tt" x="345" y="174.5">能否退出</text>
+<text class="ln" x="325" y="189.5">直播主不能退自己的群</text>
+<text class="ln" x="325" y="204.5">被分配的审核账号不能退</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="502" y="153" width="156" height="62" rx="7"/>
+<circle class="bd" cx="518" cy="170" r="8.5"/><text class="bdt" x="518" y="173.6" text-anchor="middle">3</text>
+<text class="tt" x="532" y="174.5">是群主？</text>
+<text class="ln" x="512" y="189.5">是 → 解散</text>
+<text class="ln" x="512" y="204.5">否 → 只退自己</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="678" y="111" width="172" height="62" rx="7"/>
+<circle class="bd" cx="694" cy="128" r="8.5"/><text class="bdt" x="694" y="131.6" text-anchor="middle">4</text>
+<text class="tt" x="708" y="132.5">解散群组</text>
+<text class="ln" x="688" y="147.5">全部关系软删（含待接受）</text>
+<text class="ln" x="688" y="162.5">广播「解散」</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="678" y="195" width="172" height="62" rx="7"/>
+<circle class="bd" cx="694" cy="212" r="8.5"/><text class="bdt" x="694" y="215.6" text-anchor="middle">5</text>
+<text class="tt" x="708" y="216.5">成员退出</text>
+<text class="ln" x="688" y="231.5">关系软删 · 设置清空</text>
+<text class="ln" x="688" y="246.5">管理员权限未清除</text>
+<circle class="wb" cx="849" cy="196" r="8"/><text class="wbt" x="849" y="200" text-anchor="middle">!</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="678" y="297" width="172" height="62" rx="7"/>
+<text class="tt" x="688" y="318.5">该成员</text>
+<text class="ln m" x="688" y="333.5">relation.is_deleted</text>
+<text class="ln" x="688" y="348.5">个人会话删除</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="867" y="297" width="170" height="62" rx="7"/>
+<text class="tt" x="877" y="318.5">整个群</text>
+<text class="ln m" x="877" y="333.5">ums_group.is_deleted</text>
+<text class="ln" x="877" y="348.5">所有成员会话删除</text>
+</g>
+<g class="nd nd-user">
+<rect class="bx" x="1031" y="24.5" width="166" height="47" rx="7"/>
+<circle class="bd" cx="1047" cy="41.5" r="8.5"/><text class="bdt" x="1047" y="45.1" text-anchor="middle">6</text>
+<text class="tt" x="1061" y="46">移除成员</text>
+<text class="ln m" x="1041" y="61">POST /group/removeMember</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="1204" y="145.5" width="168" height="77" rx="7"/>
+<circle class="bd" cx="1220" cy="162.5" r="8.5"/><text class="bdt" x="1220" y="166.1" text-anchor="middle">7</text>
+<text class="tt" x="1234" y="167">移除校验</text>
+<text class="ln" x="1214" y="182">需 delUser 权限</text>
+<text class="ln" x="1214" y="197">不能移除群主 / 审核账号</text>
+<text class="ln" x="1214" y="212">管理员不能移除管理员</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="1204" y="297" width="168" height="62" rx="7"/>
+<text class="tt" x="1214" y="318.5">被移除者</text>
+<text class="ln" x="1214" y="333.5">关系软删 · 收回管理权</text>
+<text class="ln" x="1214" y="348.5">7 天内活跃才推送</text>
+</g>
+<g class="nd nd-user">
+<rect class="bx" x="1397" y="24.5" width="166" height="47" rx="7"/>
+<circle class="bd" cx="1413" cy="41.5" r="8.5"/><text class="bdt" x="1413" y="45.1" text-anchor="middle">8</text>
+<text class="tt" x="1427" y="46">转让群主</text>
+<text class="ln m" x="1407" y="61">POST /group/changeAdmin</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="1397" y="145.5" width="166" height="77" rx="7"/>
+<circle class="bd" cx="1413" cy="162.5" r="8.5"/><text class="bdt" x="1413" y="166.1" text-anchor="middle">9</text>
+<text class="tt" x="1427" y="167">转让校验</text>
+<text class="ln" x="1407" y="182">直播主群不可转让</text>
+<text class="ln" x="1407" y="197">目标须已接受、非本人</text>
+<text class="ln" x="1407" y="212">群主或审核账号可操作</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="1395" y="297" width="170" height="62" rx="7"/>
+<text class="tt" x="1405" y="318.5">关系 · 主链接</text>
+<text class="ln" x="1405" y="333.5">原群主 → 普通成员</text>
+<text class="ln" x="1405" y="348.5">主链接归新群主</text>
+</g>
+<rect class="ec" x="406.0" y="92.5" width="31.0" height="16" rx="3"/><text class="el" x="411.0" y="104.3">提交</text>
+<rect class="ec" x="478.0" y="168.0" width="31.0" height="16" rx="3"/><text class="el" x="483.0" y="179.8">可以</text>
+<rect class="ec" x="674.0" y="155.0" width="31.0" height="16" rx="3"/><text class="el" x="679.0" y="166.8">群主</text>
+<rect class="ec" x="674.0" y="227.0" width="31.0" height="16" rx="3"/><text class="el" x="679.0" y="238.8">成员</text>
+<rect class="ec" x="770.0" y="269.0" width="51.6" height="16" rx="3"/><text class="el" x="775.0" y="280.8">UPDATE</text>
+<rect class="ec" x="958.0" y="211.5" width="51.6" height="16" rx="3"/><text class="el" x="963.0" y="223.3">UPDATE</text>
+<rect class="ec" x="1294.0" y="88.8" width="31.0" height="16" rx="3"/><text class="el" x="1299.0" y="100.5">提交</text>
+<rect class="ec" x="1294.0" y="251.8" width="51.6" height="16" rx="3"/><text class="el" x="1299.0" y="263.6">UPDATE</text>
+<rect class="ec" x="1492.0" y="100.5" width="31.0" height="16" rx="3"/><text class="el" x="1497.0" y="112.3">提交</text>
+<rect class="ec" x="1486.0" y="251.8" width="51.6" height="16" rx="3"/><text class="el" x="1491.0" y="263.6">UPDATE</text>
+</svg>
+    </div>
+    <figcaption>左侧第 1–5 步为退群（含解散），第 6–7 步为移除成员，第 8–9 步为转让群主。</figcaption>
+  </figure>
+  <div class="rules">
+    <div><h3>步骤说明</h3><ul><li><span class="n">2</span><span>直播主不能退出自己的直播主群；被后台分配到该群的审核账号不能退群；只有已接受的成员能退群。</span></li>
+<li><span class="n">4</span><span>群主退群：该群全部关系（包括待接受的）软删除，群标记删除并记录删除时间，所有成员的会话标记删除，管理员权限一并收回，广播「解散」。</span></li>
+<li><span class="n">5</span><span>普通成员退群：自己的关系软删除，个人设置清空为 <code>{}</code>，自己的会话删除，广播「离开」。</span></li>
+<li><span class="n">7</span><span>移除需要 <code>delUser</code> 权限（群主、审核账号不受限）；不能移除群主和审核账号；管理员不能移除其他管理员。被移除的管理员收回权限；只给 7 天内活跃的人发推送。</span></li>
+<li><span class="n">9</span><span>群主或有「迁移群主权限」的审核账号可操作；直播主群不可转让；目标须已接受邀请且不是当前群主。新群主取消管理员身份和禁言，原群主变为普通成员，主邀请链接的创建者改为新群主。</span></li></ul></div>
+    <div><h3 class="wh">注意</h3><ul class="warns"><li><span class="n n-warn">!</span><span>管理员退群时代码先把 <code>is_manager</code> 置为 false 再判断是否管理员，管理员权限记录永远不会被清除。</span></li></ul></div>
+  </div>
+  
+</section>
+<section id="admin">
+  <h2>后台群管理与定时任务</h2>
+  <p class="sum">后台只能删除监控群；直播主群、普通群只能编辑属性或清理成员。</p>
+  <figure>
+    <div class="scroll" tabindex="0" aria-label="后台群管理与定时任务，可横向滚动">
+<svg viewBox="0 0 1588 362" width="1588" style="max-width:1588px;min-width:min(1588px,1180px)" role="img" aria-label="后台群管理与定时任务泳道图：后台创建监控群、加管理员、编辑群与换群主、清理不活跃成员、删除监控群、分配审核账号；crontab 每 10 分钟解除到期禁言，每 2 分钟重建超级群成员快照。" xmlns="http://www.w3.org/2000/svg">
+<defs><marker id="ah-admin" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path class="ah" d="M0,0.8 L10,5 L0,9.2 z"/></marker></defs>
+<rect class="lane-a" x="0" y="0" width="1588" height="112"/>
+<rect class="lane-b" x="0" y="112" width="1588" height="150"/>
+<rect class="lane-a" x="0" y="262" width="1588" height="100"/>
+<rect class="lane-h" x="0" y="0" width="116" height="362"/>
+<text class="lnm" x="14" y="54">hichat-admin</text>
+<text class="lsub" x="14" y="70">后台 /group · /audit</text>
+<line class="lsep" x1="0" y1="112" x2="1588" y2="112"/>
+<text class="lnm" x="14" y="185">MySQL · Redis</text>
+<text class="lsub" x="14" y="201">群 · 关系 · 缓存</text>
+<line class="lsep" x1="0" y1="262" x2="1588" y2="262"/>
+<text class="lnm" x="14" y="310">hichat-crontab</text>
+<text class="lsub" x="14" y="326">定时任务</text>
+<line class="lsep" x1="116" y1="0" x2="116" y2="362"/>
+<path class="eg" d="M214.0,87.0 L214.0,197.5" marker-end="url(#ah-admin)"/>
+<path class="eg" d="M394.0,87.0 L394.0,197.5" marker-end="url(#ah-admin)"/>
+<path class="eg" d="M574.0,87.0 L574.0,197.5" marker-end="url(#ah-admin)"/>
+<path class="eg rd" d="M722.0,87.0 L722.0,125.5" marker-end="url(#ah-admin)"/>
+<path class="eg" d="M804.0,87.0 L804.0,197.5" marker-end="url(#ah-admin)"/>
+<path class="eg" d="M948.0,87.0 L948.0,197.5" marker-end="url(#ah-admin)"/>
+<path class="eg" d="M1130.0,87.0 L1130.0,156.0" marker-end="url(#ah-admin)"/>
+<path class="eg" d="M1294.0,281.0 L1294.0,218.0" marker-end="url(#ah-admin)"/>
+<path class="eg" d="M1474.0,281.0 L1474.0,225.5" marker-end="url(#ah-admin)"/>
+<g class="nd nd-admin">
+<rect class="bx" x="136" y="25" width="156" height="62" rx="7"/>
+<circle class="bd" cx="152" cy="42" r="8.5"/><text class="bdt" x="152" y="45.6" text-anchor="middle">1</text>
+<text class="tt" x="166" y="46.5">创建监控群</text>
+<text class="ln" x="146" y="61.5">群主须为 ADMIN</text>
+<text class="ln" x="146" y="76.5">可设推广 / 信号 / 热度</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="311" y="25" width="166" height="62" rx="7"/>
+<circle class="bd" cx="327" cy="42" r="8.5"/><text class="bdt" x="327" y="45.6" text-anchor="middle">2</text>
+<text class="tt" x="341" y="46.5">加管理员</text>
+<text class="ln" x="321" y="61.5">仅监控群 · 只能 AGENT</text>
+<text class="ln" x="321" y="76.5">直接已接受 · 默认权限</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="502" y="25" width="156" height="62" rx="7"/>
+<circle class="bd" cx="518" cy="42" r="8.5"/><text class="bdt" x="518" y="45.6" text-anchor="middle">3</text>
+<text class="tt" x="532" y="46.5">编辑群 / 换群主</text>
+<text class="ln" x="512" y="61.5">换群主仅监控群</text>
+<text class="ln" x="512" y="76.5">目标须为 ADMIN</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="680" y="25" width="168" height="62" rx="7"/>
+<circle class="bd" cx="696" cy="42" r="8.5"/><text class="bdt" x="696" y="45.6" text-anchor="middle">4</text>
+<text class="tt" x="710" y="46.5">清理不活跃成员</text>
+<text class="ln" x="690" y="61.5">30 天未活跃或无记录</text>
+<text class="ln" x="690" y="76.5">群主 · BOT 保留</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="652" y="125.5" width="140" height="47" rx="7"/>
+<text class="tag" x="783" y="140.5" text-anchor="end">REDIS</text>
+<text class="tt" x="662" y="147">最后活跃</text>
+<text class="ln m" x="662" y="162">last_activity_{id}</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="870" y="25" width="156" height="62" rx="7"/>
+<circle class="bd" cx="886" cy="42" r="8.5"/><text class="bdt" x="886" y="45.6" text-anchor="middle">5</text>
+<text class="tt" x="900" y="46.5">删除群</text>
+<text class="ln" x="880" y="61.5">仅监控群</text>
+<text class="ln" x="880" y="76.5">关系软删 · 删管理权</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="136" y="197.5" width="876" height="47" rx="7"/>
+<text class="tag" x="1003" y="212.5" text-anchor="end">MYSQL</text>
+<text class="tt" x="146" y="219">群 · 成员关系 · 管理员权限</text>
+<text class="ln m" x="146" y="234">ums_group · ums_member_group_relation · ums_group_authority · ums_group_invitation_link</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="1047" y="25" width="166" height="62" rx="7"/>
+<circle class="bd" cx="1063" cy="42" r="8.5"/><text class="bdt" x="1063" y="45.6" text-anchor="middle">6</text>
+<text class="tt" x="1077" y="46.5">分配审核账号</text>
+<text class="ln m" x="1057" y="61.5">/audit/groups</text>
+<text class="ln m" x="1057" y="76.5">/audit/permissions</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="1045" y="156" width="170" height="62" rx="7"/>
+<text class="tt" x="1055" y="177.5">审核权限</text>
+<text class="ln m" x="1055" y="192.5">audit_member_group_*</text>
+<text class="ln" x="1055" y="207.5">缓存 3 小时 · 保存时清</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="1216" y="281" width="156" height="62" rx="7"/>
+<circle class="bd" cx="1232" cy="298" r="8.5"/><text class="bdt" x="1232" y="301.6" text-anchor="middle">7</text>
+<text class="tt" x="1246" y="302.5">自动解除禁言</text>
+<text class="ln" x="1226" y="317.5">每 10 分钟</text>
+<text class="ln" x="1226" y="332.5">24 小时禁言到期</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="1211" y="156" width="166" height="62" rx="7"/>
+<text class="tt" x="1221" y="177.5">禁言字段</text>
+<text class="ln m" x="1221" y="192.5">is_ban_post</text>
+<text class="ln m" x="1221" y="207.5">ban_post_expire_time</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="1396" y="281" width="156" height="62" rx="7"/>
+<circle class="bd" cx="1412" cy="298" r="8.5"/><text class="bdt" x="1412" y="301.6" text-anchor="middle">8</text>
+<text class="tt" x="1426" y="302.5">超级群快照</text>
+<text class="ln" x="1406" y="317.5">每 2 分钟</text>
+<text class="ln" x="1406" y="332.5">只处理有变更的群</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="1392" y="148.5" width="184" height="77" rx="7"/>
+<text class="tag" x="1567" y="163.5" text-anchor="end">REDIS</text>
+<text class="tt" x="1402" y="170">超级群</text>
+<text class="ln m" x="1402" y="185">super:group:set</text>
+<text class="ln m" x="1402" y="200">super:group:changed:hash</text>
+<text class="ln m" x="1402" y="215">super:group:proto:data:{id}</text>
+</g>
+<rect class="ec" x="220.0" y="134.3" width="51.6" height="16" rx="3"/><text class="el" x="225.0" y="146.1">INSERT</text>
+<rect class="ec" x="400.0" y="161.9" width="51.6" height="16" rx="3"/><text class="el" x="405.0" y="173.7">INSERT</text>
+<rect class="ec" x="580.0" y="161.9" width="51.6" height="16" rx="3"/><text class="el" x="585.0" y="173.7">UPDATE</text>
+<rect class="ec" x="728.0" y="98.3" width="20.5" height="16" rx="3"/><text class="el" x="733.0" y="110.0">读</text>
+<rect class="ec" x="810.0" y="145.3" width="31.0" height="16" rx="3"/><text class="el" x="815.0" y="157.1">软删</text>
+<rect class="ec" x="954.0" y="161.9" width="51.6" height="16" rx="3"/><text class="el" x="959.0" y="173.7">UPDATE</text>
+<rect class="ec" x="1136.0" y="113.5" width="52.0" height="16" rx="3"/><text class="el" x="1141.0" y="125.3">覆盖写入</text>
+<rect class="ec" x="1300.0" y="241.5" width="51.6" height="16" rx="3"/><text class="el" x="1305.0" y="253.3">UPDATE</text>
+<rect class="ec" x="1480.0" y="245.3" width="82.9" height="16" rx="3"/><text class="el" x="1485.0" y="257.1">读变更 · 写快照</text>
+</svg>
+    </div>
+    <figcaption>第 1–6 步为 hichat-admin 后台操作，第 7–8 步为 hichat-crontab 定时任务。</figcaption>
+  </figure>
+  <div class="rules">
+    <div><h3>步骤说明</h3><ul><li><span class="n">1</span><span><code>POST /group/monitor</code>：群主必须是同平台的 ADMIN（SL）账号；可同时设置重点推广群、信号群、市场代码、嗨客服、热度。默认群权限见下方「群权限开关」。</span></li>
+<li><span class="n">2</span><span><code>POST /group/{groupId}/manager</code>：仅监控群；只能是同平台的 AGENT（SM）账号；已是管理员就报错；直接以已接受状态入群，管理员权限取默认值。</span></li>
+<li><span class="n">3</span><span><code>PUT /group/{groupId}</code>：改群名、市场代码、嗨客服、官方认证、重点推广群、小程序、信号群、热度，可绑定信号 BOT；换群主只限监控群，目标须为 ADMIN。</span></li>
+<li><span class="n">4</span><span><code>POST /group/{groupId}/purgeGroup</code>：移除最后活跃超过 30 天或没有活跃记录的成员，群主和 BOT 保留；适用于所有群。</span></li>
+<li><span class="n">5</span><span><code>DELETE /group/{groupId}</code>：仅监控群；全部关系软删除，删除该群所有管理员权限。</span></li>
+<li><span class="n">6</span><span>审核账号先在 <code>/audit/groups</code> 分配可管理的群（整组覆盖），再在 <code>/audit/permissions</code> 设置「一般权限」「迁移群主权限」。</span></li>
+<li><span class="n">7</span><span>每 10 分钟把 <code>ban_post_expire_time</code> 已到期的禁言解除（单人禁言为 24 小时；批量禁言没有到期时间，不会被自动解除）。</span></li>
+<li><span class="n">8</span><span>成员关系数超过 200 的群被标记为超级群；成员变动记入变更 Hash，每 2 分钟为有变更的群重建成员快照，客户端按 <code>update_at</code> 增量拉取。</span></li></ul></div>
+    
+  </div>
+  
+</section>
+
+<section class="plain" id="types">
+  <h2>群组类型</h2>
+  <p class="sum">同一个群可以同时带多个标志，例如直播主群默认也是重点推广群。</p>
+  <div class="tbl" tabindex="0"><table class="t"><thead><tr><th>类型</th><th>识别</th><th>怎么产生</th><th>群主</th><th>特殊规则</th></tr></thead><tbody>
+<tr><td>普通群</td><td>以下标志都为空 / false</td><td>用户在 App 创建</td><td>创建者</td><td>成员上限 10000</td></tr>
+<tr><td>监控群</td><td><code>is_monitor = true</code></td><td>后台创建</td><td>ADMIN（SL）账号</td><td>后台可加管理员（仅 AGENT）、换群主、删除群</td></tr>
+<tr><td>直播主群</td><td><code>stream_host_member_id</code> 非空</td><td>开通直播主时自动创建或恢复</td><td>直播主</td><td>自动为重点推广群；群主不能退群、不能转让；不受成员上限</td></tr>
+<tr><td>重点推广群</td><td><code>is_major_promote_group = true</code></td><td>后台勾选</td><td>—</td><td>分配推广助理、记录进群；App 拉人不受成员上限</td></tr>
+<tr><td>信号群</td><td><code>is_signal_group = true</code></td><td>后台设置并绑定 BOT</td><td>—</td><td>BOT 发信号消息</td></tr>
+<tr><td>推荐群</td><td>在 <code>ums_group_recommendation</code> 中</td><td>后台配置</td><td>—</td><td>HICHAT 新用户引导一键加入</td></tr>
+<tr><td>自动入群推广群</td><td><code>is_auto_join = true</code></td><td>后台配置</td><td>—</td><td>HICHAT_P / W 带群链接注册时直接入群</td></tr>
+<tr><td>超级群</td><td>Redis <code>hichat:super:group:set</code></td><td>成员关系数 > 200 时自动标记</td><td>—</td><td>成员列表走快照增量同步</td></tr>
+</tbody></table></div>
+</section>
+
+<section class="plain" id="roles">
+  <h2>角色与权限</h2>
+  <p class="sum">审核账号指 member_type = AUDIT 且被后台分配到该群、拥有「一般权限」的账号。</p>
+  <div class="tbl" tabindex="0"><table class="t"><thead><tr><th>操作</th><th>群主</th><th>管理员</th><th>审核账号</th><th>普通成员</th></tr></thead><tbody>
+<tr><td>改群名 / 头像</td><td class="c">✓</td><td><code>updateGroupInfo</code></td><td>✗</td><td>✗</td></tr>
+<tr><td>拉人 / 邀请链接</td><td class="c">✓</td><td><code>addUser</code></td><td>✓</td><td>✗</td></tr>
+<tr><td>移除成员</td><td class="c">✓</td><td><code>delUser</code>，不能移除管理员</td><td>✓</td><td>✗</td></tr>
+<tr><td>禁言</td><td class="c">✓</td><td><code>banUserPost</code></td><td>✓</td><td>✗</td></tr>
+<tr><td>禁用词</td><td class="c">✓</td><td><code>disabledWord</code></td><td>✓</td><td>✗</td></tr>
+<tr><td>删他人消息</td><td class="c">✓</td><td><code>delUserMessage</code></td><td>✓</td><td>✗</td></tr>
+<tr><td>置顶</td><td class="c">✓</td><td>管理员 <code>pin</code> 或群 <code>pin</code></td><td>✓</td><td>群 <code>pin</code></td></tr>
+<tr><td>设群权限 / 增删管理员 / 设管理员权限</td><td class="c">✓</td><td>✗</td><td>✓</td><td>✗</td></tr>
+<tr><td>转让群主</td><td class="c">✓</td><td>✗</td><td>需「迁移群主权限」</td><td>✗</td></tr>
+<tr><td>查看待接受邀请的成员</td><td class="c">✓</td><td>✓</td><td>✓</td><td>✗</td></tr>
+<tr><td>发消息不受群权限限制</td><td class="c">✓</td><td>✓</td><td>✓</td><td>✗</td></tr>
+</tbody></table></div>
+  <h3 class="sub">群权限开关（<code>ums_group.authority</code>，约束普通成员）</h3>
+  <div class="tbl" tabindex="0"><table class="t"><thead><tr><th>开关</th><th>默认</th><th>控制</th></tr></thead><tbody>
+<tr><td class="k">sendMessage</td><td class="c">开</td><td>发文字</td></tr>
+<tr><td class="k">sendImage</td><td class="c">开</td><td>发图片、视频</td></tr>
+<tr><td class="k">sendLink</td><td class="c">开</td><td>发<strong>文件、语音</strong>（字段名是「传送链接」）</td></tr>
+<tr><td class="k">sendOfficialPost</td><td class="c">开</td><td>转发官方推文</td></tr>
+<tr><td class="k">pin</td><td class="c">关</td><td>置顶消息</td></tr>
+<tr><td class="k">startGroupCall</td><td class="c">关</td><td>发起群通话</td></tr>
+<tr><td class="k">wholeHistory</td><td class="c">关</td><td>新成员能否看到入群前的历史</td></tr>
+<tr><td class="k">checkUserInfo</td><td class="c">关</td><td>查看成员资料（客户端控制）</td></tr>
+<tr><td class="k">showGroupNumber</td><td class="c">关</td><td>显示群内昵称（客户端控制）</td></tr>
+<tr><td class="k">editGroupNickname</td><td class="c">关</td><td>修改群内昵称（<span class="pill pill-no">服务端未校验</span>）</td></tr>
+</tbody></table></div>
+  <p class="sum" style="margin-top:12px">管理员权限（<code>ums_group_authority</code>）：<code>addUser</code>、<code>delUser</code>、<code>banUserPost</code>、<code>disabledWord</code>、<code>updateGroupInfo</code>、<code>delUserMessage</code>、<code>pin</code>、<code>checkUserInfo</code>、<code>startGroupCall</code> 默认关闭，由群主逐项授予；<code>sendMessage</code> 等 4 个发消息开关默认开启但不生效。</p>
+</section>
+
+<section class="plain" id="issues">
+  <h2>问题清单</h2>
+  <p class="sum">按影响从大到小排列。路径中的 <code>…</code> 为 <code>src/main/java/com/py/hichat/{模块}</code>。</p>
+  <div class="tbl" tabindex="0"><table class="t"><thead><tr><th>#</th><th>问题</th><th>影响</th><th>位置</th></tr></thead><tbody>
+<tr><td class="idx">1</td><td>IM 单条群消息只判断关系记录是否存在，不判断已退群或待接受</td><td>已退群、被移除、未接受邀请的人理论上仍能发群消息（需确认客户端或网关是否另有拦截）</td><td class="loc">hichat-im/…/service/impl/ChatServiceImpl.java:581</td></tr>
+<tr><td class="idx">2</td><td>加入推荐群不校验群是否在推荐列表</td><td>可直接加入任意同平台群，绕过邀请链接开关</td><td class="loc">hichat-portal/…/service/impl/UmsGroupServiceImpl.java:3313</td></tr>
+<tr><td class="idx">3</td><td>管理员退群时先置 <code>is_manager = false</code> 再判断</td><td>管理员权限记录永远不会被清除</td><td class="loc">hichat-portal/…/service/impl/UmsGroupServiceImpl.java:1287</td></tr>
+<tr><td class="idx">4</td><td>限期链接秒 / 毫秒不一致；计次与限期链接无创建入口</td><td>一旦启用，期限缩短 1000 倍</td><td class="loc">hichat-portal/…/service/impl/UmsGroupServiceImpl.java:2196</td></tr>
+<tr><td class="idx">5</td><td>「重点推广群不验证链接」注释与实现不符；字段为空会空指针</td><td>行为与注释不一致，数据异常时加入失败</td><td class="loc">hichat-portal/…/service/impl/UmsGroupServiceImpl.java:2171</td></tr>
+<tr><td class="idx">6</td><td>批量禁言先解除全群禁言，且无到期时间、不排除群主和审核账号</td><td>与单人禁言规则不一致，误用会清掉已有禁言</td><td class="loc">hichat-portal/…/service/impl/UmsGroupServiceImpl.java:1759</td></tr>
+<tr><td class="idx">7</td><td>成员上限口径不一致，待接受邀请也计入</td><td>同一群从不同入口加入结果不同</td><td class="loc">hichat-portal/…/service/impl/UmsGroupServiceImpl.java:998</td></tr>
+<tr><td class="idx">8</td><td>管理员的 <code>sendMessage</code> 等 4 个发消息开关不生效</td><td>关闭这些开关没有效果</td><td class="loc">hichat-im/…/service/impl/ChatServiceImpl.java:597</td></tr>
+<tr><td class="idx">9</td><td>新增管理员不校验对方已接受邀请；重复添加会主键冲突</td><td>可把待接受的人设为管理员；重复操作报错</td><td class="loc">hichat-portal/…/service/impl/UmsGroupServiceImpl.java:1440</td></tr>
+<tr><td class="idx">10</td><td>群内昵称修改不校验 <code>editGroupNickname</code></td><td>该开关只在客户端生效</td><td class="loc">hichat-portal/…/service/impl/UmsGroupServiceImpl.java:1876</td></tr>
+</tbody></table></div>
+</section>
+</div>
+
+</body>
+</html>

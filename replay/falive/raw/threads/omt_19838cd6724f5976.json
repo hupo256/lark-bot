@@ -1,0 +1,46 @@
+{
+  "threadId": "omt_19838cd6724f5976",
+  "fetchedAt": "2026-11-03T12:24:32.056Z",
+  "ok": true,
+  "commands": [
+    [
+      "lark-cli",
+      "api",
+      "GET",
+      "/open-apis/im/v1/messages",
+      "--as",
+      "user",
+      "--params",
+      "{\"container_id_type\":\"thread\",\"container_id\":\"omt_19838cd6724f5976\",\"page_size\":50,\"sort_type\":\"ByCreateTimeAsc\"}",
+      "--page-all",
+      "--page-limit",
+      "0",
+      "--format",
+      "json"
+    ],
+    [
+      "lark-cli",
+      "im",
+      "+threads-messages-list",
+      "--as",
+      "user",
+      "--thread",
+      "omt_19838cd6724f5976",
+      "--order",
+      "asc",
+      "--page-size",
+      "50",
+      "--page-all",
+      "--page-limit",
+      "100",
+      "--no-reactions",
+      "--download-resources",
+      "--format",
+      "json"
+    ]
+  ],
+  "api": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"items\": [\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"@_user_1 测试一下生产环境社区帖子评论任务是否能正常完成和积分到账\\\"}\"\n        },\n        \"chat_default_name\": \"Falive PHP后端群\",\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1793461353298\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_caf1610a679ff12b9b92204f37572491\",\n            \"id_type\": \"open_id\",\n            \"key\": \"@_user_1\",\n            \"name\": \"Aven.Bot\",\n            \"tenant_key\": \"164beab51542977c\"\n          }\n        ],\n        \"message_id\": \"om_x100b6154885f40a0ed09cb636bcf1d9\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b61540f38c8a4eda05bd2f5dfafa\",\n        \"root_id\": \"om_x100b61540f38c8a4eda05bd2f5dfafa\",\n        \"sender\": {\n          \"id\": \"ou_a0c48d661b36b1e16bf0d89b4a3bb775\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19838cd6724f5976\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"1793461353597\",\n        \"updated\": true\n      }\n    ],\n    \"page_token\": \"\"\n  }\n}\n",
+  "apiStderr": "[page 1] fetching...\n",
+  "rendered": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"messages\": [\n      {\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"content\": \"@Aven.Bot 测试一下生产环境社区帖子评论任务是否能正常完成和积分到账\",\n        \"create_time\": \"2026-10-31 19:42\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_caf1610a679ff12b9b92204f37572491\",\n            \"key\": \"@_user_1\",\n            \"name\": \"Aven.Bot\"\n          }\n        ],\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026open_thread_id=omt_19838cd6724f5976\\u0026openchatid=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026openthreadid=omt_19838cd6724f5976\\u0026thread_position=0\",\n        \"message_id\": \"om_x100b6154885f40a0ed09cb636bcf1d9\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_a0c48d661b36b1e16bf0d89b4a3bb775\",\n          \"id_type\": \"open_id\",\n          \"name\": \"Arthur.a\",\n          \"sender_i18n_names\": {\n            \"zh_cn\": \"Arthur.a （亚瑟）\"\n          },\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19838cd6724f5976\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"2026-10-31 19:42\",\n        \"updated\": true\n      }\n    ],\n    \"page_token\": \"\",\n    \"thread_id\": \"omt_19838cd6724f5976\",\n    \"total\": 1\n  },\n  \"meta\": {\n    \"pagination\": {\n      \"complete\": true,\n      \"pages\": 1,\n      \"items\": 1\n    }\n  }\n}\n",
+  "renderedStderr": ""
+}

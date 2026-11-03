@@ -1,0 +1,26 @@
+{
+  "recordId": "reczz28T4ZK3pj1x",
+  "why": "bug-5073",
+  "fetchedAt": "2026-11-03T12:18:11.446Z",
+  "version": "now",
+  "note": "拉取时的最新状态（状态 / 备注 / 测试结果可能晚于消息当时）",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "base",
+    "+record-get",
+    "--as",
+    "user",
+    "--base-token",
+    "<bugTable.appToken>",
+    "--table-id",
+    "tblbJYjrxZsPe40V",
+    "--record-id",
+    "reczz28T4ZK3pj1x",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"data\": [\n      [\n        \"Bug-5073\",\n        null,\n        [\n          \"Pre测试通过\"\n        ],\n        null,\n        null,\n        \"PM-3254\",\n        \"2026-10-29T11:49:18.000+04:00\",\n        \"Web\",\n        \"2026-10-29T07:09:03.000+04:00\",\n        null,\n        \"Falive\",\n        null,\n        null,\n        [\n          {\n            \"id\": \"ou_c03810195f4db6115f3acb45d04a7fec\",\n            \"name\": \"HTShellyhsu\"\n          }\n        ],\n        null,\n        \"[https://falivepre.fdsser.com/hc-api/api/group/leaveGroup](https://falivepre.fdsser.com/hc-api/api/group/leaveGroup)\\n從直播間返回首頁或其他路徑時，不需要打[leaveGroup](https://falivepre.fdsser.com/hc-api/api/group/leaveGroup)的API，這樣會影響到用戶在Hichat群組中一直加入/退出群組\",\n        \"2026-10-29T07:09:04.284+04:00\",\n        \"【falive一期】后端/web/app\",\n        \"從直播間返回首頁或其他路徑時，不需要打[leaveGroup](https://falivepre.fdsser.com/hc-api/api/group/leaveGroup)的API\",\n        null,\n        null,\n        [\n          \"Pre\"\n        ],\n        [\n          {\n            \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n            \"name\": \"World\"\n          }\n        ],\n        [\n          {\n            \"file_token\": \"N7SWb07gqo7aMDxK0r0ljYyXgMh\",\n            \"name\": \"image.png\",\n            \"size\": 41210\n          }\n        ],\n        [\n          {\n            \"id\": \"ou_f429a72d959a341cd2fdd1b18a0d3772\",\n            \"name\": \"Henry\"\n          }\n        ],\n        \"pre测试中\",\n        [\n          \"Web\"\n        ],\n        \"10-29 bot 修复中（分支 hotfix-5073）\\n10-29 bot 已修（MR !173 http://mgit.lgroup.co/hqoi/web/falive-react/-/merge_requests/173 ，待合 pre 部署）。根因：直播间 useHichatLiveSession 在离开直播间（回首页 / 去其它页 / 切房）时调 /api/group/leaveGroup 退群，下次进房 streamHost join 重新入群，后端每次重新入群都发「xxx 已加入群組」。修复：删掉离房退群，进房仍 join（同一页面只发一次）。自测（本地 pre 生产包，selftest1019a 账号）：部署版进房→首页 / 前进后退 / 切房共 4 次 leaveGroup；修复后同样路径 PC 与窄屏 leaveGroup 0 次，join 每次进房 1 次；已是群成员时重复 join 后端不再发「已加入群組」（群 916 实测无新增入群消息）；观看时长上报 PUT /video/statistics/916 code 0 正常。\",\n        \"1.0.3\"\n      ]\n    ],\n    \"field_id_list\": [\n      \"fldmxTvHTq\",\n      \"fld0Pe5U7G\",\n      \"fld1i6PDQT\",\n      \"fld1u0NBC5\",\n      \"fld4kVwoLs\",\n      \"fld52WVyfK\",\n      \"fld7ChUvSH\",\n      \"fld8fzIptW\",\n      \"fld8Q2XlJB\",\n      \"fldAh2Kyj0\",\n      \"fldBuyLemA\",\n      \"fldcuNmiVK\",\n      \"fldD77oYrZ\",\n      \"fldEiiSdHh\",\n      \"fldERqfLpq\",\n      \"fldGsVI1Y0\",\n      \"fldHgasO5A\",\n      \"fldhpTkoXE\",\n      \"fldIuAN6te\",\n      \"fldJ9rdSbO\",\n      \"fldMLCmFW2\",\n      \"fldPyoP99S\",\n      \"fldsV39i3n\",\n      \"fldu80s8wJ\",\n      \"fldw1TK5PO\",\n      \"fldwobTvnQ\",\n      \"fldyh4ldX6\",\n      \"fldYisQZkD\",\n      \"fldZHrw01k\"\n    ],\n    \"field_type_list\": [\n      \"auto_number\",\n      \"text\",\n      \"select\",\n      \"lookup\",\n      \"link\",\n      \"text\",\n      \"updated_at\",\n      \"lookup\",\n      \"created_at\",\n      \"text\",\n      \"lookup\",\n      \"select\",\n      \"attachment\",\n      \"user\",\n      \"datetime\",\n      \"text\",\n      \"datetime\",\n      \"lookup\",\n      \"text\",\n      \"attachment\",\n      \"datetime\",\n      \"select\",\n      \"updated_by\",\n      \"attachment\",\n      \"user\",\n      \"lookup\",\n      \"select\",\n      \"text\",\n      \"text\"\n    ],\n    \"fields\": [\n      \"Bug编号\",\n      \"测试结果\",\n      \"状态\",\n      \"测试人员所在部门\",\n      \"父記錄\",\n      \"需求ID\",\n      \"最后更新时间\",\n      \"解决人员所在部门\",\n      \"创建时间\",\n      \"项目备注\",\n      \"所属项目组\",\n      \"严重程度\",\n      \"测试结果截图\",\n      \"测试人员\",\n      \"预计上线时间\",\n      \"问题描述（复现步骤）\",\n      \"bug填写日期\",\n      \"需求名称\",\n      \"问题标题\",\n      \"附件\",\n      \"修复完成时间\",\n      \"环境\",\n      \"记录最后修改人\",\n      \"问题截图\",\n      \"负责RD\",\n      \"需求阶段\",\n      \"涉及端口\",\n      \"备注\",\n      \"Sprint\"\n    ],\n    \"has_more\": false,\n    \"record_id_list\": [\n      \"reczz28T4ZK3pj1x\"\n    ],\n    \"rev\": 21326,\n    \"timezone\": \"Asia/Dubai\"\n  }\n}\n",
+  "stderr": ""
+}

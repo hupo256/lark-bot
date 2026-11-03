@@ -1,0 +1,26 @@
+{
+  "token": "ICXVd9G5Oo22eQxwBw7l3cGmgPf",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/ICXVd9G5Oo22eQxwBw7l3cGmgPf",
+  "fetchedAt": "2026-11-03T12:17:04.683Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/ICXVd9G5Oo22eQxwBw7l3cGmgPf",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>新闻详情页-待确认-2026-10-21</title>\\n\\n# 新闻详情页（Figma 996:63287）-待确认-2026-10-21\\n\\nweb 端新闻详情页已经按新稿改版：作者行、阅读 / 评论 / 字数、右侧「相关阅读」。下面两项接口里还没有对应字段，所以前端暂不渲染。字段以 10-21 pre 实测 `GET /api/Headlines/getInfo?id=16` 为准。两项都查过 x9（本地 main `326c2cb4`）：x9 新闻详情没有「常见问答」，相关阅读条目也只显示标题、图、分类、时间，没有作者和点赞，没有可沿用的处理。\\n\\n## live 后端（Ache）\\n\\n1. **「常见问答」没有数据来源**：稿里正文下方有一个「常见问答」折叠列表（问题 + 答案），但 `getInfo` 返回里没有这类字段。\\n\\n   - 我方现状：这一块不渲染，也不写死内容。\\n   - 建议：如果要做，请在 `info` 里加一个问答数组（例如 `faq: [{ question, answer }]`），并在后台头条编辑页加录入入口。是否一期就做，请先跟产品（Mateo）确认。\\n2. **相关阅读条目缺点赞数**：稿里每条相关阅读下面是「作者 + 点赞数」。实测 `recommend[]` 返回 `user_nickname`，但没有 `likes` / `like`。\\n\\n   - 我方现状：只展示标题和缩略图，作者行暂不渲染。\\n   - 建议：`recommend[]` 补上 `likes` 后，前端把作者和点赞一起加上。\",\n      \"document_id\": \"ICXVd9G5Oo22eQxwBw7l3cGmgPf\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

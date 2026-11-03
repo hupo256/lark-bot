@@ -1,0 +1,26 @@
+{
+  "token": "Qj7td1JAAobhmHxWLDtlv0kVg4K",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/Qj7td1JAAobhmHxWLDtlv0kVg4K",
+  "fetchedAt": "2026-11-03T12:17:16.909Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/Qj7td1JAAobhmHxWLDtlv0kVg4K",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>@HTStone.z @Arthur.a uat 和 pre 登录请求对比（细节）</title>\\n\\n# uat 和 pre 登录请求为什么不一样（10-29 实测）\\n\\n## 结论\\n\\n不一样。pre 的登录 / 注册 / 发验证码走 Go（`/go-api/api/auth/login`、`/go-api/api/auth/verification/send`）。uat 现在部署的前端还走 php 第一期接口（`/api/user/NewLogin`、`/api/user/sendVerificationCode`），和 HTStone、Arthur 截图里看到的一样。\\n\\n## 原因\\n\\n前端会按打包时的环境配置判断这个环境有没有 Go：有就走 Go，没有就自动退回 php 老接口。uat 线上这版前端打包时还没配 Go，所以退回 php。\\n\\n| 检查 | 结果 |\\n|-|-|\\n| uat 已部署主包里的服务开关 | `{\\\"php\\\":true,\\\"golang\\\":false,\\\"hichat\\\":true,\\\"bbsv2\\\":true}`，Go 是关的 |\\n| pre 已部署主包里的服务开关 | `{\\\"php\\\":true,\\\"golang\\\":true,\\\"hichat\\\":true,\\\"bbsv2\\\":true}`，Go 是开的 |\\n| uat 分支的环境地址表 | uat 的 Go 那一行还是注释（当时在等后端给域名） |\\n| `https://faliveuat.fdsser.com/go-api/health` | `{\\\"status\\\":\\\"UP\\\",\\\"service\\\":\\\"portal\\\"}`，uat 的 Go 入口已经通 |\\n\\n## 修复\\n\\n今天下午已经给 uat 开了 Go（经站点的 /go-api/ 转发），但这个改动还在开发分支上，没合进 uat 分支。合进 uat 并部署后，uat 的登录、注册和发验证码会和 pre 走同一条 Go 链路，两边只有域名不同。后端和网关不用改。\",\n      \"document_id\": \"Qj7td1JAAobhmHxWLDtlv0kVg4K\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}
