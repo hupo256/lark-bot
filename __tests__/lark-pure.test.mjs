@@ -47,6 +47,7 @@ import {
   isWhitelisted,
   normalizeMessage,
   parseCommandType,
+  isTaskIdShape,
   parseControlDirective,
   parseResumeDirective,
   resolveCommandType,
@@ -655,6 +656,18 @@ describe('parseCommandType', () => {
     assert.equal(parseResumeDirective('继续讨论这个问题'), null)
   })
 
+  // 11-03 静态 review R5：指令词后跟任意 ≥4 位 ASCII 单词就当 taskId（「继续 debug 一下」→ 回「没找到任务 debug」，需求丢了）。
+  it('续跑指令只认本仓真实 id 形状（om_ / rec / daily- / sf-），英文单词不是 id → 整句按普通消息走', () => {
+    assert.deepEqual(parseResumeDirective('继续任务 om_x1 用 508 号试'), { taskId: 'om_x1', supplementText: '用 508 号试' })
+    assert.deepEqual(parseResumeDirective('resume daily-20261103-a1'), { taskId: 'daily-20261103-a1', supplementText: '' })
+    assert.deepEqual(parseResumeDirective('继续 sf-20261103-ab12'), { taskId: 'sf-20261103-ab12', supplementText: '' })
+    assert.equal(parseResumeDirective('继续 debug 一下'), null)
+    assert.equal(parseResumeDirective('继续任务 Google 登录那条'), null)
+    assert.equal(parseResumeDirective('继续 recheck 一遍'), null, 'rec 开头的英文单词不是记录 id')
+    assert.deepEqual(['om_abcd', 'recABC_123', 'reczzAb12', 'daily-20261103-a1', 'sf-20261103-x', 'om_'].map(isTaskIdShape), [true, true, true, true, true, false])
+    assert.deepEqual(['Google', 'debug', 'recheck', 'records', 'daily', 'omg_1234', '', null].map(isTaskIdShape), [false, false, false, false, false, false, false, false])
+  })
+
   it('只把明确的人工完成确认识别为直接结单', () => {
     assert.equal(isManualResolutionMessage('已由另一位 AI 同学完成了，请同步更新状态'), true)
     assert.equal(isManualResolutionMessage('👍 该问题已解决'), true)
@@ -875,6 +888,15 @@ describe('parseControlDirective', () => {
     assert.equal(parseControlDirective('这个功能取消了吧'), null) // 动词不在句首
     assert.equal(parseControlDirective('帮我改一下这个页面'), null)
     assert.equal(parseControlDirective(''), null)
+  })
+
+  // 11-03 静态 review R5：「@bot 关闭 Google 登录入口」→ taskId='Google' → 回「没找到任务 Google，结单不了」，需求丢了。
+  it('指令词后不是真实 id 形状 → null（整句按普通消息走分类）', () => {
+    assert.equal(parseControlDirective('关闭 Google 登录入口'), null)
+    assert.equal(parseControlDirective('取消 debug 模式的弹窗'), null)
+    assert.equal(parseControlDirective('cancel subscription 页面的二次确认'), null)
+    assert.deepEqual(parseControlDirective('取消任务 recABC_123'), { action: 'close', taskId: 'recABC_123', closureReason: 'cancelled', supplementText: '' })
+    assert.deepEqual(parseControlDirective('重开任务 daily-20261103-a1 再发一次'), { action: 'reopen', taskId: 'daily-20261103-a1', closureReason: null, supplementText: '再发一次' })
   })
 })
 
