@@ -54,6 +54,8 @@ describe('对话层：锚点、上下文、对话包、发件簿、义务、pers
         { name: '反：没有指代词（像新话题）', text: '登录页白屏', anchor: null },
         { name: '反：只有 @名字', text: '@Aven.Bot', anchor: null },
         { name: '反：bot 那句时间解析不了', text: '重跑一次', last: { ...last, at: 'bad' }, anchor: null },
+        // 11-03 静态 review R10：被出口闸拦下的（gated）人没看到，不能当「bot 上一句」锚
+        { name: '反：bot 那句被出口闸拦下（人没看到）', text: '重跑一次', last: { ...last, gated: '拦下' }, anchor: null },
         { name: '反：21 字（上限 20）', text: '这个这个这个这个这个这个这个这个这个这个这', anchor: null },
         { name: '正：20 字', text: '这个这个这个这个这个这个这个这个这个这个', anchor: want },
       ], ({ text, replyTo = null, last: lastOutbox = last, anchor }) => assert.deepEqual(resolveDefaultAnchor({ text, replyTo, lastOutbox, nowMs: NOW_MS }), anchor))
@@ -232,7 +234,12 @@ describe('对话层：锚点、上下文、对话包、发件簿、义务、pers
       assert.deepEqual(data.anchor, { taskId: 't_c', topic: 'diff', at: iso(NOW_MS - 5 * MIN), phase: 'done', text: `不一样，${'多'.repeat(130)}` })
       // 另一个人：发件簿最多 3 条、任务最多 5 条，都是新的在前
       const otherData = buildConversationData({ store, msg: { ...msg, senderOpenId: other, text: '重跑一次' }, nowMs: NOW_MS })
-      assert.deepEqual(otherData.activity.outbox.map((e) => e.text), ['@到他的', '拦下的', 'o3'])
+      assert.deepEqual(otherData.activity.outbox.map((e) => e.text), ['@到他的', 'o3', 'o2'], '11-03 R10：拦下的（人没看到）不算「bot 对他说的」，顺位补下一条')
+      // 11-03 R10：bot 对他最后一句是被闸拦下的 → 默认锚点不能锚到那句（人没看到），退到再上一句真发出去的
+      recordOutbox(at(NOW_MS - 2 * MIN, { to: other, taskId: 't_g', phase: 'done', text: '拦下的最新', gated: '拦下' }))
+      const gatedLatest = buildConversationData({ store, msg: { ...msg, senderOpenId: other, text: '重跑一次' }, nowMs: NOW_MS })
+      assert.deepEqual(gatedLatest.anchor, { taskId: 't_m', topic: null, at: iso(NOW_MS - 10 * MIN), phase: 'ack', text: '@到他的' }, '锚到真发出去的那句，不锚拦下的')
+      assert.deepEqual(gatedLatest.activity.outbox.map((e) => e.text), ['@到他的', 'o3', 'o2'])
       assert.deepEqual(otherData.activity.tasks.map((t) => t.id), ['o0', 'o1', 'o2', 'o3', 'o4'])
       assert.deepEqual(otherData.anchor, { taskId: 't_m', topic: null, at: iso(NOW_MS - 10 * MIN), phase: 'ack', text: '@到他的' }, '锚到 bot 对他最后一句')
       // 没有 listRecentForChat 的 store：按同样口径从 list() 算
