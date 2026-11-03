@@ -160,10 +160,13 @@ describe('prepareTempWorktree（retry/resume 不得摧毁保留的现场）', ()
     assert.equal(run(wtPath(), ['rev-parse', 'HEAD']), firstHead)
     assert.ok(existsSync(join(wtPath(), 'first-fix.txt')))
 
+    assert.equal(run(repo, ['log', '-1', '--format=%s', BRANCH]), 'lark hotfix: 修一个 bug [T1]', '缺省前缀')
     writeFileSync(join(wtPath(), 'second-fix.txt'), 'QA return round\n')
-    const second = finalizeTempWorktree({ path: wtPath(), branch: BRANCH, task, allowCommit: true })
+    // 运行配置 commitPrefix 换提交标题前缀（业务仓 commit-msg 钩子要求 <type>(<scope>): 主题）；没有 summary 的任务主题落 fix
+    const second = finalizeTempWorktree({ path: wtPath(), branch: BRANCH, task: { id: 'T1' }, allowCommit: true, commitPrefix: 'feat(bot)' })
     assert.equal(second.committed, true)
     assert.equal(run(repo, ['rev-list', '--count', `origin/online..${BRANCH}`]), '2')
+    assert.equal(run(repo, ['log', '-1', '--format=%s', BRANCH]), 'feat(bot): fix [T1]')
   })
 
   it('残留空壳目录（不是有效 worktree） → 重建', () => {

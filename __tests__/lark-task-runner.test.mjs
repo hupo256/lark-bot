@@ -233,6 +233,9 @@ describe('createTaskRunner 运行期控制流（deps 注入）', () => {
       const isolated = tempWorktreeContextFor(baseTask())
       assert.ok(named.last.result.includes(`⚠ 任务开始时你的 worktree 有未提交改动，为不碰你的现场，本次从 feat/PR-0001@${SHA.slice(0, 12)} 创建隔离分支 \`${isolated.hotfixBranch}\`（完全没动你的工作区）；发布前需把它 cherry-pick / merge 回 feat/PR-0001`), named.last.result)
       assert.deepEqual(named.calls.finalizeTempWorktree[0][0], { path: isolated.cwd, branch: isolated.hotfixBranch, baseRef: SHA, task: named.task, allowCommit: true })
+      // 运行配置 commitPrefix 透传到收尾提交（业务仓 commit-msg 钩子，11-03 falive 回放）；没配就不带这个键
+      const prefixed = await doneRun({ workContext: existingCtx(), config: { commitPrefix: 'feat(bot)' }, deps: { worktreeState: () => 'dirty' } })
+      assert.equal(prefixed.calls.finalizeTempWorktree[0][0].commitPrefix, 'feat(bot)')
       const unnamed = await doneRun({ workContext: existingCtx(), deps: { worktreeState: () => 'dirty', inspectWorktreeIdentity: ({ expectedBranch }) => identity(expectedBranch || '') } })
       assert.ok(unnamed.last.result.includes(`本次从 你的工作分支@${SHA.slice(0, 12)} 创建隔离分支`), unnamed.last.result)
       assert.ok(unnamed.last.result.includes('merge 回 你的工作分支'))
