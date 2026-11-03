@@ -194,6 +194,11 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       assert.equal(await mergeThreadSupplement({ msg: msg({ messageId: 'om_m4', chatId: 'oc_far', senderOpenId: 'ou_zz', text: 'Safari 也复现' }), config, store, download }), false, '没指定目标：别人的任务找不到')
       assert.equal(await mergeThreadSupplement({ msg: msg({ messageId: 'om_m4', chatId: 'oc_far', senderOpenId: 'ou_zz', text: 'Safari 也复现' }), config, store, target: anchored, download }), true)
       assert.match(anchored.text, /^far\n\n【话题补充 \d{2}:\d{2}】Safari 也复现$/)
+      assert.equal(anchored.intake.reclassify, undefined, '还没被领走的不用标')
+      // 11-03 静态 review R7：目标 running + intake.required（worker 正拿旧正文在分类）→ 正文照并，标 reclassify：这轮分类结果作废、放回重分类一次（store.resolveIntake）
+      const classifying = store.upsert({ id: 'om_t4', status: 'running', chatId: 'oc_far', operator: 'ou_other', text: 'far4', claimedAt: iso(now), intake: { required: true, lane: 'fast', receivedAt: iso(now) }, createdAt: iso(now) })
+      assert.equal(await mergeThreadSupplement({ msg: msg({ messageId: 'om_m5', chatId: 'oc_far', senderOpenId: 'ou_zz', text: '补一句：Safari 也复现' }), config, store, target: classifying, download }), true)
+      assert.deepEqual([classifying.status, classifying.intake.required, classifying.intake.reclassify, /【话题补充 \d{2}:\d{2}】补一句：Safari 也复现$/.test(classifying.text)], ['running', true, true, true])
       await eachCase([
         { name: '疑似 + 挂起 + 不是负责人 → 扣住', task: { suspected: true, status: 'waiting_confirmation' }, operator: 'ou_qa', want: true },
         { name: '已不挂起', task: { suspected: true, status: 'done' }, operator: 'ou_qa', want: false },
