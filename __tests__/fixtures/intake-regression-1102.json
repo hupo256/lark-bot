@@ -1,5 +1,5 @@
 {
- "note": "分类回归集（11-02，53 条）：fameex 11-01/02 真实消息 23 条（A 带完整对话上下文、B 只有正文、C 是 11-01 人工标注）+ falive 10-24→10-31 存档按类别 / 交付分层抽 30 条（D，补 bug / 需求 / 对接答复）。expected 取 Opus high 与 Opus low 两档的并集（两档逐条复核过、无明确误判；C 用人工标注）；low 档重跑在边界题上有波动，复核为两可的另一种判法也收进可接受值、条目带 note 说明；只比 decision / deliverable / selfAnswer（有才比）/ continues（有候选上下文的才比）。open_id 已换成占位（ou_aven = 负责人、ou_bot = 机器人）。附件 localPath 指本机存档，缺了就不带。用法：node scripts/lark-replay-intake.mjs --fixture __tests__/fixtures/intake-regression-1102.json --live [--model m] [--effort e] [--conc 8]",
+ "note": "分类回归集（11-02，53 条；11-03 补 3 条，共 56 条）：fameex 11-01/02 真实消息 23 条（A 带完整对话上下文、B 只有正文、C 是 11-01 人工标注）+ falive 10-24→10-31 存档按类别 / 交付分层抽 30 条（D，补 bug / 需求 / 对接答复；11-03 falive 回放补 3 条「对方说已办好我们在等的事 → 复测」）。expected 取 Opus high 与 Opus low 两档的并集（两档逐条复核过、无明确误判；C 用人工标注）；low 档重跑在边界题上有波动，复核为两可的另一种判法也收进可接受值、条目带 note 说明；只比 decision / deliverable / selfAnswer（有才比）/ continues（有候选上下文的才比）。open_id 已换成占位（ou_aven = 负责人、ou_bot = 机器人）。附件 localPath 指本机存档，缺了就不带。用法：node scripts/lark-replay-intake.mjs --fixture __tests__/fixtures/intake-regression-1102.json --live [--model m] [--effort e] [--conc 8]",
  "regression": true,
  "cases": [
   {
@@ -1669,12 +1669,16 @@
    ],
    "expected": {
     "decision": [
-     "ignore"
+     "ignore",
+     "api_reply",
+     "question"
     ],
     "deliverable": [
-     null
+     null,
+     "verification"
     ]
-   }
+   },
+   "note": "11-03：Encone 上一条让 bot「测试这个 api 能不能请求通」、bot 刚报「没通 4 项」，这条光 @bot 是接着追问 / 催；按 11-03 口径（只 @ 没正文按本人上一条的事判）去复测（api_reply / question·verification）也对，falive 回放裁判（10-26）还判 ignore 是漏接；ignore 先留着作可接受值"
   },
   {
    "id": "om_x100b6102e415dca0ed9cc434d72df9f",
@@ -1701,12 +1705,14 @@
    ],
    "expected": {
     "decision": [
-     "requirement"
+     "requirement",
+     "api_reply"
     ],
     "deliverable": [
      "change"
     ]
-   }
+   },
+   "note": "11-03：William 引用自己给的 client_id 让「uat OL 改成这个」，是在答复 bot 之前要的配置、顺带交办改配置；按 11-03 口径（答复里顺带交办仍是 api_reply，deliverable 按交办填）api_reply·change 也对，同上一条 om_x100b6102eca2…；交付物都是 change，关键是不能只记一笔"
   },
   {
    "id": "om_x100b61337a64f8a0ff5f5a718c4346b",
@@ -2262,6 +2268,66 @@
      "verification"
     ]
    }
+  },
+  {
+   "id": "om_x100b62bf64a154a0ed565d704d2cded",
+   "set": "falive",
+   "text": "测试账号已经添加了资产路径\n\n【群里这条之前的消息】\nAven.Bot（bot，我们自己）（10-21 11:51）：@HQUCEncone(ou_user1) 这不是页面 UI，没有原型图或切片：是帖子链接 /square/ 贴到微信、Telegram 时自动生成的链接预览（标题 + 简介 + 一张图），图取 preload/threadDetail 的 picture[0]。 - ❌ 分享卡片图：今天抽查 tid 18596，picture[0] 就是 HCIMG1 密文，平台抓不出图。要你定：给一个明文缩略图字段，还是统一用站点默认图 📝 由 aven 的助手整理\nAven.Bot（bot，我们自己）（10-21 11:54）：@HQUCEncone(ou_user1) 收到，分享卡片图按 1.10 解密规则处理，我看下怎么在服务端解密后给 og:image 出图。 📝 由 aven 的助手整理\nAven.Bot（bot，我们自己）（10-21 11:58）：@HQUCEncone(ou_user1) 收到，按对接台账整理一份还没解决的前端对接事项清单发你。 📝 由 aven 的助手整理\n.Ache.l（10-21 13:53）：直播预告的 @Aven.tong  接口添加显示用户预约的 （发了 1 张图）\nAven.Bot（bot，我们自己）（10-21 13:56）：@Aven.tong(ou_aven) 收到，upcoming 加了 reserve_only，我把节目表 / 直播预告的「预约」tab 接上。 📝 由 aven 的助手整理\nAven.Bot（bot，我们自己）（10-21 14:13）：@Aven.tong(ou_aven) 直播预告「预约」Tab 接 reserve_only：通了 1 项，没通 1 项 - ⚠️ 接了但还不能用 「预约」Tab 显示已预约节目：代码已接，还没部署 pre；部署后要实际预约一条，看能不能出现 - ✅ 通了 front/upcoming reserve_only 参数：pre 实测 code 0，返回结构与前端 schema 对得上；测试号无预约时为空，和全部列表一致 📝 由 aven 的助手整理\nAven.Bot（bot，我们自己）（10-21 14:42）：<card title=\"[FALIVE]\"> **状态**：运行状态通知 ℹ️ **任务**：群内任务 **说明**：原任务当前状态为「ignored」，已结束，无需重复结单，也未创建新任务。 📝 2026/10/21 14:42:08\nAven.Bot（bot，我们自己）（10-21 14:42）：<card title=\"[FALIVE]\"> **状态**：运行状态通知 ℹ️ **原任务**：群内任务（已结单） **识别到后续请求**：吗，可以改成真实发送验证码了是不 **请确认**：后半段尚未创建任务。如需处理，请另发一条并 @应用。 📝 2026/10/21 14:42:09\nArthur.a（10-21 15:01）：@HQUCEncone 这个应该不用加，直接就有的，之前是缺少一个配置，昨天已经加上了",
+   "trigger": "group",
+   "addressedToBot": true,
+   "fromPrincipal": null,
+   "privateOrigin": false,
+   "conversation": null,
+   "attachments": [],
+   "expected": {
+    "decision": [
+     "api_reply"
+    ],
+    "deliverable": [
+     "verification"
+    ]
+   },
+   "note": "11-03 falive 回放：后端说「测试账号已加资产路径」，是给我方测试号配的、我们在等的东西 → 复测再结；fix3 前判 api_reply·null 只记一笔被裁判判漏做（请求在 4 小时窗外，上下文里看不到原话也应复测）"
+  },
+  {
+   "id": "om_x100b613e317a7ca8ed433e4cdf4c0a9",
+   "set": "falive",
+   "text": "【被引用消息】（Aven.Bot 10-27 16:37）\n<card> @HQUCEncone(ou_user1) @HTStone 直播间 271 拉流复测：通了 1 项，没通 1 项 - ⚠️ 接了但还不能用 列表里其它在播房间：抽查 128、133、414、19645、19675 还是 8 秒拉不到数据，麻烦 @HTStone 把这些没推流的房间关掉 - ✅ 通了 房间 271（HTStone 开的验证房）：网页打开有画面，m3u8 返回 200，flv 8 秒拉到 2MB 待确认的几点在这里：[https://qfglxo2m3dc.sg.larksuite.com/docx/WNzzdqdCKoB6PDxOW6IlZpFtg6f](https://qfglxo2m3dc.sg.larksuite.com/docx/WNzzdqdCKoB6PDxOW6IlZpFtg6f) - HTStone：关掉还标着在播、但没推流的房间：128、133、414、19645、19675（抽查到的，列表里可能还有别的） 📝 由 aven 的助手整理 </card>\n\n【本条 @】已關閉沒推流的直播間\n\n【群里这条之前的消息】\nHTStone.z（10-27 10:12）：@Arthur.a 能先確認目前有沒有訪客參數嗎? 我沒有golang的接口文檔\nHTStone.z（10-27 10:14）：但原本KLIVE裡面應該有吧? 只是還沒接到golang裡面?\nEric.ea（10-27 14:02）：分享链接为空的问题，谁能帮忙查一下？由谁配置？在哪配置？ @Arthur.a @.Ache.l @HQUCEncone （发了 1 张图）\nArthur.a（10-27 14:26）：@Williamwang HT 这两个go的API都加上了hichat的id和live侧的id： https://falivepre.fdsser.com/go-api/api/b2b/influencers/84965/ https://falivepre.fdsser.com/go-api/api/member/profile/my\nArthur.a（10-27 14:27）：<p>@Aven.Bot 请给我提供一下bug-4970的curl信息</p>\nAven.Bot（bot，我们自己）（10-27 14:28）：@Arthur.a(ou_user2) 好的，我把 Bug-4970 登录的请求 curl 和返回结果整理一下发你。 📝 由 aven 的助手整理\nAven.Bot（bot，我们自己）（10-27 14:32）：@Arthur.a(ou_user2) Bug-4970 的复现 curl 和刚才在 pre 的实测结果整理在文档里了：旧 Hichat 账号 16517528005 现在登录还是回「用户不存在」。用测试号输错密码回的是「密码错误」，所以是 portal 里查不到这个旧账号，不是密码的问题。 - ⚠️ 接了但还不能用 旧 Hichat 账号在 portal 登录：16517528005 和用户名 shellyPre5 都回「用户不存在」，带不带区号 86 结果一样；要后端确认旧账号怎么进 portal 登录（迁移或回查 hichat 库） 📝 由 aven 的助手整理\nAven.Bot（bot，我们自己）（10-27 14:34）：@Arthur.a(ou_user2) 抱歉刚才漏了链接，我马上把 Bug-4970 的 curl 文档链接补发给你。 📝 由 aven 的助手整理\nAven.Bot（bot，我们自己）（10-27 14:36）：@Arthur.a(ou_user2) 抱歉，刚才那条漏了链接，Bug-4970 的复现 curl 和返回都在下面这份文档里。刚又测了一遍，结果没变：旧号 16517528005 / shellyPre5 登录回「用户不存在」，测试号输错密码回「密码错误」。 - ⚠️ 接了但还不能用 旧 Hichat 账号在 portal 登录：手机号（带不带区号 86）和用户名都回「用户不存在」；要后端确认旧账号怎么进 portal 登录（提前迁移或登录时回查 hichat 库） 详细见：[https://qfglxo2m3dc.sg.larksuite.com/docx/V2EhdXjcOoua79xaXpNld5a6gwh](https://qfglxo2m3dc.sg.larksuite.com/docx/V2EhdXjcOoua79xaXpNld5a6gwh) 📝 由 aven 的助手整理\nAven.tong（10-27 15:45）：首页-推荐视频 需要显示 视频时长 。这个需要后台 返回相应的数据 :THANKS: 接口是： /front/robotManualList @HQUCEncone （发了 1 张图）\nAven.Bot（bot，我们自己）（10-27 16:30）：@HQUCEncone(ou_user1) 收到，我查一下，稍后回复。 📝 由 aven 的助手整理",
+   "trigger": "group",
+   "addressedToBot": true,
+   "fromPrincipal": null,
+   "privateOrigin": false,
+   "conversation": null,
+   "attachments": [],
+   "expected": {
+    "decision": [
+     "api_reply"
+    ],
+    "deliverable": [
+     "verification"
+    ]
+   },
+   "note": "11-03 falive 回放：引用 bot 的拉流复测卡（卡里请 HTStone 关没推流的房间），回「已关闭」→ 去 pre 复测把问题结掉；fix3 前判 api_reply·null 被裁判判漏做"
+  },
+  {
+   "id": "om_x100b6284481404aced6d3734650decc",
+   "set": "falive",
+   "text": "已经将uid 508 设成主播\n\n【群里这条之前的消息】\nHQUCEncone（10-22 21:04）：[文件：bug-4944直播间介绍intro-接口变更说明.md] （发了文件：bug-4944直播间介绍intro-接口变更说明.md）\nHQUCEncone（10-22 21:04）：@Aven.Bot\nAven.Bot（bot，我们自己）（10-22 21:06）：@HQUCEncone(ou_user1) 收到 intro 接口变更说明，直播间页展示介绍、开播 / 修改表单加介绍输入框这就接上。 📝 由 aven 的助手整理\nAven.Bot（bot，我们自己）（10-22 21:06）：@HQUCEncone(ou_user1) 「Encone（portal 后端）发来 Bug-4944 直播间介绍 intro」这边卡住了，需要你们帮忙： - Lark 文档读取失败：[https://qfglxo2m3dc.sg.larksuite.com/docx/CfbhdAyS](https://qfglxo2m3dc.sg.larksuite.com/docx/CfbhdAyS) → } 📝 由 aven 的助手整理\nAven.Bot（bot，我们自己）（10-22 22:46）：@HQUCEncone(ou_user1) 直播间介绍 intro 对接：通了 1 项，没通 1 项 - ⚠️ 接了但还不能用 开播设置加「直播间介绍」（选填，最多 200 字）、新建 / 修改带 intro、修改时回填：代码已接好，单测已过；pre 测试号不是主播，开播写入这一步测不了，要 Encone 给主播号 - ✅ 通了 直播间页介绍卡改读 intro（两行省略）：pre 上 getRoomInfo 已返回 intro 字段，用项目 schema 解析通过；现有房间都是空串，所以目前只显示标签 待确认的几点在这里：[https://qfglxo2m3dc.sg.larksuite.com/docx/EQIzdMt6EoG6Ucx6q3rltwtVgHf](https://qfglxo2m3dc.sg.larksuite.com/docx/EQIzdMt6EoG6Ucx6q3rltwtVgHf) - Encone：给一个 pre 主播测试号（或把 uid 508 设成主播），用来实测开播设置里直播间介绍的写入、回填和展示 📝 由 aven 的助手整理",
+   "trigger": "group",
+   "addressedToBot": true,
+   "fromPrincipal": null,
+   "privateOrigin": false,
+   "conversation": null,
+   "attachments": [],
+   "expected": {
+    "decision": [
+     "api_reply"
+    ],
+    "deliverable": [
+     "verification"
+    ]
+   },
+   "note": "11-03 falive 回放：后端说「已将 uid 508 设成主播」，是我们要的主播测试号 → 用它复测；与上两条同一口径"
   }
  ]
 }
