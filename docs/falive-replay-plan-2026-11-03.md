@@ -17,7 +17,7 @@
 | B1 | 离线模拟器：`scripts/sim/{fake-lark-cli,lark-cli,virtual-clock,run-sim,compare-sim}.mjs` | ✅ 跑通（smoke：10-20 08:30–10:00Z 11 条）；业务仓副本改成按基线检出的 worktree |
 | B2 | L2 对话层回放：逐事件按时间推进，比每条 @bot 的下文 / 义务状态 vs falive 当时 | 🔄 `scripts/sim/run-days.sh 2026-10-20 2026-11-03 full` 跑中（同一 sim 跨天续跑，每天重起进程、重钉基线；非触发消息只等 3 秒） |
 | B3 | L3 执行层回放：与 B2 同一次模拟，worker 真跑 claude，baseRef 钉到当天的 falive-react 提交（不抽样，全跑） | 🔄 同上 |
-| C | 差异清单 → 修 → 只重跑受影响层 → 全量测试绿 → 合运行分支 | ⬜ |
+| C | 差异清单 → 修 → 只重跑受影响层 → 全量测试绿 → 合运行分支 | 🔄 三个修复分支已合到 lark/falive-fix3（943aa55，全量 639 绿；R7 重分类逻辑挪进 lark-intake-retry 过体量线，用例棘轮 619 → 622）；fix3b L1 裁判 28 / 8 / 11；变异 --diff fameex-stable 48 个抓 46、豁免 2、存活 0（066928e）。待：基线模拟跑完后用修复版再跑一轮 L2 / L3 对照。原三个分支并行：lark/falive-fix2（R2 R6 R11 已修 3 commit，各自测试红→绿）、lark/falive-fix（R1 R3 R5 R7 R13 子代理在修）、lark/falive-fix3（分类提示 + continues 交付物兼容；fix3 一轮 L1 裁判 lark-bot 更好 25 / falive 11 / 一样 9，回归集 53/53；再收口径后 fix3b 跑中） |
 
 ## 1. 数据（都在本机，只读）
 
@@ -59,6 +59,8 @@
 - L1 第一轮把 `LARK_RUNTIME_DIR` 指到现网 runtime 读 persona，结果对话数据按 chatId 读到了现网发件簿：aven 的私信 chatId 就是他的 open_id，fameex 线最近 7 天对他说的话被当成「正在进行的事」，回复里冒出 fameex 的「档位弹窗」。发件簿 / 义务已改指空目录，aven 发的 52 条重跑。
   顺带一个真问题：`buildConversationData` 的时间窗按 `Date.now()` 算，不按消息时间——开盖补拉旧消息时会拿「现在」去框 2 小时 / 7 天窗口。
 - 只读答疑原本直接在业务仓主目录跑（HEAD 是最新代码），答案里出现「10-30～11-02 最后一次实测」这种未来信息；已改成按窗口起点检出的 worktree。
+- falive-react 的 commit-msg 钩子（scripts/verify-commit-msg.mjs）要求 `<type>(<scope>)?: 主题`，lark-bot 的 hotfix 提交标题是「lark hotfix: …」→ 全被拒、任务降级 failed（full-b 第一轮 6 次）。falive 当时靠 repo profile 的 commitPrefix；已移植成运行配置 `commitPrefix`（fix3 0a69b79 / conv 53117d4），模拟配置填 feat(bot)。三段基线 07:48 用带它的代码重启。
+- 三个模拟同时 `git worktree add` 撞过一次（failed to read .git/worktrees/…/commondir），启动错开 20 秒。
 
 ## 4. 发现（随时追加；最后汇总成差异清单）
 1. **只 @ 负责人的消息 lark-bot 一律不处理（11-02 决定）**：falive 当时分类了 52 条这类消息，46 条 ignore，6 条有动作——4 条入队（3 条是「发对接文档 @aven」→ 文档入库，1 条 Adrian 发任务中心文档）、2 条疑似。影响面小，但「发文档只 @aven」这个入库入口没了。
@@ -75,4 +77,24 @@
 6. **L2（smoke，10-20 08:39–08:49）continues 归并过宽，同一份答案连发三遍**：Encone @bot 要「api 待处理清单」（question → 答了）；4 分钟后 William @bot「portal 接口不需要带嗨聊头，更新清单」、Encone @bot「你自己写脚本批量造测试帖」，分类器都填了 continues = 清单任务（理由：「清单上一项的答复」），落地 rerun_after_done：清单任务各重跑一遍，整份清单又作为对**第一条**消息的回复发了两次（08:45、08:49），William / Encone 自己的消息只得到「收到」；aven 也收到三条「替你答了」。falive 当时是三条独立任务。
    根因：提示里「候选任务里是某条的延续 / 追问 → continues」没有区分「同一主题」和「同一交付物」；并入 done 的答疑任务后重跑的是整个任务、回复目标还是原消息。待修：continues 只在交付物兼容（追问 → 原答疑；补料 → 在跑的改码单）时生效，不同诉求（api_reply/change、requirement）另起任务；并入已完成任务重跑时回复新消息而不是旧消息，且只答增量。
 7. L2 smoke 里 worker 真的去探了 falivepre（envSites.pre），拿到 503 写进了答复——模拟时外网仍是真的，结论里带了「现在」的环境状态，对照 L3 时要记得这一点。
+
+## 5. 静态 review（11-03，子代理只读 20 个主链文件；每条先用失败测试验证再修）
+高置信：
+- R1 lark-principal-channel:153 负责人私信回「不是 / 不用 / 算了」给挂起任务，主通道无条件 resume，把否定句当补料放行执行（主通道没调 classifyClosureIntent）。
+- R2 lark-task-store closeAsExternallyResolved 不清 ackPending → 结单后 45 秒巡检照发「收到，我看一下，稍后回你」。
+- R3 lark-principal-channel:159 负责人对在跑的锚点任务说「不做」只建指示任务，锚点任务照跑到 done 再回群。
+- R5 lark-message parseControlDirective / parseResumeDirective：指令词后任意 ≥4 位 ASCII 单词当 taskId（「关闭 Google 登录入口」→「没找到任务 Google」）。
+- R6 lark-routes-intake intake_failed 出口：先发固定「收到」再永久静默，不私信负责人，逾期巡检也跳过。
+- R13 控制通道对 failed 任务回「还在处理中」。
+中置信（先看回放有没有撞到再决定）：
+- R4 群里带项目号的任务被改投绑定群（发件簿 / 义务 / 活跃都记在别的群，对话锚定看不到）。
+- R7 目标正在分类时仍当 supplement 并入，分类器拿旧正文跑完判 ignore 后补料无声丢失。
+- R8 mergeTaskObjects 不更新 operator / replyTarget：并入后结论回到原任务的消息、@ 原提单人（与 §4-6 同根）。
+- R9 selfAnswer 提示没限定提问人：别人问 bot 能做什么 → reply 已是完整答案又 queued 再答一次。
+- R10 默认锚点 / 正在进行的事读到被闸拦下的发件簿条目（gated）。
+- R11 自答走 done 相位的 content_24h 去重：两人问同样的问题第二条被拦，状态却 answered。
+- R12 回执重试每 5 分钟重建一份细节文档（docUrl 不持久化）。
+分组修：fix worktree A（lark-bot-fix，分支 lark/falive-fix）：R1 R3 R5 R7 R13；fix worktree B（lark-bot-fix2，分支 lark/falive-fix2）：R2 R6 R11。
+8. **L1 修后对照（fix3b，分类提示 + continues 收窄）**：同一批差异条目裁判从 lark-bot 更好 19 / falive 16 / 一样 9 → **28 / 8 / 11**，reply 质量 good 30 → 37；53 条分类回归集全过；分类器两档互相一致度不变。剩下 falive 更好的 8 条：3 条是 aven 私信「已部署」（约定口令 = 去 pre 复测 + 待推版改已推版，L1 没锚点，看 L2）、2 条是「medium 直接做 vs 先私信确认」的策略差（aven 10-24 定的口径，保留）、「能不能先打包到 uat OL」仍判 ignore、截图短句仍 ignore、一条回复里 HTML 实体没转义（I&#39;m）。
+9. **L2 修后 smoke（fix3，同一 10-20 窗口）**：清单只答一次（不再连发三遍）；William「portal 不用带头」→ api_reply·null 只记一笔、回「收到…清单里这项我改成已确认」；Encone「写脚本造测试帖」→ 独立 requirement 任务开跑，因今天 pre 登录接口「外部服务调用失败」没做成，草稿私信 aven 等放行（falive 当时环境正常、做成了）。
 
