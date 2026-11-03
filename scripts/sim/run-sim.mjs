@@ -145,7 +145,7 @@ if (dry) {
 
 // —— claude 调用缓存 ——
 // 真 claude：SIM_REAL_CLAUDE 显式给的优先，否则 PATH 里第一个不是包装壳的（包装壳自己也按同一规则找，这里先解析好传下去，日志里看得到用的哪个）。
-const { resolveRealClaude } = await import('./claude-cache.mjs')
+const resolveRealClaude = aiCache ? (await import('./claude-cache.mjs')).resolveRealClaude : () => null // 缓存脚本未入库，只在 --ai-cache 时加载
 const aiCacheLog = join(simDir, 'ai-cache.log')
 const aiCacheLogStart = existsSync(aiCacheLog) ? statSync(aiCacheLog).size : 0
 const aiCacheEnv = aiCache ? { LARK_CLAUDE_BIN: join(here, 'claude'), SIM_REAL_CLAUDE: resolveRealClaude() } : {}
