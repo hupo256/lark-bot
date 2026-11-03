@@ -99,4 +99,11 @@
 8. **L1 修后对照（fix3b，分类提示 + continues 收窄）**：同一批差异条目裁判从 lark-bot 更好 19 / falive 16 / 一样 9 → **28 / 8 / 11**，reply 质量 good 30 → 37；53 条分类回归集全过；分类器两档互相一致度不变。剩下 falive 更好的 8 条：3 条是 aven 私信「已部署」（约定口令 = 去 pre 复测 + 待推版改已推版，L1 没锚点，看 L2）、2 条是「medium 直接做 vs 先私信确认」的策略差（aven 10-24 定的口径，保留）、「能不能先打包到 uat OL」仍判 ignore、截图短句仍 ignore、一条回复里 HTML 实体没转义（I&#39;m）。
 9. **L2 修后 smoke（fix3，同一 10-20 窗口）**：清单只答一次（不再连发三遍）；William「portal 不用带头」→ api_reply·null 只记一笔、回「收到…清单里这项我改成已确认」；Encone「写脚本造测试帖」→ 独立 requirement 任务开跑，因今天 pre 登录接口「外部服务调用失败」没做成，草稿私信 aven 等放行（falive 当时环境正常、做成了）。
 10. **L2 模型裁判（judge-sim，smoke 窗口 3 条触发消息）**：基线 falive 2 / 一样 1（问题：并入漏做、回错对象）；修复版 lark-bot 2 / falive 1——剩那条是「群里只给概述、清单在文档里」，这是 aven 11-03 定的答疑口径（短回复 + 细节文档），不改。
+11. **L2 裁判 10-30 一天（基线 full-c 6 条差异全是 falive 更好；修复版 fix-c 3 条：一样 1 / falive 2）**，主题：
+   - **回群结论 @ 错人**（3 条，wrong_target）：复测结论 @ 了报告里「找谁」的人（Kai / Encone / aven）而不是提问人；提问人是靠「回复原消息」带到的，@ 别人反而像在催他们。待修：结论只回复原消息，@ 仅限需要对方动手的人，且不 @ 提问人以外的人除非 report 明确要找。
+   - **「能不能先打包到 uat OL」两轮都判 ignore**（missed）：提示要再明确「问部署 / 打包 / 版本状态 → question」。
+   - **ignore 的 reply 承诺了后续**（「对完跟你说」却没人跟进）：ignore 的 reply 不能承诺动作。
+   - **说「锁定 uat」实际测的 pre**：模拟配置只给了 pre 的地址（envSites），bot 只能测 pre——回放台要补 falive 的 uat / online 地址。
+   - **实测只能发只读 GET、不能登录**：aven 私信给了账号，bot 仍「没用给的账号登录」；falive 当时有 pre-probe 脚本能登录。lark-bot 的实测模式没有登录能力（fameex 线 11-02 也遇到），这是能力缺口，要 aven 定：给实测模式开登录（POST）口子，还是继续只读。
+   - aven 私信给账号锚到了「最近一条通知」的任务（member/info）而不是 falive 当时等账号的任务中心单——在 lark-bot 自己的时间线里这个锚是对的（那条刚说没登录态），不算错。
 
