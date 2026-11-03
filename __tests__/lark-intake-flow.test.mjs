@@ -664,6 +664,9 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
         await run({ ok: true, task: privStop })
         assert.equal(calls.at(-1)[1].id, 'om_g1', `${status} 也是活动态，一并结掉`)
       }
+      anchorTask = { id: 'om_g1', status: 'queued', epoch: 1 }
+      await run({ ok: true, task: task({ status: 'ignored', privateOrigin: { anchorId: 'om_g1', anchorHead: '导出按钮' } }, cls({ decision: 'ignore', reply: null })) })
+      assert.equal(calls.at(-1)[1].operator, 'ou_qa', 'privateOrigin 没记发送人 → 回落到任务 operator')
       calls.length = 0
       anchorTask = { id: 'om_g1', status: 'done' }
       assert.deepEqual(await run({ ok: true, task: privStop }), body({ ignored: true }))

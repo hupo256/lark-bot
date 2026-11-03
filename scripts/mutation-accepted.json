@@ -227,5 +227,17 @@
     "code": "if (at > (seen.get(task.chatId) || 0)) seen.set(task.chatId, at)",
     "op": "> → >=",
     "reason": "时刻相等时再写一遍同一个值，结果不变（等价变异）"
+  },
+  {
+    "file": "lib/lark-principal-channel.mjs",
+    "code": "if (verdict.intent === 'unclear' && verdict.closureReason) return { kind: 'unclear', closureReason: verdict.closureReason }",
+    "op": "&& → ||",
+    "reason": "classifyClosureIntent 返回 unclear 时必带 closureReason，intent 为 null 时 closureReason 也为 null；close / close_with_residual 已在上一行返回，两种写法行为相同（等价变异）"
+  },
+  {
+    "file": "lib/lark-routes-intake.mjs",
+    "code": "const sent = await say.principal({ config, store, text: sayIntakeFailed({ task, chatLabel: chatLabel(task, { chatNames: config.chatNames || {} }) }), taskId: task.id, kind: 'intake_failed' })",
+    "op": "|| → &&",
+    "reason": "chatNames 缺省与传 {} 对 chatLabel 等价（都查不到群名回落 chatId）；无业务含义"
   }
 ]

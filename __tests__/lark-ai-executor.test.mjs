@@ -437,6 +437,9 @@ describe('task-mention intent classification', () => {
     assert.match(prompt, /UNTRUSTED_LARK_MESSAGE/)
     assert.match(prompt, /有歧义时必须 decision=ignore/)
     assert.match(prompt, /\/tmp\/screenshot\.png/)
+    // 仓名读配置 repoLabel（falive 回放 11-03）：没配沿用 fameex-web
+    assert.match(prompt, /只做 fameex-web 前端仓的事/)
+    assert.match(buildIntentClassificationPrompt({ text: 'x' }, { localConfig: { repoLabel: 'falive-react 前端仓' } }), /只做 falive-react 前端仓的事/)
   })
 })
 
