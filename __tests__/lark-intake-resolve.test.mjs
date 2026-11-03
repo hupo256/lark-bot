@@ -308,7 +308,7 @@ describe('对话层：契约、入队门槛、分类落态、归并', () => {
       assert.equal(sameIntentClassification(null, null), true)
       assert.equal(sameIntentClassification(a, null), false)
     }],
-    ['mergeTaskObjects：五种模式 + 契约 / 对话包随新消息 + 来源任务 superseded', () => {
+    ['mergeTaskObjects：五种模式 + 对话包随新消息、契约只在重开时随新消息 + 来源任务 superseded', () => {
       const calls = []
       const requeueTask = (target) => { calls.push(target.id); target.status = 'queued'; target.claimedAt = null; target.epoch = (target.epoch || 0) + 1 }
       const fresh = (status, extra = {}) => ({ id: 'into', status, text: '原问题', epoch: 2, ...extra })
@@ -325,7 +325,13 @@ describe('对话层：契约、入队门槛、分类落态、归并', () => {
         { name: 'done → reopened：threadHistory、queued、换代（不经 requeueTask）', into: fresh('done', { result: '不一样', owner: 'x', noChangeReason: 'n', parkedRemindedRound: 1, claimedAt: 'c', updatedAt: 'u' }), mode: 'reopened', after: (into) => { assert.equal(into.status, 'queued'); assert.equal(into.epoch, 3); assert.deepEqual(into.threadHistory, [{ status: 'done', result: '不一样', closedAt: 'u' }]); assert.equal(into.result, null); assert.equal(into.owner, null); assert.equal(into.noChangeReason, null); assert.equal(into.claimedAt, null); assert.equal(into.parkedRemindedRound, 0); assert.equal(calls.filter((id) => id === 'into').length, 2, 'reopened 不走 requeueTask') } },
         { name: 'answered（终态含 answered）→ reopened，「有哪些差别」并入续答', into: fresh('answered'), mode: 'reopened', after: (into) => assert.equal(into.status, 'queued') },
         { name: 'failed → reopened', into: fresh('failed'), mode: 'reopened' },
-        { name: '契约 / 对话包随新消息（latest wins）', into: fresh('queued', { contract: { v: 1, deliverable: 'change' }, conversation: { old: true } }), mode: 'appended', after: (into) => { assert.deepEqual(into.contract, { v: 1, deliverable: 'answer' }); assert.deepEqual(into.conversation, { anchor: null }) } },
+        // 11-03 第二次 review #6：契约只在重开时按新消息换。A 的改码单挂着等文档，William「@bot 文档在这，你看还缺啥吗」判 answer 并入续跑，
+        // 原先契约被换成只读代答，不改代码就 done；在跑 / 没开跑的并入也还是目标那件事。对话包仍随新消息（latest wins）。
+        { name: '没开跑 → appended：契约保留目标的，对话包随新消息', into: fresh('queued', { contract: { v: 1, deliverable: 'change' }, conversation: { old: true } }), mode: 'appended', after: (into) => { assert.deepEqual(into.contract, { v: 1, deliverable: 'change' }); assert.deepEqual(into.conversation, { anchor: null }) } },
+        { name: '挂起 → resumed：契约保留目标的（补料续跑不变成代答）', into: fresh('waiting_confirmation', { contract: { v: 1, deliverable: 'change' } }), mode: 'resumed', after: (into) => assert.deepEqual(into.contract, { v: 1, deliverable: 'change' }) },
+        { name: '在跑 → rerun_after_done：契约保留目标的', into: fresh('running', { contract: { v: 1, deliverable: 'change' } }), mode: 'rerun_after_done', after: (into) => assert.deepEqual(into.contract, { v: 1, deliverable: 'change' }) },
+        { name: '已了结 → reopened：契约随新消息（续答按新问题的交付物跑）', into: fresh('done', { contract: { v: 1, deliverable: 'verification' } }), mode: 'reopened', after: (into) => assert.deepEqual(into.contract, { v: 1, deliverable: 'answer' }) },
+        { name: '目标没契约（老任务）→ 用新消息的', into: fresh('blocked'), mode: 'resumed', after: (into) => assert.deepEqual(into.contract, { v: 1, deliverable: 'answer' }) },
         { name: '点名环境：重开 / 续跑跟新消息走（r3-c：复测 OL 并进 uat 那条）', into: fresh('done', { envTargets: ['uat'] }), source: from({ envTargets: ['online'] }), mode: 'reopened', after: (into) => assert.deepEqual(into.envTargets, ['online']) },
         { name: '点名环境：在跑 / 没开跑的取并集', into: fresh('queued', { envTargets: ['uat'] }), source: from({ envTargets: ['online', 'uat'] }), mode: 'appended', after: (into) => assert.deepEqual(into.envTargets, ['uat', 'online']) },
         { name: '点名环境：目标没点名 → 用新消息的', into: fresh('running'), source: from({ envTargets: ['pre'] }), mode: 'rerun_after_done', after: (into) => assert.deepEqual(into.envTargets, ['pre']) },
