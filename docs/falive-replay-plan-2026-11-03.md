@@ -182,3 +182,13 @@
 42. **aven：「case 与回放脚本、计划和进度都放到 lark-bot 下相应的目录，且要跟踪版本」**：case 数据从 runtime/falive-replay/{raw,dataset}（gitignore）搬到仓库 `replay/falive/`（144M，含 441 份附件；附件路径改存相对 raw/ 的，`resolveRaw` 拼回；dry 验证 442/442 都在），
    新增 `replay/falive/cases.{jsonl,md}`（285 条 case 清单，`list-cases.mjs` 生成）与 README；本计划从 lark-bot-conv 搬到 `docs/`（conv 里的留指针）；每轮裁判 + 总账跑完拷进 `replay/falive/rounds/<轮>/`；回放产物仍在 runtime。
    原来没入库的 claude-cache / context-versions 脚本一并入库（--ai-cache 才用，未在整轮里验证过）。分支 lark/falive-latest（worktree ~/github/lark-bot-latest），随集成分支合进 fameex-stable。
+43. **复盘：为什么白跑了 6 轮（aven 11-03：「数据都没有怎么反复跑了 6 轮的……以后怎样避免，出个策略」）**
+   事实：r1–r6 跑的数据有三处缺：附件路径重复拼接（所有截图「下载失败」，分类器一张图没看到）、话题回复没并进时间线（1781 条）、话题回复里的云文档 7 篇 / bug 记录 4 条没拉（拉取步骤早于并入）；
+   前两处到 r6 之后才发现，第三处是今天预检脚本第一次跑才查出来。同类的还有：r8 代码比运行分支少两个提交、r9 撞额度后假失败一片跑了一小时才停、r10 第一次 worker 没起来空转半小时。
+   根因不是某一个 bug，而是**跑之前不验输入、跑起来不看信号、一轮作废不先报告就开下一轮**：冒烟只验「能跑通」，没验「bot 看到的上下文和原始群聊对得上」；裁判只看结论，没人回头查输入；每发现一个问题就修了直接重跑，没停下来报。
+   **策略（已落成代码，不靠自觉）**：
+   - **起跑预检闸** `scripts/sim/preflight.mjs`（run-round 第一步，不过不跑，结果存 rounds/<轮>/preflight.md）：285 条 case 逐条查附件文件、父消息、话题回复、云文档、bug 记录；拉取时就拿不到的列「已知缺口」逐条写出，不许静默；代码必须是干净的提交、含 fameex-stable 全部提交（sha 记 rounds/<轮>/code.txt）；环境无额度暂停、无同名轮在跑。
+   - **止损守卫** `scripts/sim/round-guard.mjs`（run-round 起在后台）：进程报错、读取缺口、分类失败 ≥3、25 分钟不动 → 整轮停掉、写 rounds/<轮>/STOPPED.md，不带病跑完。
+   - **数据管线顺序**：时间线有变（并入话题回复等）后，依赖时间线的拉取步骤（docs / bugs / expanded / resources）必须重跑，再跑预检。
+   - **作废先报告**：一轮因输入 / 环境问题作废，先向 aven 说清楚坏在哪、影响哪些结论、怎么修，再起下一轮；不在汇报里把作废的轮次轻描淡写成「只作参考」。
+   - **省额度**：迭代轮只重跑受修复影响的段；整轮只在合进运行分支前跑。

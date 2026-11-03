@@ -15,7 +15,7 @@ const round = value('--round', null)
 if (!round) throw new Error('--round 必填')
 const simRoot = join(replayRoot, 'sim')
 const readJsonl = (p) => (existsSync(p) ? readFileSync(p, 'utf8').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l) } catch { return null } }).filter(Boolean) : [])
-const segs = readdirSync(simRoot).filter((d) => d.startsWith(`${round}-`)).sort()
+const segs = readdirSync(simRoot, { withFileTypes: true }).filter((d) => d.isDirectory() && d.name.startsWith(`${round}-`)).map((d) => d.name).sort()
 const lines = [`# ${round} 分段回放`, '', '| 段 | 时钟 | 喂 | 任务 | 裁判 falive/一样/lark-bot/都错 | 状态 |', '|---|---|---|---|---|---|']
 const allJudge = []
 for (const seg of segs) {
