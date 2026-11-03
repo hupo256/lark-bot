@@ -743,6 +743,8 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
         calls.length = 0
         assert.deepEqual(await run({ ok: true, task: task({ status: 'ignored', text, privateOrigin: { anchorId: 'om_g1', anchorHead: '导出按钮', senderOpenId: 'ou_aven' } }, c) }), body({ ignored: true }))
         assert.deepEqual([calls.map(([name]) => name), said.at(-1)[1].text], [['resolveIntake'], '好，「导出按钮」那条照常在做，没动它。'])
+        // 原话整句是寒暄：分类器写了 reply 也不往群里回（只会是噪音）
+        if (text) assert.notEqual(said.at(-2)?.[0], 'deliverNoted', '寒暄不回群')
       })
       await run({ ok: true, task: task({ status: 'ignored', text: '【aven 私聊指示】不做，这是后端的', privateOrigin: { anchorId: 'om_g1', anchorHead: '导出按钮' } }, cls({ decision: 'ignore', reply: '这个归后端' })) })
       assert.equal(calls.at(-1)[0], 'close', '原话是拒绝 + reply 礼貌拒绝 → 结掉')
