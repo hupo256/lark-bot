@@ -109,6 +109,28 @@ describe('createTaskStore', () => {
     assert.equal(store.claimNext().id, 'mentioned-bug')
   })
 
+  // 11-03 静态 review R7：分类中（running + intake.required）被并入话题补充（intake.reclassify），worker 拿旧正文算出的结果作废：放回 received 立刻可领、重分类一次；
+  // 分类判 ignore / 疑似时追加的内容不再无声丢失。不换代（worker 没在执行代码）、不计瞬时重试次数。
+  it('分类中并入了补充（intake.reclassify）→ 这轮分类结果作废、放回 received 重分类一次，第二轮照常落地', () => {
+    const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+    store.upsert({ id: 'supp', status: 'received', epoch: 0, intake: { required: true, trigger: 'bot_mention' }, createdAt: new Date().toISOString() })
+    const claimed = store.claimById('supp')
+    claimed.text = '原文\n\n【话题补充 10:00】Safari 也复现'
+    claimed.intake.reclassify = true
+    store.upsert(claimed)
+    const first = store.resolveIntake({ id: 'supp', epoch: claimed.epoch, classification: { decision: 'ignore', confidence: 'high', reply: '不用我' } })
+    assert.deepEqual([first.ok, first.actionable, first.retried, first.reclassify], [true, false, true, true])
+    assert.deepEqual([first.task.status, first.task.intake.required, first.task.intake.reclassify, first.task.intake.classification, first.task.intake.retries, first.task.claimedAt, first.task.epoch], ['received', true, undefined, undefined, undefined, null, 0], '作废：不记分类结果、不计重试、不换代')
+    assert.equal(store.claimById('supp').id, 'supp', '立刻可再领')
+    const errored = store.upsert({ ...store.get('supp'), intake: { ...store.get('supp').intake, reclassify: true } })
+    assert.deepEqual([store.resolveIntake({ id: 'supp', epoch: errored.epoch, error: 'rate limited' }).reclassify, store.get('supp').status, store.get('supp').intake.retries], [true, 'received', undefined], '分类报错时也只重分类，不走瞬时重试计数')
+    store.get('supp').intake.reclassify = true
+    const again = store.claimById('supp')
+    assert.equal(again.intake.reclassify, undefined, '领取时清掉残留标记：这次读的就是最新正文')
+    const second = store.resolveIntake({ id: 'supp', epoch: again.epoch, classification: { decision: 'bug', confidence: 'high', summary: 'Safari 复现' } })
+    assert.deepEqual([second.actionable, second.retried, second.task.status, second.task.intake.required, second.task.summary], [true, undefined, 'queued', false, 'Safari 复现'])
+  })
+
   it('分类器瞬时失败（超时 / 限流 / 5xx）不落 intake_failed：放回 received 延后重分类，到点前领不到；两次重试用完才算失败；非瞬时错误第一次就终态（falive 教训 #37）', () => {
     const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
     const seedAndClaim = (id) => {

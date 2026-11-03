@@ -171,6 +171,9 @@ describe('createTaskRunner 运行期控制流（deps 注入）', () => {
       assert.equal(seenSignal.aborted, true, '退出信号 abort 时合成信号同步中止')
       const ignored = await run({ task: baseTask({ intake: { required: true } }), client: { intake: { actionable: false } } })
       assert.equal(ignored.audit.record.status, 'ignored')
+      // 11-03 静态 review R7：分类中被并入补充，网关把这轮结果作废放回重分类（retried + reclassify）→ 审计记 intake_retry，不记 ignored
+      const reclassify = await run({ task: baseTask({ intake: { required: true } }), client: { intake: { actionable: false, retried: true, reclassify: true } } })
+      assert.equal(reclassify.audit.record.status, 'intake_retry')
     }],
     ['intake 分类失败：瞬时失败网关放回待分类（intake_retry + 告警），用完次数 intake_failed；退出中断不回写', async () => {
       const retried = await run({ task: baseTask({ intake: { required: true } }), client: { intake: { retried: true, task: { intake: { retries: 1, notBefore: '2026-11-02T10:00:00Z' } } } }, deps: { classifyTaskIntent: async () => { throw new Error('rate limited') } } })

@@ -6,7 +6,7 @@ import { describe, it } from 'node:test'
 
 import {
   addressTo, changeFacts, chatLabel, dedupeMentions, firstClause, firstSentence, headline, humanizeLegacyResult, mentionTag, resolveOwnerMention,
-  sayAck, sayBlockedAsk, sayDigest, sayDoneAnswerGroup, sayDoneAnswerPrincipal, sayDoneChangeGroup, sayDoneChangePrincipal, sayFailedPrincipal,
+  sayAck, sayBlockedAsk, sayDigest, sayDoneAnswerGroup, sayDoneAnswerPrincipal, sayDoneChangeGroup, sayDoneChangePrincipal, sayFailedNotice, sayFailedPrincipal,
   sayHeldDraft, sayHeldFailed, sayHeldReleased, sayHeldStale, sayIgnoredAfterAck, sayNoChangeGroup, sayNoted, sayOps, sayOverdue, sayReminderGroup,
   sayReminderPrincipal, sayStart, saySuspected, saySuspectedExpired, trimPunct,
 } from '../lib/lark-human-text.mjs'
@@ -117,6 +117,8 @@ const CELLS = [
     got: () => [sayFailedPrincipal({ task, chatLabel: G, outcome: { summary: '构建红', nextStep: '要你看 CI' } }), sayFailedPrincipal({ task, chatLabel: G, outcome: { summary: '构建红' }, probablyDone: true }), sayFailedPrincipal({ task, chatLabel: G, outcome: null })],
     want: [`⛔ 没做成（${G}）：构建红\n要你看 CI`, `⚠ 可能做成了、但没拿到结果（${G}）：构建红`, `⛔ 没做成（${G}）：${H}`],
   },
+  // 11-03 静态 review R13：failed 在控制活动态，提单人回原消息「怎么样了」原先回「还在处理中」；说实话。
+  { name: 'failed · 群里问进度（对提单人）：说没做成、已告诉 aven；没标题用 id', got: () => [sayFailedNotice({ task }), sayFailedNotice({ task: { id: 'om_9' } })], want: [`「${H}」这条上次没做成，已经告诉 aven 了，不是还在处理。要关掉回「取消任务 om_1」，要重做直接 @我 再发一条。`, '「om_9」这条上次没做成，已经告诉 aven 了，不是还在处理。要关掉回「取消任务 om_9」，要重做直接 @我 再发一条。'] },
   {
     name: 'digest（aven 09:30）：分组 / 全空不发',
     got: () => [sayDigest({ suspected: [{ headline: 'A', chatLabel: '群1', time: '09:10' }], overdue: [{ headline: 'B', chatLabel: '群2', time: '08:00' }], held: [], parked: [] }), sayDigest({}), sayDigest({ held: [{ headline: 'C', chatLabel: '群3', time: '07:00' }], parked: [{ headline: 'D', chatLabel: '群4', time: '06:00' }] })],
