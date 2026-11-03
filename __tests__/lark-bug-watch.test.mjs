@@ -194,20 +194,24 @@ describe('bug 发现两档调度（读通知 + 对账）', () => {
     }],
     ['读通知会话：没断点只取最新一条建断点；有断点从断点读起时间回退 2 分钟、翻页读到底；失败抛错', async () => {
       const calls = []
-      const run = async (args) => {
+      const identities = []
+      const run = async (args, options) => {
         calls.push(args)
+        identities.push(options?.identity)
         if (args.includes('desc')) return { code: 0, stdout: JSON.stringify({ data: { messages: [{ message_position: '300' }] } }) }
         const page = args.includes('--page-token') ? 2 : 1
         return { code: 0, stdout: JSON.stringify({ data: { messages: [card(300 + page, 'PR-1', 'x')], has_more: page === 1, page_token: page === 1 ? 'tok' : '' } }) }
       }
       const init = await readNotificationMessages({ chatId: 'oc_n', cursor: null, now: 1000, run })
       assert.deepEqual(init, { messages: [], cursorInit: { position: 300, readFrom: new Date(1000).toISOString() } })
-      assert.ok(calls[0].includes('--as') && calls[0].includes('user'), '用负责人身份读')
+      assert.equal(identities[0], 'user', '用负责人身份读')
+      assert.ok(!calls[0].includes('--as'), '身份走 identity 选项，不写进 args（否则 runLarkCli 按 bot 注令牌、lark-cli strict mode 拒 user）')
       const read = await readNotificationMessages({ chatId: 'oc_n', cursor: { position: 300, readFrom: '2026-11-02T06:00:00.000Z' }, now: 5000, run })
       assert.deepEqual(read.messages.map((m) => m.message_position), ['301', '302'])
       assert.equal(read.readFrom, new Date(5000).toISOString())
       assert.equal(calls[1][calls[1].indexOf('--start') + 1], '2026-11-02T05:58:00.000Z')
       assert.equal(calls[2][calls[2].indexOf('--page-token') + 1], 'tok')
+      assert.deepEqual(identities, ['user', 'user', 'user'], '翻页每次都用负责人身份')
       const empty = await readNotificationMessages({ chatId: 'oc_n', cursor: null, run: async () => ({ code: 0, stdout: '{"data":{"messages":[]}}' }) })
       assert.equal(empty.cursorInit.position, 0)
       await assert.rejects(readNotificationMessages({ chatId: 'oc_n', cursor: { position: 1, readFrom: 'x' }, run: async () => ({ code: 1, stderr: 'auth expired' }) }), /读通知会话 失败/)

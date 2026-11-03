@@ -8,3 +8,4 @@
 
 | 日期 | 工单 | 现象 | 根因层 | 落在哪 | 怎么验 |
 |---|---|---|---|---|---|
+| 2026-11-03 | sf-20261103-ed68bd0e | bug 发现入口「notify」读通知会话连续失败：`strict mode is "bot", only bot-identity commands are available` | harness | 1cc516e 起 runLarkCli 缺省 identity=bot 就注入应用令牌（lark-cli 进 strict mode bot）；lib/lark-bug-watch-io.mjs 把 `--as user` 写在 args 里没走 identity 选项，被注了令牌后 user 身份被拒。改：messagesArgs 去掉 `--as user`、两处 run 传 `{ identity: 'user' }`；lib/lark-cli.mjs shouldInjectToken 加「args 自带 --as 不注」兜底 | lark-bug-watch.test「读通知会话…」钉 identity=user 且 args 不含 --as；lark-tenant-token.test「runLarkCli：bot 身份注入…」加 args 自带 --as 不注；真机看 poller.log 读通知会话不再报 strict mode |
