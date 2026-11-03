@@ -2025,13 +2025,14 @@
    "expected": {
     "decision": [
      "requirement",
-     "bug"
+     "bug",
+     "api_reply"
     ],
     "deliverable": [
      "verification"
     ]
    },
-   "note": "负责人私聊「已部署」→ 去 pre 复测：bug / requirement 交付一样是实测，关键是不能 ignore"
+   "note": "负责人私聊「已部署」→ 去 pre 复测：bug / requirement 交付一样是实测，关键是不能 ignore；11-03 提示把「环境已更新」归 api_reply 后也可能判 api_reply·verification，交付一样是实测，接受"
   },
   {
    "id": "om_x100b61317d91a8a8ffaf85949d657d4",
@@ -2046,13 +2047,14 @@
    "expected": {
     "decision": [
      "requirement",
-     "bug"
+     "bug",
+     "api_reply"
     ],
     "deliverable": [
      "verification"
     ]
    },
-   "note": "负责人私聊「已部署」→ 去 pre 复测：bug / requirement 交付一样是实测，关键是不能 ignore"
+   "note": "负责人私聊「已部署」→ 去 pre 复测：bug / requirement 交付一样是实测，关键是不能 ignore；11-03 提示把「环境已更新」归 api_reply 后也可能判 api_reply·verification，交付一样是实测，接受"
   },
   {
    "id": "om_x100b612dd319d0a0ed650450a70632a",
