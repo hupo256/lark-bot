@@ -127,15 +127,15 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       assert.deepEqual(await flushPendingAck({ config, store, task: silent, send: false, deliver }), { sent: false, usedReply: false })
       assert.deepEqual([silent.ackPending, deliveries.length], [null, 2])
       assert.deepEqual(await flushPendingAck({ config, store, task: null, deliver }), { sent: false, usedReply: false })
-      // 「收到」已发过 / 被拦后单独回的那句：自答走 done、追问走 blocked_ask（按内容去重，不按人 2 分钟拦）；空的不发
+      // 「收到」已发过 / 被拦后单独回的那句：自答走 self_answer、追问走 ask_back（11-03 R11：按消息去重——两个人问同样的问题各自要得到答复——不按内容 24h、不按人 2 分钟拦）；空的不发
       const sends = []
       const send = async (args) => { sends.push(args); return { ok: true, messageId: 'om_x', gated: false, reason: null } }
       const ft = { id: 'om_f', epoch: 1, chatId: 'oc_g' }
       assert.deepEqual(await deliverFollowUpReply({ config, store, task: ft, text: ' 能发 ', send }), { ok: true, messageId: 'om_x', gated: false, reason: null })
       assert.deepEqual(await deliverFollowUpReply({ config, store, task: ft, text: '哪个环境？', kind: 'ask_back', send }), { ok: true, messageId: 'om_x', gated: false, reason: null })
       assert.deepEqual(sends, [
-        { config, store, task: ft, phase: 'done', text: '能发', idempotencyKey: 'om_f-e1-ans' },
-        { config, store, task: ft, phase: 'blocked_ask', text: '哪个环境？', idempotencyKey: 'om_f-e1-askb' },
+        { config, store, task: ft, phase: 'self_answer', text: '能发', idempotencyKey: 'om_f-e1-ans' },
+        { config, store, task: ft, phase: 'ask_back', text: '哪个环境？', idempotencyKey: 'om_f-e1-askb' },
       ])
       assert.deepEqual(await deliverFollowUpReply({ config, store, task: ft, text: '  ', send }), { ok: false, gated: false, reason: 'empty follow-up' })
       assert.equal(sends.length, 2)

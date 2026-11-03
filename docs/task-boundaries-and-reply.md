@@ -142,7 +142,7 @@ Lark 保留自己的任务生命周期、AI 分析、质量闸和本地提交链
 
 一条 @bot / 私信有且只有一个下文（falive 不变量 I1）：先一句「收到」（分类器按上下文写的，到点 45s 没分类才用固定句），再一条结论；私聊指示、续跑、重跑都记在同一份**回复义务**上（`runtime/lark-obligations/`），答应了 4h 没结论私信负责人一次，群里不补话。
 
-每种消息（phase）走 `lib/lark-group-phases.mjs` 的出口规则表（超长转文档 / 去重 / 回复还是直发 / 要不要登记回执），`lib/lark-group-exit.mjs sendReply` 是唯一出口：过出口闸（同内容 24h 不重发、固定话术同人 2 分钟一条）、记发件簿（`runtime/lark-outbox/`）、发成功登记回执（回复 bot 任何一句都能锚回任务）。
+每种消息（phase）走 `lib/lark-group-phases.mjs` 的出口规则表（超长转文档 / 去重 / 回复还是直发 / 要不要登记回执），`lib/lark-group-exit.mjs sendReply` 是唯一出口：过出口闸（同内容 24h 不重发、固定话术同人 2 分钟一条、自答 / 追问按消息 24h 一次——两个人问同样的问题各自要得到答复）、记发件簿（`runtime/lark-outbox/`）、发成功登记回执（回复 bot 任何一句都能锚回任务）。
 
 按交付物（`task.contract.deliverable`）与状态，群里 / 负责人各说什么：
 
