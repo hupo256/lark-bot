@@ -1,0 +1,26 @@
+{
+  "token": "RHQzd9Lb4oNcmdxCFKUlzcx9gDb",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/RHQzd9Lb4oNcmdxCFKUlzcx9gDb",
+  "fetchedAt": "2026-11-03T12:17:14.777Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/RHQzd9Lb4oNcmdxCFKUlzcx9gDb",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>对接-后端运维-uat与online上线-2026-10-29</title>\\n\\n# 对接：uat / online 上线前要补的地址与配置（2026-10-29）\\n\\n> 发起：aven · 起因：10-29 早 .Ache.l 在群里反馈「UAT 上 SSR 请求显示 PRE 数据」，并定了服务端内网请求统一直连 `http://php-swoole.internal`；Aven.tong 要求进入发 uat / online 阶段，把还要的支持列一份。  \\n> 运维配置类条目（第二、四节）先给 aven 过目再转发。\\n\\n## 前端现状（一句话）\\n\\n- pre：服务端渲染（SSR）回源的 php、社区 bbsv2 已改为直连内网 `http://php-swoole.internal`，路径不改写（`/api/*`、`/bbsv2/*` 原样）；golang、hichat 还按原来的域名走。浏览器里的请求不变，仍走同源 `/api`、`/bbsv2`、`/go-api`、`/hc-api` 转发。\\n- uat / online：这次没改，SSR 仍直连各自公网域名（uat php = `http://streamuat.fdsser.com`，online php = `https://stream.kladhf.com`）。等 pre 验证通过、你们确认全环境地址后一起切。\\n- 部署机运行时可以用环境变量 `API_ORIGINS`（JSON，按服务覆盖）临时改 SSR 上游，不用重新打包，例如 `{\\\"php\\\":\\\"http://php-swoole.internal\\\",\\\"bbsv2\\\":\\\"http://php-swoole.internal\\\"}`。\\n\\n## 一、@.Ache.l（live php 后端）\\n\\n1. **pre 用内网地址试的结果**：前端合入 pre 并部署后，麻烦看一下 SSR 请求是不是都打到了 `php-swoole.internal`，有没有失败。可以用 `/api/preload/logPreloadHeaderFail` 的记录，或者 swoole 的访问日志。\\n2. **uat / online 是不是也用 `http://php-swoole.internal`**：如果各环境的内网名不一样，请给出各环境 php 和 bbsv2 的地址。\\n3. **golang（portal）、hichat 的服务端内网地址**：你说过之后会提供，给了之后前端就把 SSR 一起切过去。\\n\\n## 二、运维（经 .Ache.l 对接）\\n\\n1. **UAT 的 SSR 显示 PRE 数据，请核对部署**：前端 uat 分支是用 GitLab `build:uat` 打包的（`API_ENV=uat`），包里烘进去的 php 上游是 `http://streamuat.fdsser.com`，代码里没有指向 pre。请核对两点：\\n\\n   - UAT 机上跑的是不是 uat 分支 `build:uat` 的产物，而不是 pre 的包；\\n   - pm2 / 启动脚本里有没有配 `API_ORIGINS` 或 `BASE_API_HOST`，指到了 pre 的域名（运行时变量的优先级高于包里的默认值）。\\n   - 如果这两点都没问题，再看 `streamuat.fdsser.com` 本身连的是不是 pre 的库。\\n2. **pre 部署机要能解析 `php-swoole.internal`**：前端 pre 包的 SSR 默认就打这个地址，解析不到的话首屏会不带数据（页面不会 500，浏览器拿到页面后会再取一次数据）。\\n\\n## 三、后端（Go：@Arthur.a / @HQUCEncone；社区 bbsv2）\\n\\n1. **uat / online 的 golang（portal）域名**：目前前端只配了 pre（`falivego.fdsser.com`），uat / online 没有，登录注册、积分任务这些 Go 接口在 uat / online 上会直接不可用。\\n2. **uat / online 的 bbsv2（社区）域名**：之前答复是「还未部署」，现在要上 uat / online 了，请给出地址，或者确认和 php 同一个域名的 `/bbsv2/`。\\n\\n## 四、运维：uat / online 前台 nginx 转发核对\\n\\n前端浏览器侧所有请求都走同源路径，需要 uat / online 的前台 nginx 按前缀转发（pre 已配好，可以照着 pre 配）：\\n\\n| 前缀 | 转到 | 备注 |\\n|-|-|-|\\n| `/api/` | php swoole | 路径不改写 |\\n| `/bbsv2/` | php swoole（和 `/api/` 同端口） | 路径不改写 |\\n| `/upload/` | php | 礼物动画、封面等相对路径 |\\n| `/wss/` | 直播聊天 WebSocket | uat / online 的 WS 域名还没给，前端目前只配了 pre（`falivepre.fdsser.com`） |\\n| `/go-api/` | Go portal | 等第三节第 1 项的域名 |\\n| `/hc-api/`、`/hc-ws` | hichat（`/hc-api` 前缀剥掉后转 `/api/*`；`/hc-ws` 转 `/ws/im/echo`） | uat：`uat-hailiao.hai-liao-uat.com`；online：`www.4ees1.xyz` |\\n\\n请确认 uat / online 这几条都已配置，并给出 uat / online 的直播 WebSocket 域名。\\n\\n## 五、后端：Google 登录\\n\\n- **uat / online 的 Google OAuth client_id，以及 Google Console 授权来源**：目前只配了 pre 的 client_id，授权来源只加了 pre 主域名和 localhost。uat / online 没配的话，Google 登录按钮不会显示。请给出 uat / online 用的 client_id（可以和 pre 共用），并把 uat / online 的前台域名加进 Authorized JavaScript origins。\",\n      \"document_id\": \"RHQzd9Lb4oNcmdxCFKUlzcx9gDb\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

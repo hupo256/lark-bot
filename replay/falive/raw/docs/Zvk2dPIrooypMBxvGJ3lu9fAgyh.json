@@ -1,0 +1,26 @@
+{
+  "token": "Zvk2dPIrooypMBxvGJ3lu9fAgyh",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/Zvk2dPIrooypMBxvGJ3lu9fAgyh",
+  "fetchedAt": "2026-11-03T12:17:02.946Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/Zvk2dPIrooypMBxvGJ3lu9fAgyh",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>pre-123456复测-待确认-2026-10-16</title>\\n\\n# pre 验证码 123456 复测 · 待确认（2026-10-16）\\n\\n> 发起：aven · 背景：10-16 群里 Arthur 转告「验证码 123456 不可用」已在 pre 修好、请前端复测（对应 PM-3217-账号接口-待确认 E4 / E5）。  \\n> 复测方式：15:56–15:57（+8，即 11:56–11:57 +4）直打 `https://falivepre.fdsser.com/go-api/api/auth/*`，注册 / 登录响应用项目 zod schema（`parsePortalRegister` / `parsePortalLogin`）解析；php `GET /api/Member/info` 用 `pre-probe.mjs` 登录测试号 aven-pretest@probe.test 复核。前端代码未改。\\n\\n## 复测结果\\n\\n| 接口 | 结果 |\\n|-|-|\\n| `POST /verification/email/send`（scene=register，新邮箱） | code 0 |\\n| `POST /register`（邮箱，otp_code 123456） | code 0，过注册 schema（user_id / hichat_id / token / live_token / hichat_token / expires_in 齐） |\\n| `POST /verification/email/send`（scene=login，aven-pretest@probe.test） | code 0 |\\n| `POST /login`（aven-pretest@probe.test，otp_code 123456） | code 0，过登录 schema |\\n| `POST /login`（同号，otp_code 999999） | code -1「邮箱验证码错误或已过期」（错码会拒，正常） |\\n| `POST /verification/send`（country_code=84） | code 0（10-14 是 `unsupported sms country`，已修） |\\n| `POST /login`（越南号，country_code=84，otp_code 123456） | code 0，过登录 schema（未注册的号也直接登录成功） |\\n| `POST /register`（手机号，country=84，otp_code 123456） | **code -1「外部服务调用失败」** |\\n| `POST /register`（手机号，country=86 对照） | **code -1「外部服务调用失败」** |\\n\\n## Encone / Arthur（后端 portal）\\n\\n| # | 要什么 | 为什么 | 我方现状 | 建议 |\\n|-|-|-|-|-|\\n| R1 | 手机号注册 `POST /api/auth/register`（`phone` + `country` + `otp_code=123456`）回 code 0 | 注册页手机号 tab 走这个接口，现在 84 / 86 都回「外部服务调用失败」，手机号注册不通 | 前端按文档 3.3 传 `phone` / `country` / `otp_code` / `password` / `nickname` / `platform_code`；同一手机号走验证码登录反而成功 | 查手机号注册路径是否仍在调真实短信 / 外部服务；修好回一句，前端在 pre 再测一次 |\\n| R2 | 未注册手机号用验证码登录直接成功，是不是设计如此（登录即注册）？ | 决定注册页手机号 tab 要不要保留、提示怎么写 | 前端未改，按后端返回透出 | 确认口径后告知 |\\n| R3 | 真实邮件 / 短信通道上线前配好（Mailgun / 短信服务） | pre 现在是跳过真实发送 + 固定码 123456，正式环境用户要真能收到验证码 | 前端只透出后端 msg，不写死验证码 | 配好后告知，前端用真实邮箱 / 手机号再测 |\",\n      \"document_id\": \"Zvk2dPIrooypMBxvGJ3lu9fAgyh\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

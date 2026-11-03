@@ -1,0 +1,26 @@
+{
+  "token": "NBCid0EG4oJh7yxhPZDlVeMTgJg",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/NBCid0EG4oJh7yxhPZDlVeMTgJg",
+  "fetchedAt": "2026-11-03T12:17:04.271Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/NBCid0EG4oJh7yxhPZDlVeMTgJg",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>直播预告预约Tab-待确认-2026-10-21</title>\\n\\n# 直播预告「预约」Tab 改接 reserve_only —— 待确认（2026-10-21）\\n\\n> 来自：aven（前端）。背景：后端 10-21 给 `/api/front/upcoming` 加了 `reserve_only`（1=只看当前用户已预约，文档注明对应前台「预约」），前端「预约」Tab 已从 `follow_only=1` 改为 `reserve_only=1`。答复存档见 reply/对接-产品与设计-2-答复-2026-10-21.md。\\n\\n## 产品\\n\\n1. **确认「预约」Tab 的内容口径改为「我预约的节目」**\\n\\n   - 为什么：10-13 产品定的是「只改显示名『预约』，内容 = 已关注主播的预告（follow_only）」；这次后端文档写明 `reserve_only` 对应前台「预约」，前端按接口改成了「当前用户已预约的节目」，内容变了。\\n   - 我方现状：代码已改，待部署 pre。\\n   - 建议：按新口径（已预约节目）更新 PRD 对应条目；如仍要「已关注主播」，告诉前端改回 `follow_only`。\\n\\n## 前端自测（aven，部署 pre 后）\\n\\n1. **`reserve_only=1` 预约后出现、取消后消失，需在 pre 回归**\\n\\n   - 为什么：探针只读，这次没法实测「预约一条 → `reserve_only=1` 能查到」。\\n   - 我方现状：uid 508 当前没有预约，`reserve_only=1` 回 `total=0`，与 `reserve_only=0` 24 条 `is_reserve` 全 0 一致。\\n   - 建议：前端部署 pre 后用测试号在页面上预约一条自测；不一致再报后端。\",\n      \"document_id\": \"NBCid0EG4oJh7yxhPZDlVeMTgJg\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

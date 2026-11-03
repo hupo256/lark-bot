@@ -1,0 +1,26 @@
+{
+  "token": "HkpAdFn8MojiMQxOOB7lyNnKgbb",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/HkpAdFn8MojiMQxOOB7lyNnKgbb",
+  "fetchedAt": "2026-11-03T12:17:09.109Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/HkpAdFn8MojiMQxOOB7lyNnKgbb",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>修改头像接口对接（Web）（细节）</title>\\n\\n# 修改头像接口对接反馈（Web，2026-10-26）\\n\\n## 结论\\n\\n- 修改头像这批接口归 Web 个人主页的「更换头像」，这次由 aven 对接。\\n- Web 前端已按《修改头像接口文档》（10-23）接完：选图后前端校验（JPG / PNG / GIF、不超过 5MB、宽高都不超过 4096、总像素不超过 800 万），只调一次 Go 的 `POST /api/auth/avatar/upload`（表单只有 `request_id` 和 `file`），成功后直接用返回的 `data.avatar` 更新个人主页和右上角头像。\\n- 失败或结果未知时，用原 `request_id` 查 `GET /api/auth/avatar/requests/{request_id}`：PENDING 显示「正在同步」，大约 1 分钟后停止；失败保留原 ID 和原文件，「重试」原样再发。\\n- php 的预设头像、自定义上传、审核状态，Web 都不再调用。\\n\\n## 还差什么\\n\\n- **Go 后端**：pre 上这两支接口都还是 404，没部署。部署前 Web 换头像会提示上传失败。\\n\\n## pre 实测（10-26 10:5x +04，测试号 uid 508）\\n\\n| 接口 | 结果 |\\n|-|-|\\n| POST /api/auth/login | code 0 |\\n| GET /api/auth/profile | code 0 |\\n| POST /api/auth/avatar/upload | HTTP 404 `404 page not found`（直连 falivego.fdsser.com 和网关 /go-api 都一样） |\\n| GET /api/auth/avatar/requests/{id} | HTTP 404 `404 page not found` |\\n\\n同一个 token 的 profile 是通的，说明登录和域名没问题，只是接口不在。\\n\\n## 需要后端确认（不阻塞）\\n\\n前端拿不到 Go 非 2xx 的 HTTP 码，所以 `code=-1` 一律先查原请求、查不到就提示 msg，并允许用原 ID + 原文件重试。按文档，同 ID 同文件重复提交不会重复修改。如果 400 场景不该这样重试，请告知。\",\n      \"document_id\": \"HkpAdFn8MojiMQxOOB7lyNnKgbb\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

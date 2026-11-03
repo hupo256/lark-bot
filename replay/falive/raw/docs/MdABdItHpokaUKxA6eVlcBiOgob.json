@@ -1,0 +1,26 @@
+{
+  "token": "MdABdItHpokaUKxA6eVlcBiOgob",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/MdABdItHpokaUKxA6eVlcBiOgob",
+  "fetchedAt": "2026-11-03T12:17:06.876Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/MdABdItHpokaUKxA6eVlcBiOgob",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>社区发帖 / 评论迁移（细节）</title>\\n\\n# 社区发帖 / 评论迁移 实测记录（2026-10-23）\\n\\n分支：lark/falive-92d313e9\\n\\n## 范围\\n\\n- 广场页「发帖」按钮：未登录会唤起登录，已登录进入 /square/publish\\n- 发帖页：用 thread/publishRule 限制长度和图片数，图片走 tool/upload，提交走 thread/create（最多选 5 个标签，从 forum/allTags 里选）；待审时提示后回广场，已发布直接跳详情\\n- 帖子详情评论区：post/listCursor 按时间正序无限加载，根评论下挂二级回复；post/create 发评论 / 回复，字数下限取 publishRule 的 content.min（pre 上是 10）\\n\\n## pre 实测（测试号 aven-pretest@probe.test，uid 508）\\n\\n| 项 | 结果 |\\n|-|-|\\n| 帖子 | tid 18608，1 张图，audit_status 1（已发布），在 thread/listCursor 里排第一 |\\n| 评论 | pid 26900 |\\n| 回复 | pid 26901（挂在 26900 下） |\\n| 接口 schema 校验补发的回复 | pid 26903（挂在 26900 下） |\\n| publishRule | 标题 1–80 字，正文 10–10000 字，最多 5 张图 |\\n\\n## 页面（本地 dev:pre 连 pre）\\n\\n- /square：第一条就是 18608，带图（本地跨域加载不了图片，显示占位图，pre 同域下不受影响）\\n- /square/18608：显示「评论 3」，根评论 1 条，下面有 2 条二级回复，翻到底显示「没有更多了」\\n- /square/publish：未登录时显示「登录后才能发帖」和「去登录」按钮，右侧是发布须知\\n\\n## 校验\\n\\n- biome、square 单测（32 个）、tsc 全部通过\\n- 项目 zod schema 用 pre 真实返回逐个校验，全部 ok：post/listCursor（根评论、二级回复）、thread/detail、publishRule、allTags、post/create\",\n      \"document_id\": \"MdABdItHpokaUKxA6eVlcBiOgob\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

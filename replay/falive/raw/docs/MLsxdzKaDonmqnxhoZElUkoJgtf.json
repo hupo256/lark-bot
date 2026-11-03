@@ -1,0 +1,26 @@
+{
+  "token": "MLsxdzKaDonmqnxhoZElUkoJgtf",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/MLsxdzKaDonmqnxhoZElUkoJgtf",
+  "fetchedAt": "2026-11-03T12:17:18.458Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/MLsxdzKaDonmqnxhoZElUkoJgtf",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>OL 社区广场（细节）</title>\\n\\n# OL 社区广场不出帖子：原因\\n\\n## 现象\\n\\n- [https://www.falive.com/square](https://www.falive.com/square) 返回 200，有「社区广场」标题和「发帖」按钮，内容区显示「加载失败 / 重试」（页面工具未登录实测，整页只发了 3 次接口请求，都不是社区接口）。\\n\\n## 原因\\n\\n- 线上 OL 主包是 `/assets/index-DgKdBFEz.js`，包里的服务门控表是 `{\\\"php\\\":true,\\\"golang\\\":false,\\\"hichat\\\":true,\\\"bbsv2\\\":false}`。\\n- 前端生产包里只要某个服务被标成「没配置」，就不发请求、直接显示错误态（不拿假数据冒充）。社区（bbsv2）被标成没配置，所以一个社区请求都没发。\\n- 这个包是用 online 分支旧提交打的，那时 online 环境只配了 php，还没配 bbsv2 地址。\\n\\n## 后端是通的\\n\\n- `https://www.falive.com/bbsv2/thread/listCursor`、`/bbsv2/index/recommend`：不带签名返回 -800「非法请求」，属正常（正式请求由前端签名）。\\n- `https://www.falive.com/bbsv2/preload/threadDetail`：返回缺 tid 参数的 -1，说明服务可达。\\n\\n## 处理\\n\\n- 代码不用改：online 分支最新提交已经把 OL 的 bbsv2 / php 地址配成 [www.falive.com](http://www.falive.com)，Go 也打开了。\\n- 用 online 分支最新代码重新打 OL 包并部署；部署后打开 /square，应能看到 `/bbsv2/thread/listCursor`、`/bbsv2/index/recommend` 请求，并且出帖子。\\n- 附带说明：Google 登录 client_id 的配置还在开发分支，没进 online。要让 OL 这次也带上 Google 登录按钮，需要先合进 online，再一起打包。\",\n      \"document_id\": \"MLsxdzKaDonmqnxhoZElUkoJgtf\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

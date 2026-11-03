@@ -1,0 +1,20 @@
+{
+  "messageId": "om_x100b61ac0f40fca0ffc4b69aa492f5a",
+  "fetchedAt": "2026-11-03T12:18:44.511Z",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "im",
+    "+messages-mget",
+    "--as",
+    "user",
+    "--message-ids",
+    "om_x100b61ac0f40fca0ffc4b69aa492f5a",
+    "--no-reactions",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"messages\": [\n      {\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"content\": \"PRE環境\",\n        \"create_time\": \"2026-11-03 10:50\",\n        \"deleted\": false,\n        \"message_app_link\": \"https://applink.larksuite.com/client/chat/open?openChatId=oc_40621901e1583e623f6133e8c66d352e\\u0026position=767\",\n        \"message_id\": \"om_x100b61ac0f40fca0ffc4b69aa492f5a\",\n        \"message_position\": \"767\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_76eea7f1089ccfb66678300fe4bc4a40\",\n          \"id_type\": \"open_id\",\n          \"name\": \"HTStone.z\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"149af6980f06577c\"\n        },\n        \"updated\": false\n      }\n    ],\n    \"total\": 1\n  }\n}\n",
+  "stderr": ""
+}

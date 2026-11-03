@@ -1,0 +1,46 @@
+{
+  "threadId": "omt_19b4553e9a56997f",
+  "fetchedAt": "2026-11-03T12:22:50.842Z",
+  "ok": true,
+  "commands": [
+    [
+      "lark-cli",
+      "api",
+      "GET",
+      "/open-apis/im/v1/messages",
+      "--as",
+      "user",
+      "--params",
+      "{\"container_id_type\":\"thread\",\"container_id\":\"omt_19b4553e9a56997f\",\"page_size\":50,\"sort_type\":\"ByCreateTimeAsc\"}",
+      "--page-all",
+      "--page-limit",
+      "0",
+      "--format",
+      "json"
+    ],
+    [
+      "lark-cli",
+      "im",
+      "+threads-messages-list",
+      "--as",
+      "user",
+      "--thread",
+      "omt_19b4553e9a56997f",
+      "--order",
+      "asc",
+      "--page-size",
+      "50",
+      "--page-all",
+      "--page-limit",
+      "100",
+      "--no-reactions",
+      "--download-resources",
+      "--format",
+      "json"
+    ]
+  ],
+  "api": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"items\": [\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"@_user_1 怎么测试对应接口\\\"}\"\n        },\n        \"chat_default_name\": \"Falive PHP后端群\",\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1792138786892\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_caf1610a679ff12b9b92204f37572491\",\n            \"id_type\": \"open_id\",\n            \"key\": \"@_user_1\",\n            \"name\": \"Aven.Bot\",\n            \"tenant_key\": \"164beab51542977c\"\n          }\n        ],\n        \"message_id\": \"om_x100b6229ace0b4a8ed4ac105b1275cc\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b622991b64938ed359b70ad3ed3e\",\n        \"root_id\": \"om_x100b622991b64938ed359b70ad3ed3e\",\n        \"sender\": {\n          \"id\": \"ou_d24c070cfea7570478d3d61ced55de0c\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"144dc2a94988d77e\"\n        },\n        \"thread_id\": \"omt_19b4553e9a56997f\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"1792138787127\",\n        \"updated\": true\n      },\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"测试下 接口 fameEx/market/symbol/list @_user_1\\\"}\"\n        },\n        \"chat_default_name\": \"Falive PHP后端群\",\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1792148528103\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_caf1610a679ff12b9b92204f37572491\",\n            \"id_type\": \"open_id\",\n            \"key\": \"@_user_1\",\n            \"name\": \"Aven.Bot\",\n            \"tenant_key\": \"164beab51542977c\"\n          }\n        ],\n        \"message_id\": \"om_x100b62140dcc88a0ed4a56c3803251f\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b622991b64938ed359b70ad3ed3e\",\n        \"root_id\": \"om_x100b622991b64938ed359b70ad3ed3e\",\n        \"sender\": {\n          \"id\": \"ou_d24c070cfea7570478d3d61ced55de0c\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"144dc2a94988d77e\"\n        },\n        \"thread_id\": \"omt_19b4553e9a56997f\",\n        \"thread_message_position\": \"1\",\n        \"update_time\": \"1792148528252\",\n        \"updated\": true\n      }\n    ],\n    \"page_token\": \"\"\n  }\n}\n",
+  "apiStderr": "[page 1] fetching...\n",
+  "rendered": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"messages\": [\n      {\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"content\": \"@Aven.Bot 怎么测试对应接口\",\n        \"create_time\": \"2026-10-16 12:19\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_caf1610a679ff12b9b92204f37572491\",\n            \"key\": \"@_user_1\",\n            \"name\": \"Aven.Bot\"\n          }\n        ],\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026open_thread_id=omt_19b4553e9a56997f\\u0026openchatid=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026openthreadid=omt_19b4553e9a56997f\\u0026thread_position=0\",\n        \"message_id\": \"om_x100b6229ace0b4a8ed4ac105b1275cc\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_d24c070cfea7570478d3d61ced55de0c\",\n          \"id_type\": \"open_id\",\n          \"name\": \"HQUCWilliam.m\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"144dc2a94988d77e\"\n        },\n        \"thread_id\": \"omt_19b4553e9a56997f\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"2026-10-16 12:19\",\n        \"updated\": true\n      },\n      {\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"content\": \"测试下 接口 fameEx/market/symbol/list @Aven.Bot\",\n        \"create_time\": \"2026-10-16 15:02\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_caf1610a679ff12b9b92204f37572491\",\n            \"key\": \"@_user_1\",\n            \"name\": \"Aven.Bot\"\n          }\n        ],\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026open_thread_id=omt_19b4553e9a56997f\\u0026openchatid=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026openthreadid=omt_19b4553e9a56997f\\u0026thread_position=1\",\n        \"message_id\": \"om_x100b62140dcc88a0ed4a56c3803251f\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_d24c070cfea7570478d3d61ced55de0c\",\n          \"id_type\": \"open_id\",\n          \"name\": \"HQUCWilliam.m\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"144dc2a94988d77e\"\n        },\n        \"thread_id\": \"omt_19b4553e9a56997f\",\n        \"thread_message_position\": \"1\",\n        \"update_time\": \"2026-10-16 15:02\",\n        \"updated\": true\n      }\n    ],\n    \"page_token\": \"\",\n    \"thread_id\": \"omt_19b4553e9a56997f\",\n    \"total\": 2\n  },\n  \"meta\": {\n    \"pagination\": {\n      \"complete\": true,\n      \"pages\": 1,\n      \"items\": 2\n    }\n  }\n}\n",
+  "renderedStderr": ""
+}

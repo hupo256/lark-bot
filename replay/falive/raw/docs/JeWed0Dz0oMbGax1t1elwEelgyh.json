@@ -1,0 +1,26 @@
+{
+  "token": "JeWed0Dz0oMbGax1t1elwEelgyh",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/JeWed0Dz0oMbGax1t1elwEelgyh",
+  "fetchedAt": "2026-11-03T12:17:19.790Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/JeWed0Dz0oMbGax1t1elwEelgyh",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>OL /hc-ws 行情推送复测（细节）</title>\\n\\n# OL /hc-ws 行情推送复测（10-30 11:55 +04）\\n\\n结论：www.falive.com 的 /hc-ws 已经转到 hichat，握手通过。\\n\\n| 地址 | 结果 | 首帧 |\\n|-|-|-|\\n| wss://www.falive.com/hc-ws（前端实际连的） | HTTP 101，Server: nginx | SRV_NEED_AUTH |\\n| wss://www.falive.com/hc-ws/ | HTTP 101 | SRV_NEED_AUTH |\\n| wss://www.4ees1.xyz/ws/im/echo（直连上游，对照） | HTTP 101 | SRV_NEED_AUTH |\\n\\n- 11:23 那次同一地址回的是 200 + 首页 HTML，现在已经转发。\\n- 测法：curl --http1.1，带 Upgrade: websocket / Connection: Upgrade / Sec-WebSocket-Key / Sec-WebSocket-Version: 13。\\n- 登录后的行情订阅推送这次没走到。\",\n      \"document_id\": \"JeWed0Dz0oMbGax1t1elwEelgyh\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

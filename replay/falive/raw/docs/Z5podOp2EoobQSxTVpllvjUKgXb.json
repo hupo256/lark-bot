@@ -1,0 +1,26 @@
+{
+  "token": "Z5podOp2EoobQSxTVpllvjUKgXb",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/Z5podOp2EoobQSxTVpllvjUKgXb",
+  "fetchedAt": "2026-11-03T12:17:07.013Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/Z5podOp2EoobQSxTVpllvjUKgXb",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>社区发帖 / 评论（细节）</title>\\n\\n# 社区发帖 / 评论迁移（#44）\\n\\n分支：`lark/falive-92d313e9`（本地，未推送）\\n\\n## 做了什么\\n\\n- 广场「发帖」：未登录唤起登录；已登录进新页面 `/square/publish`（稿 368:264917）。\\n- 发帖页：标题（1\\\\~80，计数）、正文（上下限取 `thread/publishRule`，0 = 不限）、图片（最多 `max_images` 张，≤10MB）、视频（1 个，≤50MB）、标签（`forum/allTags` 字典里选，最多 5 个）；右栏「发布须知」。附件选中即上传 `tool/upload`，预览用本地文件，不直接用密文地址；每个附件有上传中 / 失败重试 / 删除。稿里的「存草稿」没做：`thread/create` 没有草稿参数。\\n- 发布结果：已发布跳 `/square/<tid>`；待审提示后回广场。\\n- 帖子详情下方加评论区（稿 368:263569）：「评论 N」、输入框、根评论 + 二级回复（`post/listCursor` 按 pid 升序无限加载）；回复某条评论传 pid；评论点赞 `post/recommend`，本人评论只显示数字。\\n- 列表卡评论数链接到 `/square/<tid>#comments`；详情浮条评论数滚到评论区。\\n\\n## pre 实测（测试号 aven-pretest / uid 508）\\n\\n| 接口 | 结果 |\\n|-|-|\\n| tool/upload | code 0，aid 8613 |\\n| thread/create（JSON，images [8613]，tags [6]） | code 0，tid 18606，pending 0 |\\n| post/create 根评论 | code 0，pid 26894 |\\n| post/create 回复 26894 | code 0，pid 26895 |\\n| post/listCursor tid=18606 | 根评论带 1 条 replies |\\n| post/recommend 别人评论 18604/26890 | 点赞 / 取消都 code 0，已复原 |\\n| post/recommend 自己评论 | 「不能给自己点赞」 |\\n| 评论少于 10 字 | 「内容不能少于10个字」（publishRule content.min=10，评论也适用） |\\n| 15 秒内连发 | 「发帖太频繁，请15秒后再试」 |\\n\\n留在 pre 的测试数据：帖子 18606，评论 26894 / 26895 和一条 schema 校验评论。\\n\\n## 没做 / 注意\\n\\n- 页面没在浏览器里看过；像素对稿留给 UI 走查。\\n- 个人主页（henry）的发帖按钮仍是「敬请期待」，以后可以直接链到 `/square/publish`。\",\n      \"document_id\": \"Z5podOp2EoobQSxTVpllvjUKgXb\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

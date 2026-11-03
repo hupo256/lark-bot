@@ -1,0 +1,26 @@
+{
+  "token": "SVYodDTqco27NexFdghlWxgzgaf",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/SVYodDTqco27NexFdghlWxgzgaf",
+  "fetchedAt": "2026-11-03T12:17:08.974Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/SVYodDTqco27NexFdghlWxgzgaf",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>Bug-4988 商城兑换复测（细节）</title>\\n\\n# Bug-4988 商城兑换复测（2026-10-26）\\n\\n## 结论\\n\\n- 点兑换时前端先查用户有没有绑定 FameEX：**没绑定就跳到 FameEX 去绑定，不调兑换接口**；绑定了才弹确认框，确认后调兑换接口，成功后提示并刷新积分。\\n- HTStone 提供的账号没绑定 FameEX，所以点兑换直接跳转，截图里只有取跳转凭证的请求（oneTimeToken/v2），这是预期流程，不是 bug。\\n- 这个账号只有 40 积分，权益要 3000 积分，即使绑定了也兑换不了。要复测真正的兑换（确认框 → 兑换请求 → 扣积分），需要一个已绑定 FameEX、积分不少于 3000 的 pre 账号。\\n\\n## 实测（pre，经 falivepre.fdsser.com/go-api）\\n\\n| 接口 | 结果 |\\n|-|-|\\n| 登录 | 成功，uid 19483 |\\n| GET /api/member/profile/my | code 0，hasFameExAccount = false |\\n| GET /api/mallRights/getList | code 0，有权益（首条「1000U跟单体验金U」，需 3000 积分），currentPoints 40 |\\n| GET /api/points/task/myPoints | code 0，totalPoints 40 |\\n\\n## 后续\\n\\n- HTStone：请给一个已绑定 FameEX 且积分 ≥ 3000 的 pre 账号（或给 uid 19483 绑定并加积分），再复测兑换。\\n- 复测时如果已绑定却仍直接跳转，是前端问题，找任务中心负责人 adrian；兑换接口报错或积分没扣，是后端问题。\",\n      \"document_id\": \"SVYodDTqco27NexFdghlWxgzgaf\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

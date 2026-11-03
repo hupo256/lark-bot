@@ -1,0 +1,46 @@
+{
+  "threadId": "omt_19bc2f11024f5850",
+  "fetchedAt": "2026-11-03T12:23:25.577Z",
+  "ok": true,
+  "commands": [
+    [
+      "lark-cli",
+      "api",
+      "GET",
+      "/open-apis/im/v1/messages",
+      "--as",
+      "user",
+      "--params",
+      "{\"container_id_type\":\"thread\",\"container_id\":\"omt_19bc2f11024f5850\",\"page_size\":50,\"sort_type\":\"ByCreateTimeAsc\"}",
+      "--page-all",
+      "--page-limit",
+      "0",
+      "--format",
+      "json"
+    ],
+    [
+      "lark-cli",
+      "im",
+      "+threads-messages-list",
+      "--as",
+      "user",
+      "--thread",
+      "omt_19bc2f11024f5850",
+      "--order",
+      "asc",
+      "--page-size",
+      "50",
+      "--page-all",
+      "--page-limit",
+      "100",
+      "--no-reactions",
+      "--download-resources",
+      "--format",
+      "json"
+    ]
+  ],
+  "api": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"items\": [\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"@_user_1 抱歉tag錯人\\\"}\"\n        },\n        \"chat_default_name\": \"Falive产研技术沟通群\",\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1792649230105\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_178b10c243b33c567f5074901e0d85ab\",\n            \"id_type\": \"open_id\",\n            \"key\": \"@_user_1\",\n            \"name\": \"mainly\",\n            \"tenant_key\": \"1975ae86cae6d94b\"\n          }\n        ],\n        \"message_id\": \"om_x100b62aece2d70a4ffe0ae9a27e70bd\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b62ae334fc8a4ffc3421c17abd0e\",\n        \"root_id\": \"om_x100b62ae334fc8a4ffc3421c17abd0e\",\n        \"sender\": {\n          \"id\": \"ou_76eea7f1089ccfb66678300fe4bc4a40\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"149af6980f06577c\"\n        },\n        \"thread_id\": \"omt_19bc2f11024f5850\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"1792649230248\",\n        \"updated\": true\n      },\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"@_user_1 @_user_2  需要预设图\\\"}\"\n        },\n        \"chat_default_name\": \"Falive产研技术沟通群\",\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1792649277403\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_76eea7f1089ccfb66678300fe4bc4a40\",\n            \"id_type\": \"open_id\",\n            \"key\": \"@_user_1\",\n            \"name\": \"HTStone.z\",\n            \"tenant_key\": \"149af6980f06577c\"\n          },\n          {\n            \"id\": \"ou_6a01315efffdbc2d175591ac4c8269e3\",\n            \"id_type\": \"open_id\",\n            \"key\": \"@_user_2\",\n            \"name\": \"Kevin\",\n            \"tenant_key\": \"164beab51542977c\"\n          }\n        ],\n        \"message_id\": \"om_x100b62aecd190ca0ffaefccd568bfca\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b62ae334fc8a4ffc3421c17abd0e\",\n        \"root_id\": \"om_x100b62ae334fc8a4ffc3421c17abd0e\",\n        \"sender\": {\n          \"id\": \"ou_089c0e5c53df38e1920e9c0013077f84\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"19ce35bba9d7d946\"\n        },\n        \"thread_id\": \"omt_19bc2f11024f5850\",\n        \"thread_message_position\": \"1\",\n        \"update_time\": \"1792649277553\",\n        \"updated\": true\n      },\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"https://www.figma.com/design/IwPvl4wA0Pc7ia8IHyoLK5/Falive?node-id=1055-64852\\u0026t=yRvfg6K2KhGI1PaD-1 预设封面已补充\\\"}\"\n        },\n        \"chat_default_name\": \"Falive产研技术沟通群\",\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1792651486148\",\n        \"deleted\": false,\n        \"message_id\": \"om_x100b62af432cfca0ff59537750432c5\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b62ae334fc8a4ffc3421c17abd0e\",\n        \"root_id\": \"om_x100b62ae334fc8a4ffc3421c17abd0e\",\n        \"sender\": {\n          \"id\": \"ou_ce6b5eff118eb641c970bd957feba72a\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19bc2f11024f5850\",\n        \"thread_message_position\": \"2\",\n        \"update_time\": \"1792651486148\",\n        \"updated\": false\n      }\n    ],\n    \"page_token\": \"\"\n  }\n}\n",
+  "apiStderr": "[page 1] fetching...\n",
+  "rendered": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"messages\": [\n      {\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"content\": \"@mainly 抱歉tag錯人\",\n        \"create_time\": \"2026-10-22 10:07\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_178b10c243b33c567f5074901e0d85ab\",\n            \"key\": \"@_user_1\",\n            \"name\": \"mainly\"\n          }\n        ],\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_40621901e1583e623f6133e8c66d352e\\u0026open_thread_id=omt_19bc2f11024f5850\\u0026openchatid=oc_40621901e1583e623f6133e8c66d352e\\u0026openthreadid=omt_19bc2f11024f5850\\u0026thread_position=0\",\n        \"message_id\": \"om_x100b62aece2d70a4ffe0ae9a27e70bd\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_76eea7f1089ccfb66678300fe4bc4a40\",\n          \"id_type\": \"open_id\",\n          \"name\": \"HTStone.z\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"149af6980f06577c\"\n        },\n        \"thread_id\": \"omt_19bc2f11024f5850\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"2026-10-22 10:07\",\n        \"updated\": true\n      },\n      {\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"content\": \"@HTStone.z @Kevin  需要预设图\",\n        \"create_time\": \"2026-10-22 10:07\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_76eea7f1089ccfb66678300fe4bc4a40\",\n            \"key\": \"@_user_1\",\n            \"name\": \"HTStone.z\"\n          },\n          {\n            \"id\": \"ou_6a01315efffdbc2d175591ac4c8269e3\",\n            \"key\": \"@_user_2\",\n            \"name\": \"Kevin\"\n          }\n        ],\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_40621901e1583e623f6133e8c66d352e\\u0026open_thread_id=omt_19bc2f11024f5850\\u0026openchatid=oc_40621901e1583e623f6133e8c66d352e\\u0026openthreadid=omt_19bc2f11024f5850\\u0026thread_position=1\",\n        \"message_id\": \"om_x100b62aecd190ca0ffaefccd568bfca\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_089c0e5c53df38e1920e9c0013077f84\",\n          \"id_type\": \"open_id\",\n          \"name\": \"Mateo\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"19ce35bba9d7d946\"\n        },\n        \"thread_id\": \"omt_19bc2f11024f5850\",\n        \"thread_message_position\": \"1\",\n        \"update_time\": \"2026-10-22 10:07\",\n        \"updated\": true\n      },\n      {\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"content\": \"https://www.figma.com/design/IwPvl4wA0Pc7ia8IHyoLK5/Falive?node-id=1055-64852\\u0026t=yRvfg6K2KhGI1PaD-1 预设封面已补充\",\n        \"create_time\": \"2026-10-22 10:44\",\n        \"deleted\": false,\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_40621901e1583e623f6133e8c66d352e\\u0026open_thread_id=omt_19bc2f11024f5850\\u0026openchatid=oc_40621901e1583e623f6133e8c66d352e\\u0026openthreadid=omt_19bc2f11024f5850\\u0026thread_position=2\",\n        \"message_id\": \"om_x100b62af432cfca0ff59537750432c5\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_ce6b5eff118eb641c970bd957feba72a\",\n          \"id_type\": \"open_id\",\n          \"name\": \"Ace\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19bc2f11024f5850\",\n        \"thread_message_position\": \"2\",\n        \"updated\": false\n      }\n    ],\n    \"page_token\": \"\",\n    \"thread_id\": \"omt_19bc2f11024f5850\",\n    \"total\": 3\n  },\n  \"meta\": {\n    \"pagination\": {\n      \"complete\": true,\n      \"pages\": 1,\n      \"items\": 3\n    }\n  }\n}\n",
+  "renderedStderr": ""
+}

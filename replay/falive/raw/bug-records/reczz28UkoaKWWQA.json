@@ -1,0 +1,26 @@
+{
+  "recordId": "reczz28UkoaKWWQA",
+  "why": "bug-5168",
+  "fetchedAt": "2026-11-03T12:18:27.554Z",
+  "version": "now",
+  "note": "拉取时的最新状态（状态 / 备注 / 测试结果可能晚于消息当时）",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "base",
+    "+record-get",
+    "--as",
+    "user",
+    "--base-token",
+    "<bugTable.appToken>",
+    "--table-id",
+    "tblbJYjrxZsPe40V",
+    "--record-id",
+    "reczz28UkoaKWWQA",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"data\": [\n      [\n        \"Bug-5168\",\n        null,\n        [\n          \"待处理\"\n        ],\n        null,\n        null,\n        \"PM-3254\",\n        \"2026-11-02T13:15:00.000+04:00\",\n        \"Product\",\n        \"2026-11-02T13:08:15.000+04:00\",\n        null,\n        \"Falive\",\n        null,\n        null,\n        [\n          {\n            \"id\": \"ou_57bd40c686c743f8def7d503c70e8491\",\n            \"name\": \"HTJames.y\"\n          }\n        ],\n        null,\n        \"登入 Falive App \\n向下滑動到「主播推薦」的區塊\\n點擊主播頭像\\n顯示直播間，而非主播資訊\\n\\n*可以參考 Hichat 的圖片，Hichat 是點擊主播後進入到主播的資訊頁，而非直播間\",\n        \"2026-11-02T13:08:16.757+04:00\",\n        \"【falive一期】后端/web/app\",\n        \"[Falive App] 首頁，主播推薦，點擊主播頭像未顯示主播資訊，而是進入直播間\",\n        null,\n        null,\n        [\n          \"Pre\"\n        ],\n        [\n          {\n            \"id\": \"ou_57bd40c686c743f8def7d503c70e8491\",\n            \"name\": \"HTJames.y\"\n          }\n        ],\n        [\n          {\n            \"file_token\": \"JUIxbFmrnoWK6mxbFYLl7dQ3g2e\",\n            \"name\": \"Hichat-參考2.jpeg\",\n            \"size\": 173668\n          },\n          {\n            \"file_token\": \"OWCabryzAowVjQxEWM8lXwORgJb\",\n            \"name\": \"Hichat-參考1.jpeg\",\n            \"size\": 130995\n          },\n          {\n            \"file_token\": \"GhVCbUnrAo5sC8x88WflBCgKgOc\",\n            \"name\": \"Bug-5168-Falive-1.jpeg\",\n            \"size\": 109948\n          },\n          {\n            \"file_token\": \"VfkubuQBaoKfoQxrwuJlZGljgzf\",\n            \"name\": \"Bug-5168-Falive-2.jpeg\",\n            \"size\": 54295\n          }\n        ],\n        [\n          {\n            \"id\": \"ou_089c0e5c53df38e1920e9c0013077f84\",\n            \"name\": \"Mateo\"\n          }\n        ],\n        \"pre测试中\",\n        [\n          \"App\"\n        ],\n        null,\n        \"1.0.3\"\n      ]\n    ],\n    \"field_id_list\": [\n      \"fldmxTvHTq\",\n      \"fld0Pe5U7G\",\n      \"fld1i6PDQT\",\n      \"fld1u0NBC5\",\n      \"fld4kVwoLs\",\n      \"fld52WVyfK\",\n      \"fld7ChUvSH\",\n      \"fld8fzIptW\",\n      \"fld8Q2XlJB\",\n      \"fldAh2Kyj0\",\n      \"fldBuyLemA\",\n      \"fldcuNmiVK\",\n      \"fldD77oYrZ\",\n      \"fldEiiSdHh\",\n      \"fldERqfLpq\",\n      \"fldGsVI1Y0\",\n      \"fldHgasO5A\",\n      \"fldhpTkoXE\",\n      \"fldIuAN6te\",\n      \"fldJ9rdSbO\",\n      \"fldMLCmFW2\",\n      \"fldPyoP99S\",\n      \"fldsV39i3n\",\n      \"fldu80s8wJ\",\n      \"fldw1TK5PO\",\n      \"fldwobTvnQ\",\n      \"fldyh4ldX6\",\n      \"fldYisQZkD\",\n      \"fldZHrw01k\"\n    ],\n    \"field_type_list\": [\n      \"auto_number\",\n      \"text\",\n      \"select\",\n      \"lookup\",\n      \"link\",\n      \"text\",\n      \"updated_at\",\n      \"lookup\",\n      \"created_at\",\n      \"text\",\n      \"lookup\",\n      \"select\",\n      \"attachment\",\n      \"user\",\n      \"datetime\",\n      \"text\",\n      \"datetime\",\n      \"lookup\",\n      \"text\",\n      \"attachment\",\n      \"datetime\",\n      \"select\",\n      \"updated_by\",\n      \"attachment\",\n      \"user\",\n      \"lookup\",\n      \"select\",\n      \"text\",\n      \"text\"\n    ],\n    \"fields\": [\n      \"Bug编号\",\n      \"测试结果\",\n      \"状态\",\n      \"测试人员所在部门\",\n      \"父記錄\",\n      \"需求ID\",\n      \"最后更新时间\",\n      \"解决人员所在部门\",\n      \"创建时间\",\n      \"项目备注\",\n      \"所属项目组\",\n      \"严重程度\",\n      \"测试结果截图\",\n      \"测试人员\",\n      \"预计上线时间\",\n      \"问题描述（复现步骤）\",\n      \"bug填写日期\",\n      \"需求名称\",\n      \"问题标题\",\n      \"附件\",\n      \"修复完成时间\",\n      \"环境\",\n      \"记录最后修改人\",\n      \"问题截图\",\n      \"负责RD\",\n      \"需求阶段\",\n      \"涉及端口\",\n      \"备注\",\n      \"Sprint\"\n    ],\n    \"has_more\": false,\n    \"record_id_list\": [\n      \"reczz28UkoaKWWQA\"\n    ],\n    \"rev\": 21326,\n    \"timezone\": \"Asia/Dubai\"\n  }\n}\n",
+  "stderr": ""
+}

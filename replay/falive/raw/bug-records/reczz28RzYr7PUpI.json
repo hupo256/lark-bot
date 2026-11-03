@@ -1,0 +1,26 @@
+{
+  "recordId": "reczz28RzYr7PUpI",
+  "why": "bug-5001",
+  "fetchedAt": "2026-11-03T12:17:54.792Z",
+  "version": "now",
+  "note": "拉取时的最新状态（状态 / 备注 / 测试结果可能晚于消息当时）",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "base",
+    "+record-get",
+    "--as",
+    "user",
+    "--base-token",
+    "<bugTable.appToken>",
+    "--table-id",
+    "tblbJYjrxZsPe40V",
+    "--record-id",
+    "reczz28RzYr7PUpI",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"data\": [\n      [\n        \"Bug-5001\",\n        \"[10/28 James.y] 複驗通過\",\n        [\n          \"Pre测试通过\"\n        ],\n        null,\n        null,\n        \"PM-3254\",\n        \"2026-10-29T11:49:18.000+04:00\",\n        \"Backend\",\n        \"2026-10-26T13:36:47.000+04:00\",\n        null,\n        \"Falive\",\n        null,\n        [\n          {\n            \"file_token\": \"NjTybXi6toBnqnxHjoslChQmgte\",\n            \"name\": \"Bug-5001-Pass.png\",\n            \"size\": 421466\n          }\n        ],\n        [\n          {\n            \"id\": \"ou_57bd40c686c743f8def7d503c70e8491\",\n            \"name\": \"HTJames.y\"\n          }\n        ],\n        null,\n        \"1. 進入 Hichat \\n2. 點擊 【社區】\\n3. 發帖 \\u003e 評論 \\u003e 回覆評論\\n4. 顯示 \\\"評論內容\\\" 驗證成功\\n5. 顯示 \\\"回覆評論內容\\\" 以及 \\\"被回覆的原文\\\" 驗證成功\\n6. 進入 Falive \\n7. 點擊 【社區廣場】\\n8. 點擊查看 Step2 Hichat 發帖的內容與評論\\n9. 顯示 \\\"評論內容\\\" 驗證成功\\n10. 顯示 \\\"回覆評論內容\\\" 以及 \\\"被回覆的原文\\\" 驗證失敗\",\n        \"2026-10-26T13:36:48.581+04:00\",\n        \"【falive一期】后端/web/app\",\n        \"Hichat 回覆評論 \\u003e Falive 回覆顯示位置不對\",\n        null,\n        \"2026-10-28T00:00:00.000+04:00\",\n        [\n          \"Pre\"\n        ],\n        [\n          {\n            \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n            \"name\": \"World\"\n          }\n        ],\n        [\n          {\n            \"file_token\": \"LplHbOzZVoBqS9x5z6Blba9ggOh\",\n            \"name\": \"回覆評論-Falive-驗證失敗.png\",\n            \"size\": 167563\n          },\n          {\n            \"file_token\": \"Be2sbnmdPou22dxcNGKlPE1lg2h\",\n            \"name\": \"回覆評論-Hichat.png\",\n            \"size\": 114915\n          }\n        ],\n        [\n          {\n            \"id\": \"ou_0474e2a35ff1054cdbc0bb9d9d9c9766\",\n            \"name\": \"HQUCEncone\"\n          },\n          {\n            \"id\": \"ou_d24c070cfea7570478d3d61ced55de0c\",\n            \"name\": \"HQUCWilliam.m\"\n          }\n        ],\n        \"pre测试中\",\n        [\n          \"Backend\"\n        ],\n        \"10-26 pre 实测（bot）：帖子 tid 18632「Reply Test」，Falive 详情页调 bbsv2 post/listCursor?tid=18632。Hichat 里「Reply Testing 02」是回复「Reply Testing 01」的（Hichat 显示「回复 James.y+falive4 发表于…Reply Testing 01」引用块），但接口返回 pid 26942 的 repid=0、premsg=\\\"\\\"、没有 reply_to_pid，被当成独立根评论，也拿不到被回复的原文；同帖在 Falive 发的回复（26944 / 26945）repid 指向父评论，Falive 正常挂在父评论下。根因在社区后端：Hichat 的「回复评论」（引用回复）没有写 repid / 引用信息，或 listCursor 没返回。请 bbsv2 把这类回复的 repid（或引用原文字段）返回；按 repid 返回后 Falive 前端无需改动即可挂到原评论下，若改用新字段告知前端适配。\",\n        \"1.0.3\"\n      ]\n    ],\n    \"field_id_list\": [\n      \"fldmxTvHTq\",\n      \"fld0Pe5U7G\",\n      \"fld1i6PDQT\",\n      \"fld1u0NBC5\",\n      \"fld4kVwoLs\",\n      \"fld52WVyfK\",\n      \"fld7ChUvSH\",\n      \"fld8fzIptW\",\n      \"fld8Q2XlJB\",\n      \"fldAh2Kyj0\",\n      \"fldBuyLemA\",\n      \"fldcuNmiVK\",\n      \"fldD77oYrZ\",\n      \"fldEiiSdHh\",\n      \"fldERqfLpq\",\n      \"fldGsVI1Y0\",\n      \"fldHgasO5A\",\n      \"fldhpTkoXE\",\n      \"fldIuAN6te\",\n      \"fldJ9rdSbO\",\n      \"fldMLCmFW2\",\n      \"fldPyoP99S\",\n      \"fldsV39i3n\",\n      \"fldu80s8wJ\",\n      \"fldw1TK5PO\",\n      \"fldwobTvnQ\",\n      \"fldyh4ldX6\",\n      \"fldYisQZkD\",\n      \"fldZHrw01k\"\n    ],\n    \"field_type_list\": [\n      \"auto_number\",\n      \"text\",\n      \"select\",\n      \"lookup\",\n      \"link\",\n      \"text\",\n      \"updated_at\",\n      \"lookup\",\n      \"created_at\",\n      \"text\",\n      \"lookup\",\n      \"select\",\n      \"attachment\",\n      \"user\",\n      \"datetime\",\n      \"text\",\n      \"datetime\",\n      \"lookup\",\n      \"text\",\n      \"attachment\",\n      \"datetime\",\n      \"select\",\n      \"updated_by\",\n      \"attachment\",\n      \"user\",\n      \"lookup\",\n      \"select\",\n      \"text\",\n      \"text\"\n    ],\n    \"fields\": [\n      \"Bug编号\",\n      \"测试结果\",\n      \"状态\",\n      \"测试人员所在部门\",\n      \"父記錄\",\n      \"需求ID\",\n      \"最后更新时间\",\n      \"解决人员所在部门\",\n      \"创建时间\",\n      \"项目备注\",\n      \"所属项目组\",\n      \"严重程度\",\n      \"测试结果截图\",\n      \"测试人员\",\n      \"预计上线时间\",\n      \"问题描述（复现步骤）\",\n      \"bug填写日期\",\n      \"需求名称\",\n      \"问题标题\",\n      \"附件\",\n      \"修复完成时间\",\n      \"环境\",\n      \"记录最后修改人\",\n      \"问题截图\",\n      \"负责RD\",\n      \"需求阶段\",\n      \"涉及端口\",\n      \"备注\",\n      \"Sprint\"\n    ],\n    \"has_more\": false,\n    \"record_id_list\": [\n      \"reczz28RzYr7PUpI\"\n    ],\n    \"rev\": 21326,\n    \"timezone\": \"Asia/Dubai\"\n  }\n}\n",
+  "stderr": ""
+}

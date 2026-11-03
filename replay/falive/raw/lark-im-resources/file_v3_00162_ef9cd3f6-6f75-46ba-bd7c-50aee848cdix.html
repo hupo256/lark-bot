@@ -1,0 +1,979 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>前台私聊助理链路</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+<style>
+  :root {
+    --bg: #F3F5F4;
+    --surface: #FFFFFF;
+    --surface-2: #E8EDEB;
+    --ink: #16201C;
+    --muted: #56645E;
+    --line: #D2DAD6;
+    --line-strong: #9DADA6;
+    --accent: #0B6E60;
+    --accent-soft: #DCEFEA;
+    --warn: #9A5C0A;
+    --warn-soft: #F7EAD5;
+    --crit: #A8352A;
+    --crit-soft: #F6E0DC;
+    --ok: #2F6B34;
+    --ok-soft: #E0EEDD;
+    --sans: "IBM Plex Sans", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    --cjk: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #0E1312;
+      --surface: #151C1A;
+      --surface-2: #1D2623;
+      --ink: #E1E8E5;
+      --muted: #98A6A1;
+      --line: #29342F;
+      --line-strong: #4C5D56;
+      --accent: #4CC3AD;
+      --accent-soft: #15322C;
+      --warn: #E3A64C;
+      --warn-soft: #382A13;
+      --crit: #EB7A66;
+      --crit-soft: #3B1E19;
+      --ok: #86C47E;
+      --ok-soft: #1C3120;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0E1312;
+    --surface: #151C1A;
+    --surface-2: #1D2623;
+    --ink: #E1E8E5;
+    --muted: #98A6A1;
+    --line: #29342F;
+    --line-strong: #4C5D56;
+    --accent: #4CC3AD;
+    --accent-soft: #15322C;
+    --warn: #E3A64C;
+    --warn-soft: #382A13;
+    --crit: #EB7A66;
+    --crit-soft: #3B1E19;
+    --ok: #86C47E;
+    --ok-soft: #1C3120;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.7;
+    padding-inline: 16px;
+    padding-block: 0;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; padding-block: 40px 80px; }
+
+  a { color: var(--accent); }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+  code, .mono { font-family: var(--mono); font-size: 0.86em; }
+  code {
+    background: var(--surface-2);
+    padding: 1px 5px;
+    border-radius: 4px;
+    overflow-wrap: anywhere;
+  }
+
+  /* ---------- header ---------- */
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0;
+  }
+  h1 {
+    font-family: var(--cjk);
+    font-weight: 700;
+    font-size: clamp(26px, 4.2vw, 34px);
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+    margin: 10px 0 12px;
+    text-wrap: balance;
+  }
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 18px;
+    color: var(--muted);
+    font-size: 13px;
+    margin: 0 0 16px;
+  }
+  .lead { max-width: 70ch; margin: 0; }
+  nav.toc { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+  nav.toc a {
+    font-size: 13px;
+    padding: 3px 11px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--ink);
+    text-decoration: none;
+  }
+  nav.toc a:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ---------- sections ---------- */
+  section { margin-top: 60px; scroll-margin-top: 16px; }
+  h2 {
+    font-family: var(--cjk);
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.35;
+    margin: 0 0 6px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 12px;
+    text-wrap: balance;
+  }
+  h2 .src {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--muted);
+  }
+  h3 {
+    font-family: var(--cjk);
+    font-size: 16px;
+    font-weight: 700;
+    margin: 32px 0 8px;
+  }
+  section > p, .prose p { max-width: 72ch; margin: 8px 0 0; }
+  ul.facts { margin: 10px 0 0; padding-left: 1.2em; max-width: 76ch; }
+  ul.facts li + li { margin-top: 6px; }
+  ul.facts strong { font-weight: 600; }
+
+  /* ---------- figures ---------- */
+  figure {
+    margin: 20px 0 0;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+  }
+  .fig-scroll { overflow-x: auto; padding: 18px 16px 12px; }
+  .fig-scroll svg {
+    display: block;
+    width: 100%;
+    min-width: 940px;
+    height: auto;
+    color: var(--muted);
+    font-family: var(--sans);
+  }
+  figcaption {
+    border-top: 1px solid var(--line);
+    padding: 11px 16px 13px;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  /* svg classes */
+  .d-box  { fill: var(--surface);   stroke: var(--line-strong); stroke-width: 1.2; }
+  .d-core { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.4; }
+  .d-warn { fill: var(--warn-soft); stroke: var(--warn); stroke-width: 1.4; }
+  .d-ok   { fill: var(--ok-soft);   stroke: var(--ok); stroke-width: 1.3; }
+  .d-dim  { fill: var(--surface-2); stroke: var(--line-strong); stroke-width: 1.1; stroke-dasharray: 4 3; }
+  .d-t    { fill: var(--ink); font-size: 13px; font-weight: 600; font-family: var(--cjk); }
+  .d-t.d-m { font-family: var(--mono); font-weight: 500; }
+  .d-s    { fill: var(--muted); font-size: 11px; }
+  .d-m    { font-family: var(--mono); }
+  .d-r    { fill: var(--ink); font-size: 12px; }
+  .d-n    { fill: var(--accent); font-size: 11px; font-family: var(--mono); font-weight: 500; }
+  .d-h    { fill: var(--accent); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; font-family: var(--cjk); }
+  .d-tag  { fill: var(--accent); font-size: 10.5px; font-family: var(--mono); font-weight: 500; }
+  .d-lab  { fill: var(--muted); font-size: 10.5px; }
+  .d-line { stroke: currentColor; stroke-width: 1.3; fill: none; }
+  .d-dash { stroke-dasharray: 4 3; }
+  .d-sep  { stroke: var(--accent); stroke-width: 1; opacity: 0.5; }
+  .d-warn-t { fill: var(--warn); }
+
+  /* ---------- formula ---------- */
+  .formula {
+    margin-top: 18px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: grid;
+    gap: 6px;
+  }
+  .formula .label { font-size: 12px; color: var(--muted); letter-spacing: 0.04em; }
+  .formula .expr {
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--ink);
+    overflow-x: auto;
+    white-space: nowrap;
+    padding-bottom: 2px;
+  }
+  .formula .expr b { color: var(--accent); font-weight: 500; }
+  .formula p { margin: 0; font-size: 13.5px; color: var(--muted); max-width: 80ch; }
+
+  /* ---------- tables ---------- */
+  .tbl {
+    margin-top: 16px;
+    overflow-x: auto;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+  }
+  table { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 13.5px; line-height: 1.6; }
+  th, td { padding: 10px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+  thead th {
+    background: var(--surface-2);
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 12.5px;
+    white-space: nowrap;
+  }
+  tbody tr:last-child td, tbody tr:last-child th { border-bottom: 0; }
+  tbody th { font-weight: 600; white-space: nowrap; color: var(--ink); }
+  td .hl-warn { color: var(--warn); font-weight: 600; }
+  td .hl-crit { color: var(--crit); font-weight: 600; }
+  td .hl-dim  { color: var(--muted); }
+
+  .aside {
+    margin-top: 14px;
+    font-size: 13.5px;
+    color: var(--muted);
+    max-width: 80ch;
+  }
+
+  /* ---------- steps ---------- */
+  ol.steps { list-style: none; counter-reset: step; margin: 16px 0 0; padding: 0; display: grid; gap: 12px; max-width: 82ch; }
+  ol.steps > li {
+    counter-increment: step;
+    display: grid;
+    grid-template-columns: 26px 1fr;
+    column-gap: 12px;
+  }
+  ol.steps > li::before {
+    content: counter(step);
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    display: grid;
+    place-items: center;
+    margin-top: 2px;
+  }
+  ol.steps > li > div > strong { font-weight: 600; }
+  ol.steps ul { margin: 6px 0 0; padding-left: 1.1em; }
+  ol.steps ul li + li { margin-top: 3px; }
+  ol.steps .loc { color: var(--muted); font-size: 12.5px; }
+
+  /* ---------- sequences ---------- */
+  .seqs {
+    margin-top: 14px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 4px 16px;
+  }
+  .seq-row {
+    display: grid;
+    grid-template-columns: 170px 1fr;
+    gap: 6px 16px;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .seq-row:last-child { border-bottom: 0; }
+  .seq-row .who { font-size: 13px; font-weight: 600; }
+  .seq { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .msg {
+    font-size: 13px;
+    padding: 3px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--line-strong);
+    background: var(--surface);
+    white-space: nowrap;
+  }
+  .msg.user { background: var(--accent-soft); border-color: var(--accent); }
+  .msg.vir  { border-style: dashed; }
+  .msg.quiet { color: var(--muted); border-color: var(--line); background: var(--surface-2); }
+  .msg.bad  { background: var(--crit-soft); border-color: var(--crit); }
+  .seq .to { color: var(--muted); font-size: 13px; }
+
+  /* ---------- issues ---------- */
+  ol.issues { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+  ol.issues > li {
+    display: grid;
+    grid-template-columns: 40px 1fr;
+    gap: 4px 14px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  ol.issues > li:last-child { border-bottom: 0; }
+  .sev {
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+    border-radius: 5px;
+    padding: 1px 0;
+    height: fit-content;
+    margin-top: 2px;
+  }
+  .sev.hi  { background: var(--crit-soft); color: var(--crit); }
+  .sev.mid { background: var(--warn-soft); color: var(--warn); }
+  .sev.lo  { background: var(--surface-2); color: var(--muted); }
+  ol.issues strong { font-weight: 600; }
+  ol.issues p { margin: 2px 0 0; font-size: 14px; max-width: 80ch; }
+  ol.issues .loc { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-top: 4px; overflow-wrap: anywhere; }
+
+  footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12.5px; }
+
+  @media (max-width: 640px) {
+    .seq-row { grid-template-columns: 1fr; }
+    section { margin-top: 48px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { scroll-behavior: auto !important; }
+  }
+  body { margin: 0; }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">X9 · live / chat · 代码梳理</p>
+    <h1>前台私聊助理：链路与分配规则</h1>
+    <p class="meta">
+      <span>代码版本 <span class="mono">f8e35f99b4</span>（pet-vn/26-09/30#10）</span>
+      <span>2026-09-30</span>
+      <span>静态阅读梳理，未改代码、未联调</span>
+    </p>
+    <p class="lead">前台用户（注册用户或游客）和助理之间的一对一私聊。本页讲三件事：三个入口分别怎样确定助理；一条消息从发出到落库经过哪些环节；分配规则和欢迎语规则。最后列出代码和规则不一致的地方。</p>
+    <nav class="toc" aria-label="目录">
+      <a href="#overview">链路总览</a>
+      <a href="#assign">分配规则</a>
+      <a href="#entries">三个入口对比</a>
+      <a href="#send">发言时序</a>
+      <a href="#welcome">欢迎语</a>
+      <a href="#storage">数据落点</a>
+      <a href="#gaps">已知偏差</a>
+    </nav>
+  </header>
+
+  <!-- ================= 链路总览 ================= -->
+  <section id="overview">
+    <h2>链路总览 <span class="src">app/http/live/ctrl/CChat.php · app/logic/chat/LChatAnchor.php</span></h2>
+    <p>三个入口只在「怎样确定助理」这一步不同，之后都进入同一个 <code>LChatAnchor::sendMessageVoid</code>。同步阶段只写 Redis 并推送；房间、成员、消息由定时器从队列批量写进 MySQL。</p>
+
+    <figure>
+      <div class="fig-scroll">
+        <svg viewBox="0 0 1160 482" role="img" aria-label="前台私聊助理全链路：三个入口分别确定助理，统一进入 sendMessageVoid，同步写入 Redis 并推送给助理，定时器异步落库；助理回复要经过后台平台闸门，再推回前台用户。">
+          <defs>
+            <marker id="ov-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+
+          <!-- column headers -->
+          <text class="d-h" x="111" y="26" text-anchor="middle">入口</text>
+          <text class="d-h" x="351" y="26" text-anchor="middle">确定助理</text>
+          <text class="d-h" x="596" y="26" text-anchor="middle">发言核心</text>
+          <text class="d-h" x="836" y="26" text-anchor="middle">同步写入 / 推送</text>
+          <text class="d-h" x="1060" y="26" text-anchor="middle">接收方 / 异步落库</text>
+
+          <!-- A: entries -->
+          <rect class="d-box" x="16" y="48" width="190" height="76" rx="8"/>
+          <text class="d-t" x="30" y="72">直播间私聊主播</text>
+          <text class="d-s d-m" x="30" y="92">sendToAnchor(anchorId)</text>
+          <text class="d-s" x="30" y="110">先调 anchorHistory 取欢迎语</text>
+
+          <rect class="d-box" x="16" y="148" width="190" height="76" rx="8"/>
+          <text class="d-t" x="30" y="172">按昵称找助理</text>
+          <text class="d-s" x="30" y="192">searchAssistant 搜到并建房</text>
+          <text class="d-s" x="30" y="210">sendToAssistant 指定发送</text>
+
+          <rect class="d-box" x="16" y="248" width="190" height="76" rx="8"/>
+          <text class="d-t" x="30" y="272">帮助中心 / 绑定求助</text>
+          <text class="d-s d-m" x="30" y="292">CUserXing::help(type)</text>
+          <text class="d-s" x="30" y="310">服务端代发固定文案</text>
+
+          <!-- A -> B -->
+          <line class="d-line" x1="206" y1="86" x2="244" y2="86" marker-end="url(#ov-arrow)"/>
+          <line class="d-line" x1="206" y1="186" x2="244" y2="186" marker-end="url(#ov-arrow)"/>
+          <line class="d-line" x1="206" y1="286" x2="244" y2="286" marker-end="url(#ov-arrow)"/>
+
+          <!-- B: pick assistant -->
+          <rect class="d-box" x="246" y="48" width="210" height="76" rx="8"/>
+          <text class="d-t" x="260" y="72">主播级联分配</text>
+          <text class="d-s d-m" x="260" y="92">getAvailableOne</text>
+          <text class="d-s" x="260" y="110">先看绑定，再走五档（见图 2）</text>
+
+          <rect class="d-warn" x="246" y="148" width="210" height="76" rx="8"/>
+          <text class="d-t" x="260" y="172">前端直接指定助理</text>
+          <text class="d-s" x="260" y="192">仅校验 user_type = 管理员</text>
+          <text class="d-s d-warn-t" x="260" y="210">不查 canChat，也不查平台</text>
+
+          <rect class="d-box" x="246" y="248" width="210" height="76" rx="8"/>
+          <text class="d-t" x="260" y="272">按平台助手组分配</text>
+          <text class="d-s d-m" x="260" y="292">getAvailableOneByPlatform</text>
+          <text class="d-s" x="260" y="310">本平台助手组，不看在线状态</text>
+
+          <!-- empty candidate note -->
+          <line class="d-line d-dash" x1="351" y1="324" x2="351" y2="350" marker-end="url(#ov-arrow)"/>
+          <text class="d-lab" x="358" y="341">候选为空</text>
+          <rect class="d-dim" x="246" y="352" width="210" height="46" rx="8"/>
+          <text class="d-t" x="260" y="371">assign = 0，接口报错</text>
+          <text class="d-s d-m" x="260" y="388">ASSIGN_DIALOG_TITLE</text>
+
+          <!-- B -> C -->
+          <line class="d-line" x1="456" y1="86" x2="494" y2="86" marker-end="url(#ov-arrow)"/>
+          <line class="d-line" x1="456" y1="186" x2="494" y2="186" marker-end="url(#ov-arrow)"/>
+          <line class="d-line" x1="456" y1="286" x2="494" y2="286" marker-end="url(#ov-arrow)"/>
+
+          <!-- C: core -->
+          <rect class="d-core" x="496" y="48" width="200" height="276" rx="8"/>
+          <text class="d-t d-m" x="510" y="72">sendMessageVoid</text>
+          <line class="d-sep" x1="506" y1="84" x2="686" y2="84"/>
+          <text class="d-n" x="512" y="106">1</text><text class="d-r" x="528" y="106">冻结检查</text>
+          <text class="d-n" x="512" y="132">2</text><text class="d-r" x="528" y="132">vid = Hashids(助理, 用户)</text>
+          <text class="d-n" x="512" y="158">3</text><text class="d-r" x="528" y="158">seed 去重（本机 APCu）</text>
+          <text class="d-n" x="512" y="184">4</text><text class="d-r" x="528" y="184">登记房间，推入库队列</text>
+          <text class="d-n" x="512" y="210">5</text><text class="d-r" x="528" y="210">首条：先写欢迎语</text>
+          <text class="d-n" x="512" y="236">6</text><text class="d-r" x="528" y="236">sendAnchorMessage</text>
+          <text class="d-n" x="512" y="262">7</text><text class="d-r" x="528" y="262">主播首条：补助理欢迎语</text>
+          <text class="d-n" x="512" y="288">8</text><text class="d-r" x="528" y="288">注册用户：绑定流程回复</text>
+
+          <!-- C -> D bus -->
+          <line class="d-line" x1="696" y1="186" x2="716" y2="186"/>
+          <line class="d-line" x1="716" y1="71" x2="716" y2="295"/>
+          <line class="d-line" x1="716" y1="71" x2="734" y2="71" marker-end="url(#ov-arrow)"/>
+          <line class="d-line" x1="716" y1="127" x2="734" y2="127" marker-end="url(#ov-arrow)"/>
+          <line class="d-line" x1="716" y1="183" x2="734" y2="183" marker-end="url(#ov-arrow)"/>
+          <line class="d-line" x1="716" y1="239" x2="734" y2="239" marker-end="url(#ov-arrow)"/>
+          <line class="d-line" x1="716" y1="295" x2="734" y2="295" marker-end="url(#ov-arrow)"/>
+
+          <!-- D: sync writes -->
+          <rect class="d-box" x="736" y="48" width="200" height="46" rx="7"/>
+          <text class="d-t" x="750" y="67">Redis 历史</text>
+          <text class="d-s" x="750" y="84">hst:{vid} · 最多 300 条 · 3 天</text>
+
+          <rect class="d-box" x="736" y="104" width="200" height="46" rx="7"/>
+          <text class="d-t" x="750" y="123">推送给助理（WS）</text>
+          <text class="d-s" x="750" y="140">UMsg::send · 推送前号码打码</text>
+
+          <rect class="d-box" x="736" y="160" width="200" height="46" rx="7"/>
+          <text class="d-t" x="750" y="179">后台红点 + 私聊列表</text>
+          <text class="d-s" x="750" y="196">roompmvid:2:{助理} · 7 天</text>
+
+          <rect class="d-box" x="736" y="216" width="200" height="46" rx="7"/>
+          <text class="d-t" x="750" y="235">前台会话列表</text>
+          <text class="d-s" x="750" y="252">chat_room_list:{uid}</text>
+
+          <rect class="d-box" x="736" y="272" width="200" height="46" rx="7"/>
+          <text class="d-t" x="750" y="291">入库队列</text>
+          <text class="d-s" x="750" y="308">房间队列 + 消息队列</text>
+
+          <!-- D -> E -->
+          <line class="d-line" x1="936" y1="127" x2="974" y2="127" marker-end="url(#ov-arrow)"/>
+          <text class="d-lab" x="955" y="119" text-anchor="middle">publish</text>
+          <line class="d-line" x1="936" y1="295" x2="974" y2="295" marker-end="url(#ov-arrow)"/>
+          <text class="d-lab" x="955" y="287" text-anchor="middle">lPop</text>
+
+          <!-- E -->
+          <rect class="d-box" x="976" y="104" width="168" height="46" rx="7"/>
+          <text class="d-t" x="990" y="123">助理工作台</text>
+          <text class="d-s" x="990" y="140">msg · newRoom · 红点</text>
+
+          <rect class="d-box" x="976" y="272" width="168" height="46" rx="7"/>
+          <text class="d-t" x="990" y="291">定时器消费</text>
+          <text class="d-s d-m" x="990" y="308">cacheQueueToDb 等</text>
+
+          <line class="d-line" x1="1060" y1="318" x2="1060" y2="344" marker-end="url(#ov-arrow)"/>
+          <rect class="d-box" x="976" y="346" width="168" height="86" rx="7"/>
+          <text class="d-t" x="990" y="366">MySQL</text>
+          <text class="d-s d-m" x="990" y="384">cmf_chat_room_info</text>
+          <text class="d-s d-m" x="990" y="400">cmf_chat_room_user</text>
+          <text class="d-s d-m" x="990" y="416">cmf_chat_message_list</text>
+
+          <!-- reply lane -->
+          <path class="d-line" d="M1144,127 H1152 V458 H836 V444" marker-end="url(#ov-arrow)"/>
+          <text class="d-lab" x="994" y="474" text-anchor="middle">助理回复（后台 sendMessage）</text>
+
+          <rect class="d-box" x="736" y="366" width="200" height="76" rx="8"/>
+          <text class="d-t" x="750" y="386">平台闸门（后台发言）</text>
+          <text class="d-s" x="750" y="404">管理员须 canChat</text>
+          <text class="d-s" x="750" y="420">房间平台属于管理员平台</text>
+          <text class="d-s" x="750" y="436">或管理员已在房内，才放行</text>
+
+          <line class="d-line" x1="736" y1="404" x2="698" y2="404" marker-end="url(#ov-arrow)"/>
+          <text class="d-lab" x="717" y="396" text-anchor="middle">通过</text>
+
+          <rect class="d-box" x="496" y="366" width="200" height="76" rx="8"/>
+          <text class="d-t" x="510" y="386">推回前台用户</text>
+          <text class="d-s d-m" x="510" y="404">noticeWSRoom</text>
+          <text class="d-s" x="510" y="420">同样写历史、推入库队列</text>
+        </svg>
+      </div>
+      <figcaption>图 1 · 前台私聊助理全链路。橙色框是校验缺口：指名私聊只检查对方是管理员。主播级联和平台分配抽不到人时都返回 0，接口报 <span class="mono">ASSIGN_DIALOG_TITLE</span>。</figcaption>
+    </figure>
+
+    <div class="formula">
+      <span class="label">房间 vid 怎么来</span>
+      <div class="expr">vid = Hashids(salt=<b>"pmvid"</b>, 长度 32, 字母表 A–Z0–9).encode(<b>助理 id</b>, <b>用户 id</b>)</div>
+      <p>同一对（助理, 用户）永远得到同一个 vid，不查库就能算出；反解后第 1 位是助理，第 2 位是前台用户。旧版十六进制 vid 反解不出来，只能查 <code>cmf_chat_room_user</code>。实现见 <code>LCreatePmVid</code>。</p>
+    </div>
+  </section>
+
+  <!-- ================= 分配规则 ================= -->
+  <section id="assign">
+    <h2>分配规则 <span class="src">app/caching/user/AUserAssignAnchorAssistant.php</span></h2>
+    <p>主播私聊、视频消息（<code>CChatMsgVideo</code>）和旧接口（<code>inviteRoom</code> / <code>userAssign</code>）都走 <code>getAvailableOne</code>：先看用户有没有绑定的助理，没有才按五档逐级找人。</p>
+
+    <figure>
+      <div class="fig-scroll">
+        <svg viewBox="0 0 1160 262" role="img" aria-label="getAvailableOne 分配阶梯：先看绑定缓存，有效就续期并返回原助理；否则依次尝试主播组在线、主播组离开、与第一档重复的主播组在线、平台保底组、平台助手组。任一档非空就剔除超管、随机抽一人，anchorId 大于 0 时写绑定；五档全空则返回 0 并报错。">
+          <defs>
+            <marker id="ld-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+
+          <text class="d-h" x="88" y="30" text-anchor="middle">先看绑定</text>
+          <text class="d-h" x="580" y="30" text-anchor="middle">五档级联 · 每档先过滤 canChat</text>
+          <text class="d-h" x="1072" y="30" text-anchor="middle">兜底</text>
+
+          <!-- row 1 -->
+          <rect class="d-box" x="22" y="52" width="132" height="78" rx="8"/>
+          <text class="d-t" x="34" y="78">绑定缓存</text>
+          <text class="d-s d-m" x="34" y="98">…:0-{uid}</text>
+          <text class="d-s" x="34" y="116">非超管且 canChat</text>
+
+          <rect class="d-box" x="186" y="52" width="132" height="78" rx="8"/>
+          <text class="d-tag" x="306" y="70" text-anchor="end">T1</text>
+          <text class="d-t" x="198" y="78">主播组 · 在线</text>
+          <text class="d-s" x="198" y="98">主播绑定的助手组</text>
+          <text class="d-s d-m" x="198" y="116">status = 1</text>
+
+          <rect class="d-box" x="350" y="52" width="132" height="78" rx="8"/>
+          <text class="d-tag" x="470" y="70" text-anchor="end">T2</text>
+          <text class="d-t" x="362" y="78">主播组 · 离开</text>
+          <text class="d-s" x="362" y="98">同一批助手组</text>
+          <text class="d-s d-m" x="362" y="116">status = 2</text>
+
+          <rect class="d-dim" x="514" y="52" width="132" height="78" rx="8"/>
+          <text class="d-tag" x="634" y="70" text-anchor="end">T3</text>
+          <text class="d-t" x="526" y="78">主播组 · 在线</text>
+          <text class="d-s" x="526" y="98">与 T1 同一查询</text>
+          <text class="d-s" x="526" y="116">渠道未参与计算</text>
+
+          <rect class="d-box" x="678" y="52" width="132" height="78" rx="8"/>
+          <text class="d-tag" x="798" y="70" text-anchor="end">T4</text>
+          <text class="d-t" x="690" y="78">平台保底组</text>
+          <text class="d-s" x="690" y="98">保底私聊匹配配置</text>
+          <text class="d-s" x="690" y="116">先在线，后离开</text>
+
+          <rect class="d-box" x="842" y="52" width="132" height="78" rx="8"/>
+          <text class="d-tag" x="962" y="70" text-anchor="end">T5</text>
+          <text class="d-t" x="854" y="78">平台助手组</text>
+          <text class="d-s" x="854" y="98">group_ids ∪ 组平台</text>
+          <text class="d-s" x="854" y="116">先在线，后离开</text>
+
+          <rect class="d-dim" x="1006" y="52" width="132" height="78" rx="8"/>
+          <text class="d-t" x="1018" y="78">无人可分</text>
+          <text class="d-s d-m" x="1018" y="98">assign = 0</text>
+
+          <!-- row arrows -->
+          <line class="d-line" x1="154" y1="91" x2="184" y2="91" marker-end="url(#ld-arrow)"/>
+          <text class="d-lab" x="170" y="84" text-anchor="middle">无</text>
+          <line class="d-line" x1="318" y1="91" x2="348" y2="91" marker-end="url(#ld-arrow)"/>
+          <text class="d-lab" x="334" y="84" text-anchor="middle">空</text>
+          <line class="d-line" x1="482" y1="91" x2="512" y2="91" marker-end="url(#ld-arrow)"/>
+          <text class="d-lab" x="498" y="84" text-anchor="middle">空</text>
+          <line class="d-line" x1="646" y1="91" x2="676" y2="91" marker-end="url(#ld-arrow)"/>
+          <text class="d-lab" x="662" y="84" text-anchor="middle">空</text>
+          <line class="d-line" x1="810" y1="91" x2="840" y2="91" marker-end="url(#ld-arrow)"/>
+          <text class="d-lab" x="826" y="84" text-anchor="middle">空</text>
+          <line class="d-line" x1="974" y1="91" x2="1004" y2="91" marker-end="url(#ld-arrow)"/>
+          <text class="d-lab" x="990" y="84" text-anchor="middle">空</text>
+
+          <!-- hit path -->
+          <line class="d-line" x1="88" y1="130" x2="88" y2="194" marker-end="url(#ld-arrow)"/>
+          <text class="d-lab" x="96" y="166">有效</text>
+          <rect class="d-ok" x="22" y="196" width="132" height="50" rx="8"/>
+          <text class="d-t" x="34" y="216">返回原助理</text>
+          <text class="d-s" x="34" y="233">并续期绑定 TTL</text>
+
+          <!-- collector -->
+          <line class="d-line" x1="252" y1="130" x2="252" y2="158"/>
+          <line class="d-line" x1="416" y1="130" x2="416" y2="158"/>
+          <line class="d-line d-dash" x1="580" y1="130" x2="580" y2="158"/>
+          <line class="d-line" x1="744" y1="130" x2="744" y2="158"/>
+          <line class="d-line" x1="908" y1="130" x2="908" y2="158"/>
+          <line class="d-line" x1="252" y1="158" x2="908" y2="158"/>
+          <text class="d-lab" x="262" y="150">任一档非空即停</text>
+          <line class="d-line" x1="274" y1="158" x2="274" y2="194" marker-end="url(#ld-arrow)"/>
+
+          <!-- pipeline -->
+          <rect class="d-core" x="186" y="196" width="176" height="50" rx="8"/>
+          <text class="d-t" x="198" y="216">剔除超管</text>
+          <text class="d-s" x="198" y="233">只剩超管时保留</text>
+
+          <line class="d-line" x1="362" y1="221" x2="388" y2="221" marker-end="url(#ld-arrow)"/>
+          <rect class="d-core" x="390" y="196" width="176" height="50" rx="8"/>
+          <text class="d-t" x="402" y="216">随机抽 1 人</text>
+          <text class="d-s d-m" x="402" y="233">array_rand</text>
+
+          <line class="d-line" x1="566" y1="221" x2="592" y2="221" marker-end="url(#ld-arrow)"/>
+          <rect class="d-core" x="594" y="196" width="176" height="50" rx="8"/>
+          <text class="d-t d-m" x="606" y="216">anchorId &gt; 0 ?</text>
+          <text class="d-s" x="606" y="233">是：写绑定　否：不写</text>
+
+          <line class="d-line" x1="770" y1="221" x2="796" y2="221" marker-end="url(#ld-arrow)"/>
+          <rect class="d-core" x="798" y="196" width="176" height="50" rx="8"/>
+          <text class="d-t" x="810" y="216">返回 assign</text>
+          <text class="d-s" x="810" y="233">进入 sendMessageVoid</text>
+
+          <!-- fail path -->
+          <line class="d-line" x1="1072" y1="130" x2="1072" y2="194" marker-end="url(#ld-arrow)"/>
+          <rect class="d-dim" x="1006" y="196" width="132" height="50" rx="8"/>
+          <text class="d-t" x="1072" y="216" text-anchor="middle">前台报错</text>
+          <text class="d-s d-m" x="1072" y="233" text-anchor="middle" style="font-size:10px">ASSIGN_DIALOG_TITLE</text>
+        </svg>
+      </div>
+      <figcaption>图 2 · <span class="mono">getAvailableOne</span> 分配阶梯。每一档查出来后先滤掉不能收发消息的管理员（<span class="mono">canChat</span>），滤完仍非空就停在该档。T3 和 T1 是同一个查询，实际只有四档起作用。</figcaption>
+    </figure>
+
+    <h3>候选池从哪来</h3>
+    <div class="tbl">
+      <table>
+        <thead>
+          <tr><th>档位</th><th>候选来源</th><th>在线状态</th><th>平台限制</th><th>生效条件 / 缓存</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th>T1</th>
+            <td><code>cmf_user_assign_group</code> 里该主播绑定的组 → <code>admin_group_ids</code> 包含这些组的管理员</td>
+            <td><code>status = 1</code> 在线</td>
+            <td><span class="hl-warn">无</span>（FIND_IN_SET，不分平台）</td>
+            <td>APCu 9 秒 + Redis hash <code>assignIdsCache</code> 3600 秒（只缓存非空结果）</td>
+          </tr>
+          <tr>
+            <th>T2</th>
+            <td>同 T1</td>
+            <td><code>status = 2</code> 离开</td>
+            <td><span class="hl-warn">无</span></td>
+            <td>同 T1</td>
+          </tr>
+          <tr>
+            <th>T3</th>
+            <td class="hl-dim">同 T1。本意是「不带渠道再查一次」，但渠道参数只进缓存 key，不参与查询</td>
+            <td>在线</td>
+            <td>无</td>
+            <td class="hl-dim">T1 为空时 T3 必然为空</td>
+          </tr>
+          <tr>
+            <th>T4</th>
+            <td>平台配置 <code>private_chat_match</code>（格式 <code>组ID:组名,…</code>），剔除明确属于其他平台的组；<code>platform_id = 0</code> 的旧组保留</td>
+            <td>先在线，没有再取离开</td>
+            <td>只取用户渠道所属平台的配置，不回落全站</td>
+            <td>仅当请求带渠道时执行；每组查询缓存 60 秒</td>
+          </tr>
+          <tr>
+            <th>T5</th>
+            <td><code>channel_platform.group_ids</code> ∪ <code>admin_group.platform_id = 当前平台</code>，剔除其他平台组、禁用组</td>
+            <td>先在线，没有再取离开</td>
+            <td>只取该平台，不回落其他平台 / 全站</td>
+            <td>仅当平台 &gt; 0 时执行；缓存 60 秒</td>
+          </tr>
+          <tr>
+            <th>整体</th>
+            <td><code>getOnlineAssignIds(主播, 渠道)</code> 的结果</td>
+            <td>—</td>
+            <td>缓存按「主播 + 平台」分，同平台各渠道共用</td>
+            <td>每个 worker 静态缓存 19 秒 + Redis/APCu 99 秒；定时器 <code>CBadWord</code> 每 6 秒为每个平台、每个主播强制刷新</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="aside">「能收发消息」（<code>AAdmin::canChat</code>）＝管理员至少有一个启用中的助手组；超管恒为 true，所以要在抽人前单独剔除。平台由请求渠道解析（<code>getPlatformIdByChannel</code>），不是用户的 registration_id。</p>
+
+    <h3>绑定怎么维持</h3>
+    <ul class="facts">
+      <li><strong>Key：</strong><code>table/user/getAvailableOne:0-{uid}</code>（前台）。后台「会员分配」用 <code>1-{uid}</code>，两者互不覆盖。</li>
+      <li><strong>有效期：</strong>按请求所属平台读 <code>invite_sys_time</code>（小时，默认 8）。每次命中都续期，所以用户持续聊天就一直是同一个助理。</li>
+      <li><strong>写入时机：</strong>级联抽到人且 <code>anchorId &gt; 0</code>；帮助中心每次重抽都写。<code>anchorHistory</code> 在未绑定、也没配公共欢迎语时会顺手分配并写绑定，也就是说用户只是打开私聊窗口就绑上了。</li>
+      <li><strong>视为无效：</strong>绑定的是超管，或已 <code>canChat = false</code>。这时不删 key，重抽后覆盖。</li>
+      <li><strong>不检查：</strong>助理是否在线、是否仍是当前主播的助手、是否同平台。用户换到另一个主播的直播间私聊，仍会连到原来的助理。</li>
+      <li><strong>另一套读法：</strong><code>anchorHistory</code> 用 <code>APmRoom::checkAssign</code> 直接读 key，不做上面的有效性判断；旧发言路径 <code>setAvailableOneMoreTime</code> 会把有效期改回固定 8 小时。</li>
+    </ul>
+  </section>
+
+  <!-- ================= 入口对比 ================= -->
+  <section id="entries">
+    <h2>三个入口对比 <span class="src">LChatAnchor · LUserXingHelp</span></h2>
+    <p>三个入口共用发言核心，但在候选范围、在线状态、绑定、来源记录上的规则各不相同。</p>
+    <div class="tbl">
+      <table>
+        <thead>
+          <tr><th></th><th>直播间私聊主播</th><th>按昵称找助理</th><th>帮助中心 / 绑定求助</th></tr>
+        </thead>
+        <tbody>
+          <tr><th>接口</th><td><code>sendToAnchor</code> + <code>anchorHistory</code></td><td><code>searchAssistant</code> → <code>sendToAssistant</code></td><td><code>CUserXing::help(type)</code>，type 1 杏彩 / 2 邮箱 / 3 帮助中心</td></tr>
+          <tr><th>谁发第一句</th><td>用户</td><td>用户</td><td>服务端代发固定文案（<code>lang()</code>）</td></tr>
+          <tr><th>候选池</th><td>五档级联（图 2）</td><td>搜索时：本平台助手组，昵称「包含」且唯一命中；发送时：用前端传入的 <code>assignId</code></td><td>本平台助手组里全部启用的管理员</td></tr>
+          <tr><th>在线状态</th><td>在线优先，其次离开</td><td>不看</td><td><span class="hl-warn">不看，离线助理也会被分到</span></td></tr>
+          <tr><th>canChat 过滤</th><td>是</td><td><span class="hl-crit">否</span></td><td>是</td></tr>
+          <tr><th>剔除超管</th><td>是</td><td><span class="hl-crit">否</span></td><td><span class="hl-warn">否</span></td></tr>
+          <tr><th>平台限制</th><td>只有 T4、T5 按平台；主播组不分平台</td><td><span class="hl-crit">发送时无</span></td><td>有</td></tr>
+          <tr><th>读绑定</th><td>是（非超管且 canChat 就沿用）</td><td>否</td><td>是，且须在本平台名单里</td></tr>
+          <tr><th>写绑定</th><td><code>anchorId &gt; 0</code> 时</td><td>否</td><td>是</td></tr>
+          <tr><th>首条欢迎语</th><td>公共欢迎语 → 用户消息 → 助理欢迎语</td><td>搜索建房时写助理欢迎语</td><td>同主播私聊（<code>isAnchor = true</code>）</td></tr>
+          <tr><th><code>pm_source_type</code></th><td><span class="hl-warn">固定 0</span></td><td>前端传入</td><td>杏彩 <span class="hl-warn">1（应为 6）</span> / 邮箱 7 / 帮助中心 8</td></tr>
+          <tr><th><code>pm_source_type_str</code></th><td colspan="3">一律写成<strong>助理 id</strong>；后台把 type 1、2 的 str 当成主播 id 显示昵称</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="aside">旧路径 <code>sendMessage(type=2)</code> / <code>inviteRoom</code> 已标 deprecated，但仍可调用。它们同样调 <code>getAvailableOne</code> 分配，另外还有几项新路径没有的逻辑：<code>assertFrontPmPeerCanChat</code>（对方不能收发消息就报错）、助理之间不能私聊（<code>MAssistant</code>）、助理离线提示、ChatGPT 助理登记。</p>
+  </section>
+
+  <!-- ================= 发言时序 ================= -->
+  <section id="send">
+    <h2>发言时序 <span class="src">sendMessageVoid → sendAnchorMessage</span></h2>
+    <p>一条消息从进入发言核心到返回的实际执行顺序。注意文本校验在第 7 步才做：超长或空消息被拒之前，房间已经登记、欢迎语也已写入。</p>
+    <ol class="steps">
+      <li><div><strong>冻结检查。</strong>Redis 有 <code>chat_freeze:{uid}</code> 就抛 <code>You are freeze</code>。</div></li>
+      <li><div><strong>算 vid。</strong><code>LCreatePmVid::encode(助理, 用户)</code>。</div></li>
+      <li><div><strong>防重复。</strong>seed 非空、且本机 APCu 已有这条 seed 的记录（保留 999 秒）时，直接返回上次结果。</div></li>
+      <li><div><strong>判断是否首条。</strong>Redis 里 <code>hst:{vid}</code> 不存在就算首条。3 天无消息后 key 过期，再发一条也算首条。</div></li>
+      <li><div><strong>登记房间。</strong><code>APmRoom::insOrUpdCache</code>：校验 vid 与助理是管理员 → 前台会话列表 <code>hSetNx</code> → <code>inviteroom:{助理}</code> 300 秒 → 推入 <code>pm-room-db-queue</code>。</div></li>
+      <li><div><strong>首条先写欢迎语</strong>（规则见下一节）。</div></li>
+      <li>
+        <div><strong>发送</strong> <code>sendAnchorMessage</code>
+          <ul>
+            <li>文本：最多 801 字，连续空白压成一个，去掉换行；非图片消息不能为空；按房间平台做敏感字替换和敏感字换图。</li>
+            <li>图片：msgType 2 / 3 由服务端接收上传文件并生成 bnc；4 / 5 / 6 直接用前端传的路径（去掉域名）。</li>
+            <li>组包：<code>action=send</code>、<code>qos=1</code>、<code>cross_userid=[助理, 用户]</code>、<code>anchor_id</code>、<code>pm_source_type</code>，<code>pm_source_type_str</code> 写助理 id。</li>
+            <li>写 Redis 历史并推入消息入库队列 <code>msg_to_db:</code>，同时更新最后一条消息。</li>
+            <li>推送前把手机号打码；Redis 历史里保留原文。</li>
+            <li><code>UMsg::send</code> 推给助理和发送者本人，出口处补 <code>platform_id</code>。</li>
+            <li>后台红点、<code>newRoom</code> 通知、后台私聊列表 <code>roompmvid:2:{助理}</code>（7 天，最多 2000 个房），前台会话列表更新入队。</li>
+          </ul>
+        </div>
+      </li>
+      <li><div><strong>主播私聊首条：补一条助理欢迎语</strong>，作为响应里的 <code>msg</code> 返回给前端。</div></li>
+      <li><div><strong>记录 seed</strong>，供第 3 步去重。</div></li>
+      <li><div><strong>注册用户：</strong><code>LChatSystemBindXing::replyBindAfter</code>。如果这个房间正处在杏彩 / 邮箱绑定流程，就把这条文本当作账号去绑定。</div></li>
+    </ol>
+
+    <h3>首条消息的写入顺序</h3>
+    <div class="seqs">
+      <div class="seq-row">
+        <span class="who">主播私聊 / 帮助中心</span>
+        <div class="seq">
+          <span class="msg vir">公共欢迎语（虚拟）</span><span class="to">→</span>
+          <span class="msg user">用户消息</span><span class="to">→</span>
+          <span class="msg">助理欢迎语（随响应返回）</span>
+        </div>
+      </div>
+      <div class="seq-row">
+        <span class="who">指名助理（未经搜索）</span>
+        <div class="seq">
+          <span class="msg">助理欢迎语</span><span class="to">→</span>
+          <span class="msg user">用户消息</span>
+        </div>
+      </div>
+      <div class="seq-row">
+        <span class="who">搜索助理</span>
+        <div class="seq">
+          <span class="msg">建房时即写助理欢迎语</span><span class="to">→</span>
+          <span class="msg quiet">之后发言不再补</span>
+        </div>
+      </div>
+      <div class="seq-row">
+        <span class="who">anchorHistory（未绑定）</span>
+        <div class="seq">
+          <span class="msg vir">虚拟欢迎语：只返回给前端，不写历史</span>
+        </div>
+      </div>
+    </div>
+    <p class="aside">平台没配公共欢迎语发送者（<code>welcome_sys_uid</code>）时，「公共欢迎语」那一条实际用的是助理自己的话术。</p>
+
+    <h3>助理回复时的闸门</h3>
+    <p>后台发言（<code>LWebChat::sendMessage</code>，<code>isFront = false</code>）依次检查：</p>
+    <ol class="steps">
+      <li><div>管理员 <code>canChat</code> 为 false → <code>NO_PLATFORM_PERMISSION</code>。</div></li>
+      <li><div>取房间平台（缓存里是 0 就回源再查一次），仍为 0 → <code>DIFFERENT_PLATFORM_ROOM</code>。房间平台在建房时写入，取的是前台用户的平台：注册用户看 registration_id，游客看渠道。</div></li>
+      <li><div>房间平台属于该管理员的平台 → 放行。</div></li>
+      <li><div>否则，管理员已在 <code>cmf_chat_room_user</code> 里 → 放行（给「分到了其他平台的助理」兜底）；不在 → <code>DIFFERENT_PLATFORM_ROOM</code>。</div></li>
+      <li><div>vid 反解后第 1 位必须是发言的管理员本人，否则 <code>You are not in room</code>。</div></li>
+    </ol>
+  </section>
+
+  <!-- ================= 欢迎语 ================= -->
+  <section id="welcome">
+    <h2>欢迎语 <span class="src">app/caching/chat/AWelcomeMessage.php</span></h2>
+    <ul class="facts">
+      <li><strong>按哪个平台取：</strong>先用前台用户自己的平台（<code>getPlatformIdByUser</code>），取不到再用房间平台。</li>
+      <li><strong>公共发送者：</strong>平台配置 <code>welcome_sys_uid</code>，按平台取，不回落全站。</li>
+      <li><strong>内容：</strong>一条配置里有 text1–3，从非空的几条里随机取一条。</li>
+      <li><strong>发送者资料：</strong><code>AUser</code> 基础资料，再用助理在该平台的昵称、头像覆盖（BUG-4792）。</li>
+      <li><strong>存储：</strong>只写 Redis 历史，不入库；后台看历史时跳过 <code>welcome = 1</code> 的消息。</li>
+    </ul>
+
+    <h3>内容回落顺序</h3>
+    <div class="seqs">
+      <div class="seq-row">
+        <span class="who">普通欢迎语</span>
+        <div class="seq">
+          <span class="msg">助理 @ 本平台</span><span class="to">→</span>
+          <span class="msg">公共发送者 @ 本平台</span><span class="to">→</span>
+          <span class="msg">助理 @ 不分平台</span><span class="to">→</span>
+          <span class="msg">公共发送者 @ 不分平台</span><span class="to">→</span>
+          <span class="msg bad">文本 "1"</span>
+        </div>
+      </div>
+      <div class="seq-row">
+        <span class="who">公共欢迎语（common）</span>
+        <div class="seq">
+          <span class="msg quiet">第一环换成公共发送者，其余相同</span>
+        </div>
+      </div>
+    </div>
+
+    <h3>各场景调用</h3>
+    <div class="tbl">
+      <table>
+        <thead>
+          <tr><th>场景</th><th>调用</th><th>公共欢迎语</th><th>按用户平台</th><th>写到哪</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>anchorHistory，未绑定</td><td><code>AChatAnchor::getAnchorWelcome</code></td><td>是（<code>is_vir</code>）</td><td>是</td><td>只返回；APCu 缓存 99 秒</td></tr>
+          <tr><td>主播私聊 / 帮助中心首条，用户消息之前</td><td><code>getWelcomeMessage(…, true, uid)</code></td><td>是</td><td>是</td><td>Redis 历史</td></tr>
+          <tr><td>主播私聊 / 帮助中心首条，用户消息之后</td><td><code>getWelcomeMessage(vid, assign)</code></td><td>否</td><td><span class="hl-warn">否：新房平台暂为 0</span></td><td>Redis 历史，并随响应返回</td></tr>
+          <tr><td>指名助理首条</td><td><code>getWelcomeMessage(…, false, uid)</code></td><td>否</td><td>是</td><td>Redis 历史</td></tr>
+          <tr><td>搜索助理建房</td><td><code>AChatAnchor::createPmRoom</code></td><td>否</td><td>是</td><td>Redis 历史；按（用户, 助理）缓存 99999 秒，只建一次</td></tr>
+          <tr><td>旧 getChatHistory 打开空房</td><td><code>LWebChat::sendWelcomeMessage</code></td><td>否</td><td>是</td><td>Redis 历史 + 推送（推给的是助理）</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= 数据落点 ================= -->
+  <section id="storage">
+    <h2>数据落点</h2>
+    <div class="tbl">
+      <table>
+        <thead>
+          <tr><th>存储</th><th>Key / 表</th><th>内容</th><th>保留</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Redis</td><td><code>table/user/getAvailableOne:0-{uid}</code></td><td>前台用户绑定的助理 id</td><td><code>invite_sys_time</code> 小时，命中即续期</td></tr>
+          <tr><td>Redis</td><td><code>assignIdsCache</code>（hash）</td><td>主播 → 助手组成员（T1–T3）</td><td>3600 秒，只存非空</td></tr>
+          <tr><td>Redis / APCu</td><td><code>getOnlineAssignIds:{主播}-{平台}</code></td><td>分配候选池</td><td>99 秒；定时器每 6 秒刷新</td></tr>
+          <tr><td>Redis</td><td><code>hst:{vid}</code>（ZSET）</td><td>私聊历史，含欢迎语</td><td>3 天，最多 300 条</td></tr>
+          <tr><td>Redis</td><td><code>chat_room_list:{uid}</code>（hash）</td><td>前台会话列表：更新时间、置顶、隐藏</td><td>—</td></tr>
+          <tr><td>Redis</td><td><code>roompmvid:2:{助理}</code>（ZSET）</td><td>后台私聊列表排序</td><td>7 天，最多 2000</td></tr>
+          <tr><td>Redis</td><td><code>invite-front-hash:{uid}</code></td><td>用户 → {助理: vid}，<code>APmRoom::exists</code> 用</td><td>9 小时（入库时写）</td></tr>
+          <tr><td>Redis</td><td><code>pm-room-db-queue</code> / <code>msg_to_db:</code></td><td>房间、消息入库队列</td><td>定时器每批取 99 条</td></tr>
+          <tr><td>APCu</td><td><code>AChatAnchor::thor:{vid}:{seed}</code></td><td>防重复发送的上次结果</td><td>999 秒，仅本机</td></tr>
+          <tr><td>MySQL</td><td><code>cmf_chat_room_info</code></td><td>房间：<code>room_type=2</code>、<code>platform_id</code>（用户平台）、<code>from_anchor_id</code></td><td>—</td></tr>
+          <tr><td>MySQL</td><td><code>cmf_chat_room_user</code></td><td>两行：前台用户 <code>is_owner=1</code>，助理 <code>is_owner=0</code></td><td>—</td></tr>
+          <tr><td>MySQL</td><td><code>cmf_chat_message_list</code></td><td>消息原文、<code>pm_source_type</code>、<code>pm_source_type_str</code></td><td>—</td></tr>
+          <tr><td>MySQL</td><td><code>cmf_user_assign_group</code> / <code>cmf_admin_group</code> / <code>cmf_channel_platform</code></td><td>主播绑定的组、组所属平台、平台助手组</td><td>—</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= 已知偏差 ================= -->
+  <section id="gaps">
+    <h2>已知偏差</h2>
+    <p>代码行为和规则（或注释、注解）不一致的地方，按影响排序。</p>
+    <ol class="issues">
+      <li>
+        <span class="sev hi">高</span>
+        <div>
+          <strong>私聊历史可越权读取</strong>
+          <p><code>history</code>、<code>getChatHistory</code>、<code>read</code> 不校验 vid 是否属于当前用户，<code>room_type</code> 传 0 也能读。vid 可以由（助理 id, 用户 id）推算，于是能读到别人和助理的完整对话；旧接口遇到空房还会往别人的房里写一条欢迎语。</p>
+          <div class="loc">LApiChat.php:34 · LBaseChat.php:153 · CChat.php:350</div>
+        </div>
+      </li>
+      <li>
+        <span class="sev mid">中</span>
+        <div>
+          <strong>指名私聊没有平台和可收发校验</strong>
+          <p>可以私聊超管、没有助手组的管理员、其他平台的助理；其他平台的助理还能回复（「已在房内」豁免）。注解上写着会检查，代码里没有。</p>
+          <div class="loc">LChatAnchor.php:443 · CChat.php:1149 · LWebChat.php:621</div>
+        </div>
+      </li>
+      <li>
+        <span class="sev mid">中</span>
+        <div>
+          <strong>新房间的平台暂时是 0</strong>
+          <p>入库是异步的，发送时查房间平台得到 0，并在本机缓存最长 30 秒。结果是新房前几条消息的敏感字、主播私聊的第二条欢迎语都没有按用户平台处理。</p>
+          <div class="loc">LChatAnchor.php:173 · LChatAnchor.php:504</div>
+        </div>
+      </li>
+      <li>
+        <span class="sev mid">中</span>
+        <div>
+          <strong>来源字段记错</strong>
+          <p><code>sendToAnchor</code> 的来源固定是 0；<code>pm_source_type_str</code> 一律写助理 id；杏彩求助记成 1（直播间私聊）。后台「用户来源」会把助理自己的昵称显示成来源。</p>
+          <div class="loc">CChat.php:969 · LChatAnchor.php:228 · LUserXingHelp.php:43</div>
+        </div>
+      </li>
+      <li>
+        <span class="sev lo">低</span>
+        <div>
+          <strong>绑定的有效性判断不一致</strong>
+          <p>注释要求「在线且仍是当前主播的助手」，代码只看 canChat；<code>anchorHistory</code> 完全不判断有效性；<code>anchorId = 0</code> 时不写绑定，每条消息都可能分给不同助理；旧路径把有效期改回固定 8 小时。</p>
+          <div class="loc">AUserAssignAnchorAssistant.php:164 · :190 · :229 · :369</div>
+        </div>
+      </li>
+      <li>
+        <span class="sev lo">低</span>
+        <div>
+          <strong>帮助中心分配不看在线状态、不剔除超管</strong>
+          <p>离线助理也会被分到；而且每次请求都直接查库，没有缓存。</p>
+          <div class="loc">AUserAssignAnchorAssistant.php:272 · :297</div>
+        </div>
+      </li>
+      <li>
+        <span class="sev lo">低</span>
+        <div>
+          <strong>T3 与 T1 是同一个查询</strong>
+          <p>渠道参数只进了缓存 key，没有参与计算，第三档永远查不出新结果。</p>
+          <div class="loc">AAssign.php:34 · AUserAssignAnchorAssistant.php:74</div>
+        </div>
+      </li>
+      <li>
+        <span class="sev lo">低</span>
+        <div>
+          <strong>其他</strong>
+          <p>助理和公共发送者都没配欢迎语时，前台会收到文本 "1"；私聊没有发言频率限制；seed 去重只在本机 APCu 生效，重试落到另一台机器时会重复发送。</p>
+          <div class="loc">AWelcomeMessage.php:157 · LWebChat.php:805 · AChatAnchor.php:21</div>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <footer>静态阅读代码整理，未经联调验证。行号对应提交 <span class="mono">f8e35f99b4</span>。</footer>
+</div>
+</body>
+</html>

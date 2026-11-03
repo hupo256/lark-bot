@@ -1,0 +1,26 @@
+{
+  "token": "KlRvd6McmoBRyaxqb43lok5agUb",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/KlRvd6McmoBRyaxqb43lok5agUb",
+  "fetchedAt": "2026-11-03T12:17:10.763Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/KlRvd6McmoBRyaxqb43lok5agUb",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"# 行情列表接口测试（完整内容）\\n\\n@运维 @Arthur @Encone 行情列表接口测试：通了 0 项，没通 4 项\\n\\n- ⚠️ 接了但还不能用 symbol/list（经 pre 网关，已登录）：带测试号 token 请求回 404；同一个 token 直接请求 hichat pre 上游正常，有行情数据。说明网关 /hc-api 转发到的服务上没有这支接口，要查网关指向哪台\\n- ⚠️ 接了但还不能用 pre 首页行情跑马灯：登录后打开首页，页面请求 symbol/list 回 404，跑马灯不显示\\n- ❌ 没接 symbol/list 免登录：不带 token 网关和上游都回 401，去掉登录校验还没生效\\n- ❌ 没接 行情开关 getStatus 免登录：Go 的开关接口不登录回 -700「未授权」，也还要登录  \\n待确认的几点在这里：https://qfglxo2m3dc.sg.larksuite.com/docx/VtZ0d1DuCoFV4yxKQ2IlZpw6ggh\\n- 运维：确认 falivepre 的 /hc-api 网关转发到哪台 hichat，应是 pre-hailiao.hai-liao-pre.com；现在带 token 回 404，直连上游正常\\n- Arthur：fameEx/market/symbol/list 去掉登录校验，现在不带 token 回 401\\n- Encone：Go 的 thirdConfigManage/getStatus 去掉登录校验，现在不登录回 -700  \\n详细见：https://qfglxo2m3dc.sg.larksuite.com/docx/PzeEdlJxPoD3wQx4fS4lfV63g7c\",\n      \"document_id\": \"KlRvd6McmoBRyaxqb43lok5agUb\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

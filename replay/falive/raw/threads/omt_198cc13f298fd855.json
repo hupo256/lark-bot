@@ -1,0 +1,46 @@
+{
+  "threadId": "omt_198cc13f298fd855",
+  "fetchedAt": "2026-11-03T12:24:38.219Z",
+  "ok": true,
+  "commands": [
+    [
+      "lark-cli",
+      "api",
+      "GET",
+      "/open-apis/im/v1/messages",
+      "--as",
+      "user",
+      "--params",
+      "{\"container_id_type\":\"thread\",\"container_id\":\"omt_198cc13f298fd855\",\"page_size\":50,\"sort_type\":\"ByCreateTimeAsc\"}",
+      "--page-all",
+      "--page-limit",
+      "0",
+      "--format",
+      "json"
+    ],
+    [
+      "lark-cli",
+      "im",
+      "+threads-messages-list",
+      "--as",
+      "user",
+      "--thread",
+      "omt_198cc13f298fd855",
+      "--order",
+      "asc",
+      "--page-size",
+      "50",
+      "--page-all",
+      "--page-limit",
+      "100",
+      "--no-reactions",
+      "--download-resources",
+      "--format",
+      "json"
+    ]
+  ],
+  "api": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"items\": [\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"\\u003cp\\u003e@_user_1 hichat 已更新到OL\\u003c/p\\u003e\\\"}\"\n        },\n        \"chat_default_name\": \"Falive产研技术沟通群\",\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1793679336232\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_0474e2a35ff1054cdbc0bb9d9d9c9766\",\n            \"id_type\": \"open_id\",\n            \"key\": \"@_user_1\",\n            \"name\": \"HQUCEncone\",\n            \"tenant_key\": \"144dc2a94988d77e\"\n          }\n        ],\n        \"message_id\": \"om_x100b61a1b04c58a0ffb4b4e888c0ddf\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b61a0d1ad74acff94957fdc7a332\",\n        \"root_id\": \"om_x100b61a0d1ad74acff94957fdc7a332\",\n        \"sender\": {\n          \"id\": \"ou_358e6ed39b45c968378cb7177e109552\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"1435885b3047d77d\"\n        },\n        \"thread_id\": \"omt_198cc13f298fd855\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"1793680539879\",\n        \"updated\": true\n      }\n    ],\n    \"page_token\": \"\"\n  }\n}\n",
+  "apiStderr": "[page 1] fetching...\n",
+  "rendered": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"messages\": [\n      {\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"content\": \"\\u003cp\\u003e@HQUCEncone hichat 已更新到OL\\u003c/p\\u003e\",\n        \"create_time\": \"2026-11-03 08:15\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_0474e2a35ff1054cdbc0bb9d9d9c9766\",\n            \"key\": \"@_user_1\",\n            \"name\": \"HQUCEncone\"\n          }\n        ],\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_40621901e1583e623f6133e8c66d352e\\u0026open_thread_id=omt_198cc13f298fd855\\u0026openchatid=oc_40621901e1583e623f6133e8c66d352e\\u0026openthreadid=omt_198cc13f298fd855\\u0026thread_position=0\",\n        \"message_id\": \"om_x100b61a1b04c58a0ffb4b4e888c0ddf\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_358e6ed39b45c968378cb7177e109552\",\n          \"id_type\": \"open_id\",\n          \"name\": \"Max\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"1435885b3047d77d\"\n        },\n        \"thread_id\": \"omt_198cc13f298fd855\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"2026-11-03 08:35\",\n        \"updated\": true\n      }\n    ],\n    \"page_token\": \"\",\n    \"thread_id\": \"omt_198cc13f298fd855\",\n    \"total\": 1\n  },\n  \"meta\": {\n    \"pagination\": {\n      \"complete\": true,\n      \"pages\": 1,\n      \"items\": 1\n    }\n  }\n}\n",
+  "renderedStderr": ""
+}

@@ -1,0 +1,26 @@
+{
+  "token": "KlVwd4iZNog6ftx2c0YljAeog6b",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/KlVwd4iZNog6ftx2c0YljAeog6b",
+  "fetchedAt": "2026-11-03T12:17:21.281Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/KlVwd4iZNog6ftx2c0YljAeog6b",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>Arthur（hichat / 账号后端）问（细节）</title>\\n\\n# UAT 回复评论走哪个接口\\n\\n## 结论\\n\\n- 发评论 / 回复评论：Discuz 社区（bbsv2）`POST http://faliveuat.fdsser.com/bbsv2/post/create`，body `{ tid, message, pid }`（pid=0 回复主题，>0 回复某条评论）。\\n- 不走 Go，不走 hichat。\\n\\n## 之后的积分申报\\n\\n- 只有 post/create 返回 `code=0` 且 `data.post.pending=0`（不用审核）时，前端才会走积分流程：\\n\\n  1. Go `GET /go-api/api/points/task/list`，找 taskType = `SQUARE_POST_REPLY_COMMENT` 的任务\\n  2. Go `POST /go-api/api/points/task/complete`，body `{ taskId }`\\n  3. 轮询 task/list、myPoints 等到账\\n- taskType = `DISCUZ`（文章评论）的任务**前端不调 complete**，要靠 Discuz 回调 Go。\\n- 评论进了待审（pending=1）就不会申报任何任务。\\n\\n## 核对方式\\n\\n- 拉 UAT 线上部署的 JS（2026-10-31）：\\n\\n  - `mutations-Dgm1lw3c.js`：`a(\\\"bbsv2\\\",\\\"/bbsv2/post/create\\\",{method:\\\"POST\\\",body:t})`\\n  - `index-BlB_iiku.js`：有 `square:commentPublishedConfirmed` → `SQUARE_POST_REPLY_COMMENT` → `points/task/complete`\\n  - 没有任何对 DISCUZ 调 complete 的代码\",\n      \"document_id\": \"KlVwd4iZNog6ftx2c0YljAeog6b\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

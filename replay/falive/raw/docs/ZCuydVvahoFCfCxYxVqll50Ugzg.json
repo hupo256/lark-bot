@@ -1,0 +1,26 @@
+{
+  "token": "ZCuydVvahoFCfCxYxVqll50Ugzg",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/ZCuydVvahoFCfCxYxVqll50Ugzg",
+  "fetchedAt": "2026-11-03T12:17:22.815Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/ZCuydVvahoFCfCxYxVqll50Ugzg",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"# 评论任务和积分到账（部署后复测）（完整内容）\\n\\n@Arthur @Kai @Arthur 之前说好部署后再测评论任务和积分到账，这次还是没测通整条：评论成功后申报任务的前端 pre 和生产都在，但 pre 测试号任务中心是空的、生产我们没账号，发评论后任务完成和到账这一步没法验。需要你帮两件事：一是告诉我们生产 Go 是不是已经是 uat 上修好评论任务的那版；二是 pre 给测试号 508 配上「社区帖子评论」和「帖子回复评论」任务，我们就能在 pre 自己跑完整条。\\n\\n- ⚠️ 发评论 → 任务完成 → 积分到账（pre）：pre 测试号 508 登录后任务中心新手 / 每日任务都是空的，没有评论任务可测，要 Go 在 pre 配上任务\\n- ⚠️ 发评论 → 任务完成 → 积分到账（生产）：生产这次没测：bot 没有生产账号，生产 Go 版本也还没确认，要持有生产号的同学（Kaiser / Justin）发一条评论看是否到账\\n- ✅ 评论成功后申报任务（前端）：pre 和生产线上前端都已带上评论发布成功后申报「社区帖子评论」「帖子回复评论」，前端不用改  \\n待确认的几点在这里：https://qfglxo2m3dc.sg.larksuite.com/docx/ZNQzdYazWoxSmQxHKNglhCndgob\\n- Arthur：确认生产 Go 是否已是 uat 上修好评论任务的那版（2026103104）；pre 给测试号 508 配上「社区帖子评论」和「帖子回复评论」任务，方便在 pre 跑完整条链路\\n- Kai：Go 确认已发生产后，用生产号在任一帖子下发一条评论，看「社区帖子评论」是否完成、积分是否 +20  \\n详细见：https://qfglxo2m3dc.sg.larksuite.com/docx/L7LxduNWUoLQBnxG9btlfh5hgXc\",\n      \"document_id\": \"ZCuydVvahoFCfCxYxVqll50Ugzg\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

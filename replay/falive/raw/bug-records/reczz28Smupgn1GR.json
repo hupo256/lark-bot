@@ -1,0 +1,26 @@
+{
+  "recordId": "reczz28Smupgn1GR",
+  "why": "bug-5069",
+  "fetchedAt": "2026-11-03T12:18:10.317Z",
+  "version": "now",
+  "note": "拉取时的最新状态（状态 / 备注 / 测试结果可能晚于消息当时）",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "base",
+    "+record-get",
+    "--as",
+    "user",
+    "--base-token",
+    "<bugTable.appToken>",
+    "--table-id",
+    "tblbJYjrxZsPe40V",
+    "--record-id",
+    "reczz28Smupgn1GR",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"data\": [\n      [\n        \"Bug-5069\",\n        \"[10/29 James.y] 複驗通過\",\n        [\n          \"Pre测试通过\"\n        ],\n        null,\n        null,\n        \"PM-3254\",\n        \"2026-10-29T11:49:18.000+04:00\",\n        \"Web\",\n        \"2026-10-28T13:53:33.000+04:00\",\n        null,\n        \"Falive\",\n        null,\n        [\n          {\n            \"file_token\": \"XTRCbiVtuoPNAzxEoZ1lJjkSgPb\",\n            \"name\": \"Bug-5069-Pass.png\",\n            \"size\": 262373\n          }\n        ],\n        [\n          {\n            \"id\": \"ou_57bd40c686c743f8def7d503c70e8491\",\n            \"name\": \"HTJames.y\"\n          }\n        ],\n        null,\n        null,\n        \"2026-10-28T13:53:33.904+04:00\",\n        \"【falive一期】后端/web/app\",\n        \"Falive 個人主頁 \\u003e \\\"消息\\\" 標籤，數字顯示有括弧，沒有與其他標籤顯示一致\",\n        null,\n        null,\n        [\n          \"Pre\"\n        ],\n        [\n          {\n            \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n            \"name\": \"World\"\n          }\n        ],\n        [\n          {\n            \"file_token\": \"Rpsfb6Z87oz0nlxcaPIlsHUBgNb\",\n            \"name\": \"截圖 2026-10-28 下午5.52.50.png\",\n            \"size\": 275156\n          }\n        ],\n        [\n          {\n            \"id\": \"ou_f429a72d959a341cd2fdd1b18a0d3772\",\n            \"name\": \"Henry\"\n          }\n        ],\n        \"pre测试中\",\n        [\n          \"Web\"\n        ],\n        \"【10-28 分类】前端问题，个人主页（#46）归 henry。代码 origin/pre src/modules/user/UserProfilePage.tsx:128-134：本人页「消息」tab 有未读时用词典 user.tab.messages_unread「消息 ({n})」，同一排其他 tab 用「帖子 {n}」「评论 {n}」「直播/视频存档 {count}」（空格 + 数字，无括号），写法不一致。PRD / 页面控件清单无单独规定。改法：messages_unread 改为「消息 {n}」与其他 tab 一致。\\n【10-28 修复】src/locales/zh-CN.json user.tab.messages_unread「消息 ({n})」→「消息 {n}」（英文同步 Messages {n}），与「帖子 14」「评论 9」写法一致。本地 pre 生产包（测试号 508）实测 /user/me tab 依次为「直播/视频存档 0、帖子 17、收藏 2、赞过 2、评论 4、消息 10、勋章、记录」，逐个点击无报错。MR !163 http://mgit.lgroup.co/hqoi/web/falive-react/-/merge_requests/163（分支 hotfix-5069），待部署后复测。\",\n        \"1.0.3\"\n      ]\n    ],\n    \"field_id_list\": [\n      \"fldmxTvHTq\",\n      \"fld0Pe5U7G\",\n      \"fld1i6PDQT\",\n      \"fld1u0NBC5\",\n      \"fld4kVwoLs\",\n      \"fld52WVyfK\",\n      \"fld7ChUvSH\",\n      \"fld8fzIptW\",\n      \"fld8Q2XlJB\",\n      \"fldAh2Kyj0\",\n      \"fldBuyLemA\",\n      \"fldcuNmiVK\",\n      \"fldD77oYrZ\",\n      \"fldEiiSdHh\",\n      \"fldERqfLpq\",\n      \"fldGsVI1Y0\",\n      \"fldHgasO5A\",\n      \"fldhpTkoXE\",\n      \"fldIuAN6te\",\n      \"fldJ9rdSbO\",\n      \"fldMLCmFW2\",\n      \"fldPyoP99S\",\n      \"fldsV39i3n\",\n      \"fldu80s8wJ\",\n      \"fldw1TK5PO\",\n      \"fldwobTvnQ\",\n      \"fldyh4ldX6\",\n      \"fldYisQZkD\",\n      \"fldZHrw01k\"\n    ],\n    \"field_type_list\": [\n      \"auto_number\",\n      \"text\",\n      \"select\",\n      \"lookup\",\n      \"link\",\n      \"text\",\n      \"updated_at\",\n      \"lookup\",\n      \"created_at\",\n      \"text\",\n      \"lookup\",\n      \"select\",\n      \"attachment\",\n      \"user\",\n      \"datetime\",\n      \"text\",\n      \"datetime\",\n      \"lookup\",\n      \"text\",\n      \"attachment\",\n      \"datetime\",\n      \"select\",\n      \"updated_by\",\n      \"attachment\",\n      \"user\",\n      \"lookup\",\n      \"select\",\n      \"text\",\n      \"text\"\n    ],\n    \"fields\": [\n      \"Bug编号\",\n      \"测试结果\",\n      \"状态\",\n      \"测试人员所在部门\",\n      \"父記錄\",\n      \"需求ID\",\n      \"最后更新时间\",\n      \"解决人员所在部门\",\n      \"创建时间\",\n      \"项目备注\",\n      \"所属项目组\",\n      \"严重程度\",\n      \"测试结果截图\",\n      \"测试人员\",\n      \"预计上线时间\",\n      \"问题描述（复现步骤）\",\n      \"bug填写日期\",\n      \"需求名称\",\n      \"问题标题\",\n      \"附件\",\n      \"修复完成时间\",\n      \"环境\",\n      \"记录最后修改人\",\n      \"问题截图\",\n      \"负责RD\",\n      \"需求阶段\",\n      \"涉及端口\",\n      \"备注\",\n      \"Sprint\"\n    ],\n    \"has_more\": false,\n    \"record_id_list\": [\n      \"reczz28Smupgn1GR\"\n    ],\n    \"rev\": 21326,\n    \"timezone\": \"Asia/Dubai\"\n  }\n}\n",
+  "stderr": ""
+}

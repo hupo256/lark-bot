@@ -1,0 +1,26 @@
+{
+  "token": "J6cOd3TlRo5qADxDuOylOLCBgmc",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/J6cOd3TlRo5qADxDuOylOLCBgmc",
+  "fetchedAt": "2026-11-03T12:17:05.853Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/J6cOd3TlRo5qADxDuOylOLCBgmc",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"# Falive Web 一期 · 日报（2026-10-22）\\n\\n## 总体进度：97.8%（✅ 51 / 54）\\n\\n<callout emoji=\\\"📝\\\">\\n**aven：**负责 29 项，28 项 ✅；没完成的 #44 卡在 帖子列表接口报错（等社区后端）\\n**henry：**负责 10 项，10 项 ✅\\n**adrian：**负责 10 项，8 项 ✅；没完成的 #13 卡在 签到接口回「积分模块未开启」（等 Go 后端）；#21 卡在 G2（等 Go 后端）\\n**eric：**负责 2 项，2 项 ✅\\n**broker：**负责 3 项，3 项 ✅\\n</callout>\\n\\n## 一、功能进度总览（白板一期 54 项 + 产品 10-12 新增搜索 1 项 + 10-16 新增修改密码 1 项 = 56）\\n\\n✅ = origin/pre 上写完且接了真实接口。没打勾的写明还剩什么、卡在哪、找谁。\\n\\n| # | 功能 | 负责人 | 状态 | 还剩什么 · 卡在哪 | 需要谁支持 |\\n|-|-|-|-|-|-|\\n| 1 | 用户资料 | henry | ✅ | -- | -- |\\n| 2 | 登录 / 注册 | aven | ✅ | -- | -- |\\n| 3 | 直播预告-节目表 | aven | ✅ | -- | -- |\\n| 4 | 直播预告-预约 | aven | ✅ | -- | -- |\\n| 5 | 首页 banner | aven | ✅ | -- | -- |\\n| 6 | 正在直播-标签 | aven | ✅ | -- | -- |\\n| 7 | 正在直播-封面 | aven | ✅ | -- | -- |\\n| 8 | 首页直播推荐 | aven | ✅ | -- | -- |\\n| 9 | 首页推荐视频 | aven | ✅ | -- | -- |\\n| 10 | 主播推荐→个人主页 | aven | ✅ | -- | -- |\\n| 11 | 首页热门新闻 | aven | ✅ | -- | -- |\\n| 12 | 积分总额 | adrian | ✅ | -- | -- |\\n| 13 | 每日签到 | adrian | ⬜ | pre 签到接口回「积分模块未开启」，Go 后端在查 | Go 后端（Arthur） |\\n| 14 | 补签 | adrian | ✅ | -- | -- |\\n| 15 | 七日大礼包 | adrian | ✅ | -- | -- |\\n| 16 | 积分流水 | adrian | ✅ | -- | -- |\\n| 17–20 | 新手 / 每日任务（直播、fameex 联动） | adrian | ✅ | -- | -- |\\n| 21 | 积分兑换 | adrian | ⬜ | 兑换前取票 oneTimeToken/v2 回 -1，见对接文档 G2 | Go 后端 |\\n| 22 | 任务中心热门新闻 | aven | ✅ | -- | -- |\\n| 23 | 客服 | henry | ✅ | -- | -- |\\n| 24 | 群组 | henry | ✅ | -- | -- |\\n| 25 | 私聊 | henry | ✅ | -- | -- |\\n| 26 | 热门主播卡 | aven | ✅ | -- | -- |\\n| 27 | 热门主播→个人主页 | aven | ✅ | -- | -- |\\n| 28 | 主播主页-直播存档 | broker | ✅ | -- | -- |\\n| 29 | 正在直播列表 | aven | ✅ | -- | -- |\\n| 30 | 录播 tab | aven | ✅ | -- | -- |\\n| 31 | 直播频道热门新闻 | aven | ✅ | -- | -- |\\n| 32 | 直播视频区域 | henry | ✅ | -- | -- |\\n| 33 | 直播间公屏 | henry | ✅ | -- | -- |\\n| 34 | 直播间私聊 | henry | ✅ | -- | -- |\\n| 35 | 直播间群组 | henry | ✅ | -- | -- |\\n| 36 | 排行榜 | aven | ✅ | -- | -- |\\n| 37 | 直播间直播预告 | aven | ✅ | -- | -- |\\n| 38 | 礼物（付费） | aven | ✅ | -- | -- |\\n| 39 | 表情 | aven | ✅ | -- | -- |\\n| 40 | 热门直播 | aven | ✅ | -- | -- |\\n| 41 | 留言板（产品 10-22 定一期不做，已下线） | aven | — | -- | -- |\\n| 42 | 直播间直播推荐 | aven | ✅ | -- | -- |\\n| 43 | 直播间热门新闻 | aven | ✅ | -- | -- |\\n| 44 | 社区广场 | aven | ⬜ | pre 帖子列表 / 推荐接口回 -10501（社区库权限报错） | 社区后端 |\\n| 45 | 新闻 | aven | ✅ | -- | -- |\\n| 46 | 个人主页基础信息 | henry | ✅ | -- | -- |\\n| 47 | fameex 入口 | eric | ✅ | -- | -- |\\n| 48 | 个人简介 | henry | ✅ | -- | -- |\\n| 49 | 个人主页-直播存档 | broker | ✅ | -- | -- |\\n| 50 | 基础送礼 | aven | ✅ | -- | -- |\\n| 51 | 行情跑马灯 | eric | ✅ | -- | -- |\\n| 52 | 一键跟单 | broker | ✅ | -- | -- |\\n| 53 | SEO | aven | ✅ | -- | -- |\\n| 54 | adjust 与 ex 对接 | 后端 | ✅ | -- | -- |\\n| 55 | 搜索（新增） | aven | ✅ | -- | -- |\\n| 56 | 修改密码（新增） | aven | ✅ | -- | -- |\\n\\n**计数**（不含 #54）：✅ 51 项（aven 28、adrian 8、henry 10、broker 3、eric 2）。未完成 3 项：\\n\\n- aven 1 项：#44\\n- adrian 2 项：#13 #21\\n\\n## 二、测试 Bug\\n\\n- 共 62 个，今天新增 31：待处理 23、修复中 1、已推版 27、Pre测试通过 6、产品后续优化 1、测试中 3、bug已关闭 1\\n- 待处理 / 修复中按负责人：HQUCEncone 11、Ache.l 7、Arthur.a 3、Mateo 2、Adrian 2、Henry 2、HQUCWilliam.m 1\\n\\n## 三、需要再跟进的工作（剩 6 行，今日删 1 行）\\n\\n| 事项 | 说明 | 负责人 |\\n|-|-|-|\\n| 直播封面为空时换成预设图（#7） | UI 已在 Figma 1055-64852 补了预设封面，代码里还是 10-03 的旧占位图 | **aven** |\\n| 聊天页图片 .bnc 解密（/help） | 现在直接用 pic_bnc 没解密，图片显示不出来；key 到之前要不要先用明文 pic、要不要连直播间一起改，等 aven 定 | **aven** |\\n| 点赞 / 收藏 mutation 提到共用层（HF2） | user 和 square 各有一份，要不要合到 @/lib 由 aven 定 | **aven** |\\n| 合入 `codex/points-task-center`，修生产启动 MSW 的开关，登记 MSW handler；「看直播领积分」弹窗改读任务中心接口 | MSW 已关闭、handler 已登记；还剩：`VITE_POINTS_MANUAL_BIND_ORIGINS` 没配，看直播领积分弹窗还没挂上 | **adrian** |\\n| MR !98 review 待修 | 下一页页码依赖后端回显、几处 null 被当成 0，见对接文档 MR98-review 第 1、2 条 | **broker** |\\n| 产品：一期全项目问题 P1–P12 | 见对接文档 P1–P12；预约 Tab 内容口径见待确认文档 | 产品 |\",\n      \"document_id\": \"J6cOd3TlRo5qADxDuOylOLCBgmc\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

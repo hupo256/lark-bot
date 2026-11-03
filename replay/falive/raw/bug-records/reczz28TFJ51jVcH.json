@@ -1,0 +1,26 @@
+{
+  "recordId": "reczz28TFJ51jVcH",
+  "why": "bug-5105",
+  "fetchedAt": "2026-11-03T12:18:14.670Z",
+  "version": "now",
+  "note": "拉取时的最新状态（状态 / 备注 / 测试结果可能晚于消息当时）",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "base",
+    "+record-get",
+    "--as",
+    "user",
+    "--base-token",
+    "<bugTable.appToken>",
+    "--table-id",
+    "tblbJYjrxZsPe40V",
+    "--record-id",
+    "reczz28TFJ51jVcH",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"data\": [\n      [\n        \"Bug-5105\",\n        null,\n        [\n          \"UAT测试通过\"\n        ],\n        null,\n        null,\n        \"PM-3254\",\n        \"2026-10-30T15:20:44.000+04:00\",\n        \"App,Backend\",\n        \"2026-10-29T17:43:39.000+04:00\",\n        null,\n        \"Falive\",\n        [\n          \"P0\"\n        ],\n        null,\n        [\n          {\n            \"id\": \"ou_57bd40c686c743f8def7d503c70e8491\",\n            \"name\": \"HTJames.y\"\n          }\n        ],\n        null,\n        \"1. 登入 Falive \\n2. 點擊 任務中心\",\n        \"2026-10-29T17:43:39.654+04:00\",\n        \"【falive一期】后端/web/app\",\n        \"任務中心未顯示積分與積分流水\",\n        null,\n        null,\n        [\n          \"Uat\"\n        ],\n        [\n          {\n            \"id\": \"ou_ac2fb8eacd2c5ea9231d605c49c8c881\",\n            \"name\": \"Kaiser\"\n          }\n        ],\n        [\n          {\n            \"file_token\": \"SkOVbM8vnoaQ4Xx3KZPlnp5Bg4h\",\n            \"name\": \"Bug-5105-積分流水.png\",\n            \"size\": 154928\n          },\n          {\n            \"file_token\": \"D9xlbcyCAomjyFx5MXElnmfAgWf\",\n            \"name\": \"Bug-5105-積分.png\",\n            \"size\": 209828\n          }\n        ],\n        [\n          {\n            \"id\": \"ou_36e7f9a45c4f9bad97bd178d5ee90ad5\",\n            \"name\": \"Adrian\"\n          },\n          {\n            \"id\": \"ou_a0c48d661b36b1e16bf0d89b4a3bb775\",\n            \"name\": \"Arthur.a\"\n          }\n        ],\n        \"pre测试中\",\n        [\n          \"Backend\"\n        ],\n        \"10-30 bot 定根因（前端）：截圖裡 myPoints 回 code 0、totalPoints=0、pointsRecordPage={list:[],pageNum:0,pageSize:0,total:0,totalPage:0}，數據本身正確（新號無積分）。前端 myPointsSchema 要求 pageNum 為正、pageSize≥1，空頁的 0 值讓整個響應解析失敗，於是任務中心積分顯示「--」+「操作失敗」、積分流水「操作失敗」。端口改 Web，負責RD Adrian（任務中心積分 #12 / #16），bot 修。\\n10-30 修法：myPointsSchema 接受空頁 pageNum / pageSize 為 0（list 為空時不按請求頁號校驗），totalPoints=0 正常顯示 0、流水顯示空態；有記錄時的分頁校驗不變。\\n10-30 aven 会话已修（Web）：myPointsSchema 空页 pageNum / pageSize 为 0 放行、有记录仍校验分页；提交 8ccb17d9（feature/phase-5-test），本地 pre 生产包实测空页显示积分 0 / 暂无积分、无「操作失败」。GitLab 暂连不上，恢复后随 pre 发\\n10-30 已推 feature/phase-5-test，MR !191（→ pre）\\n【10-30 验退原因】测试评论「签到后积分显示为 0，仍未显示积分流水」。前端修复（MR !191）已在 uat 生效：空页不再报「操作失败」，积分正常显示 0。uat 实测（新注册号 uid 458）：POST /go-api/api/checkinPointsTask/sign 返回 code 0、data true，checkinPointsTask/query 的 checkedToday 变为 true，页面显示「已签到」；但签到后立即及 4 分钟后 GET /go-api/api/points/task/myPoints 仍为 totalPoints 0、pointsRecordPage.list []；同一账号 task/list 中「登录注册」任务已完成（+20），积分同样没到账。前端只展示接口返回值，根因在 Go 积分后端：签到 / 任务完成后积分没入账、没写流水。pre 另有问题：测试号签到返回 code -1「积分模块未开启！」（前端弹出该提示）。端口改 Backend，负责RD 加 Arthur.a（Go 积分），请 Arthur.a 查 uat 签到及任务积分入账、开启 pre 积分模块；前端无需改动。\",\n        \"1.0.3\"\n      ]\n    ],\n    \"field_id_list\": [\n      \"fldmxTvHTq\",\n      \"fld0Pe5U7G\",\n      \"fld1i6PDQT\",\n      \"fld1u0NBC5\",\n      \"fld4kVwoLs\",\n      \"fld52WVyfK\",\n      \"fld7ChUvSH\",\n      \"fld8fzIptW\",\n      \"fld8Q2XlJB\",\n      \"fldAh2Kyj0\",\n      \"fldBuyLemA\",\n      \"fldcuNmiVK\",\n      \"fldD77oYrZ\",\n      \"fldEiiSdHh\",\n      \"fldERqfLpq\",\n      \"fldGsVI1Y0\",\n      \"fldHgasO5A\",\n      \"fldhpTkoXE\",\n      \"fldIuAN6te\",\n      \"fldJ9rdSbO\",\n      \"fldMLCmFW2\",\n      \"fldPyoP99S\",\n      \"fldsV39i3n\",\n      \"fldu80s8wJ\",\n      \"fldw1TK5PO\",\n      \"fldwobTvnQ\",\n      \"fldyh4ldX6\",\n      \"fldYisQZkD\",\n      \"fldZHrw01k\"\n    ],\n    \"field_type_list\": [\n      \"auto_number\",\n      \"text\",\n      \"select\",\n      \"lookup\",\n      \"link\",\n      \"text\",\n      \"updated_at\",\n      \"lookup\",\n      \"created_at\",\n      \"text\",\n      \"lookup\",\n      \"select\",\n      \"attachment\",\n      \"user\",\n      \"datetime\",\n      \"text\",\n      \"datetime\",\n      \"lookup\",\n      \"text\",\n      \"attachment\",\n      \"datetime\",\n      \"select\",\n      \"updated_by\",\n      \"attachment\",\n      \"user\",\n      \"lookup\",\n      \"select\",\n      \"text\",\n      \"text\"\n    ],\n    \"fields\": [\n      \"Bug编号\",\n      \"测试结果\",\n      \"状态\",\n      \"测试人员所在部门\",\n      \"父記錄\",\n      \"需求ID\",\n      \"最后更新时间\",\n      \"解决人员所在部门\",\n      \"创建时间\",\n      \"项目备注\",\n      \"所属项目组\",\n      \"严重程度\",\n      \"测试结果截图\",\n      \"测试人员\",\n      \"预计上线时间\",\n      \"问题描述（复现步骤）\",\n      \"bug填写日期\",\n      \"需求名称\",\n      \"问题标题\",\n      \"附件\",\n      \"修复完成时间\",\n      \"环境\",\n      \"记录最后修改人\",\n      \"问题截图\",\n      \"负责RD\",\n      \"需求阶段\",\n      \"涉及端口\",\n      \"备注\",\n      \"Sprint\"\n    ],\n    \"has_more\": false,\n    \"record_id_list\": [\n      \"reczz28TFJ51jVcH\"\n    ],\n    \"rev\": 21326,\n    \"timezone\": \"Asia/Dubai\"\n  }\n}\n",
+  "stderr": ""
+}

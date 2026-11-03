@@ -1,0 +1,26 @@
+{
+  "token": "XOVbdReTUoxbxixMfzglf1tNgIg",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/XOVbdReTUoxbxixMfzglf1tNgIg",
+  "fetchedAt": "2026-11-03T12:17:03.773Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/XOVbdReTUoxbxixMfzglf1tNgIg",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>对接-收尾-后台-2026-10-20</title>\\n\\n# 后台对接 · aven 负责功能收尾（2026-10-20）\\n\\n> 致：运维、live 运营、社区后端（bbsv2）· 发起：aven（前端）  \\n> 范围：只列 aven 负责的功能（#29 正在直播、#44 社区广场、全站 SSR / SEO）还要后台做的事，按找谁分组，转发对应一节即可；做完或有结论回条目号。  \\n> 依据：10-20 13:5x–14:1x（+04）/ 09:5x–10:1x UTC 在 pre 实测，接口经 `https://falivepre.fdsser.com`，登录态用测试号 **uid 508**（aven-pretest@probe.test）。\\n\\n## 一、运维\\n\\n| # | 要什么 | 为什么 | 10-20 实测 | 建议 |\\n|-|-|-|-|-|\\n| O2b | pre SSR 服务器回源 php 的出口 IP 加进 php 限流白名单；并给 10:05–10:08 UTC 的 SSR 日志 | 访客打开页面时，服务端渲染从同一个出口 IP 回源 php，php 对同一接口约 4 次 / 秒限流，访问一多就会有页面整页没有数据：爬虫抓到空页、用户首屏是空的（浏览器里会再取一次） | 10:05–10:08 UTC 每 1.5 秒抓一轮，25 轮里 `/` 3 次、`/lives` 2 次、`/room/260` 2 次没拿到 php 数据（直播列表 / 新闻为空，约 1 秒内返回，不是超时）；同时段直打接口都 code 0 | 加白名单后回一句，前端再抽样 50 次确认为 0；不加的话请看日志确认是不是限流  <br/>**11:35–11:43 UTC 复测（pre 更新后，未解决、更严重）**：直接抓 pre 页面 SSR HTML，`/`、`/lives`、`/room/260`、`/news/1`、`/square/18581` 一轮 5 页、轮间隔 1.5 秒，50 轮里 **44 轮 5 个页面一起没拿到 php 数据**（首页 / `/lives` 没有直播卡片，`/room/260`、`/news/1`、`/square/18581` 标题退回站点默认标题），每页约 270ms 就返回，不是超时；放慢到每 5 秒抓一页，`/room/260`、`/news/1` 交替 24 次**全部正常**。同时段直打 `api/preload/lives`、`upcoming`、`headlinesGetList`、`getRoomInfo?uid=260`、`headlinesGetInfo?id=1`、`getBannerList`，以及 `bbsv2/preload/threadDetail?tid=18581`、`threadListCursor`，都是 code 0、有数据。访问越密集空页越多，跟「SSR 出口 IP 被 php 按 IP 限流」一致；前端 SSR 回源没有熔断或缓存回落，前端不做重试或缓存去掩盖。**仍请运维加白名单或给 11:35–11:38 UTC 的 SSR 日志** |\\n\\n## 二、live 运营（旧后台配置）\\n\\n| # | 要什么 | 为什么 | 10-20 实测 | 建议 |\\n|-|-|-|-|-|\\n| 假直播 | 下播没在推流的 11 个老房间：**128、133、414、417、388、295、256、424、426、271**（m3u8 8 秒无响应）、**395**（拉流地址为空） | 它们在「正在直播」列表里标着 LIVE，用户点进去是「播放器加载失败」 | `front/lives` 20 条：6 个在推流（258、65、282、285、286、287）、3 个是录播文件（96、283、284），其余 11 个拉不到流 | 后台下播；以后没人开播的房间别挂在列表里 |\\n\\n## 三、社区后端（bbsv2）\\n\\n| # | 要什么 | 为什么 | 10-20 实测 | 建议 |\\n|-|-|-|-|-|\\n| C3 | 造约 10 条**带话题标签**的帖子（btc / 行情分析 / Shelly 等各几条），其中 2–3 条带视频 | 广场话题 chip 点进去基本只有 1 条，话题筛选和视频帖没法验收 | `thread/listCursor` 首页 20 条里只有 1 条带话题、4 条带图、0 条带视频；9 个热门话题各自筛选：Shelly 5 条、456 2 条，其余 7 个都只有 1 条 | 造好回一句 |\",\n      \"document_id\": \"XOVbdReTUoxbxixMfzglf1tNgIg\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

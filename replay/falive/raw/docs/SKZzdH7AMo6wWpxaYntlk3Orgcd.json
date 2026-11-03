@@ -1,0 +1,26 @@
+{
+  "token": "SKZzdH7AMo6wWpxaYntlk3Orgcd",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/SKZzdH7AMo6wWpxaYntlk3Orgcd",
+  "fetchedAt": "2026-11-03T12:17:00.115Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/SKZzdH7AMo6wWpxaYntlk3Orgcd",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>对接-hichat后端-2</title>\\n\\n# hichat / golang 后端 · 待答复（第二轮，2026-10-12）\\n\\n> 致：arthur / william / encone / justin · 抄送 eric、broker、adrian · 发起：aven（前端）  \\n> 域名表 10-12 已给并配好（`build/service-hosts.ts`），第一轮全文见归档 对接-02。本文只列还开着的。\\n\\n## P0：登录打通（web 用 live 登录，怎么拿到 hichat 身份）\\n\\n| # | 问题 | 要的答案形态 |\\n|-|-|-|\\n| **H1** | live 用户 id 和 hichat member id 怎么对应？ | 同一个 id / 映射表 / 首次访问自动建号 |\\n| **H2** | 登录后 web 怎么拿到 hichat JWT？ | 接口路径 + 入参（是否用 live token 换）+ 返回示例 |\\n| **H3** | JWT 过期、续期、失效错误码 | 可后补 |\\n| **H4** | 退出登录要不要调 hichat 接口 | 可后补 |\\n| **H-obs** | pre 上 `NewMailLogin` 响应日志里 `app\\\\job\\\\live\\\\JHiChatAccountSync::fire` 有 error 并「任务重新入队」 | 这是不是登录时给 hichat 同步建号（H1）？失败原因？同步成功后 web 怎么拿 JWT（H2）？ |\\n| **H-svc** | golang / dz 两个服务 web 一期还用不用？ | 第一轮域名表里 golang、dz 两行至今没填。已知事实：私聊 / 群聊 / 客服都在 php（H11 已撤回）；旧 discuz（dz）10-13 Encone 确认前端不需要、nginx 不转发 `/discuz`，资料改走 bbsv2（社区后端 B10）；任务中心 / 跑马灯 / 跟单 / fameex 都走 hichat 域名。请一句话确认「golang、dz 都不用」，或给出 web 要调的 golang 接口与域名。确认不用后前端删掉占位与遗留 `chat` 别名（任务中心在用，和 adrian 一起改） |\\n\\n> **H1 / H2 · 10-14 收到后端 portal（Go）PM-3217 方案（PM-3217-对接文档），状态：有方案，待验证，暂不划掉。** portal 登录 / 注册返回 `token`、`live_token`、`hichat_token`、`hichat_token_head`（固定 `hiApp`）和 `user_info.hichat_id`（未绑定时不返回）（文档 2.2 / 3.1），即 H1 = 登录时三端建号并回传 hichat_id、H2 = 登录响应直接带 hichat JWT。还不能接的三点：① `hichat_token` 由 Go 签发，签名密钥处理与嗨聊 Java 不一致（Java 先 Base64 解码）、有效期 7 天 vs Java 180 天，尚未和嗨聊联调（文档六-7）——请 hichat 后端确认能否通过 Java 校验；② portal 还没有对外域名（文档写「以部署环境的网关为准」），`build/service-hosts.ts` 无可配项；③ 路径要改成与 Live（`/api/user/NewLogin` 等）一致，目前未对齐（文档 1.2）。三点落定前前端继续走 php `NewLogin`，不切 portal。\\n\\n> 只要 H1、H2 有答复，任务中心（adrian）、跑马灯 / fameex（eric）、跟单（broker）就能切真实接口。\\n\\n## P1：各功能接口确认（负责人各自跟进，这里汇总）\\n\\n| # | 功能 | 负责人 | 要确认 |\\n|-|-|-|-|\\n| H5 | 任务中心 `points/task/*` | adrian | 任务完成上报 `complete` / `report`；补签按周还是按月；fameex 联动任务判定；「看直播 10 分钟领积分」的接口与规则（产品 P10 要保留） |\\n| H6 | 积分兑换 `mallRights/*` | adrian | 一期是否上线 |\\n| H7 | 行情跑马灯 | eric | 行情 WS 地址与消息格式；走 hichat 域名还是单独域名 |\\n| H8 | fameex 入口 `fameEx/oneTimeToken/v2`、`fameEx/redirect/{action}` | eric | 未登录 fameex 时的跳转规则 |\\n| H9 | 一键跟单 | broker | 跟单群、下单、我的跟单接口清单；**按主播取跟单群 id** 的接口（live 后端 L16 说群 id 不在 live）。**10-14 补：直播间「充值」按钮的显示规则待定**——「一键跟单」开关 10-13 后端已确认用 `getRoomInfo` 的 `start_the_transaction`（1 显示、0 不显示）；「充值」按钮前端现按转译时的 hichat 入口规则写（开播 + 开关开 + 外部服务开 + 地区允许 + 用户线路已识别 + **未绑定交易员且是主推群** → 显示「充值」，否则「一键跟单」），但除开关外这些字段在真实接口里都没有来源（只有 mock 有），真实模式下充值按钮不会出现。请对照 hichat App 原逻辑确认：充值按钮何时显示、上述判断字段从哪个接口取、点了跳哪里 |\\n| ~~H10~~ | 直播存档 | broker | **10-13 已由 live 后端答复关闭，不用 hichat 答**：B2B-04 的 `hi_chat_program/getHiChatUidRecordVideo(Cursor)` 是给嗨聊内网用的，web 不直连；live 后端新给了直播站接口 `GET /api/front/anchorRecordList?uid=&page=`（每页 20）/ `anchorRecordListCursor?uid=&last_id=0&per_page=20`（SSR 用 `/api/preload/` 同名），按 **live 主播 uid** 查，不再需要 `hiChatUid` 映射，也不走 hichat `b2b/recordVideoList`。后端 10-13 另说明「录播先只支持 mp4」；书面答复里单条 `pull` 是带时效签名的 m3u8（勿缓存），实际格式以 broker 接时的响应为准，播放器两种都支持。broker 按新接口接（对接-前端同事-2 B3） |\",\n      \"document_id\": \"SKZzdH7AMo6wWpxaYntlk3Orgcd\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

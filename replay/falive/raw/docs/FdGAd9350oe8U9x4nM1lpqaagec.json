@@ -1,0 +1,26 @@
+{
+  "token": "FdGAd9350oe8U9x4nM1lpqaagec",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/FdGAd9350oe8U9x4nM1lpqaagec",
+  "fetchedAt": "2026-11-03T12:17:04.790Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/FdGAd9350oe8U9x4nM1lpqaagec",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"# FameEX 资产路径 · 待确认（2026-10-21）\\n\\n> 发起：aven · 来源：《对接-一期全项目问题-2026-10-20》H1、O1 · 影响：#47 个人主页 FameEX 入口（前端 eric）  \\n> 复测：10-21 16:44（+04），pre 测试号 uid 508（hichat id 129180），portal 登录（`platform_code: hichat`）拿 hichat_token 后直接请求。  \\n> **10-21 16:51（+04）/ 20:51（+08）新号复测**（Arthur 说改了用户写入逻辑，要求新建测试号）：portal 新注册 `selftest1021h1@probe.test` / 密码 `Probe12345`（`platform_code: hichat`，验证码 123456），php uid **19666**、hichat id **129250**。\\n\\n## hichat 后端（Arthur）\\n\\n- **要什么**：确认测试号 508（hichat id 129180）的 `GET /api/member/profile/my` 为什么还是没有 `fameExAssetsPath`，并让它下发。\\n- **为什么**：前端入口卡只在 `fameExAssetsPath` 非空时显示（#47 已经写好）。没有这个字段，测试就验收不了 FameEX 入口。\\n- **我方现状**：10-21 Arthur 回复说测试号不用单独配、之前少的配置 10-20 已补。复测时直连 `https://pre-hailiao.hai-liao-pre.com/api/member/profile/my`，返回 HTTP 200、code 200，data 一共 22 个字段（`id, memberId, …, platformCode: \\\"LIVE_WEB\\\", hasHiwallet: false, …`），里面没有 `fameExAssetsPath`，`setting` 里也没有。\\n- **建议**：用 hichat id 129180 查一下配置有没有在 pre 生效。如果这个字段只在特定条件下才下发（比如平台编码、是否开通钱包），请写明条件，再给测试号满足它。前端不写死、也不兜底资产路径。\\n- **10-21 新号复测结果**：新号 129250 直连 `GET /api/member/profile/my`（带 `Authorization: hiApp<hichat_token>`、`X-Hc-Uid`、`X-Device-Type: 1`）→ HTTP 200、code 200，data 24 个字段，**`fameExAssetsPath` 已下发且非空**（`/hichat_h5/app/eb72e684-…/index.html?action=assets`），多了 `hasFameExAccount: false`，`platformCode: \\\"hichat\\\"`。同一时间老号 508（129180，`platformCode: \\\"LIVE_WEB\\\"`）仍是 22 个字段，没有 `fameExAssetsPath` 和 `hasFameExAccount`。结论：新的用户写入逻辑对新注册的号生效，**老号没补数据**。\\n- **~~还要什么~~**~~：已有账号（508 和其它改动前注册的号，包括线上老用户）是不是也要补上？~~**10-21 已答复、本节结**：hichat 后端说老号补数据很麻烦，所以跳过老号，不补 `fameExAssetsPath`。\\n- **口径**：508 这类改动前注册的老号没有 `fameExAssetsPath`，不显示 FameEX 入口是预期行为。前端不兜底、也不写死资产路径。pre 测试和联调统一用新号 `selftest1021h1@probe.test`（hichat id 129250）。\\n\\n## 运维\\n\\n- **要什么**：把 pre 网关 `/hc-api/` 的上游改成 hichat API（`pre-hailiao.hai-liao-pre.com`），即原 O1。\\n- **为什么**：Web 走网关请求 hichat。即使后端补齐了字段，网关不通的话入口卡照样不显示。\\n- **我方现状**：10-21 16:44（+04），同一个 hichat_token 请求 `https://falivepre.fdsser.com/hc-api/api/member/profile/my`，仍回 Spring `{\\\"status\\\":404,\\\"path\\\":\\\"/api/member/profile/my\\\"}`。\\n- **10-21 16:51（+04）复测**：新号 129250 和 508 的 token 请求同一个地址，都还是 Spring 404，O1 没修。\\n- **建议**：改好后回一句，前端复测这支接口。\\n\\n## 前端 eric（#47）\\n\\n- 后端这项已结（新号有资产路径，老号不补），只剩运维 O1。O1 修好后，在 pre 用新号自己联调入口卡，以及 oneTimeToken 跳转后的落地页。代码这边这次没改。\\n- 联调用新号 `selftest1021h1@probe.test` / `Probe12345`（hichat id 129250）。508 不会有资产路径，后端确认不补，别拿它测。返回的路径是相对路径（`/hichat_h5/...`），拼哪个域名请按 legacy H5 现有接法确认。\",\n      \"document_id\": \"FdGAd9350oe8U9x4nM1lpqaagec\",\n      \"revision_id\": 7\n    }\n  }\n}\n",
+  "stderr": ""
+}

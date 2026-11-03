@@ -1,0 +1,26 @@
+{
+  "token": "LeIkdmZ0lozD8SxbFZRlkIswg0b",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/LeIkdmZ0lozD8SxbFZRlkIswg0b",
+  "fetchedAt": "2026-11-03T12:17:06.921Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/LeIkdmZ0lozD8SxbFZRlkIswg0b",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"# 社区发帖 / 评论迁移（细节）\\n\\n## 社区发帖 / 评论迁移自测（2026-10-23）\\n\\n测试号：aven-pretest@probe.test（uid 508），本地 dev:pre 连 pre 后端。\\n\\n### 写接口实测\\n\\n- 上传图片 tool/upload：code 0，aid 8615\\n- 发帖 thread/create：code 0，tid 18608，pending 0（直接发布）\\n- 评论 post/create（pid=0）：code 0，pid 26900\\n- 回复 post/create（pid=26900）：code 0，pid 26901\\n\\n### 读回\\n\\n- post/listCursor?tid=18608：1 条根评论，replies 里有 1 条回复\\n- thread/listCursor：第一条是 tid 18608，评论数 2，带 1 张图\\n\\n### 页面\\n\\n- /square：新帖排在第一条，评论数 2\\n- /square/18608：标题、正文、「评论 2」、评论和回复都正常显示\\n- /square/publish：显示发帖表单（标题 / 正文 / 图片 / 视频 / 标签）和发布须知\\n\\n### 后端口径（前端已处理）\\n\\n- pre 的评论字数下限是 10 个字（publishRule content.min），前端提交前就会提示\\n- 后端限制同一账号 15 秒内只能发一次，超了回「发帖太频繁」，前端直接展示这条提示\\n\\n### 本地看不到图片的说明\\n\\n本地 127.0.0.1 跨域取不到 pre 的图片，所以显示占位图；在 pre 站点同域下，按 10-21 的图片解密流程能正常显示。\\n\\n测试帖 tid 18608 留在 pre 上，需要的话可以删。\",\n      \"document_id\": \"LeIkdmZ0lozD8SxbFZRlkIswg0b\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

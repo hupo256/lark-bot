@@ -1,0 +1,979 @@
+<title>IM 群组功能流程</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+<style>
+  :root {
+    --bg: #F3F5F4;
+    --surface: #FFFFFF;
+    --surface-2: #E8EDEB;
+    --ink: #16201C;
+    --muted: #56645E;
+    --line: #D2DAD6;
+    --line-strong: #9DADA6;
+    --accent: #0B6E60;
+    --accent-soft: #DCEFEA;
+    --warn: #9A5C0A;
+    --warn-soft: #F7EAD5;
+    --crit: #A8352A;
+    --crit-soft: #F6E0DC;
+    --ok: #2F6B34;
+    --ok-soft: #E0EEDD;
+    --sans: "IBM Plex Sans", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    --cjk: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #0E1312;
+      --surface: #151C1A;
+      --surface-2: #1D2623;
+      --ink: #E1E8E5;
+      --muted: #98A6A1;
+      --line: #29342F;
+      --line-strong: #4C5D56;
+      --accent: #4CC3AD;
+      --accent-soft: #15322C;
+      --warn: #E3A64C;
+      --warn-soft: #382A13;
+      --crit: #EB7A66;
+      --crit-soft: #3B1E19;
+      --ok: #86C47E;
+      --ok-soft: #1C3120;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0E1312;
+    --surface: #151C1A;
+    --surface-2: #1D2623;
+    --ink: #E1E8E5;
+    --muted: #98A6A1;
+    --line: #29342F;
+    --line-strong: #4C5D56;
+    --accent: #4CC3AD;
+    --accent-soft: #15322C;
+    --warn: #E3A64C;
+    --warn-soft: #382A13;
+    --crit: #EB7A66;
+    --crit-soft: #3B1E19;
+    --ok: #86C47E;
+    --ok-soft: #1C3120;
+  }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.7;
+    padding-inline: 16px;
+    padding-block: 0;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; padding-block: 40px 80px; }
+
+  a { color: var(--accent); }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+  code, .mono { font-family: var(--mono); font-size: 0.86em; }
+  code {
+    background: var(--surface-2);
+    padding: 1px 5px;
+    border-radius: 4px;
+    overflow-wrap: anywhere;
+  }
+
+  /* ---------- header ---------- */
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0;
+  }
+  h1 {
+    font-family: var(--cjk);
+    font-weight: 700;
+    font-size: clamp(26px, 4.2vw, 34px);
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+    margin: 10px 0 12px;
+    text-wrap: balance;
+  }
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 18px;
+    color: var(--muted);
+    font-size: 13px;
+    margin: 0 0 16px;
+  }
+  .lead { max-width: 70ch; margin: 0; }
+  nav.toc { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+  nav.toc a {
+    font-size: 13px;
+    padding: 3px 11px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--ink);
+    text-decoration: none;
+  }
+  nav.toc a:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ---------- sections ---------- */
+  section { margin-top: 60px; scroll-margin-top: 16px; }
+  h2 {
+    font-family: var(--cjk);
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.35;
+    margin: 0 0 6px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 12px;
+    text-wrap: balance;
+  }
+  h2 .src {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--muted);
+    overflow-wrap: anywhere;
+  }
+  section > p { max-width: 72ch; margin: 8px 0 0; }
+  ul.facts { margin: 12px 0 0; padding-left: 1.2em; max-width: 76ch; }
+  ul.facts li + li { margin-top: 6px; }
+  ul.facts strong { font-weight: 600; }
+
+  /* ---------- figures ---------- */
+  figure {
+    margin: 20px 0 0;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+  }
+  .fig-scroll { overflow-x: auto; padding: 18px 16px 12px; }
+  .fig-scroll svg {
+    display: block;
+    width: 100%;
+    min-width: 940px;
+    height: auto;
+    color: var(--muted);
+    font-family: var(--sans);
+  }
+  figcaption {
+    border-top: 1px solid var(--line);
+    padding: 11px 16px 13px;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  /* svg classes */
+  .d-box  { fill: var(--surface);     stroke: var(--line-strong); stroke-width: 1.2; }
+  .d-core { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.4; }
+  .d-ok   { fill: var(--ok-soft);     stroke: var(--ok); stroke-width: 1.3; }
+  .d-warn { fill: var(--warn-soft);   stroke: var(--warn); stroke-width: 1.3; }
+  .d-crit { fill: var(--crit-soft);   stroke: var(--crit); stroke-width: 1.3; }
+  .d-dec  { fill: var(--surface);     stroke: var(--accent); stroke-width: 1.3; }
+  .d-t    { fill: var(--ink); font-size: 13px; font-weight: 600; font-family: var(--cjk); }
+  .d-t.d-m { font-family: var(--mono); font-weight: 500; }
+  .d-s    { fill: var(--muted); font-size: 11px; }
+  .d-m    { font-family: var(--mono); }
+  .d-r    { fill: var(--ink); font-size: 12px; font-family: var(--cjk); }
+  .d-h    { fill: var(--accent); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; font-family: var(--cjk); }
+  .d-lab  { fill: var(--muted); font-size: 10.5px; }
+  .d-yes  { fill: var(--accent); font-size: 11px; font-weight: 600; font-family: var(--cjk); }
+  .d-line { stroke: currentColor; stroke-width: 1.3; fill: none; }
+  .d-sep  { stroke: var(--accent); stroke-width: 1; opacity: 0.5; }
+
+  /* ---------- tables ---------- */
+  .tbl {
+    margin-top: 16px;
+    overflow-x: auto;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+  }
+  table { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 13.5px; line-height: 1.6; }
+  th, td { padding: 10px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+  thead th {
+    background: var(--surface-2);
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 12.5px;
+    white-space: nowrap;
+  }
+  tbody tr:last-child td, tbody tr:last-child th { border-bottom: 0; }
+  tbody th { font-weight: 600; white-space: nowrap; color: var(--ink); }
+  tr.group th {
+    background: var(--surface-2);
+    color: var(--accent);
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+    padding-block: 6px;
+  }
+  td .hl-warn { color: var(--warn); font-weight: 600; }
+  td .hl-crit { color: var(--crit); font-weight: 600; }
+  td .hl-ok   { color: var(--ok); font-weight: 600; }
+  td .hl-dim  { color: var(--muted); }
+  td.k code { white-space: nowrap; }
+
+  .aside {
+    margin-top: 14px;
+    font-size: 13.5px;
+    color: var(--muted);
+    max-width: 80ch;
+  }
+
+  /* ---------- issues ---------- */
+  ol.issues { list-style: none; margin: 16px 0 0; padding: 0; display: grid; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+  ol.issues > li {
+    display: grid;
+    grid-template-columns: 40px 1fr;
+    gap: 4px 14px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  ol.issues > li:last-child { border-bottom: 0; }
+  .sev {
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+    border-radius: 5px;
+    padding: 1px 0;
+    height: fit-content;
+    margin-top: 2px;
+  }
+  .sev.hi  { background: var(--crit-soft); color: var(--crit); }
+  .sev.mid { background: var(--warn-soft); color: var(--warn); }
+  .sev.lo  { background: var(--surface-2); color: var(--muted); }
+  ol.issues strong { font-weight: 600; }
+  ol.issues p { margin: 2px 0 0; font-size: 14px; max-width: 80ch; }
+  ol.issues .loc { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-top: 4px; overflow-wrap: anywhere; }
+
+  footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12.5px; }
+
+  @media (max-width: 640px) {
+    section { margin-top: 48px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { scroll-behavior: auto !important; }
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">X9 · live / chat · 代码梳理</p>
+    <h1>IM 群组：功能流程图</h1>
+    <p class="meta">
+      <span>代码版本 <span class="mono">8a2032dbaf</span>（vn/pm-2954-merge-user）</span>
+      <span>2026-10-01</span>
+      <span>静态阅读梳理，未改代码、未联调</span>
+    </p>
+    <p class="lead">群组是 IM 里 <code>room_type = 1</code> 的房间：只能由后台建群和拉人，成员是注册用户和管理员，游客进不来。本页用四张图讲一个群从建立到解散的完整流程：功能地图、成员怎样进群、一条群消息怎样发出去、群发言限制怎样判定；然后列出管理操作、踢人与解散的差别、数据落点和已知偏差。</p>
+    <nav class="toc" aria-label="目录">
+      <a href="#map">功能地图</a>
+      <a href="#join">入群</a>
+      <a href="#send">发言与推送</a>
+      <a href="#limit">发言限制</a>
+      <a href="#read">读历史与会话列表</a>
+      <a href="#manage">群管理</a>
+      <a href="#leave">踢人与解散</a>
+      <a href="#storage">数据落点</a>
+      <a href="#gaps">已知偏差</a>
+    </nav>
+  </header>
+
+  <!-- ================= 功能地图 ================= -->
+  <section id="map">
+    <h2>功能地图 <span class="src">app/http/admin/ctrl/CChat.php · CChatRoomInfo.php · app/logic/chat/LWebChat.php</span></h2>
+    <p>前台用户只能在群里聊天，建群、拉人、管理、踢人都在后台完成。群号 <code>vid = strtoupper(md5(管理员id_UUID))</code>，32 位十六进制；群的平台在建群时选定，写进 <code>cmf_chat_room_info.platform_id</code>。</p>
+
+    <figure>
+      <div class="fig-scroll">
+        <svg viewBox="0 0 1160 356" role="img" aria-label="群组功能地图：建群、入群、聊天、管理、离开五个阶段，每个阶段列出对应的操作和接口。">
+          <defs>
+            <marker id="m1-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+
+          <!-- stage headers -->
+          <text class="d-h" x="120" y="28" text-anchor="middle">建群</text>
+          <text class="d-s" x="120" y="45" text-anchor="middle">后台</text>
+          <text class="d-h" x="348" y="28" text-anchor="middle">入群</text>
+          <text class="d-s" x="348" y="45" text-anchor="middle">后台 · 定时器 · 注册</text>
+          <text class="d-h" x="576" y="28" text-anchor="middle">聊天</text>
+          <text class="d-s" x="576" y="45" text-anchor="middle">前台 + 后台</text>
+          <text class="d-h" x="804" y="28" text-anchor="middle">管理</text>
+          <text class="d-s" x="804" y="45" text-anchor="middle">后台（部分主播可用）</text>
+          <text class="d-h" x="1032" y="28" text-anchor="middle">离开</text>
+          <text class="d-s" x="1032" y="45" text-anchor="middle">后台</text>
+
+          <line class="d-line" x1="168" y1="24" x2="296" y2="24" marker-end="url(#m1-arrow)"/>
+          <line class="d-line" x1="396" y1="24" x2="524" y2="24" marker-end="url(#m1-arrow)"/>
+          <line class="d-line" x1="624" y1="24" x2="752" y2="24" marker-end="url(#m1-arrow)"/>
+          <line class="d-line" x1="852" y1="24" x2="980" y2="24" marker-end="url(#m1-arrow)"/>
+
+          <!-- col 1: 建群 -->
+          <rect class="d-core" x="16" y="62" width="208" height="60" rx="8"/>
+          <text class="d-t" x="30" y="84">建群</text>
+          <text class="d-s d-m" x="30" y="101">createGroupRoom</text>
+          <text class="d-s" x="30" y="115">选平台、群名、首批成员</text>
+
+          <rect class="d-box" x="16" y="134" width="208" height="60" rx="8"/>
+          <text class="d-t" x="30" y="156">选管理员</text>
+          <text class="d-s d-m" x="30" y="173">groupRoomAdmins</text>
+          <text class="d-s" x="30" y="187">只列能在本平台聊天的</text>
+
+          <!-- col 2: 入群 -->
+          <rect class="d-box" x="244" y="62" width="208" height="60" rx="8"/>
+          <text class="d-t" x="258" y="84">后台拉人</text>
+          <text class="d-s d-m" x="258" y="101">joinGroupRoom</text>
+          <text class="d-s" x="258" y="115">一人进多群，或多人进一群</text>
+
+          <rect class="d-box" x="244" y="134" width="208" height="60" rx="8"/>
+          <text class="d-t" x="258" y="156">一键拉群</text>
+          <text class="d-s d-m" x="258" y="173">OneClickPullGroup</text>
+          <text class="d-s" x="258" y="187">建任务，定时器执行</text>
+
+          <rect class="d-box" x="244" y="206" width="208" height="60" rx="8"/>
+          <text class="d-t" x="258" y="228">批量拉群</text>
+          <text class="d-s d-m" x="258" y="245">setBatchPullGroup</text>
+          <text class="d-s" x="258" y="259">直接写成员表</text>
+
+          <rect class="d-box" x="244" y="278" width="208" height="60" rx="8"/>
+          <text class="d-t" x="258" y="300">注册自动入群</text>
+          <text class="d-s d-m" x="258" y="317">enter_the_chat_room_vid</text>
+          <text class="d-s" x="258" y="331">渠道平台配置</text>
+
+          <!-- col 3: 聊天 -->
+          <rect class="d-core" x="472" y="62" width="208" height="60" rx="8"/>
+          <text class="d-t" x="486" y="84">发言</text>
+          <text class="d-s d-m" x="486" y="101">sendMessage · type=1</text>
+          <text class="d-s" x="486" y="115">只推给群成员，不按房间推</text>
+
+          <rect class="d-box" x="472" y="134" width="208" height="60" rx="8"/>
+          <text class="d-t" x="486" y="156">读历史</text>
+          <text class="d-s d-m" x="486" y="173">history · getChatHistory</text>
+          <text class="d-s" x="486" y="187">Redis 300 条，翻页查库</text>
+
+          <rect class="d-box" x="472" y="206" width="208" height="60" rx="8"/>
+          <text class="d-t" x="486" y="228">会话列表 / 已读</text>
+          <text class="d-s d-m" x="486" y="245">getChatRoomList · read</text>
+          <text class="d-s" x="486" y="259">列表来自 Redis</text>
+
+          <!-- col 4: 管理 -->
+          <rect class="d-box" x="700" y="62" width="208" height="60" rx="8"/>
+          <text class="d-t" x="714" y="84">群禁言</text>
+          <text class="d-s d-m" x="714" y="101">BGroupMute</text>
+          <text class="d-s" x="714" y="115">整群不能发言</text>
+
+          <rect class="d-box" x="700" y="134" width="208" height="60" rx="8"/>
+          <text class="d-t" x="714" y="156">发言限制</text>
+          <text class="d-s d-m" x="714" y="173">setGroupLimit</text>
+          <text class="d-s" x="714" y="187">等级门槛 · 字数 · 频率</text>
+
+          <rect class="d-box" x="700" y="206" width="208" height="60" rx="8"/>
+          <text class="d-t" x="714" y="228">清屏 / 还原</text>
+          <text class="d-s d-m" x="714" y="245">clearHistory</text>
+          <text class="d-s d-m" x="714" y="259">rollbackHistory</text>
+
+          <rect class="d-box" x="700" y="278" width="208" height="60" rx="8"/>
+          <text class="d-t" x="714" y="300">改名、封面、置顶、删消息</text>
+          <text class="d-s d-m" x="714" y="317">updateGroupName · pin</text>
+          <text class="d-s d-m" x="714" y="331">deleteMessage</text>
+
+          <!-- col 5: 离开 -->
+          <rect class="d-box" x="928" y="62" width="208" height="60" rx="8"/>
+          <text class="d-t" x="942" y="84">踢人</text>
+          <text class="d-s d-m" x="942" y="101">leaveGroup</text>
+          <text class="d-s" x="942" y="115">删成员，24 小时禁止发言</text>
+
+          <rect class="d-box" x="928" y="134" width="208" height="60" rx="8"/>
+          <text class="d-t" x="942" y="156">解散</text>
+          <text class="d-s d-m" x="942" y="173">DisbandTheGroup</text>
+          <text class="d-s" x="942" y="187">删群和全部成员</text>
+        </svg>
+      </div>
+      <figcaption>高亮的两个框（建群、发言）是主路径。「入群」的四条路写入方式不同，效果也不同，见下一张图。</figcaption>
+    </figure>
+
+    <div class="tbl">
+      <table>
+        <thead>
+          <tr><th></th><th>群组</th><th>对比：广场（直播间）</th><th>对比：私聊</th></tr>
+        </thead>
+        <tbody>
+          <tr><th>谁能进</th><td>后台拉进来的注册用户和管理员；<strong>游客不能进</strong></td><td>任何人进房，游客只能看</td><td>前台用户 + 分配到的助理</td></tr>
+          <tr><th>房号</th><td>建群时随机生成的 32 位十六进制</td><td>由直播记录和赛事算出的 32 位十六进制</td><td>Hashids(助理 id, 用户 id)</td></tr>
+          <tr><th>平台</th><td>建群时选，存 <code>cmf_chat_room_info</code></td><td>主播的 registration_id，不存</td><td>建房时按用户推导，存</td></tr>
+          <tr><th>推送</th><td>逐人推给群成员，前台成员看到的昵称打码</td><td>按房间推给所有订阅连接</td><td>按房间推，带对方 user_id</td></tr>
+          <tr><th>历史缺失时</th><td>每 10 秒巡检，缺了就从库重建</td><td>前台第一页不查库</td><td>每秒巡检</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= 入群 ================= -->
+  <section id="join">
+    <h2>入群 <span class="src">app/http/admin/logic/grouproom/* · app/http/admin/logic/LChatRoomInfo.php · app/logic/user/LBaseUser.php</span></h2>
+    <p>四条路最终都是往 <code>cmf_chat_room_user</code> 写一行成员记录，但只有第一条会同时更新前台会话列表、推送「新群」通知、清掉 24 小时退群标记。另外三条只写了 MySQL，要等每 5 分钟一次的会话列表全量重建，群才出现在用户的列表里。</p>
+
+    <figure>
+      <div class="fig-scroll">
+        <svg viewBox="0 0 1160 416" role="img" aria-label="入群的四条路：建群或后台拉人走公共方法，同步写会话列表并推送；一键拉群、批量拉群、注册自动入群只写 MySQL，最长 5 分钟后才出现在会话列表。">
+          <defs>
+            <marker id="m2-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+
+          <text class="d-h" x="116" y="30" text-anchor="middle">入口</text>
+          <text class="d-h" x="466" y="30" text-anchor="middle">写入</text>
+          <text class="d-h" x="1030" y="30" text-anchor="middle">用户看到群的时机</text>
+
+          <!-- row A -->
+          <rect class="d-box" x="16" y="56" width="200" height="96" rx="8"/>
+          <text class="d-t" x="30" y="80">建群 / 后台拉人</text>
+          <text class="d-s d-m" x="30" y="100">createGroupRoom</text>
+          <text class="d-s d-m" x="30" y="116">joinGroupRoom</text>
+          <text class="d-s" x="30" y="136">管理员和成员须在本平台</text>
+
+          <line class="d-line" x1="216" y1="104" x2="254" y2="104" marker-end="url(#m2-arrow)"/>
+
+          <rect class="d-core" x="256" y="56" width="420" height="96" rx="8"/>
+          <text class="d-t d-m" x="270" y="80">LGroupRoomAbstract::common()</text>
+          <text class="d-r" x="270" y="102">① 成员行进队列，定时器每秒批量入库</text>
+          <text class="d-r" x="270" y="120">② 同步写前台会话列表 chat_room_list:{uid}</text>
+          <text class="d-r" x="270" y="138">③ 清掉 24 小时退群标记 · 推 newRoom 给成员</text>
+
+          <line class="d-line" x1="676" y1="104" x2="914" y2="104" marker-end="url(#m2-arrow)"/>
+          <text class="d-lab" x="795" y="96" text-anchor="middle">同步</text>
+
+          <rect class="d-ok" x="916" y="56" width="228" height="96" rx="8"/>
+          <text class="d-t" x="930" y="80">立即出现</text>
+          <text class="d-s" x="930" y="100">会话列表马上有这个群</text>
+          <text class="d-s" x="930" y="118">在线成员收到 newRoom 推送</text>
+          <text class="d-s" x="930" y="136">刚被踢的人可以马上发言</text>
+
+          <!-- row B -->
+          <rect class="d-box" x="16" y="176" width="200" height="64" rx="8"/>
+          <text class="d-t" x="30" y="200">一键拉群</text>
+          <text class="d-s d-m" x="30" y="218">OneClickPullGroup</text>
+          <text class="d-s" x="30" y="232">按注册 / 登录时间或 ID 列表</text>
+
+          <line class="d-line" x1="216" y1="208" x2="254" y2="208" marker-end="url(#m2-arrow)"/>
+
+          <rect class="d-box" x="256" y="176" width="200" height="64" rx="8"/>
+          <text class="d-t" x="270" y="200">写任务表</text>
+          <text class="d-s d-m" x="270" y="218">cmf_chat_room_task</text>
+          <text class="d-s" x="270" y="232">每 1000 人一条任务</text>
+
+          <line class="d-line" x1="456" y1="208" x2="474" y2="208" marker-end="url(#m2-arrow)"/>
+
+          <rect class="d-box" x="476" y="176" width="200" height="64" rx="8"/>
+          <text class="d-t" x="490" y="200">定时器（每 5 分钟）</text>
+          <text class="d-s d-m" x="490" y="218">…TaskSchedule()</text>
+          <text class="d-s" x="490" y="232">insertAll 成员行</text>
+
+          <!-- row C -->
+          <rect class="d-box" x="16" y="256" width="200" height="64" rx="8"/>
+          <text class="d-t" x="30" y="280">批量拉群</text>
+          <text class="d-s d-m" x="30" y="298">setBatchPullGroup</text>
+          <text class="d-s" x="30" y="312">后台直接传 uid 列表</text>
+
+          <line class="d-line" x1="216" y1="288" x2="254" y2="288" marker-end="url(#m2-arrow)"/>
+
+          <rect class="d-box" x="256" y="256" width="420" height="64" rx="8"/>
+          <text class="d-t" x="270" y="280">直接写库</text>
+          <text class="d-s d-m" x="270" y="298">TChatRoomUser insertAll</text>
+          <text class="d-s" x="270" y="312">已在群里的跳过</text>
+
+          <!-- row D -->
+          <rect class="d-box" x="16" y="336" width="200" height="64" rx="8"/>
+          <text class="d-t" x="30" y="360">注册自动入群</text>
+          <text class="d-s d-m" x="30" y="378">enter_the_chat_room_vid</text>
+          <text class="d-s" x="30" y="392">渠道平台配置了群号才执行</text>
+
+          <line class="d-line" x1="216" y1="368" x2="254" y2="368" marker-end="url(#m2-arrow)"/>
+
+          <rect class="d-box" x="256" y="336" width="420" height="64" rx="8"/>
+          <text class="d-t" x="270" y="360">注册时写库</text>
+          <text class="d-s d-m" x="270" y="378">TChatRoomUser::addOrUpdate</text>
+          <text class="d-s" x="270" y="392">不校验平台</text>
+
+          <!-- to R2 -->
+          <line class="d-line" x1="676" y1="208" x2="914" y2="208" marker-end="url(#m2-arrow)"/>
+          <line class="d-line" x1="676" y1="288" x2="914" y2="288" marker-end="url(#m2-arrow)"/>
+          <line class="d-line" x1="676" y1="368" x2="914" y2="368" marker-end="url(#m2-arrow)"/>
+          <text class="d-lab" x="795" y="200" text-anchor="middle">只写 MySQL</text>
+
+          <rect class="d-warn" x="916" y="176" width="228" height="224" rx="8"/>
+          <text class="d-t" x="930" y="202">最长 5 分钟后出现</text>
+          <text class="d-s" x="930" y="226">等定时器 checkRoomListCache</text>
+          <text class="d-s" x="930" y="242">全量重建会话列表</text>
+          <text class="d-s" x="930" y="270">没有 newRoom 推送</text>
+          <text class="d-s" x="930" y="298">不清 24 小时退群标记：</text>
+          <text class="d-s" x="930" y="314">刚被踢又被拉回的人</text>
+          <text class="d-s" x="930" y="330">24 小时内发不了言</text>
+        </svg>
+      </div>
+      <figcaption>一键拉群只拉「群所属平台」的注册会员（<code>registration_id</code> 等于群的平台）；群判不出平台时一个都不拉。ID 列表里只要有一个查不到，整批报错要求重填。</figcaption>
+    </figure>
+
+    <div class="tbl">
+      <table>
+        <thead>
+          <tr><th>入口</th><th>平台校验</th><th>成员行写入</th><th>会话列表</th><th>newRoom 推送</th><th>清退群标记</th></tr>
+        </thead>
+        <tbody>
+          <tr><th>建群 / 后台拉人</th><td>群在管理员的平台；每个成员在管理员的平台</td><td>队列，约 1 秒入库</td><td class="hl-ok">立即</td><td>有</td><td>是</td></tr>
+          <tr><th>一键拉群</th><td>群在管理员的平台；只拉群所属平台的会员</td><td>任务，约 5 分钟</td><td class="hl-warn">≤ 5 分钟</td><td>无</td><td>否</td></tr>
+          <tr><th>批量拉群</th><td>群和成员都在管理员的平台</td><td>直接写库</td><td class="hl-warn">≤ 5 分钟</td><td>无</td><td>否</td></tr>
+          <tr><th>注册自动入群</th><td>无</td><td>注册时写库</td><td class="hl-warn">≤ 5 分钟</td><td>无</td><td>—</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="aside">所有入口都会挡掉游客（<code>uid &gt; GUEST_BASE_LINE</code>）。建群时创建人（管理员）先同步写一行 <code>is_owner = 1</code>，因为异步入库慢了，后台群列表会读不到这个群。</p>
+  </section>
+
+  <!-- ================= 发言与推送 ================= -->
+  <section id="send">
+    <h2>发言与推送 <span class="src">app/logic/chat/LWebChat.php:654 sendMessage() → :1303 noticeNewMessage()</span></h2>
+    <p>群组和广场共用同一条发言链路，区别在推送：广场按房间推给所有订阅连接，<strong>群组不按房间推</strong>（代码注释写「出于安全着想」），而是先算出要推给哪些成员，再逐人推送。</p>
+
+    <figure>
+      <div class="fig-scroll">
+        <svg viewBox="0 0 1160 444" role="img" aria-label="群内发言流程：前台或后台发言，经过九步校验后写入 Redis 历史、会话列表队列和入库队列；再从群成员中选出在线或一周内离线的人，按管理员和前台用户分别推送，前台看到的昵称打码。定时器异步入库、更新会话列表、巡检历史。">
+          <defs>
+            <marker id="m3-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+
+          <text class="d-h" x="101" y="30" text-anchor="middle">发起</text>
+          <text class="d-h" x="341" y="30" text-anchor="middle">校验</text>
+          <text class="d-h" x="596" y="30" text-anchor="middle">写入</text>
+          <text class="d-h" x="826" y="30" text-anchor="middle">选收件人</text>
+          <text class="d-h" x="1050" y="30" text-anchor="middle">推送</text>
+
+          <!-- c0 -->
+          <rect class="d-box" x="16" y="56" width="170" height="92" rx="8"/>
+          <text class="d-t" x="30" y="80">发言（type = 1）</text>
+          <text class="d-s d-m" x="30" y="100">/api/chat/sendMessage</text>
+          <text class="d-s d-m" x="30" y="116">/admin/chat/sendMessage</text>
+          <text class="d-s" x="30" y="136">前台 / 后台各一个入口</text>
+
+          <line class="d-line" x1="186" y1="102" x2="214" y2="102" marker-end="url(#m3-arrow)"/>
+
+          <!-- c1 checks -->
+          <rect class="d-core" x="216" y="56" width="250" height="244" rx="8"/>
+          <text class="d-t d-m" x="230" y="80">LWebChat 校验</text>
+          <text class="d-s" x="230" y="98">按顺序，任一步失败即返回</text>
+          <text class="d-r" x="230" y="122">① 后台：平台闸门</text>
+          <text class="d-r" x="230" y="141">② 前台：带链接拒绝、游客拒绝</text>
+          <text class="d-r" x="230" y="160">③ 24 小时内被踢 / 解散 → 拒绝</text>
+          <text class="d-r" x="230" y="179">④ 前台：冻结、群禁言</text>
+          <text class="d-r" x="230" y="198">⑤ seed 防重复、字数 ≤ 801</text>
+          <text class="d-r" x="230" y="217">⑥ 前台：用户发言频率</text>
+          <text class="d-r" x="230" y="236">⑦ 前台：群发言限制（见图 4）</text>
+          <text class="d-r" x="230" y="255">⑧ 前台：房间禁言 + 全局禁言</text>
+          <text class="d-r" x="230" y="274">⑨ 敏感字替换、换图</text>
+
+          <!-- c2 writes -->
+          <rect class="d-box" x="496" y="56" width="200" height="64" rx="8"/>
+          <text class="d-t d-m" x="510" y="80">hst:{vid}</text>
+          <text class="d-s" x="510" y="98">历史 zset · ≤ 300 条 · 3 天</text>
+          <text class="d-s" x="510" y="112">同时更新最后一条消息</text>
+
+          <rect class="d-box" x="496" y="136" width="200" height="64" rx="8"/>
+          <text class="d-t" x="510" y="160">会话列表队列</text>
+          <text class="d-s d-m" x="510" y="178">ARoomList::updateFromBack</text>
+          <text class="d-s" x="510" y="192">rPush 群号</text>
+
+          <rect class="d-box" x="496" y="216" width="200" height="64" rx="8"/>
+          <text class="d-t d-m" x="510" y="240">msg_to_db:</text>
+          <text class="d-s" x="510" y="258">入库队列</text>
+          <text class="d-s" x="510" y="272">只收 send / msg</text>
+
+          <line class="d-line" x1="466" y1="88" x2="494" y2="88" marker-end="url(#m3-arrow)"/>
+          <line class="d-line" x1="466" y1="168" x2="494" y2="168" marker-end="url(#m3-arrow)"/>
+          <line class="d-line" x1="466" y1="248" x2="494" y2="248" marker-end="url(#m3-arrow)"/>
+
+          <!-- c3 recipients -->
+          <rect class="d-core" x="726" y="56" width="200" height="120" rx="8"/>
+          <text class="d-t" x="740" y="80">选收件人</text>
+          <text class="d-s d-m" x="740" y="98">groupOnlineUserIds</text>
+          <text class="d-s" x="740" y="118">群成员中：在线的</text>
+          <text class="d-s" x="740" y="134">+ 7 天内离线过的</text>
+          <text class="d-s" x="740" y="154">结果缓存 99 秒</text>
+          <text class="d-s" x="740" y="168">发送者自己也会收到</text>
+
+          <line class="d-line" x1="696" y1="88" x2="724" y2="88" marker-end="url(#m3-arrow)"/>
+          <text class="d-lab" x="710" y="80" text-anchor="middle">写完</text>
+
+          <!-- c4 push -->
+          <rect class="d-box" x="956" y="56" width="188" height="64" rx="8"/>
+          <text class="d-t" x="970" y="80">后台成员</text>
+          <text class="d-s" x="970" y="98">看到发言人原昵称</text>
+          <text class="d-s" x="970" y="112">action = msg</text>
+
+          <rect class="d-box" x="956" y="136" width="188" height="64" rx="8"/>
+          <text class="d-t" x="970" y="160">前台成员</text>
+          <text class="d-s" x="970" y="178">昵称打码：「・・」+ 尾字</text>
+          <text class="d-s" x="970" y="192">管理员 / 主播发言不打码</text>
+
+          <path class="d-line" d="M926,116 L941,116 L941,88 L954,88" marker-end="url(#m3-arrow)"/>
+          <path class="d-line" d="M926,116 L941,116 L941,168 L954,168" marker-end="url(#m3-arrow)"/>
+
+          <text class="d-s d-m" x="956" y="226">UMsg::send</text>
+          <text class="d-s d-m" x="956" y="242">→ AUserNickname::filterForWs</text>
+
+          <!-- async lane -->
+          <text class="d-h" x="16" y="324">定时器（异步）</text>
+          <line class="d-sep" x1="130" y1="320" x2="1144" y2="320"/>
+
+          <rect class="d-box" x="496" y="344" width="200" height="84" rx="8"/>
+          <text class="d-t" x="510" y="368">入库（每秒）</text>
+          <text class="d-s d-m" x="510" y="388">AHistoryMsg::queueToDb</text>
+          <text class="d-s" x="510" y="406">→ cmf_chat_message_list</text>
+
+          <rect class="d-box" x="726" y="344" width="200" height="84" rx="8"/>
+          <text class="d-t" x="740" y="368">会话列表（每秒）</text>
+          <text class="d-s d-m" x="740" y="388">updateGroupQueueProcess</text>
+          <text class="d-s" x="740" y="406">→ all_groups 更新时间</text>
+
+          <rect class="d-box" x="956" y="344" width="188" height="84" rx="8"/>
+          <text class="d-t" x="970" y="368">历史巡检（每 10 秒）</text>
+          <text class="d-s d-m" x="970" y="388">AGroupHistory</text>
+          <text class="d-s" x="970" y="406">hst 缺了就从库重建</text>
+
+          <line class="d-line" x1="596" y1="280" x2="596" y2="342" marker-end="url(#m3-arrow)"/>
+          <path class="d-line" d="M696,168 L711,168 L711,332 L826,332 L826,342" marker-end="url(#m3-arrow)"/>
+        </svg>
+      </div>
+      <figcaption>收件人取的是「成员表 ∩（在线表 ∪ 7 天内离线表）」，按群号缓存 99 秒。前台成员发言时，还会给同一批收件人推一条 <code>newRoom</code>（带群信息和最后一条消息），用来刷新会话列表；后台发言不推。</figcaption>
+    </figure>
+
+    <ul class="facts">
+      <li><strong>前台和后台的差别</strong>：后台发言要过平台闸门（第 ① 步），但不受冻结、禁言、频率、群发言限制约束；前台不能发链接，后台只能发白名单里的链接。</li>
+      <li><strong>没有成员身份校验</strong>：发言链路不检查发言人是不是群成员，挡人的只有第 ③ 步的 24 小时退群标记（<code>leaveGroup_{vid}_{uid}</code>）。见<a href="#gaps">已知偏差</a>第 1 条。</li>
+      <li><strong>昵称打码</strong>（x9-3961）：普通用户在群里发言，其他前台成员看到的是「・・」加昵称末尾的字（两个字的昵称只留最后一个）。推送和读历史两条路都会打码。</li>
+    </ul>
+  </section>
+
+  <!-- ================= 发言限制 ================= -->
+  <section id="limit">
+    <h2>群发言限制 <span class="src">app/logic/chat/LWebChat.php:3176 checkGroupLimit() · LChatGroupSetting.php:32</span></h2>
+    <p>后台「群发言限制」给单个群配三个值：等级门槛（0~10）、每条字数（0~1000）、发言间隔（0~90 秒，可带小数）。配置存在 <code>cmf_chat_group_setting.config</code>，读取缓存 99 秒，只对前台发言生效。</p>
+
+    <figure>
+      <div class="fig-scroll">
+        <svg viewBox="0 0 1160 280" role="img" aria-label="群发言限制判定：主播放行；没配置放行；不受等级门槛约束放行，此时字数和频率都不检查；字数超限且没有图片拒绝；在频率窗口内拒绝；否则放行并写入频率 key。">
+          <defs>
+            <marker id="m4-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+
+          <!-- annotations -->
+          <text class="d-s" x="541" y="34" text-anchor="middle">门槛 &gt; 0 且用户等级 ≤ 门槛</text>
+          <text class="d-s" x="711" y="34" text-anchor="middle">字数门槛 &gt; 0</text>
+          <text class="d-s" x="881" y="34" text-anchor="middle">SET NX PX，毫秒级</text>
+
+          <!-- start -->
+          <rect class="d-core" x="16" y="72" width="90" height="56" rx="8"/>
+          <text class="d-t" x="61" y="96" text-anchor="middle">前台发言</text>
+          <text class="d-s" x="61" y="114" text-anchor="middle">type = 1</text>
+          <line class="d-line" x1="106" y1="100" x2="124" y2="100" marker-end="url(#m4-arrow)"/>
+
+          <!-- D1 -->
+          <polygon class="d-dec" points="201,50 276,100 201,150 126,100"/>
+          <text class="d-r" x="201" y="104" text-anchor="middle">是主播？</text>
+          <!-- D2 -->
+          <polygon class="d-dec" points="371,50 446,100 371,150 296,100"/>
+          <text class="d-r" x="371" y="96" text-anchor="middle">该群配了</text>
+          <text class="d-r" x="371" y="113" text-anchor="middle">发言限制？</text>
+          <!-- D3 -->
+          <polygon class="d-dec" points="541,50 616,100 541,150 466,100"/>
+          <text class="d-r" x="541" y="96" text-anchor="middle">受等级门槛</text>
+          <text class="d-r" x="541" y="113" text-anchor="middle">约束？</text>
+          <!-- D4 -->
+          <polygon class="d-dec" points="711,50 786,100 711,150 636,100"/>
+          <text class="d-r" x="711" y="96" text-anchor="middle">字数超限</text>
+          <text class="d-r" x="711" y="113" text-anchor="middle">且没有图？</text>
+          <!-- D5 -->
+          <polygon class="d-dec" points="881,50 956,100 881,150 806,100"/>
+          <text class="d-r" x="881" y="96" text-anchor="middle">间隔内</text>
+          <text class="d-r" x="881" y="113" text-anchor="middle">已发过？</text>
+
+          <!-- right exits -->
+          <line class="d-line" x1="276" y1="100" x2="294" y2="100" marker-end="url(#m4-arrow)"/>
+          <text class="d-yes" x="285" y="92" text-anchor="middle">否</text>
+          <line class="d-line" x1="446" y1="100" x2="464" y2="100" marker-end="url(#m4-arrow)"/>
+          <text class="d-yes" x="455" y="92" text-anchor="middle">是</text>
+          <line class="d-line" x1="616" y1="100" x2="634" y2="100" marker-end="url(#m4-arrow)"/>
+          <text class="d-yes" x="625" y="92" text-anchor="middle">是</text>
+          <line class="d-line" x1="786" y1="100" x2="804" y2="100" marker-end="url(#m4-arrow)"/>
+          <text class="d-yes" x="795" y="92" text-anchor="middle">否</text>
+          <line class="d-line" x1="956" y1="100" x2="974" y2="100" marker-end="url(#m4-arrow)"/>
+          <text class="d-yes" x="965" y="92" text-anchor="middle">否</text>
+
+          <!-- end -->
+          <rect class="d-ok" x="976" y="72" width="168" height="56" rx="8"/>
+          <text class="d-t" x="1060" y="96" text-anchor="middle">放行</text>
+          <text class="d-s" x="1060" y="114" text-anchor="middle">写入本次频率 key</text>
+
+          <!-- down exits -->
+          <line class="d-line" x1="201" y1="150" x2="201" y2="198" marker-end="url(#m4-arrow)"/>
+          <text class="d-yes" x="209" y="178">是</text>
+          <line class="d-line" x1="371" y1="150" x2="371" y2="198" marker-end="url(#m4-arrow)"/>
+          <text class="d-yes" x="379" y="178">否</text>
+          <line class="d-line" x1="541" y1="150" x2="541" y2="198" marker-end="url(#m4-arrow)"/>
+          <text class="d-yes" x="549" y="178">否</text>
+          <line class="d-line" x1="711" y1="150" x2="711" y2="198" marker-end="url(#m4-arrow)"/>
+          <text class="d-yes" x="719" y="178">是</text>
+          <line class="d-line" x1="881" y1="150" x2="881" y2="198" marker-end="url(#m4-arrow)"/>
+          <text class="d-yes" x="889" y="178">是</text>
+
+          <rect class="d-ok" x="136" y="200" width="130" height="56" rx="8"/>
+          <text class="d-t" x="201" y="224" text-anchor="middle">放行</text>
+          <text class="d-s" x="201" y="242" text-anchor="middle">主播不受限</text>
+
+          <rect class="d-ok" x="306" y="200" width="130" height="56" rx="8"/>
+          <text class="d-t" x="371" y="224" text-anchor="middle">放行</text>
+          <text class="d-s" x="371" y="242" text-anchor="middle">没配就不限</text>
+
+          <rect class="d-warn" x="476" y="200" width="130" height="56" rx="8"/>
+          <text class="d-t" x="541" y="224" text-anchor="middle">放行</text>
+          <text class="d-s" x="541" y="242" text-anchor="middle">字数、频率都不查</text>
+
+          <rect class="d-crit" x="646" y="200" width="130" height="56" rx="8"/>
+          <text class="d-t" x="711" y="224" text-anchor="middle">拒绝</text>
+          <text class="d-s" x="711" y="242" text-anchor="middle">提示群发言限制</text>
+
+          <rect class="d-crit" x="816" y="200" width="130" height="56" rx="8"/>
+          <text class="d-t" x="881" y="224" text-anchor="middle">拒绝</text>
+          <text class="d-s" x="881" y="242" text-anchor="middle">提示群发言限制</text>
+        </svg>
+      </div>
+      <figcaption>等级门槛是总开关：门槛为 0（不限等级）或用户等级高于门槛时，直接放行，字数和频率限制都不会检查。频率 key 是 <code>chat:rate:{vid}:{uid}</code>，按人按群计。</figcaption>
+    </figure>
+    <p class="aside">群发言限制之外，群组还受全站的「用户发言频率」（<code>user_chat_frequency</code>，按群所属平台取配置）约束；广场专用的「直播间发言频率」对群组不生效。</p>
+  </section>
+
+  <!-- ================= 读历史与会话列表 ================= -->
+  <section id="read">
+    <h2>读历史与会话列表 <span class="src">app/logic/chat/LChatMsgFormat.php:428 · app/caching/chat/ARoomList.php:74</span></h2>
+    <ul class="facts">
+      <li><strong>两个历史接口，校验不一样</strong>：新版 <code>/api/chat/history</code> 先查用户的会话列表里有没有这个群（<code>ARoomList::exists</code>），没有就报 <code>Chat Group does not exist</code>；旧版 <code>/api/chat/getChatHistory</code> 只挡游客，不看成员身份。</li>
+      <li><strong>读取顺序</strong>：Redis <code>hst:{vid}</code>（300 条）→ 带 <code>last_id</code> 翻过 300 条后查 <code>cmf_chat_message_list</code>。群组历史有每 10 秒的巡检，Redis 丢了会自动从库重建，所以和广场不同，前台不会因为缓存丢失看到空白。</li>
+      <li><strong>路由缓存</strong>：群组和广场的历史与用户无关，路由层按「渠道 + 参数（去掉 user_id）」缓存 5 秒。</li>
+      <li><strong>会话列表</strong>（<code>/api/chat/getChatRoomList</code>）：从 Redis 拼出来。<code>chat_room_list:{uid}</code> 记用户有哪些房、置顶、隐藏；群名、封面、群禁言状态、更新时间来自全局 hash <code>all_groups</code>。房号是十六进制的就当群组，否则当私聊。</li>
+      <li><strong>已读</strong>：<code>/api/chat/read</code> 写 <code>ARead</code>（用户在这个房读到的 msg_id）；会话列表里「最后一条消息是自己发的，或已读位置 ≥ 最后一条」就算已读。</li>
+    </ul>
+  </section>
+
+  <!-- ================= 群管理 ================= -->
+  <section id="manage">
+    <h2>群管理 <span class="src">app/logic/chat/LWebChat.php · app/http/admin/ctrl/CChatRoomInfo.php</span></h2>
+    <p>所有后台群操作都先校验群在管理员的平台里（<code>LAdminPlatformGuard::assertRooms</code>）。清屏、改名、置顶要求操作者是管理员或主播。</p>
+
+    <div class="tbl">
+      <table>
+        <thead>
+          <tr><th>操作</th><th>写入</th><th>推送</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+          <tr><th>群禁言</th><td>禁言表一行（user_id = 0，room_id = 群号）+ <code>mute:0_{vid}</code>（7200 秒，每分钟按表补）</td><td>无</td><td>前台发言报 <code>Room mute</code>；会话列表和进房接口返回 <code>room_mute</code></td></tr>
+          <tr><th>发言限制</th><td><code>cmf_chat_group_setting.config</code>（JSON）</td><td>无</td><td>见图 4</td></tr>
+          <tr><th>清屏</th><td>删 <code>hst:{vid}</code>；库里最多 2000 条标记 <code>is_delete = 2</code>；重置最后一条消息</td><td>推 <code>clearHistory</code> 给在线成员</td><td>写操作日志（含被清掉的消息）</td></tr>
+          <tr><th>还原清屏</th><td>把 <code>is_delete = 1</code> 的消息改回 0</td><td>无</td><td><span class="hl-crit">还原的对象不对</span>，见已知偏差</td></tr>
+          <tr><th>改名 / 换封面</th><td><code>cmf_chat_room_info.name / pic</code></td><td>按房间推（只有订阅了这个群的连接收到）</td><td><code>all_groups</code> 不立即更新</td></tr>
+          <tr><th>置顶消息</th><td><code>chat:pin:normal:{vid}</code></td><td>推给群在线成员</td><td>只能置顶还在 Redis 300 条里的消息</td></tr>
+          <tr><th>删除消息</th><td>同步删 Redis 那一条，异步任务标记库里删除</td><td>推 <code>delMsg</code> 给在线成员</td><td>与广场相同</td></tr>
+          <tr><th>删除对话</th><td>该管理员自己的成员行 <code>is_show</code> 置为隐藏</td><td>无</td><td>只从自己的后台列表移除，不影响别人</td></tr>
+          <tr><th>禁言 / 冻结个人</th><td>同广场（全局禁言、房间禁言、冻结）</td><td>封禁时推 <code>ban</code></td><td>全局禁言、冻结会删该用户在广场和群组的全部消息</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= 踢人与解散 ================= -->
+  <section id="leave">
+    <h2>踢人与解散 <span class="src">LWebChat.php:2537 leaveGroup() · LChatRoomInfo.php:65 disbandTheGroup()</span></h2>
+    <p>两者都会给相关用户设一个 24 小时的退群标记，挡住发言。但清理的范围差别很大：</p>
+
+    <div class="tbl">
+      <table>
+        <thead>
+          <tr><th>清理项</th><th>踢人</th><th>解散</th></tr>
+        </thead>
+        <tbody>
+          <tr><th>成员行 <code>cmf_chat_room_user</code></th><td>删被踢的人</td><td>删全部</td></tr>
+          <tr><th>群信息 <code>cmf_chat_room_info</code></th><td>—</td><td>删</td></tr>
+          <tr><th>退群标记 <code>leaveGroup_{vid}_{uid}</code></th><td>设，24 小时</td><td>每个成员设，24 小时</td></tr>
+          <tr><th>前台会话列表 <code>chat_room_list:{uid}</code></th><td>删</td><td class="hl-warn">不删，群还挂在列表上</td></tr>
+          <tr><th>群信息缓存 <code>all_groups</code></th><td>—</td><td class="hl-warn">不删</td></tr>
+          <tr><th>收件人缓存（99 秒）</th><td class="hl-warn">不刷新</td><td class="hl-warn">不刷新</td></tr>
+          <tr><th>成员列表缓存</th><td>删</td><td>删</td></tr>
+          <tr><th>已读记录</th><td>删</td><td>不删</td></tr>
+          <tr><th>推送</th><td><code>kickUser</code> 推给被踢的人</td><td class="hl-warn">无</td></tr>
+          <tr><th>Redis 历史 / 库里消息</th><td>保留</td><td>保留</td></tr>
+          <tr><th>操作日志</th><td>写</td><td class="hl-warn">不写</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= 数据落点 ================= -->
+  <section id="storage">
+    <h2>数据落点</h2>
+    <div class="tbl">
+      <table>
+        <thead>
+          <tr><th>数据</th><th>位置 / Key</th><th>内容与保留</th></tr>
+        </thead>
+        <tbody>
+          <tr class="group"><th colspan="3">MySQL</th></tr>
+          <tr><th>群</th><td class="k"><code>cmf_chat_room_info</code></td><td>room_type = 1、platform_id、name、pic、addtime / updatetime</td></tr>
+          <tr><th>成员</th><td class="k"><code>cmf_chat_room_user</code></td><td>vid、user_id、is_owner（创建人 1）、is_show、channel</td></tr>
+          <tr><th>一键拉群任务</th><td class="k"><code>cmf_chat_room_task</code></td><td>每条最多 1000 个 uid；status 0 未开始 / 1 进行中 / 2 已完成 / 3 异常</td></tr>
+          <tr><th>发言限制</th><td class="k"><code>cmf_chat_group_setting</code></td><td>config JSON：chat_words_limit、chat_rate_limit、chat_level_limit</td></tr>
+          <tr><th>群禁言</th><td class="k"><code>cmf_chat_mute</code></td><td>user_id = 0、room_id = 群号</td></tr>
+          <tr><th>消息</th><td class="k"><code>cmf_chat_message_list</code></td><td>room_type = 1；is_delete 0 正常 / 1 删除 / 2 清屏</td></tr>
+          <tr><th>已读</th><td class="k"><code>cmf_chat_message_readed</code></td><td>踢人时删</td></tr>
+
+          <tr class="group"><th colspan="3">Redis</th></tr>
+          <tr><th>历史</th><td class="k"><code>hst:{vid}</code></td><td>zset，≤ 300 条，3 天；每 10 秒巡检，缺失从库重建</td></tr>
+          <tr><th>前台会话列表</th><td class="k"><code>chat_room_list:{uid}</code></td><td>hash，vid → 更新时间、置顶、隐藏</td></tr>
+          <tr><th>群信息</th><td class="k"><code>all_groups</code></td><td>hash，vid → [群名, 封面, 禁言状态, 更新时间]；每 5 分钟全量重建</td></tr>
+          <tr><th>会话列表更新队列</th><td class="k"><code>chat_group_room_update_queue</code></td><td>发言时推群号，每秒消费</td></tr>
+          <tr><th>成员入库队列</th><td class="k"><code>IChatRoomUser:add</code></td><td>建群 / 后台拉人时写，每秒批量入库</td></tr>
+          <tr><th>退群标记</th><td class="k"><code>leaveGroup_{vid}_{uid}</code></td><td>24 小时；后台拉人时清掉</td></tr>
+          <tr><th>群禁言</th><td class="k"><code>mute:0_{vid}</code></td><td>7200 秒，每分钟按表补</td></tr>
+          <tr><th>收件人</th><td class="k"><code>cachedByCall(groupOnlineUserIds, vid)</code></td><td>99 秒</td></tr>
+          <tr><th>发言限制配置</th><td class="k"><code>cachedByCall(groupLimitSetting, vid)</code></td><td>99 秒；后台保存时刷新</td></tr>
+          <tr><th>群发言频率</th><td class="k"><code>chat:rate:{vid}:{uid}</code></td><td>SET NX PX，时长 = 配置的间隔</td></tr>
+          <tr><th>成员列表</th><td class="k"><code>AChatRoomUsers</code></td><td>后台成员列表缓存，60 秒</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="tbl">
+      <table>
+        <thead>
+          <tr><th>定时任务</th><th>频率</th><th>作用</th></tr>
+        </thead>
+        <tbody>
+          <tr><th><code>CChatRoom::chatRoomUserBatch</code></th><td>每秒</td><td>成员入库队列 → <code>cmf_chat_room_user</code></td></tr>
+          <tr><th><code>CQueue::historyMsgCacheToDb</code></th><td>每秒</td><td>消息入库</td></tr>
+          <tr><th><code>CQueue::roomListGroupCacheUpdate</code></th><td>每秒</td><td>更新 <code>all_groups</code> 的群更新时间</td></tr>
+          <tr><th><code>CQueue::checkGroupHistory</code></th><td>每 10 秒</td><td>所有群逐个检查 <code>hst:{vid}</code>，缺失从库重建</td></tr>
+          <tr><th><code>CChatRoomMute::checkCache</code></th><td>每分钟</td><td>按禁言表补群禁言 key</td></tr>
+          <tr><th><code>CChatRoom::oneClickPullGroupTaskSchedule</code></th><td>每 5 分钟</td><td>执行一键拉群任务</td></tr>
+          <tr><th><code>CQueue::checkRoomListCache</code></th><td>每 5 分钟</td><td>按 MySQL 全量重建会话列表和 <code>all_groups</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= 已知偏差 ================= -->
+  <section id="gaps">
+    <h2>已知偏差</h2>
+    <p>静态阅读发现的问题，按影响排序，都还没有在环境里复现。</p>
+
+    <ol class="issues">
+      <li>
+        <span class="sev hi">高</span>
+        <div>
+          <strong>被踢、被解散的人 24 小时后又能往群里发言，还能一直读群历史</strong>
+          <p>发言链路不检查发言人是不是群成员，只靠 24 小时的退群标记挡人。标记过期后，被踢的人用原来的群号发言，消息照样写进历史、推给所有在线成员（收件人按成员表取，跟发言人在不在群里无关）。旧版历史接口 <code>getChatHistory</code> 也不校验成员身份，被踢的人能一直读到群里的新消息；新版 <code>history</code> 用会话列表校验，挡得住。</p>
+          <div class="loc">LWebChat.php:692–701 · ALeaveGroup.php · LBaseChat.php:143 · LApiChat.php:36</div>
+        </div>
+      </li>
+      <li>
+        <span class="sev hi">高</span>
+        <div>
+          <strong>「还原清屏」还原错了对象</strong>
+          <p>清屏把消息标成 <code>is_delete = 2</code>，还原却把 <code>is_delete = 1</code> 的改回 0。结果是清屏的消息还原不回来，而之前单条删除、封禁清理掉的违规消息反而在库里复活，之后在查库翻页、Redis 重建历史时重新出现。</p>
+          <div class="loc">LWebChat.php:2647 · LWebChat.php:2699</div>
+        </div>
+      </li>
+      <li>
+        <span class="sev mid">中</span>
+        <div>
+          <strong>解散群不通知、不清会话列表</strong>
+          <p>只删了群和成员两张表。成员的会话列表、<code>all_groups</code> 都还在，群继续挂在列表上，用新版历史接口还能打开；没有任何推送，也不写操作日志。</p>
+          <div class="loc">LChatRoomInfo.php:65</div>
+        </div>
+      </li>
+      <li>
+        <span class="sev mid">中</span>
+        <div>
+          <strong>踢人后最多 99 秒内仍会收到群消息</strong>
+          <p>收件人列表按群缓存 99 秒，踢人和解散都不刷新这份缓存。</p>
+          <div class="loc">AIMOnline.php:47 · LWebChat.php:2537</div>
+        </div>
+      </li>
+      <li>
+        <span class="sev mid">中</span>
+        <div>
+          <strong>清屏一次最多处理 2000 条</strong>
+          <p>更新语句带 <code>LIMIT 2000</code> 且没有排序。消息超过 2000 条的群，剩下的仍是正常状态，之后查库翻页或从库重建历史时会冒出来；而 Redis 历史已经删了，前台看起来像清干净了。</p>
+          <div class="loc">LWebChat.php:2647</div>
+        </div>
+      </li>
+      <li>
+        <span class="sev mid">中</span>
+        <div>
+          <strong>只配字数或频率、不配等级门槛，等于没配</strong>
+          <p>等级门槛是总开关：门槛为 0 时字数、频率限制都不检查。后台表单上三个字段看起来各自独立，容易误配。</p>
+          <div class="loc">LWebChat.php:3176</div>
+        </div>
+      </li>
+      <li>
+        <span class="sev lo">低</span>
+        <div>
+          <strong>一键拉群、批量拉群、注册自动入群：群最长 5 分钟后才出现</strong>
+          <p>这三条路只写成员表，不写会话列表、不推送，也不清 24 小时退群标记：刚被踢又被拉回来的人，24 小时内发不了言。</p>
+          <div class="loc">LChatRoomInfo.php:144 · :326 · LBaseUser.php:1556 · :1802</div>
+        </div>
+      </li>
+      <li>
+        <span class="sev lo">低</span>
+        <div>
+          <strong>群号也是 32 位十六进制，网关会把它当成直播间</strong>
+          <p>IM 网关用 <code>ctype_xdigit(vid)</code> 判断直播间。群红包、改名都按房间推送，说明客户端会订阅群号；订阅时网关会给群累计进房人次、生成「xxx 进入直播间」的进房记录，并往 <code>TAnchorFrom</code> 写一行（用户, 主播 0）。</p>
+          <div class="loc">chat/logic/LRoom.php · AInRoomMsg.php:31 · LCreateGroupRoom.php:23</div>
+        </div>
+      </li>
+      <li>
+        <span class="sev lo">低</span>
+        <div>
+          <strong>改名、换封面后，会话列表要等一会儿才变</strong>
+          <p>只按房间推送，没订阅这个群的成员收不到；<code>all_groups</code> 不立即更新，要等群里下一条消息或 5 分钟后的全量重建。</p>
+          <div class="loc">LWebChat.php:2718 · :2751 · ARoomList.php:404</div>
+        </div>
+      </li>
+      <li>
+        <span class="sev lo">低</span>
+        <div>
+          <strong>其他</strong>
+          <p>管理员有多个平台时，可以把 B 平台的用户拉进 A 平台的群（只校验用户在管理员的平台里，不校验与群同平台）；建群时取渠道把多个 uid 用逗号拼成一个 key 去查，多人建群时渠道总是空；<code>noticeNewMessage</code> 里组好的 <code>newMsg</code> 包没有发出去，是死代码。</p>
+          <div class="loc">CChat.php:1349 · LGroupRoomAbstract.php:47 · LWebChat.php:1400</div>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <footer>静态阅读代码整理，未经联调验证。行号对应提交 <span class="mono">8a2032dbaf</span>。同系列：<span class="mono">doc/IM广场设计规则与数据存储.html</span>、<span class="mono">doc/前台私聊助理链路与分配规则.html</span>。</footer>
+</div>

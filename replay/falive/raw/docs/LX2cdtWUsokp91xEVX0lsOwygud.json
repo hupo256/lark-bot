@@ -1,0 +1,26 @@
+{
+  "token": "LX2cdtWUsokp91xEVX0lsOwygud",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/LX2cdtWUsokp91xEVX0lsOwygud",
+  "fetchedAt": "2026-11-03T12:17:18.951Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/LX2cdtWUsokp91xEVX0lsOwygud",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"# uat /hc-ws recheck（完整内容）\\n\\n@Ache uat /hc-ws recheck\\n\\n- ⚠️ 接了但还不能用 uat market push /hc-ws：Still not working: without the slash it gets a 301 redirect, with the slash the upstream returns a Cloudflare 409 (1001). Connecting to hichat directly works, so it's the nginx forwarding config. The fix is in the doc  \\n待确认的几点在这里：https://qfglxo2m3dc.sg.larksuite.com/docx/RHcidxIxWo4iQ1xKDuclUIhzgCf\\n- Ache：uat /hc-ws must match with or without the trailing slash (like pre, location ^\\\\~ /hc-ws); it currently 301-redirects to /hc-ws/；Forward /hc-ws to [https://uat-hailiao.hai-liao-uat.com/ws/im/echo](https://uat-hailiao.hai-liao-uat.com/ws/im/echo) with the upstream Host and SNI set to that domain (proxy_ssl_server_name on) and pass through the upgrade headers; it currently returns a Cloudflare 409/1001；online [www.falive.com/hc-ws](http://www.falive.com/hc-ws) still returns 404 (N2), needs the same config  \\n详细见：https://qfglxo2m3dc.sg.larksuite.com/docx/NbnldLbnwo7mH4xeB3Rl0ulBg7f\",\n      \"document_id\": \"LX2cdtWUsokp91xEVX0lsOwygud\",\n      \"revision_id\": 4\n    }\n  }\n}\n",
+  "stderr": ""
+}

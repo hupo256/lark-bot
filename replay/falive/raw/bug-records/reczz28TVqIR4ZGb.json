@@ -1,0 +1,26 @@
+{
+  "recordId": "reczz28TVqIR4ZGb",
+  "why": "bug-5112",
+  "fetchedAt": "2026-11-03T12:18:15.775Z",
+  "version": "now",
+  "note": "拉取时的最新状态（状态 / 备注 / 测试结果可能晚于消息当时）",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "base",
+    "+record-get",
+    "--as",
+    "user",
+    "--base-token",
+    "<bugTable.appToken>",
+    "--table-id",
+    "tblbJYjrxZsPe40V",
+    "--record-id",
+    "reczz28TVqIR4ZGb",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"data\": [\n      [\n        \"Bug-5112\",\n        null,\n        [\n          \"UAT测试通过\"\n        ],\n        null,\n        null,\n        \"PM-3254\",\n        \"2026-11-02T06:05:07.000+04:00\",\n        \"Backend\",\n        \"2026-10-30T09:50:28.000+04:00\",\n        null,\n        \"Falive\",\n        null,\n        null,\n        [\n          {\n            \"id\": \"ou_57bd40c686c743f8def7d503c70e8491\",\n            \"name\": \"HTJames.y\"\n          }\n        ],\n        null,\n        \"1. Hichat 註冊\\n2. Falive 修改密碼 \\u003e 自動登出\\n3. 重新登入, 顯示 \\\"外部服務調用失敗\\\"\\n4. Hichat 可以用修改後的密碼正常登入\",\n        \"2026-10-30T09:50:29.078+04:00\",\n        \"【falive一期】后端/web/app\",\n        \"Falive 修改 Hichat 註冊用戶的密碼後，會顯示外部服務調用失敗無法登入\",\n        null,\n        null,\n        [\n          \"Uat\"\n        ],\n        [\n          {\n            \"id\": \"ou_c03810195f4db6115f3acb45d04a7fec\",\n            \"name\": \"HTShellyhsu\"\n          }\n        ],\n        [\n          {\n            \"file_token\": \"DKDebbZ6goAjBUxxE0FlAysrgLb\",\n            \"name\": \"個人主頁-帳戶訊息-修改密碼-外部服務調用失敗.mov\",\n            \"size\": 5212633\n          },\n          {\n            \"file_token\": \"Mr8YbfPxioIOt6xZL0Nlm0T8gGd\",\n            \"name\": \"個人主頁-帳戶訊息-修改密碼-用戶不存在.mov\",\n            \"size\": 5252735\n          }\n        ],\n        [\n          {\n            \"id\": \"ou_0474e2a35ff1054cdbc0bb9d9d9c9766\",\n            \"name\": \"HQUCEncone\"\n          },\n          {\n            \"id\": \"ou_a0c48d661b36b1e16bf0d89b4a3bb775\",\n            \"name\": \"Arthur.a\"\n          }\n        ],\n        \"pre测试中\",\n        [\n          \"Backend\"\n        ],\n        \"10-30 bot：根因在 portal（Go）后端，前端无需改动。前端改密码走 Go /api/auth/password/reset（email + otp_code + new_password），录屏里改密成功并要求重新登录、Hichat 可用新密码登录，说明 reset 已生效；之后 Falive 登录调 Go /api/auth/login（username=邮箱、password、platform_code=hichat），「外部服务调用失败」「用户不存在」都是 Go 原样返回的 msg（uat 实测：不存在的邮箱 → code -1「用户不存在」）。10-30 再测该账号 james.y+uat.h4 用错误密码登录，Go 已返回「密码错误」（能查到用户），用新密码能否登录需测试复测。请 Encone 查 Hichat 注册用户经 /password/reset 改密后 Go /login 调 hichat 失败、查不到用户的原因。\",\n        \"1.0.3\"\n      ]\n    ],\n    \"field_id_list\": [\n      \"fldmxTvHTq\",\n      \"fld0Pe5U7G\",\n      \"fld1i6PDQT\",\n      \"fld1u0NBC5\",\n      \"fld4kVwoLs\",\n      \"fld52WVyfK\",\n      \"fld7ChUvSH\",\n      \"fld8fzIptW\",\n      \"fld8Q2XlJB\",\n      \"fldAh2Kyj0\",\n      \"fldBuyLemA\",\n      \"fldcuNmiVK\",\n      \"fldD77oYrZ\",\n      \"fldEiiSdHh\",\n      \"fldERqfLpq\",\n      \"fldGsVI1Y0\",\n      \"fldHgasO5A\",\n      \"fldhpTkoXE\",\n      \"fldIuAN6te\",\n      \"fldJ9rdSbO\",\n      \"fldMLCmFW2\",\n      \"fldPyoP99S\",\n      \"fldsV39i3n\",\n      \"fldu80s8wJ\",\n      \"fldw1TK5PO\",\n      \"fldwobTvnQ\",\n      \"fldyh4ldX6\",\n      \"fldYisQZkD\",\n      \"fldZHrw01k\"\n    ],\n    \"field_type_list\": [\n      \"auto_number\",\n      \"text\",\n      \"select\",\n      \"lookup\",\n      \"link\",\n      \"text\",\n      \"updated_at\",\n      \"lookup\",\n      \"created_at\",\n      \"text\",\n      \"lookup\",\n      \"select\",\n      \"attachment\",\n      \"user\",\n      \"datetime\",\n      \"text\",\n      \"datetime\",\n      \"lookup\",\n      \"text\",\n      \"attachment\",\n      \"datetime\",\n      \"select\",\n      \"updated_by\",\n      \"attachment\",\n      \"user\",\n      \"lookup\",\n      \"select\",\n      \"text\",\n      \"text\"\n    ],\n    \"fields\": [\n      \"Bug编号\",\n      \"测试结果\",\n      \"状态\",\n      \"测试人员所在部门\",\n      \"父記錄\",\n      \"需求ID\",\n      \"最后更新时间\",\n      \"解决人员所在部门\",\n      \"创建时间\",\n      \"项目备注\",\n      \"所属项目组\",\n      \"严重程度\",\n      \"测试结果截图\",\n      \"测试人员\",\n      \"预计上线时间\",\n      \"问题描述（复现步骤）\",\n      \"bug填写日期\",\n      \"需求名称\",\n      \"问题标题\",\n      \"附件\",\n      \"修复完成时间\",\n      \"环境\",\n      \"记录最后修改人\",\n      \"问题截图\",\n      \"负责RD\",\n      \"需求阶段\",\n      \"涉及端口\",\n      \"备注\",\n      \"Sprint\"\n    ],\n    \"has_more\": false,\n    \"record_id_list\": [\n      \"reczz28TVqIR4ZGb\"\n    ],\n    \"rev\": 21326,\n    \"timezone\": \"Asia/Dubai\"\n  }\n}\n",
+  "stderr": ""
+}

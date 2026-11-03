@@ -1,0 +1,26 @@
+{
+  "token": "IXyQdQzwPo4tA5xi51AlOXrDgxg",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/IXyQdQzwPo4tA5xi51AlOXrDgxg",
+  "fetchedAt": "2026-11-03T12:17:05.753Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/IXyQdQzwPo4tA5xi51AlOXrDgxg",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>直播间送礼入口开关-待确认-2026-10-22</title>\\n\\n# 直播间送礼入口开关 · 待确认（2026-10-22）\\n\\n> 来自：aven（前端）· 工单：PM-3257「直播间送礼：交互变更为点击送礼时，提示即将开启的文案」  \\n> 背景：falive 没有钻石来源，产品（Mateo）10-21 定本期不开放直播间送礼，点送礼只提示即将开启，入口由服务端控制。Web 端 10-22 已改为点礼物入口弹「送礼功能即将开启，敬请期待」，不展开礼物面板，也不再请求钻石余额。  \\n> 附件《送礼改用社区金币_需求与排期》（同目录 docx）是后端改扣金币的方案，本期不实现，前端不按它接金币余额 / 扣减。\\n\\n## live 后端（Ache / Encone）\\n\\n| # | 要什么 | 为什么 | 我方现状 | 建议 |\\n|-|-|-|-|-|\\n| 1 | 礼物入口开关：放在哪个接口、字段名、取值含义 | 产品要求入口由服务端控制，方便以后打开送礼时兼容低版本 | Web 端固定走「即将开启」提示，不读开关，不自造字段 | 在 PM-3257 写明接口 + 字段 + 取值后告诉前端，前端再接：开 = 展开原礼物面板，关 = 弹提示 |\\n\\n## 产品（Mateo）\\n\\n| # | 要什么 | 为什么 | 我方现状 | 建议 |\\n|-|-|-|-|-|\\n| 1 | 提示文案定稿 | 群里只说「提示即将开启的文案」，没给原文 | 暂用「送礼功能即将开启，敬请期待」（照广场发帖「即将上线，敬请期待」的句式），toast 形式 | 需求文档 / 设计稿给出准确措辞后前端照改 |\",\n      \"document_id\": \"IXyQdQzwPo4tA5xi51AlOXrDgxg\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

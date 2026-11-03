@@ -1,0 +1,46 @@
+{
+  "threadId": "omt_19b29d67140e1851",
+  "fetchedAt": "2026-11-03T12:23:09.062Z",
+  "ok": true,
+  "commands": [
+    [
+      "lark-cli",
+      "api",
+      "GET",
+      "/open-apis/im/v1/messages",
+      "--as",
+      "user",
+      "--params",
+      "{\"container_id_type\":\"thread\",\"container_id\":\"omt_19b29d67140e1851\",\"page_size\":50,\"sort_type\":\"ByCreateTimeAsc\"}",
+      "--page-all",
+      "--page-limit",
+      "0",
+      "--format",
+      "json"
+    ],
+    [
+      "lark-cli",
+      "im",
+      "+threads-messages-list",
+      "--as",
+      "user",
+      "--thread",
+      "omt_19b29d67140e1851",
+      "--order",
+      "asc",
+      "--page-size",
+      "50",
+      "--page-all",
+      "--page-limit",
+      "100",
+      "--no-reactions",
+      "--download-resources",
+      "--format",
+      "json"
+    ]
+  ],
+  "api": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"items\": [\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"@_user_1 @_user_2 这个链接，你们先看看是否可以打开https://qfglxo2m3dc.sg.larksuite.com/wiki/VtEmw9rlMipoRQkV7tllMXb7ggw?table=tblbJYjrxZsPe40V\\u0026view=vewvqqPhkD\\\"}\"\n        },\n        \"chat_default_name\": \"Falive产研技术沟通群\",\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1792564850509\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_76eea7f1089ccfb66678300fe4bc4a40\",\n            \"id_type\": \"open_id\",\n            \"key\": \"@_user_1\",\n            \"name\": \"HTStone.z\",\n            \"tenant_key\": \"149af6980f06577c\"\n          },\n          {\n            \"id\": \"ou_ac2fb8eacd2c5ea9231d605c49c8c881\",\n            \"id_type\": \"open_id\",\n            \"key\": \"@_user_2\",\n            \"name\": \"Kaiser\",\n            \"tenant_key\": \"164beab51542977c\"\n          }\n        ],\n        \"message_id\": \"om_x100b62b1a9e8e8a4ffd12afa8531e87\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b6245142eacb0ffd265311e8e327\",\n        \"root_id\": \"om_x100b6245142eacb0ffd265311e8e327\",\n        \"sender\": {\n          \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19b29d67140e1851\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"1792564850575\",\n        \"updated\": true\n      },\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"新bug先写到这里，看看有没有什么问题，历史数据我稍后迁移过来\\\"}\"\n        },\n        \"chat_default_name\": \"Falive产研技术沟通群\",\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1792565012057\",\n        \"deleted\": false,\n        \"message_id\": \"om_x100b62b1bf8dcca4ff6756a1afd8168\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b6245142eacb0ffd265311e8e327\",\n        \"root_id\": \"om_x100b6245142eacb0ffd265311e8e327\",\n        \"sender\": {\n          \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19b29d67140e1851\",\n        \"thread_message_position\": \"1\",\n        \"update_time\": \"1792565012057\",\n        \"updated\": false\n      },\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"可以打开的\\\"}\"\n        },\n        \"chat_default_name\": \"Falive产研技术沟通群\",\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1792565649782\",\n        \"deleted\": false,\n        \"message_id\": \"om_x100b62b257d628b8ff5c5da05705d09\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b6245142eacb0ffd265311e8e327\",\n        \"root_id\": \"om_x100b6245142eacb0ffd265311e8e327\",\n        \"sender\": {\n          \"id\": \"ou_ac2fb8eacd2c5ea9231d605c49c8c881\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19b29d67140e1851\",\n        \"thread_message_position\": \"2\",\n        \"update_time\": \"1792565649782\",\n        \"updated\": false\n      }\n    ],\n    \"page_token\": \"\"\n  }\n}\n",
+  "apiStderr": "[page 1] fetching...\n",
+  "rendered": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"messages\": [\n      {\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"content\": \"@HTStone.z @Kaiser 这个链接，你们先看看是否可以打开https://qfglxo2m3dc.sg.larksuite.com/wiki/VtEmw9rlMipoRQkV7tllMXb7ggw?table=tblbJYjrxZsPe40V\\u0026view=vewvqqPhkD\",\n        \"create_time\": \"2026-10-21 10:40\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_76eea7f1089ccfb66678300fe4bc4a40\",\n            \"key\": \"@_user_1\",\n            \"name\": \"HTStone.z\"\n          },\n          {\n            \"id\": \"ou_ac2fb8eacd2c5ea9231d605c49c8c881\",\n            \"key\": \"@_user_2\",\n            \"name\": \"Kaiser\"\n          }\n        ],\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_40621901e1583e623f6133e8c66d352e\\u0026open_thread_id=omt_19b29d67140e1851\\u0026openchatid=oc_40621901e1583e623f6133e8c66d352e\\u0026openthreadid=omt_19b29d67140e1851\\u0026thread_position=0\",\n        \"message_id\": \"om_x100b62b1a9e8e8a4ffd12afa8531e87\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n          \"id_type\": \"open_id\",\n          \"name\": \"World\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19b29d67140e1851\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"2026-10-21 10:40\",\n        \"updated\": true\n      },\n      {\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"content\": \"新bug先写到这里，看看有没有什么问题，历史数据我稍后迁移过来\",\n        \"create_time\": \"2026-10-21 10:43\",\n        \"deleted\": false,\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_40621901e1583e623f6133e8c66d352e\\u0026open_thread_id=omt_19b29d67140e1851\\u0026openchatid=oc_40621901e1583e623f6133e8c66d352e\\u0026openthreadid=omt_19b29d67140e1851\\u0026thread_position=1\",\n        \"message_id\": \"om_x100b62b1bf8dcca4ff6756a1afd8168\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n          \"id_type\": \"open_id\",\n          \"name\": \"World\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19b29d67140e1851\",\n        \"thread_message_position\": \"1\",\n        \"updated\": false\n      },\n      {\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"content\": \"可以打开的\",\n        \"create_time\": \"2026-10-21 10:54\",\n        \"deleted\": false,\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_40621901e1583e623f6133e8c66d352e\\u0026open_thread_id=omt_19b29d67140e1851\\u0026openchatid=oc_40621901e1583e623f6133e8c66d352e\\u0026openthreadid=omt_19b29d67140e1851\\u0026thread_position=2\",\n        \"message_id\": \"om_x100b62b257d628b8ff5c5da05705d09\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_ac2fb8eacd2c5ea9231d605c49c8c881\",\n          \"id_type\": \"open_id\",\n          \"name\": \"Kaiser\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19b29d67140e1851\",\n        \"thread_message_position\": \"2\",\n        \"updated\": false\n      }\n    ],\n    \"page_token\": \"\",\n    \"thread_id\": \"omt_19b29d67140e1851\",\n    \"total\": 3\n  },\n  \"meta\": {\n    \"pagination\": {\n      \"complete\": true,\n      \"pages\": 1,\n      \"items\": 3\n    }\n  }\n}\n",
+  "renderedStderr": ""
+}

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Google GIS Login Demo</title>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f5f7fa;font-family:Arial,"Microsoft YaHei",sans-serif}
+    .card{width:min(760px,calc(100% - 32px));background:#fff;border-radius:12px;padding:28px;box-sizing:border-box;box-shadow:0 8px 30px rgba(0,0,0,.08)}
+    h2{margin-top:0}.hint{color:#666;font-size:14px;line-height:1.6}#google-login{margin:24px 0}
+    .label{font-weight:600;margin:16px 0 8px}pre{white-space:pre-wrap;word-break:break-all;background:#111827;color:#e5e7eb;padding:16px;border-radius:8px;min-height:100px;overflow:auto}
+    .status{padding:10px 12px;border-radius:6px;background:#f3f4f6;color:#374151;margin-top:12px}
+  </style>
+</head>
+<body>
+<div class="card">
+  <h2>Google Identity Services 登录 Demo</h2>
+  <div class="hint">点击 Google 登录后，GIS 会返回 ID Token（credential）。页面会把 ID Token POST 到后端，然后直接显示后端接口返回内容。</div>
+  <div id="google-login"></div>
+  <div id="status" class="status">等待 Google 登录...</div>
+  <div class="label">后端接口返回：</div>
+  <pre id="result">暂无结果</pre>
+</div>
+<script>
+const GOOGLE_CLIENT_ID = "804550677715-vjtet7noqbg1h1rc05rtcm7rk3120ibj.apps.googleusercontent.com";
+const API_URL = "https://streampreadmin.fdsser.com/api/user/googleLogin";
+
+window.onload = function () {
+  if (!window.google || !google.accounts || !google.accounts.id) {
+    setStatus("Google Identity Services 加载失败，请检查网络或 Google 域名白名单。");
+    return;
+  }
+
+  google.accounts.id.initialize({
+    client_id: GOOGLE_CLIENT_ID,
+    callback: handleGoogleLogin
+  });
+
+  google.accounts.id.renderButton(document.getElementById("google-login"), {
+    theme: "outline", size: "large", type: "standard", text: "signin_with", shape: "rectangular", width: 300
+  });
+};
+
+async function handleGoogleLogin(response) {
+  const idToken = response.credential;
+  if (!idToken) { setStatus("Google 登录成功，但没有拿到 ID Token。"); return; }
+
+  setStatus("Google 登录成功，正在请求后端...");
+  document.getElementById("result").textContent = "请求中...";
+
+  try {
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id_token: idToken })
+    });
+
+    const text = await res.text();
+    let output;
+    try { output = JSON.stringify(JSON.parse(text), null, 2); }
+    catch (e) { output = text; }
+
+    document.getElementById("result").textContent = "HTTP Status: " + res.status + "\n\n" + output;
+    setStatus(res.ok ? "后端请求成功" : "后端返回 HTTP " + res.status);
+  } catch (error) {
+    console.error(error);
+    document.getElementById("result").textContent = error.stack || error.toString();
+    setStatus("请求后端失败，可能是 CORS、网络或接口问题。");
+  }
+}
+
+function setStatus(message) { document.getElementById("status").textContent = message; }
+</script>
+</body>
+</html>

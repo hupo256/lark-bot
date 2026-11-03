@@ -1,0 +1,26 @@
+{
+  "token": "MH44dy7T9oX0BDxpnN5l3AlJgoc",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/MH44dy7T9oX0BDxpnN5l3AlJgoc",
+  "fetchedAt": "2026-11-03T12:17:18.511Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/MH44dy7T9oX0BDxpnN5l3AlJgoc",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"# uat / OL 的 Google 登录 client_id（完整内容）\\n\\n@William @HQUCWilliam.m uat 和 OL 都已填上这个 client_id，按环境分开配置；以后 OL 换成单独的 id，或者改成回调授权，都只用改一处，回调授权等你们给出回调地址和接口约定后再接。本地打了 uat 和 OL 两个包，都核对到这个 id 已经打进去，下次发版生效。还要麻烦在 Google 后台把 faliveuat.fdsser.com 和 [www.falive.com](http://www.falive.com) 加进授权来源，不然点 Google 登录会报来源不匹配。  \\n待确认的几点在这里：https://qfglxo2m3dc.sg.larksuite.com/docx/B9yNdlZSEoSngSxyGhvle8IAgAp\\n\\n- William：在 Google Console 给这个 client_id 加授权来源 [https://faliveuat.fdsser.com](https://faliveuat.fdsser.com) 和 [https://www.falive.com](https://www.falive.com)；以后改回调授权时，请 portal 提供回调地址和授权码交换接口约定  \\n详细见：https://qfglxo2m3dc.sg.larksuite.com/docx/GvRHd8QdsoQTZbx9IEDlHQhdgRg\",\n      \"document_id\": \"MH44dy7T9oX0BDxpnN5l3AlJgoc\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

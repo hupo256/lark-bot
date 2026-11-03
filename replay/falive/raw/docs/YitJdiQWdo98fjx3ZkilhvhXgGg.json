@@ -1,0 +1,26 @@
+{
+  "token": "YitJdiQWdo98fjx3ZkilhvhXgGg",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/YitJdiQWdo98fjx3ZkilhvhXgGg",
+  "fetchedAt": "2026-11-03T12:17:10.068Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/YitJdiQWdo98fjx3ZkilhvhXgGg",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>pre真实验证码复测-待确认-2026-10-26</title>\\n\\n# pre 真实验证码复测 — 待确认（2026-10-26）\\n\\n背景：Arthur 10-26 13:36 在群里说 pre 的邮箱、手机验证码已接入真实发送。Web 在 pre 构建里登录 / 注册 / 找回密码 / 修改密码的发码都走 portal：`/go-api/api/auth/verification/email/send` 和 `/go-api/api/auth/verification/send`。\\n\\n## 本轮实测（2026-10-26，直接打 pre portal）\\n\\n| 场景 | 请求 | 结果 |\\n|-|-|-|\\n| 邮箱发码 scene=login | `email=aven-pretest@probe.test` | code 0「Operation successful」 |\\n| 邮箱发码 scene=register / reset_password（紧接着发） | 同一邮箱 | code -1「verification code already sent」：同一邮箱 60 秒内只能发一次，和场景无关；前端已把这句换成中文提示 |\\n| 邮箱发码 scene=register（隔 60 秒） | 同一邮箱 | code 0 |\\n| 手机发码 country_code=84（越南） | `phone=912345678` | code -1「unsupported sms country」 |\\n| 手机发码 country_code=86 / 886 / 852 / 65 / 1 | 无效号码 `00000000` | code -1「invalid phone」：这几个区号能过国家校验，但没有可收短信的真号，所以没验到真实发送 |\\n| 验证码登录 otp=123456 / 000000 | 测试号邮箱 | code -1「邮箱验证码错误或已过期」：万能码已失效 |\\n| 邮箱注册 otp=123456 | 新邮箱 | code -1「邮箱验证码错误或已过期」 |\\n| 测试号密码登录（页面工具 --login） | portal `/login` | 成功，pre 站点账号信息页、修改密码页都正常打开 |\\n\\n前端处理：后端返回的这几条 msg（already sent / unsupported sms country / invalid phone / 验证码错误）都在 `error-message.ts` 里有对应的中文映射或原样展示，不会静默失败。\\n\\n## Arthur（hichat / 账号后端）\\n\\n1. **要一个能收码的 pre 账号，或者测试时配合报码**\\n\\n   - 为什么：测试号 `aven-pretest@probe.test` 是假邮箱，收不到信，所以「收码 → 填码 → 登录 / 注册 / 找回密码 / 修改密码成功」这条闭环没验到。\\n   - 我方现状：发码接口通了，错码会被拒，前端提示正常。\\n   - 建议：给一个能收信的 pre 邮箱（或手机号 + 区号），或者让测试同学在我们测试时把收到的验证码报一下。\\n2. **+84（越南）短信回「unsupported sms country」**\\n\\n   - 为什么：账号里的手机号是按 `84-xxxxxxxxx` 存的，越南号用户用手机号登录 / 注册 / 找回密码都会收不到码。\\n   - 我方现状：前端会提示「不支持该国家/地区」，不会卡住。\\n   - 建议：确认 pre 的短信是否计划支持 +84；如果支持哪些区号有清单，请发一下。\",\n      \"document_id\": \"YitJdiQWdo98fjx3ZkilhvhXgGg\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

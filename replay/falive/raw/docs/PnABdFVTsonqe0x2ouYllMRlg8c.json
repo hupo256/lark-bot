@@ -1,0 +1,26 @@
+{
+  "token": "PnABdFVTsonqe0x2ouYllMRlg8c",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/PnABdFVTsonqe0x2ouYllMRlg8c",
+  "fetchedAt": "2026-11-03T12:17:09.661Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/PnABdFVTsonqe0x2ouYllMRlg8c",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"# pre 真实验证码复测（完整内容）\\n\\n@Arthur pre 真实验证码复测：通了 2 项，没通 2 项\\n\\n- ⚠️ 接了但还不能用 收码后填码登录 / 注册 / 改密成功：测试号是假邮箱收不到码，缺一个能收码的 pre 账号，这一圈没走完\\n- ⚠️ 接了但还不能用 手机短信验证码：+84（越南）回「unsupported sms country」；86 / 886 / 852 / 65 / 1 这几个区号能过国家校验，但没有能收短信的真号，没验到实际发送\\n- ✅ 通了 邮箱发验证码（登录 / 注册 / 找回密码）：三个场景都回 code 0；同一邮箱 60 秒内只能发一次，前端会提示「验证码已发送，请稍后再试」\\n- ✅ 通了 万能码 123456 失效，错码提示：用 123456 登录和注册都回「邮箱验证码错误或已过期」，前端会把这句提示出来  \\n待确认的几点在这里：https://qfglxo2m3dc.sg.larksuite.com/docx/YitJdiQWdo98fjx3ZkilhvhXgGg\\n- Arthur：给一个能收码的 pre 邮箱或手机号（或者测试时配合报码），用来走完收码登录 / 注册 / 改密这一圈；+84 越南短信回 unsupported sms country，确认是否要支持，并给出支持的区号清单\",\n      \"document_id\": \"PnABdFVTsonqe0x2ouYllMRlg8c\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

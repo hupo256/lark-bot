@@ -1,0 +1,26 @@
+{
+  "token": "LNbpdKnUfo0zhdxHCVBlH67Egqe",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/LNbpdKnUfo0zhdxHCVBlH67Egqe",
+  "fetchedAt": "2026-11-03T12:17:18.829Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/LNbpdKnUfo0zhdxHCVBlH67Egqe",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>uat / OL 前端版本核对（细节）</title>\\n\\n# uat / OL 前端版本核对（2026-10-30）\\n\\n## 结论\\n\\n- uat：部署的包就是 uat 分支最新代码（构建提交号 4795c208），pre 和开发分支的功能都已包含，不用再打包。\\n- OL：代码已合入 online 分支（9841d8f2），但 [www.falive.com](http://www.falive.com) 还是旧包，要等 OL 部署信审批通过、运维部署。\\n- 前端没有按环境关功能的开关，uat / OL 和 pre 用同一套代码，差别只在环境配置。\\n\\n## 证据\\n\\n- uat 首页入口 JS 里的 VITE_BUILD_SHA = 4795c2084623835b88a0336f32b08b8c07e09484，等于 origin/uat 的最新提交。\\n- pre / uat / online 三条分支互相没有缺的提交；开发分支也没有没合进 uat / online 的代码提交。\\n- [www.falive.com](http://www.falive.com)：/ 返回 200，/hc 和 /hc/news 返回 404（新版路由还没部署），产物里没有构建提交号。\\n\\n## uat 上要后端 / 运维排查的配置\\n\\n1. U1 前台网关按来源 IP 限频（同一 IP 并发 6–8 个请求就回 429，封 10 秒），服务端渲染回源约一半 503。要给部署机出口 IP 免限频，或者给内网回源地址。\\n2. U2 前台 nginx 没转发 /hc-ws，WebSocket 握手回 503，要转到 hichat 的 /ws/im/echo。\\n3. uat 没跑全部用户同步脚本，嗨聊老用户在 /go-api/api/auth/login 登录会提示用户不存在。Encone 说有补同步逻辑，但 HTStone 实测没生效。\",\n      \"document_id\": \"LNbpdKnUfo0zhdxHCVBlH67Egqe\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

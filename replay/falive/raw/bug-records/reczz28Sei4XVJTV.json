@@ -1,0 +1,26 @@
+{
+  "recordId": "reczz28Sei4XVJTV",
+  "why": "bug-5048",
+  "fetchedAt": "2026-11-03T12:18:10.359Z",
+  "version": "now",
+  "note": "拉取时的最新状态（状态 / 备注 / 测试结果可能晚于消息当时）",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "base",
+    "+record-get",
+    "--as",
+    "user",
+    "--base-token",
+    "<bugTable.appToken>",
+    "--table-id",
+    "tblbJYjrxZsPe40V",
+    "--record-id",
+    "reczz28Sei4XVJTV",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"data\": [\n      [\n        \"Bug-5048\",\n        null,\n        [\n          \"不处理\"\n        ],\n        \"QA\",\n        null,\n        \"PM-3254\",\n        \"2026-10-29T11:49:07.000+04:00\",\n        \"Backend\",\n        \"2026-10-28T05:55:37.000+04:00\",\n        null,\n        \"Falive\",\n        null,\n        null,\n        [\n          {\n            \"id\": \"ou_76eea7f1089ccfb66678300fe4bc4a40\",\n            \"name\": \"HTStone.z\"\n          }\n        ],\n        null,\n        \"[https://falivepre.fdsser.com/bbs/member/medals?isExpire=0\\u0026page=1\\u0026pageSize=100\\u0026channel_code=hc](https://falivepre.fdsser.com/bbs/member/medals?isExpire=0\\u0026page=1\\u0026pageSize=100\\u0026channel_code=hc)\\n\",\n        \"2026-10-28T05:55:37.881+04:00\",\n        \"【falive一期】后端/web/app\",\n        \"個人中心 \\u003e 勳章 API 報錯 404\",\n        null,\n        \"2026-10-28T00:00:00.000+04:00\",\n        [\n          \"Pre\"\n        ],\n        [\n          {\n            \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n            \"name\": \"World\"\n          }\n        ],\n        [\n          {\n            \"file_token\": \"L7D5b581fo6MojxyvNhlSf4ngLe\",\n            \"name\": \"image.png\",\n            \"size\": 431520\n          }\n        ],\n        [\n          {\n            \"id\": \"ou_d24c070cfea7570478d3d61ced55de0c\",\n            \"name\": \"HQUCWilliam.m\"\n          }\n        ],\n        \"pre测试中\",\n        [\n          \"Backend\"\n        ],\n        \"【10-28 bot】根因在后端，前端不改。① 前端请求与 x9 一致：x9 src/domain/user/medal/query.ts 同为同源 GET /bbs/member/medals?isExpire=0\\u0026page=1\\u0026pageSize=100（x9 dev 代理把 /bbs 转 php）。② pre 实测（测试号 uid 508，portal 登录拿 live_token + B2B 签名，同接口串行）：/api/Member/info code 0（登录态有效）；falivepre /bbs/member/medals → HTTP 404「404 No Router」（php b2b swoole 返回，网关已转到 php，php 无此路由）；/bbsv2/member/medals、/api/member/medals → 404「[medals] action does not exists」；/bbsv2/medal/list → 404「Not Found Http Ctrl CMedal」。pre 上没有任何勋章接口。③ 同根因旧单 Bug-4937（henry，对接文档 HB1「勋章接口 404」待 live php 后端答复；是否一期做见 P2 待产品）。需 live php 后端在 pre 提供 /bbs/member/medals（字段同 x9 memberMedalListSchema：data.list[]）；接口上线后前端无需改动即可显示。端口改 Backend，负责RD 改 .Ache.l。\\n【10-28 william.m】\\n勋章显示是 klive 暂没上线的功能 ，pm 表示 falive 先不展示 。麻烦前端同学也隐藏一下 ！\",\n        \"1.0.3\"\n      ]\n    ],\n    \"field_id_list\": [\n      \"fldmxTvHTq\",\n      \"fld0Pe5U7G\",\n      \"fld1i6PDQT\",\n      \"fld1u0NBC5\",\n      \"fld4kVwoLs\",\n      \"fld52WVyfK\",\n      \"fld7ChUvSH\",\n      \"fld8fzIptW\",\n      \"fld8Q2XlJB\",\n      \"fldAh2Kyj0\",\n      \"fldBuyLemA\",\n      \"fldcuNmiVK\",\n      \"fldD77oYrZ\",\n      \"fldEiiSdHh\",\n      \"fldERqfLpq\",\n      \"fldGsVI1Y0\",\n      \"fldHgasO5A\",\n      \"fldhpTkoXE\",\n      \"fldIuAN6te\",\n      \"fldJ9rdSbO\",\n      \"fldMLCmFW2\",\n      \"fldPyoP99S\",\n      \"fldsV39i3n\",\n      \"fldu80s8wJ\",\n      \"fldw1TK5PO\",\n      \"fldwobTvnQ\",\n      \"fldyh4ldX6\",\n      \"fldYisQZkD\",\n      \"fldZHrw01k\"\n    ],\n    \"field_type_list\": [\n      \"auto_number\",\n      \"text\",\n      \"select\",\n      \"lookup\",\n      \"link\",\n      \"text\",\n      \"updated_at\",\n      \"lookup\",\n      \"created_at\",\n      \"text\",\n      \"lookup\",\n      \"select\",\n      \"attachment\",\n      \"user\",\n      \"datetime\",\n      \"text\",\n      \"datetime\",\n      \"lookup\",\n      \"text\",\n      \"attachment\",\n      \"datetime\",\n      \"select\",\n      \"updated_by\",\n      \"attachment\",\n      \"user\",\n      \"lookup\",\n      \"select\",\n      \"text\",\n      \"text\"\n    ],\n    \"fields\": [\n      \"Bug编号\",\n      \"测试结果\",\n      \"状态\",\n      \"测试人员所在部门\",\n      \"父記錄\",\n      \"需求ID\",\n      \"最后更新时间\",\n      \"解决人员所在部门\",\n      \"创建时间\",\n      \"项目备注\",\n      \"所属项目组\",\n      \"严重程度\",\n      \"测试结果截图\",\n      \"测试人员\",\n      \"预计上线时间\",\n      \"问题描述（复现步骤）\",\n      \"bug填写日期\",\n      \"需求名称\",\n      \"问题标题\",\n      \"附件\",\n      \"修复完成时间\",\n      \"环境\",\n      \"记录最后修改人\",\n      \"问题截图\",\n      \"负责RD\",\n      \"需求阶段\",\n      \"涉及端口\",\n      \"备注\",\n      \"Sprint\"\n    ],\n    \"has_more\": false,\n    \"record_id_list\": [\n      \"reczz28Sei4XVJTV\"\n    ],\n    \"rev\": 21326,\n    \"timezone\": \"Asia/Dubai\"\n  }\n}\n",
+  "stderr": ""
+}

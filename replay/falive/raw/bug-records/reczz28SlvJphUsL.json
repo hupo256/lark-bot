@@ -1,0 +1,26 @@
+{
+  "recordId": "reczz28SlvJphUsL",
+  "why": "bug-5064",
+  "fetchedAt": "2026-11-03T12:18:06.767Z",
+  "version": "now",
+  "note": "拉取时的最新状态（状态 / 备注 / 测试结果可能晚于消息当时）",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "base",
+    "+record-get",
+    "--as",
+    "user",
+    "--base-token",
+    "<bugTable.appToken>",
+    "--table-id",
+    "tblbJYjrxZsPe40V",
+    "--record-id",
+    "reczz28SlvJphUsL",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"data\": [\n      [\n        \"Bug-5064\",\n        \"[10/28 James.y] 複驗通過\",\n        [\n          \"Pre测试通过\"\n        ],\n        null,\n        null,\n        \"PM-3254\",\n        \"2026-10-29T11:49:18.000+04:00\",\n        \"Backend\",\n        \"2026-10-28T12:55:19.000+04:00\",\n        null,\n        \"Falive\",\n        null,\n        [\n          {\n            \"file_token\": \"Z9VwblUvPoJIZpxoRcAlepnsgBb\",\n            \"name\": \"Falive註冊.png\",\n            \"size\": 985547\n          },\n          {\n            \"file_token\": \"Bnb6bHvouo20DvxVLx0lCdpAgFg\",\n            \"name\": \"Falive修改密碼.png\",\n            \"size\": 51997\n          }\n        ],\n        [\n          {\n            \"id\": \"ou_57bd40c686c743f8def7d503c70e8491\",\n            \"name\": \"HTJames.y\"\n          }\n        ],\n        null,\n        \"現行 Falive 註冊密碼超過 12位數，會無法在 Hichat 進行登入\",\n        \"2026-10-28T12:55:19.970+04:00\",\n        \"【falive一期】后端/web/app\",\n        \"Falive 註冊密碼、修改密碼位數需調整與 Hichat 一致\",\n        null,\n        null,\n        [\n          \"Pre\"\n        ],\n        [\n          {\n            \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n            \"name\": \"World\"\n          }\n        ],\n        [\n          {\n            \"file_token\": \"RWJKboe7eorUxoxgldflRvEpgdc\",\n            \"name\": \"截圖 2026-10-28 下午5.03.01.png\",\n            \"size\": 30348\n          },\n          {\n            \"file_token\": \"H8Vub1q8Ho1NbfxjozXloVgVgbd\",\n            \"name\": \"Falive 註冊.png\",\n            \"size\": 296664\n          },\n          {\n            \"file_token\": \"ZQkkbFiOComKUtxMV8PlMHaWgbd\",\n            \"name\": \"Hichat 註冊.png\",\n            \"size\": 41274\n          }\n        ],\n        [\n          {\n            \"id\": \"ou_0474e2a35ff1054cdbc0bb9d9d9c9766\",\n            \"name\": \"HQUCEncone\"\n          }\n        ],\n        \"pre测试中\",\n        [\n          \"Web\",\n          \"Backend\"\n        ],\n        \"10-28 前端已修（MR !157 [http://mgit.lgroup.co/hqoi/web/falive-react/-/merge_requests/157](http://mgit.lgroup.co/hqoi/web/falive-react/-/merge_requests/157)）：注册 / 找回密码 / 修改密码的新密码规则由 6-32 位改为 6-12 位（下限 6 按 portal，上限 12 对齐 Hichat 4-12），提示文案同步；登录不限长度，已有的长密码账号仍能在 Falive 登录。自测：本地 build:pre 连 pre 网关，邮箱注册输 13 位密码被拦并提示「请输入6-12位密码」、不发注册请求，12 位正常提交。后端（HQUCEncone）：portal /api/auth/register、/password/reset 目前接受 6-32 位（PM-3217 六-1），需同步把上限收到 12，否则其他端仍能设出 Hichat 登不进的密码；已用 13-32 位注册的老账号在 Hichat 登不进，需后端决定处理方式（如 Hichat 登录放宽或提示改密）。\",\n        \"1.0.3\"\n      ]\n    ],\n    \"field_id_list\": [\n      \"fldmxTvHTq\",\n      \"fld0Pe5U7G\",\n      \"fld1i6PDQT\",\n      \"fld1u0NBC5\",\n      \"fld4kVwoLs\",\n      \"fld52WVyfK\",\n      \"fld7ChUvSH\",\n      \"fld8fzIptW\",\n      \"fld8Q2XlJB\",\n      \"fldAh2Kyj0\",\n      \"fldBuyLemA\",\n      \"fldcuNmiVK\",\n      \"fldD77oYrZ\",\n      \"fldEiiSdHh\",\n      \"fldERqfLpq\",\n      \"fldGsVI1Y0\",\n      \"fldHgasO5A\",\n      \"fldhpTkoXE\",\n      \"fldIuAN6te\",\n      \"fldJ9rdSbO\",\n      \"fldMLCmFW2\",\n      \"fldPyoP99S\",\n      \"fldsV39i3n\",\n      \"fldu80s8wJ\",\n      \"fldw1TK5PO\",\n      \"fldwobTvnQ\",\n      \"fldyh4ldX6\",\n      \"fldYisQZkD\",\n      \"fldZHrw01k\"\n    ],\n    \"field_type_list\": [\n      \"auto_number\",\n      \"text\",\n      \"select\",\n      \"lookup\",\n      \"link\",\n      \"text\",\n      \"updated_at\",\n      \"lookup\",\n      \"created_at\",\n      \"text\",\n      \"lookup\",\n      \"select\",\n      \"attachment\",\n      \"user\",\n      \"datetime\",\n      \"text\",\n      \"datetime\",\n      \"lookup\",\n      \"text\",\n      \"attachment\",\n      \"datetime\",\n      \"select\",\n      \"updated_by\",\n      \"attachment\",\n      \"user\",\n      \"lookup\",\n      \"select\",\n      \"text\",\n      \"text\"\n    ],\n    \"fields\": [\n      \"Bug编号\",\n      \"测试结果\",\n      \"状态\",\n      \"测试人员所在部门\",\n      \"父記錄\",\n      \"需求ID\",\n      \"最后更新时间\",\n      \"解决人员所在部门\",\n      \"创建时间\",\n      \"项目备注\",\n      \"所属项目组\",\n      \"严重程度\",\n      \"测试结果截图\",\n      \"测试人员\",\n      \"预计上线时间\",\n      \"问题描述（复现步骤）\",\n      \"bug填写日期\",\n      \"需求名称\",\n      \"问题标题\",\n      \"附件\",\n      \"修复完成时间\",\n      \"环境\",\n      \"记录最后修改人\",\n      \"问题截图\",\n      \"负责RD\",\n      \"需求阶段\",\n      \"涉及端口\",\n      \"备注\",\n      \"Sprint\"\n    ],\n    \"has_more\": false,\n    \"record_id_list\": [\n      \"reczz28SlvJphUsL\"\n    ],\n    \"rev\": 21326,\n    \"timezone\": \"Asia/Dubai\"\n  }\n}\n",
+  "stderr": ""
+}

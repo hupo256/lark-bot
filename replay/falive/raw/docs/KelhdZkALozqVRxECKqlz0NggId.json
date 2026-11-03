@@ -1,0 +1,26 @@
+{
+  "token": "KelhdZkALozqVRxECKqlz0NggId",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/KelhdZkALozqVRxECKqlz0NggId",
+  "fetchedAt": "2026-11-03T12:17:15.940Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/KelhdZkALozqVRxECKqlz0NggId",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"# uat 开 Go 登录注册（完整内容）\\n\\n@Encone uat 开 Go 登录注册：通了 1 项，没通 1 项\\n\\n- ⚠️ 接了但还不能用 uat Google 登录：后端还没给 uat 的 Google client_id 和授权来源，按钮先隐藏\\n- ✅ 通了 uat 前端开 Go 开关（登录 / 注册 / 发验证码 / 找回密码改走 Go）：本地按 uat 配置起服务实测：经 /go-api/ 到 uat Go，health 返回 UP，未登录 profile 返回 -700；前端判定走 Go。真发验证码没测，等 uat 发版后请 Arthur 点一次「发送」确认  \\n待确认的几点在这里：https://qfglxo2m3dc.sg.larksuite.com/docx/UgtmdoRfSo9xefxz0RFl8tgmgJb\\n- Encone：uat / online 的 Google 登录 client_id，以及把 faliveuat.fdsser.com / [www.falive.com](http://www.falive.com) 加进 Google Console 授权来源（没给之前这两个环境不显示 Google 按钮）；online 的 Go 部署好、前台 /go-api/ 转发通了以后告诉前端，前端再开 online 的开关  \\n详细见：https://qfglxo2m3dc.sg.larksuite.com/docx/T324dMvzwofnZGxAQCClsLYggvh\",\n      \"document_id\": \"KelhdZkALozqVRxECKqlz0NggId\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

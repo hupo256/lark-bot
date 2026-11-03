@@ -1,0 +1,26 @@
+{
+  "token": "D6CQdiuh4o2b4IxAhAllnDqHgyh",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/D6CQdiuh4o2b4IxAhAllnDqHgyh",
+  "fetchedAt": "2026-11-03T12:17:12.193Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/D6CQdiuh4o2b4IxAhAllnDqHgyh",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>oc_c2a63ac7c217235e14407ed1bba69d06（完整内容）</title>\\n\\n# Falive Web 日报 2026-10-26\\n\\n总体进度 **92.6%**，已接通 **50 / 54**，今日 -2。\\n\\n## 今天\\n\\n- **aven**：顶栏搜索改成边输入边搜，并加上搜索历史；首页任务中心接上真实接口；页脚、Hero 按设计稿还原\\n- **adrian**：任务中心接上关注主播和发帖的上报，能核对积分是否到账，并记下验收情况\\n\\n等你决定的：Encone 说行情列表接口换了新地址。前端现在调的就是这个地址，但 pre 上还是 404，前端不用改。要不要这样回复 Encone 并结掉这条？\\n\\n## 测试 Bug\\n\\n- 共 102 个，今天新增 14：待处理 37、已推版 5、Pre测试通过 41、产品后续优化 3、非BUG，已关闭 3、验退 11、bug已关闭 1、（没填状态） 1\\n- 待处理 / 修复中按负责人：Henry 12、Ache.l 9、Arthur.a 8、HQUCEncone 8、Mateo 2、Adrian 2、mainly 2、Aven.tong 1\\n\\n完整版（云文档）：https://qfglxo2m3dc.sg.larksuite.com/docx/DUOVdJzfyoVFqcxDpMvlZshQggb\",\n      \"document_id\": \"D6CQdiuh4o2b4IxAhAllnDqHgyh\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

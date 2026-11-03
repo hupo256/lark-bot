@@ -1,0 +1,46 @@
+{
+  "threadId": "omt_19b2916dd20f997f",
+  "fetchedAt": "2026-11-03T12:23:10.225Z",
+  "ok": true,
+  "commands": [
+    [
+      "lark-cli",
+      "api",
+      "GET",
+      "/open-apis/im/v1/messages",
+      "--as",
+      "user",
+      "--params",
+      "{\"container_id_type\":\"thread\",\"container_id\":\"omt_19b2916dd20f997f\",\"page_size\":50,\"sort_type\":\"ByCreateTimeAsc\"}",
+      "--page-all",
+      "--page-limit",
+      "0",
+      "--format",
+      "json"
+    ],
+    [
+      "lark-cli",
+      "im",
+      "+threads-messages-list",
+      "--as",
+      "user",
+      "--thread",
+      "omt_19b2916dd20f997f",
+      "--order",
+      "asc",
+      "--page-size",
+      "50",
+      "--page-all",
+      "--page-limit",
+      "100",
+      "--no-reactions",
+      "--download-resources",
+      "--format",
+      "json"
+    ]
+  ],
+  "api": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"items\": [\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"\\u003cp\\u003e让他给你讲一下，还是直接补充到prd\\u003c/p\\u003e\\\"}\"\n        },\n        \"chat_default_name\": \"Falive PHP后端群\",\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1792481780309\",\n        \"deleted\": false,\n        \"message_id\": \"om_x100b6245d18f78b0ed55c21c0abb54e\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b6245d482cca8ed31e70b306e2c6\",\n        \"root_id\": \"om_x100b6245d482cca8ed31e70b306e2c6\",\n        \"sender\": {\n          \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19b2916dd20f997f\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"1792481827984\",\n        \"updated\": true\n      },\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"补充到 prd 。后面 AI 会依据这个跑测试\\\"}\"\n        },\n        \"chat_default_name\": \"Falive PHP后端群\",\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1792481873295\",\n        \"deleted\": false,\n        \"message_id\": \"om_x100b6245ebdf4caced435123a268b13\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b6245d482cca8ed31e70b306e2c6\",\n        \"root_id\": \"om_x100b6245d482cca8ed31e70b306e2c6\",\n        \"sender\": {\n          \"id\": \"ou_91861d6da6cf6822e08045ba1868241e\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19b2916dd20f997f\",\n        \"thread_message_position\": \"1\",\n        \"update_time\": \"1792481873295\",\n        \"updated\": false\n      },\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"@_user_1 有哪些需要补的，你直接在专项那个群里产品@_user_2 吧\\\"}\"\n        },\n        \"chat_default_name\": \"Falive PHP后端群\",\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1792481939380\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_91861d6da6cf6822e08045ba1868241e\",\n            \"id_type\": \"open_id\",\n            \"key\": \"@_user_1\",\n            \"name\": \"Aven.tong\",\n            \"tenant_key\": \"164beab51542977c\"\n          },\n          {\n            \"id\": \"ou_089c0e5c53df38e1920e9c0013077f84\",\n            \"id_type\": \"open_id\",\n            \"key\": \"@_user_2\",\n            \"name\": \"Mateo\",\n            \"tenant_key\": \"19ce35bba9d7d946\"\n          }\n        ],\n        \"message_id\": \"om_x100b6245e7fe3cb0ed6a41ea8de6a25\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b6245d482cca8ed31e70b306e2c6\",\n        \"root_id\": \"om_x100b6245d482cca8ed31e70b306e2c6\",\n        \"sender\": {\n          \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19b2916dd20f997f\",\n        \"thread_message_position\": \"2\",\n        \"update_time\": \"1792481939613\",\n        \"updated\": true\n      }\n    ],\n    \"page_token\": \"\"\n  }\n}\n",
+  "apiStderr": "[page 1] fetching...\n",
+  "rendered": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"messages\": [\n      {\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"content\": \"\\u003cp\\u003e让他给你讲一下，还是直接补充到prd\\u003c/p\\u003e\",\n        \"create_time\": \"2026-10-20 11:36\",\n        \"deleted\": false,\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026open_thread_id=omt_19b2916dd20f997f\\u0026openchatid=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026openthreadid=omt_19b2916dd20f997f\\u0026thread_position=0\",\n        \"message_id\": \"om_x100b6245d18f78b0ed55c21c0abb54e\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n          \"id_type\": \"open_id\",\n          \"name\": \"World\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19b2916dd20f997f\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"2026-10-20 11:37\",\n        \"updated\": true\n      },\n      {\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"content\": \"补充到 prd 。后面 AI 会依据这个跑测试\",\n        \"create_time\": \"2026-10-20 11:37\",\n        \"deleted\": false,\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026open_thread_id=omt_19b2916dd20f997f\\u0026openchatid=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026openthreadid=omt_19b2916dd20f997f\\u0026thread_position=1\",\n        \"message_id\": \"om_x100b6245ebdf4caced435123a268b13\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_91861d6da6cf6822e08045ba1868241e\",\n          \"id_type\": \"open_id\",\n          \"name\": \"Aven.tong\",\n          \"sender_i18n_names\": {\n            \"zh_cn\": \"Aven\"\n          },\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19b2916dd20f997f\",\n        \"thread_message_position\": \"1\",\n        \"updated\": false\n      },\n      {\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"content\": \"@Aven.tong 有哪些需要补的，你直接在专项那个群里产品@Mateo 吧\",\n        \"create_time\": \"2026-10-20 11:38\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_91861d6da6cf6822e08045ba1868241e\",\n            \"key\": \"@_user_1\",\n            \"name\": \"Aven.tong\"\n          },\n          {\n            \"id\": \"ou_089c0e5c53df38e1920e9c0013077f84\",\n            \"key\": \"@_user_2\",\n            \"name\": \"Mateo\"\n          }\n        ],\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026open_thread_id=omt_19b2916dd20f997f\\u0026openchatid=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026openthreadid=omt_19b2916dd20f997f\\u0026thread_position=2\",\n        \"message_id\": \"om_x100b6245e7fe3cb0ed6a41ea8de6a25\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n          \"id_type\": \"open_id\",\n          \"name\": \"World\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19b2916dd20f997f\",\n        \"thread_message_position\": \"2\",\n        \"update_time\": \"2026-10-20 11:38\",\n        \"updated\": true\n      }\n    ],\n    \"page_token\": \"\",\n    \"thread_id\": \"omt_19b2916dd20f997f\",\n    \"total\": 3\n  },\n  \"meta\": {\n    \"pagination\": {\n      \"complete\": true,\n      \"pages\": 1,\n      \"items\": 3\n    }\n  }\n}\n",
+  "renderedStderr": ""
+}

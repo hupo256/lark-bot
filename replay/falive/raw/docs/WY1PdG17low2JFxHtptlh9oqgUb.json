@@ -1,0 +1,26 @@
+{
+  "token": "WY1PdG17low2JFxHtptlh9oqgUb",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/WY1PdG17low2JFxHtptlh9oqgUb",
+  "fetchedAt": "2026-11-03T12:17:00.708Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/WY1PdG17low2JFxHtptlh9oqgUb",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>PM-3217-账号接口-待确认-2026-10-14</title>\\n\\n# PM-3217 账号接口 · 待确认（2026-10-14）\\n\\n> 发起：aven · 背景：10-14 群里定 #2 登录 / 注册（含 token 策略封装）前端改由 aven 负责；falive-golang（portal）pre 第一次部署中，部署完结后开工。现有文档：PM-3217-对接文档。\\n\\n## Encone（后端 portal）\\n\\n| # | 要什么 | 为什么 | 我方现状 | 建议 |\\n|-|-|-|-|-|\\n| E1 | falive-golang（portal）部署完结后的 pre 对外域名（以及 uat / online 计划域名） | 前端要把 portal 登记到域名表、按环境请求；没有域名就无法联调 | 登录 / 注册仍走现有 php（klive）`NewMailLogin` / `NewRegistered*` 等，10-12 pre 邮箱注册登录实测通过；portal 代码未接 | 部署完结后在群里给出各环境域名 |\\n| E2 | 账号接口最终路径（是否已按文档 1.2 与 Live 对齐） | 路径决定前端是否能平滑切换、token 策略怎么封装 | 文档 1.2 写「路径还没改成与 Live 一致」，前端不动代码 | 路径定稿后写进文档 |\\n| E3 | 更新后的《PM-3217 账号接口对接文档》 | 拿到新版后 aven 直接开工封装登录 / 注册和 token 策略（供其他同事复用） | 等待中 | 更新后发群 |\",\n      \"document_id\": \"WY1PdG17low2JFxHtptlh9oqgUb\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

@@ -1,0 +1,46 @@
+{
+  "threadId": "omt_19b51433af0f1979",
+  "fetchedAt": "2026-11-03T12:22:42.990Z",
+  "ok": true,
+  "commands": [
+    [
+      "lark-cli",
+      "api",
+      "GET",
+      "/open-apis/im/v1/messages",
+      "--as",
+      "user",
+      "--params",
+      "{\"container_id_type\":\"thread\",\"container_id\":\"omt_19b51433af0f1979\",\"page_size\":50,\"sort_type\":\"ByCreateTimeAsc\"}",
+      "--page-all",
+      "--page-limit",
+      "0",
+      "--format",
+      "json"
+    ],
+    [
+      "lark-cli",
+      "im",
+      "+threads-messages-list",
+      "--as",
+      "user",
+      "--thread",
+      "omt_19b51433af0f1979",
+      "--order",
+      "asc",
+      "--page-size",
+      "50",
+      "--page-all",
+      "--page-limit",
+      "100",
+      "--no-reactions",
+      "--download-resources",
+      "--format",
+      "json"
+    ]
+  ],
+  "api": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"items\": [\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"{\\\\\\\"code\\\\\\\":-1,\\\\\\\"msg\\\\\\\":\\\\\\\"外部服务调用失败\\\\\\\",\\\\\\\"sec\\\\\\\":\\\\\\\"kB9WH5b4gdV7W1C/ukUkhg==\\\\\\\"}\\\"}\"\n        },\n        \"chat_default_name\": \"Falive PHP后端群\",\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1792056581508\",\n        \"deleted\": false,\n        \"message_id\": \"om_x100b623d9e9834a8ed6ce536414cc89\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b623d81651ca0ed5b0f24eb958d2\",\n        \"root_id\": \"om_x100b623d81651ca0ed5b0f24eb958d2\",\n        \"sender\": {\n          \"id\": \"ou_e2fe553367bebc85cd0a18fbaae8fb06\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19b51433af0f1979\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"1792056581508\",\n        \"updated\": false\n      },\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"大佬，优先处理这个问题，卡在这了\\\"}\"\n        },\n        \"chat_default_name\": \"Falive PHP后端群\",\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1792062233741\",\n        \"deleted\": false,\n        \"message_id\": \"om_x100b623f7f547ca4ed360d7538151ac\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b623d81651ca0ed5b0f24eb958d2\",\n        \"root_id\": \"om_x100b623d81651ca0ed5b0f24eb958d2\",\n        \"sender\": {\n          \"id\": \"ou_e2fe553367bebc85cd0a18fbaae8fb06\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19b51433af0f1979\",\n        \"thread_message_position\": \"1\",\n        \"update_time\": \"1792062233741\",\n        \"updated\": false\n      },\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"稍等，在处理了\\\"}\"\n        },\n        \"chat_default_name\": \"Falive PHP后端群\",\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1792062263002\",\n        \"deleted\": false,\n        \"message_id\": \"om_x100b623f7da29ca4eed6165d7d8fb60\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b623d81651ca0ed5b0f24eb958d2\",\n        \"root_id\": \"om_x100b623d81651ca0ed5b0f24eb958d2\",\n        \"sender\": {\n          \"id\": \"ou_0474e2a35ff1054cdbc0bb9d9d9c9766\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"144dc2a94988d77e\"\n        },\n        \"thread_id\": \"omt_19b51433af0f1979\",\n        \"thread_message_position\": \"2\",\n        \"update_time\": \"1792062263002\",\n        \"updated\": false\n      }\n    ],\n    \"page_token\": \"\"\n  }\n}\n",
+  "apiStderr": "[page 1] fetching...\n",
+  "rendered": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"messages\": [\n      {\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"content\": \"{\\\"code\\\":-1,\\\"msg\\\":\\\"外部服务调用失败\\\",\\\"sec\\\":\\\"kB9WH5b4gdV7W1C/ukUkhg==\\\"}\",\n        \"create_time\": \"2026-10-15 13:29\",\n        \"deleted\": false,\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026open_thread_id=omt_19b51433af0f1979\\u0026openchatid=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026openthreadid=omt_19b51433af0f1979\\u0026thread_position=0\",\n        \"message_id\": \"om_x100b623d9e9834a8ed6ce536414cc89\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_e2fe553367bebc85cd0a18fbaae8fb06\",\n          \"id_type\": \"open_id\",\n          \"name\": \"Eric.ea\",\n          \"sender_i18n_names\": {\n            \"zh_cn\": \"Eric\"\n          },\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19b51433af0f1979\",\n        \"thread_message_position\": \"0\",\n        \"updated\": false\n      },\n      {\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"content\": \"大佬，优先处理这个问题，卡在这了\",\n        \"create_time\": \"2026-10-15 15:03\",\n        \"deleted\": false,\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026open_thread_id=omt_19b51433af0f1979\\u0026openchatid=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026openthreadid=omt_19b51433af0f1979\\u0026thread_position=1\",\n        \"message_id\": \"om_x100b623f7f547ca4ed360d7538151ac\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_e2fe553367bebc85cd0a18fbaae8fb06\",\n          \"id_type\": \"open_id\",\n          \"name\": \"Eric.ea\",\n          \"sender_i18n_names\": {\n            \"zh_cn\": \"Eric\"\n          },\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19b51433af0f1979\",\n        \"thread_message_position\": \"1\",\n        \"updated\": false\n      },\n      {\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"content\": \"稍等，在处理了\",\n        \"create_time\": \"2026-10-15 15:04\",\n        \"deleted\": false,\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026open_thread_id=omt_19b51433af0f1979\\u0026openchatid=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026openthreadid=omt_19b51433af0f1979\\u0026thread_position=2\",\n        \"message_id\": \"om_x100b623f7da29ca4eed6165d7d8fb60\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_0474e2a35ff1054cdbc0bb9d9d9c9766\",\n          \"id_type\": \"open_id\",\n          \"name\": \"HQUCEncone\",\n          \"sender_i18n_names\": {\n            \"zh_cn\": \"Encone\"\n          },\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"144dc2a94988d77e\"\n        },\n        \"thread_id\": \"omt_19b51433af0f1979\",\n        \"thread_message_position\": \"2\",\n        \"updated\": false\n      }\n    ],\n    \"page_token\": \"\",\n    \"thread_id\": \"omt_19b51433af0f1979\",\n    \"total\": 3\n  },\n  \"meta\": {\n    \"pagination\": {\n      \"complete\": true,\n      \"pages\": 1,\n      \"items\": 3\n    }\n  }\n}\n",
+  "renderedStderr": ""
+}

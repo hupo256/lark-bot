@@ -1,0 +1,46 @@
+{
+  "threadId": "omt_1985104f9f0f184e",
+  "fetchedAt": "2026-11-03T12:23:51.727Z",
+  "ok": true,
+  "commands": [
+    [
+      "lark-cli",
+      "api",
+      "GET",
+      "/open-apis/im/v1/messages",
+      "--as",
+      "user",
+      "--params",
+      "{\"container_id_type\":\"thread\",\"container_id\":\"omt_1985104f9f0f184e\",\"page_size\":50,\"sort_type\":\"ByCreateTimeAsc\"}",
+      "--page-all",
+      "--page-limit",
+      "0",
+      "--format",
+      "json"
+    ],
+    [
+      "lark-cli",
+      "im",
+      "+threads-messages-list",
+      "--as",
+      "user",
+      "--thread",
+      "omt_1985104f9f0f184e",
+      "--order",
+      "asc",
+      "--page-size",
+      "50",
+      "--page-all",
+      "--page-limit",
+      "100",
+      "--no-reactions",
+      "--download-resources",
+      "--format",
+      "json"
+    ]
+  ],
+  "api": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"items\": [\n      {\n        \"body\": {\n          \"content\": \"{\\\"image_key\\\":\\\"img_v3_0216s_a9a58ca6-afb2-4a79-8630-373df1081cix\\\"}\"\n        },\n        \"chat_default_name\": \"Falive产研技术沟通群\",\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1793104023369\",\n        \"deleted\": false,\n        \"message_id\": \"om_x100b613dc7bd9130ed64771b50bd9e4\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"image\",\n        \"parent_id\": \"om_x100b613dc6a61ca0fe2e062023c63ab\",\n        \"root_id\": \"om_x100b613dc6a61ca0fe2e062023c63ab\",\n        \"sender\": {\n          \"id\": \"ou_0474e2a35ff1054cdbc0bb9d9d9c9766\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"144dc2a94988d77e\"\n        },\n        \"thread_id\": \"omt_1985104f9f0f184e\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"1793104023369\",\n        \"updated\": false\n      }\n    ],\n    \"page_token\": \"\"\n  }\n}\n",
+  "apiStderr": "[page 1] fetching...\n",
+  "rendered": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"messages\": [\n      {\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"content\": \"[Image: img_v3_0216s_a9a58ca6-afb2-4a79-8630-373df1081cix]\",\n        \"create_time\": \"2026-10-27 16:27\",\n        \"deleted\": false,\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_40621901e1583e623f6133e8c66d352e\\u0026open_thread_id=omt_1985104f9f0f184e\\u0026openchatid=oc_40621901e1583e623f6133e8c66d352e\\u0026openthreadid=omt_1985104f9f0f184e\\u0026thread_position=0\",\n        \"message_id\": \"om_x100b613dc7bd9130ed64771b50bd9e4\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"image\",\n        \"resources\": [\n          {\n            \"key\": \"img_v3_0216s_a9a58ca6-afb2-4a79-8630-373df1081cix\",\n            \"local_path\": \"lark-im-resources/img_v3_0216s_a9a58ca6-afb2-4a79-8630-373df1081cix.jpg\",\n            \"message_id\": \"om_x100b613dc7bd9130ed64771b50bd9e4\",\n            \"size_bytes\": 194267,\n            \"type\": \"image\"\n          }\n        ],\n        \"sender\": {\n          \"id\": \"ou_0474e2a35ff1054cdbc0bb9d9d9c9766\",\n          \"id_type\": \"open_id\",\n          \"name\": \"HQUCEncone\",\n          \"sender_i18n_names\": {\n            \"zh_cn\": \"Encone\"\n          },\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"144dc2a94988d77e\"\n        },\n        \"thread_id\": \"omt_1985104f9f0f184e\",\n        \"thread_message_position\": \"0\",\n        \"updated\": false\n      }\n    ],\n    \"page_token\": \"\",\n    \"thread_id\": \"omt_1985104f9f0f184e\",\n    \"total\": 1\n  },\n  \"meta\": {\n    \"pagination\": {\n      \"complete\": true,\n      \"pages\": 1,\n      \"items\": 1\n    }\n  }\n}\n",
+  "renderedStderr": ""
+}

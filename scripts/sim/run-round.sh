@@ -1,0 +1,44 @@
+#!/bin/bash
+# 一轮完整回放（docs/falive-replay-plan-2026-11-03.md 39）：falive 10-14 → 11-03 切 8 段并行，每段先热身前一个工作日（bot 照常干活、
+# 留下跨天的任务 / 义务 / 发件状态，不计分），再跑计分窗口；每段跑完立刻 judge-sim --all --score-from 计分起点。
+#   bash scripts/sim/run-round.sh r8 [端口起点 3180]
+# 进度：runtime/falive-replay/sim/<轮>-<段>/{sim.log,judge.out,DONE}；汇总：node scripts/sim/round-report.mjs --round r8
+set -u
+round=${1:?round name}
+port=${2:-3180}
+cd "$(dirname "$0")/../.."
+root="$HOME/github/lark-bot/runtime/falive-replay/sim"
+MAX_PARALLEL=${MAX_PARALLEL:-5} # 回放和线上 bot 共用一个 Claude 账号：同时最多跑几段，给线上留额度（撞限额由 claude-q 整体暂停，见 claude-quota.mjs）
+# 段  热身起点    计分起点    结束（不含）
+SEGMENTS="
+a 2026-10-14 2026-10-14 2026-10-18
+b 2026-10-16 2026-10-18 2026-10-21
+c 2026-10-20 2026-10-21 2026-10-22
+d 2026-10-21 2026-10-22 2026-10-23
+e 2026-10-22 2026-10-23 2026-10-25
+f 2026-10-23 2026-10-25 2026-10-28
+g 2026-10-27 2026-10-28 2026-10-30
+h 2026-10-29 2026-10-30 2026-11-04
+"
+i=0
+while read -r seg warm score end; do
+  [ -z "$seg" ] && continue
+  sim="$round-$seg"
+  mkdir -p "$root/$sim"
+  rm -f "$root/$sim/DONE"
+  while [ "$(jobs -rp | wc -l)" -ge "$MAX_PARALLEL" ]; do sleep 20; done
+  (
+    sh scripts/sim/run-days.sh "$warm" "$end" "$sim" "$((port + i))" > "$root/$sim/run-days.out" 2>&1
+    node scripts/sim/judge-sim.mjs --sim "$sim" --all --score-from "${score}T00:00:00+00:00" --conc 3 > "$root/$sim/judge.out" 2>&1
+    echo "$warm $score $end" > "$root/$sim/DONE"
+  ) &
+  i=$((i + 1))
+  sleep 20 # 错开起跑：每段要 clone 业务仓、起网关
+done <<< "$SEGMENTS"
+wait
+# 每轮的裁判与总账进版本：replay/falive/rounds/<轮>/（sim 目录本身体量大、可重跑，留在 runtime）
+out="replay/falive/rounds/$round"
+mkdir -p "$out"
+for d in "$root/$round"-*; do [ -f "$d/judge.jsonl" ] && cp "$d/judge.jsonl" "$out/$(basename "$d").judge.jsonl"; done
+node scripts/sim/round-report.mjs --round "$round" --issues --md "$out/report.md"
+echo "ROUND-DONE $round"

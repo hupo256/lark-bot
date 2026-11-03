@@ -1,0 +1,26 @@
+{
+  "token": "I8XYdqZPlo3hRmxx70el3CvDgXd",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/I8XYdqZPlo3hRmxx70el3CvDgXd",
+  "fetchedAt": "2026-11-03T12:17:17.421Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/I8XYdqZPlo3hRmxx70el3CvDgXd",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>uat 的 php / 社区地址换成 faliveuat.fdsser.com（细节）</title>\\n\\n# uat php / bbsv2 换成 faliveuat.fdsser.com（10-29）\\n\\n## 结论\\n\\n前端 uat 的 php 和 bbsv2 地址已改成 `faliveuat.fdsser.com`（http，照 Encone 给的原话）。hichat（`uat-hailiao.hai-liao-uat.com`）、Go（`faliveuat.fdsser.com`）和前台入口都不变，pre / online 也没动。打包后浏览器和 SSR 仍走前台入口 `https://faliveuat.fdsser.com`，这一行配置只表示「uat 有这个服务」，同时用于直连调试。\\n\\n## 实测（10-29，直接请求 uat 前台入口）\\n\\n| 接口 | 结果 |\\n|-|-|\\n| `http://faliveuat.fdsser.com/api/preload/lives` | HTTP 200，code 0 |\\n| `https://faliveuat.fdsser.com/api/preload/lives` | HTTP 200，code 0 |\\n| `http://faliveuat.fdsser.com/bbsv2/index/index`（不带签名） | HTTP 407，code -800「非法请求」：已转到 bbsv2 后端，只是缺签名，属于正常 |\\n| `https://faliveuat.fdsser.com/bbsv2/index/index`（不带签名） | 同上 |\",\n      \"document_id\": \"I8XYdqZPlo3hRmxx70el3CvDgXd\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

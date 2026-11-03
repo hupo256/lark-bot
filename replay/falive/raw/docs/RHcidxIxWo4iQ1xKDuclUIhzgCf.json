@@ -1,0 +1,26 @@
+{
+  "token": "RHcidxIxWo4iQ1xKDuclUIhzgCf",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/RHcidxIxWo4iQ1xKDuclUIhzgCf",
+  "fetchedAt": "2026-11-03T12:17:18.926Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/RHcidxIxWo4iQ1xKDuclUIhzgCf",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>对接-上线-2026-10-30</title>\\n\\n# 对接：uat / online 上线还要的支持（2026-10-30）\\n\\n> 发起：aven · 10-30 实测：uat 已部署 `uat 4795c208`；online（`www.falive.com`）还没正式上线，现在跑的是 10-28 的旧包。  \\n> 致：运维（经 .Ache.l）。\\n\\n## 一、uat 的问题\\n\\n### U1【阻塞】服务端渲染回源被前台网关按 IP 限频，页面约一半回 503\\n\\n- **现象**：uat 连续请求 `/hc`、`/hc/news`、`/hc/lives`，约一半回 503（服务端渲染取不到正文）；新包 `4795c208` 上 `pnpm quality:seo --base https://faliveuat.fdsser.com` 仍 4 项不通过。\\n- **原因（已实测）**：前台网关按来源 IP 限频——同一 IP 并发 6–8 个请求就开始回 HTTP 429 `{\\\"msg\\\":\\\"reject\\\",\\\"code\\\":-666}`，**一旦触发，这个 IP 约 10 秒内的所有请求都是 429**。uat 的服务端渲染全部从部署机一个 IP 经前台域名回源，首页一次要打好几支接口，必然撞上；多人同时打开时更严重。前端短退避重试无效（封禁窗口 10 秒）。\\n- **要什么**（二选一）：\\n\\n  1. 给 uat 部署机的出口 IP 在前台网关免限频（或单独放宽）；\\n  2. 给 uat 的服务端内网回源地址（php 与社区 bbsv2 都要），前端在 `build/service-hosts.ts` 加一行即切。\\n- **影响**：直播间、新闻、帖子、首页的服务端首屏时有时无——分享出去没有标题和卡片图，搜索引擎看到 503 不收录；用户打开后浏览器会再取一次，看内容不受影响。\\n\\n### U2 前台 nginx 的 `/hc-ws`（行情推送）已配但还不通\\n\\n- **现象（10-30 10:46 +04 复测，运维说已补配之后）**：\\n\\n  - `wss://faliveuat.fdsser.com/hc-ws`（前端实际连的就是这个，不带结尾斜杠）回 **HTTP 301 → `/hc-ws/`**；浏览器的 WebSocket 握手不跟随跳转，直接失败。\\n  - 带升级头请求 `/hc-ws/` 回 **HTTP 409，正文 `error code: 1001`，响应带 `CF-RAY`——是 Cloudflare 回的，说明 nginx 转给 hichat 时落错了地方。疑似**上游 Host / SNI 没设成 `uat-hailiao.hai-liao-uat.com`（或上游地址填错），未确认。\\n  - 对照：直连 `wss://uat-hailiao.hai-liao-uat.com/ws/im/echo`、pre 的 `wss://falivepre.fdsser.com/hc-ws` 都回 **101**，首帧 `SRV_NEED_AUTH`——hichat 上游本身正常，前端同一份代码在 pre 正常。\\n- **要什么**：\\n\\n  1. 带不带结尾斜杠都要匹配（照 pre，如 `location ^~ /hc-ws`），不要 301；\\n  2. 转到 `https://uat-hailiao.hai-liao-uat.com/ws/im/echo`，上游 Host 头和 SNI 都设成这个 hichat 域名（`proxy_set_header Host uat-hailiao.hai-liao-uat.com;` + `proxy_ssl_server_name on;`）；\\n  3. 透传 `Upgrade` / `Connection` 升级头，长超时。\\n- **验收**：`wss://faliveuat.fdsser.com/hc-ws` 握手回 101，首帧是 `SRV_NEED_AUTH`。\\n- **影响**：顶栏 / 首页行情不实时刷新（打开页面时的行情数据正常）。\\n\\n## 二、online 的问题（还没正式上线，上线前处理）\\n\\n### N1 服务端渲染回源限频（同 U1）\\n\\n- online 前台网关与 uat 同样按 IP 限频，部署机经 `www.falive.com` 回源会撞上，线上流量更大更严重。\\n- **要什么**：同 U1——online 部署机出口 IP 免限频，或给 online 的服务端内网回源地址（php 与社区 bbsv2）。\\n\\n### N2 前台 nginx 没转发 `/hc-ws`\\n\\n- **现象**：`wss://www.falive.com/hc-ws` 握手回 404。\\n- **要什么**：`/hc-ws` 转 hichat `www.4ees1.xyz` 的 `/ws/im/echo`，保留升级头。\",\n      \"document_id\": \"RHcidxIxWo4iQ1xKDuclUIhzgCf\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

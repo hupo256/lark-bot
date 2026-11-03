@@ -1,0 +1,46 @@
+{
+  "threadId": "omt_19845f1ade56d850",
+  "fetchedAt": "2026-11-03T12:23:59.670Z",
+  "ok": true,
+  "commands": [
+    [
+      "lark-cli",
+      "api",
+      "GET",
+      "/open-apis/im/v1/messages",
+      "--as",
+      "user",
+      "--params",
+      "{\"container_id_type\":\"thread\",\"container_id\":\"omt_19845f1ade56d850\",\"page_size\":50,\"sort_type\":\"ByCreateTimeAsc\"}",
+      "--page-all",
+      "--page-limit",
+      "0",
+      "--format",
+      "json"
+    ],
+    [
+      "lark-cli",
+      "im",
+      "+threads-messages-list",
+      "--as",
+      "user",
+      "--thread",
+      "omt_19845f1ade56d850",
+      "--order",
+      "asc",
+      "--page-size",
+      "50",
+      "--page-all",
+      "--page-limit",
+      "100",
+      "--no-reactions",
+      "--download-resources",
+      "--format",
+      "json"
+    ]
+  ],
+  "api": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"items\": [\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"@_user_1 麻烦看看什么时候方便支持一下\\\"}\"\n        },\n        \"chat_default_name\": \"Falive产研技术沟通群\",\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1793188024446\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_178b10c243b33c567f5074901e0d85ab\",\n            \"id_type\": \"open_id\",\n            \"key\": \"@_user_1\",\n            \"name\": \"mainly\",\n            \"tenant_key\": \"1975ae86cae6d94b\"\n          }\n        ],\n        \"message_id\": \"om_x100b612a454bfca0ffd5baa674d16ee\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b612933f2093cffc12a5ececed4f\",\n        \"root_id\": \"om_x100b612933f2093cffc12a5ececed4f\",\n        \"sender\": {\n          \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19845f1ade56d850\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"1793188024496\",\n        \"updated\": true\n      },\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"是的，稍等等运维操作\\\"}\"\n        },\n        \"chat_default_name\": \"Falive产研技术沟通群\",\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1793188074210\",\n        \"deleted\": false,\n        \"message_id\": \"om_x100b612a406c00a0ffde24e6823b832\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b612933f2093cffc12a5ececed4f\",\n        \"root_id\": \"om_x100b612933f2093cffc12a5ececed4f\",\n        \"sender\": {\n          \"id\": \"ou_178b10c243b33c567f5074901e0d85ab\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"1975ae86cae6d94b\"\n        },\n        \"thread_id\": \"omt_19845f1ade56d850\",\n        \"thread_message_position\": \"1\",\n        \"update_time\": \"1793188074210\",\n        \"updated\": false\n      }\n    ],\n    \"page_token\": \"\"\n  }\n}\n",
+  "apiStderr": "[page 1] fetching...\n",
+  "rendered": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"messages\": [\n      {\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"content\": \"@mainly 麻烦看看什么时候方便支持一下\",\n        \"create_time\": \"2026-10-28 15:47\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_178b10c243b33c567f5074901e0d85ab\",\n            \"key\": \"@_user_1\",\n            \"name\": \"mainly\"\n          }\n        ],\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_40621901e1583e623f6133e8c66d352e\\u0026open_thread_id=omt_19845f1ade56d850\\u0026openchatid=oc_40621901e1583e623f6133e8c66d352e\\u0026openthreadid=omt_19845f1ade56d850\\u0026thread_position=0\",\n        \"message_id\": \"om_x100b612a454bfca0ffd5baa674d16ee\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n          \"id_type\": \"open_id\",\n          \"name\": \"World\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19845f1ade56d850\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"2026-10-28 15:47\",\n        \"updated\": true\n      },\n      {\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"content\": \"是的，稍等等运维操作\",\n        \"create_time\": \"2026-10-28 15:47\",\n        \"deleted\": false,\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_40621901e1583e623f6133e8c66d352e\\u0026open_thread_id=omt_19845f1ade56d850\\u0026openchatid=oc_40621901e1583e623f6133e8c66d352e\\u0026openthreadid=omt_19845f1ade56d850\\u0026thread_position=1\",\n        \"message_id\": \"om_x100b612a406c00a0ffde24e6823b832\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_178b10c243b33c567f5074901e0d85ab\",\n          \"id_type\": \"open_id\",\n          \"name\": \"mainly\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"1975ae86cae6d94b\"\n        },\n        \"thread_id\": \"omt_19845f1ade56d850\",\n        \"thread_message_position\": \"1\",\n        \"updated\": false\n      }\n    ],\n    \"page_token\": \"\",\n    \"thread_id\": \"omt_19845f1ade56d850\",\n    \"total\": 2\n  },\n  \"meta\": {\n    \"pagination\": {\n      \"complete\": true,\n      \"pages\": 1,\n      \"items\": 2\n    }\n  }\n}\n",
+  "renderedStderr": ""
+}

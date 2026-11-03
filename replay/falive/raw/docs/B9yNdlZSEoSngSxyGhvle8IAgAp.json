@@ -1,0 +1,26 @@
+{
+  "token": "B9yNdlZSEoSngSxyGhvle8IAgAp",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/B9yNdlZSEoSngSxyGhvle8IAgAp",
+  "fetchedAt": "2026-11-03T12:17:18.015Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/B9yNdlZSEoSngSxyGhvle8IAgAp",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"# Google 登录 uat / online · 待确认（2026-10-29）\\n\\n> 来源：对接文档「对接-后端运维-uat与online上线-2026-10-29」第四节。client_id 与授权来源 William 10-29 都已答复（见 `reply/对接-后端运维-uat与online上线-2026-10-29-答复-2026-10-29.md`），实测后只剩下面一条。\\n\\n## William（live php 后端）\\n\\n- **要什么**：在 Google Console 里给 client_id `936185625672-prj7k33l5a1kq22j822e1htn5cvojmdk.apps.googleusercontent.com` 的 Authorized JavaScript origins 再加一条 `https://www.falive.com`（带 www）。\\n- **为什么**：William 10-29 答复「auth javascript 已经加了」。同日用这个 client_id 直接请求 Google GSI 按钮接口逐个核对（对照：不在名单里的来源回 403）：\\n\\n  - `https://faliveuat.fdsser.com` → 200，uat 已生效；\\n  - `https://falive.com` → 200，但它会 301 跳到 `https://www.falive.com`，用户实际在 www 上；\\n  - `https://www.falive.com` → 403，online 点 Google 登录会报来源不匹配。\\n- **我方现状**：uat / online 打包配置已填这个 client_id（本地打包核对过已注入），下次发版按钮就会显示；uat 来源已通，online 只差这一条来源。\\n- **建议**：加好后回一句，我们再核对一次 `www.falive.com`。\\n\\n## client_id 分配口径（10-29 话题追加，已定，不用回）\\n\\n- **现状**：pre / uat / online 暂时共用 `936185625672-prj7k33l5a1kq22j822e1htn5cvojmdk`（William：「OL 也先用这个吧，后面会再改成回调授权的方式」）；aven 建议目标是 uat 与 pre 共用一个、online 单独一个。\\n- **以后切换改哪里**（前端已在配置注释里写明）：\\n\\n  - online 换单独 client_id：改 `build/service-hosts.ts` 的 `GOOGLE_CLIENT_IDS.online`，或在 CI `build:online` 设 `GOOGLE_CLIENT_ID` 变量覆盖。\\n  - 改成回调授权：只换 `src/modules/auth/data/google-identity.ts` 取凭证的方式；需要 portal 先给回调地址和授权码交换接口契约，届时请 William / portal 发过来。\",\n      \"document_id\": \"B9yNdlZSEoSngSxyGhvle8IAgAp\",\n      \"revision_id\": 7\n    }\n  }\n}\n",
+  "stderr": ""
+}

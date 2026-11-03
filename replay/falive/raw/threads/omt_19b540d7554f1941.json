@@ -1,0 +1,46 @@
+{
+  "threadId": "omt_19b540d7554f1941",
+  "fetchedAt": "2026-11-03T12:22:45.403Z",
+  "ok": true,
+  "commands": [
+    [
+      "lark-cli",
+      "api",
+      "GET",
+      "/open-apis/im/v1/messages",
+      "--as",
+      "user",
+      "--params",
+      "{\"container_id_type\":\"thread\",\"container_id\":\"omt_19b540d7554f1941\",\"page_size\":50,\"sort_type\":\"ByCreateTimeAsc\"}",
+      "--page-all",
+      "--page-limit",
+      "0",
+      "--format",
+      "json"
+    ],
+    [
+      "lark-cli",
+      "im",
+      "+threads-messages-list",
+      "--as",
+      "user",
+      "--thread",
+      "omt_19b540d7554f1941",
+      "--order",
+      "asc",
+      "--page-size",
+      "50",
+      "--page-all",
+      "--page-limit",
+      "100",
+      "--no-reactions",
+      "--download-resources",
+      "--format",
+      "json"
+    ]
+  ],
+  "api": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"items\": [\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"@_user_1 辛苦看一下哈\\\"}\"\n        },\n        \"chat_default_name\": \"Falive PHP后端群\",\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1792067682450\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_e2fe553367bebc85cd0a18fbaae8fb06\",\n            \"id_type\": \"open_id\",\n            \"key\": \"@_user_1\",\n            \"name\": \"Eric.ea\",\n            \"tenant_key\": \"164beab51542977c\"\n          }\n        ],\n        \"message_id\": \"om_x100b6238c8e8c4a0ed55c0859d6be21\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b6238cf2ab8a0eed80c8c9c6dd0a\",\n        \"root_id\": \"om_x100b6238cf2ab8a0eed80c8c9c6dd0a\",\n        \"sender\": {\n          \"id\": \"ou_a0c48d661b36b1e16bf0d89b4a3bb775\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19b540d7554f1941\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"1792067682665\",\n        \"updated\": true\n      }\n    ],\n    \"page_token\": \"\"\n  }\n}\n",
+  "apiStderr": "[page 1] fetching...\n",
+  "rendered": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"messages\": [\n      {\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"content\": \"@Eric.ea 辛苦看一下哈\",\n        \"create_time\": \"2026-10-15 16:34\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_e2fe553367bebc85cd0a18fbaae8fb06\",\n            \"key\": \"@_user_1\",\n            \"name\": \"Eric.ea\"\n          }\n        ],\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026open_thread_id=omt_19b540d7554f1941\\u0026openchatid=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026openthreadid=omt_19b540d7554f1941\\u0026thread_position=0\",\n        \"message_id\": \"om_x100b6238c8e8c4a0ed55c0859d6be21\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_a0c48d661b36b1e16bf0d89b4a3bb775\",\n          \"id_type\": \"open_id\",\n          \"name\": \"Arthur.a\",\n          \"sender_i18n_names\": {\n            \"zh_cn\": \"Arthur.a （亚瑟）\"\n          },\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19b540d7554f1941\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"2026-10-15 16:34\",\n        \"updated\": true\n      }\n    ],\n    \"page_token\": \"\",\n    \"thread_id\": \"omt_19b540d7554f1941\",\n    \"total\": 1\n  },\n  \"meta\": {\n    \"pagination\": {\n      \"complete\": true,\n      \"pages\": 1,\n      \"items\": 1\n    }\n  }\n}\n",
+  "renderedStderr": ""
+}

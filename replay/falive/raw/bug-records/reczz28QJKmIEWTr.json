@@ -1,0 +1,26 @@
+{
+  "recordId": "reczz28QJKmIEWTr",
+  "why": "bug-4923",
+  "fetchedAt": "2026-11-03T12:17:51.325Z",
+  "version": "now",
+  "note": "拉取时的最新状态（状态 / 备注 / 测试结果可能晚于消息当时）",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "base",
+    "+record-get",
+    "--as",
+    "user",
+    "--base-token",
+    "<bugTable.appToken>",
+    "--table-id",
+    "tblbJYjrxZsPe40V",
+    "--record-id",
+    "reczz28QJKmIEWTr",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"data\": [\n      [\n        \"Bug-4923\",\n        null,\n        [\n          \"Pre测试通过\"\n        ],\n        \"QA\",\n        null,\n        \"PM-3254\",\n        \"2026-10-29T11:49:18.000+04:00\",\n        \"Backend\",\n        \"2026-10-22T07:42:57.000+04:00\",\n        null,\n        \"Falive\",\n        null,\n        null,\n        [\n          {\n            \"id\": \"ou_76eea7f1089ccfb66678300fe4bc4a40\",\n            \"name\": \"HTStone.z\"\n          }\n        ],\n        null,\n        \"[https://falivepre.fdsser.com/hc-api/api/fameEx/market/symbol/list](https://falivepre.fdsser.com/hc-api/api/fameEx/market/symbol/list)\\n返回404\",\n        \"2026-10-22T07:42:58.844+04:00\",\n        \"【falive一期】后端/web/app\",\n        \"首頁API請求異常\",\n        null,\n        null,\n        [\n          \"Pre\"\n        ],\n        [\n          {\n            \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n            \"name\": \"World\"\n          }\n        ],\n        [\n          {\n            \"file_token\": \"MubFbJGIToQrUuxljhOlzzMBgSg\",\n            \"name\": \"image.png\",\n            \"size\": 511142\n          }\n        ],\n        [\n          {\n            \"id\": \"ou_0474e2a35ff1054cdbc0bb9d9d9c9766\",\n            \"name\": \"HQUCEncone\"\n          },\n          {\n            \"id\": \"ou_a0c48d661b36b1e16bf0d89b4a3bb775\",\n            \"name\": \"Arthur.a\"\n          }\n        ],\n        \"pre测试中\",\n        [\n          \"Backend\"\n        ],\n        \"根因在网关，前端路径没错。10-22 13:54（+04）用测试号 uid 508 实测，同一个 hichat token：走网关 /hc-api/api/fameEx/market/symbol/list 回 Spring 404；直连 [pre-hailiao.hai-liao-pre.com/api/fameEx/market/symbol/list](http://pre-hailiao.hai-liao-pre.com/api/fameEx/market/symbol/list) 回 200，有行情数据（如 BNB/USDT）。所以是 pre 网关 /hc-api 的上游配错了（对接文档 O1，和 Bug-4922 同一个原因），请改成转到 pre-hailiao。\\n10-26 14:51（+04）复测仍未修好：同一个登录态请求，网关 /hc-api/api/fameEx/market/symbol/list 仍回 Spring 404，直连 pre-hailiao 回 200（BNB/USDT 有数据）。\\n10-27 14:19（+04）复测并定位到具体原因：不是上游配错，而是 falivepre 网关 /hc-api 少剥了一层 /api。证据：① 同一 token 网关 GET /hc-api/api/fameEx/market/symbol/list 回 Spring 404，网关上去掉 /api 的 /hc-api/fameEx/market/symbol/list 回 200 有 BNB/USDT 数据；② 直连 pre-hailiao 故意多打一层 /api/api/fameEx/market/symbol/list，404 响应与网关一字不差；③ Encone 10-27 日志里「浏览器直接请求 200」是不带 Authorization 的请求，body 是 code 401，不是通了；改 POST 同样 404。改法与验收 curl 见仓库 docs/delivery/pending/Bug-4923-hc-api网关少剥api前缀-对接运维-2026-10-27.md（改成和 dev-03 一样：rewrite ^/hc-api/(.*)$ /$1 后转 https://pre-hailiao.hai-liao-pre.com）。前端不改。\\n10-27 14:5x（+04）复测：运维已改好 /hc-api 网关，同一 token 经网关 GET /hc-api/api/fameEx/market/symbol/list、/hc-api/api/fameEx/oneTimeToken/v2 都回 code 200 有数据，前端未改、pre 现有构建直接恢复；首页跑马灯 / 个人中心跳 FameEX 可以复测，状态改已推版。\",\n        \"1.0.3\"\n      ]\n    ],\n    \"field_id_list\": [\n      \"fldmxTvHTq\",\n      \"fld0Pe5U7G\",\n      \"fld1i6PDQT\",\n      \"fld1u0NBC5\",\n      \"fld4kVwoLs\",\n      \"fld52WVyfK\",\n      \"fld7ChUvSH\",\n      \"fld8fzIptW\",\n      \"fld8Q2XlJB\",\n      \"fldAh2Kyj0\",\n      \"fldBuyLemA\",\n      \"fldcuNmiVK\",\n      \"fldD77oYrZ\",\n      \"fldEiiSdHh\",\n      \"fldERqfLpq\",\n      \"fldGsVI1Y0\",\n      \"fldHgasO5A\",\n      \"fldhpTkoXE\",\n      \"fldIuAN6te\",\n      \"fldJ9rdSbO\",\n      \"fldMLCmFW2\",\n      \"fldPyoP99S\",\n      \"fldsV39i3n\",\n      \"fldu80s8wJ\",\n      \"fldw1TK5PO\",\n      \"fldwobTvnQ\",\n      \"fldyh4ldX6\",\n      \"fldYisQZkD\",\n      \"fldZHrw01k\"\n    ],\n    \"field_type_list\": [\n      \"auto_number\",\n      \"text\",\n      \"select\",\n      \"lookup\",\n      \"link\",\n      \"text\",\n      \"updated_at\",\n      \"lookup\",\n      \"created_at\",\n      \"text\",\n      \"lookup\",\n      \"select\",\n      \"attachment\",\n      \"user\",\n      \"datetime\",\n      \"text\",\n      \"datetime\",\n      \"lookup\",\n      \"text\",\n      \"attachment\",\n      \"datetime\",\n      \"select\",\n      \"updated_by\",\n      \"attachment\",\n      \"user\",\n      \"lookup\",\n      \"select\",\n      \"text\",\n      \"text\"\n    ],\n    \"fields\": [\n      \"Bug编号\",\n      \"测试结果\",\n      \"状态\",\n      \"测试人员所在部门\",\n      \"父記錄\",\n      \"需求ID\",\n      \"最后更新时间\",\n      \"解决人员所在部门\",\n      \"创建时间\",\n      \"项目备注\",\n      \"所属项目组\",\n      \"严重程度\",\n      \"测试结果截图\",\n      \"测试人员\",\n      \"预计上线时间\",\n      \"问题描述（复现步骤）\",\n      \"bug填写日期\",\n      \"需求名称\",\n      \"问题标题\",\n      \"附件\",\n      \"修复完成时间\",\n      \"环境\",\n      \"记录最后修改人\",\n      \"问题截图\",\n      \"负责RD\",\n      \"需求阶段\",\n      \"涉及端口\",\n      \"备注\",\n      \"Sprint\"\n    ],\n    \"has_more\": false,\n    \"record_id_list\": [\n      \"reczz28QJKmIEWTr\"\n    ],\n    \"rev\": 21326,\n    \"timezone\": \"Asia/Dubai\"\n  }\n}\n",
+  "stderr": ""
+}

@@ -1,0 +1,46 @@
+{
+  "threadId": "omt_19b5505c90cf997a",
+  "fetchedAt": "2026-11-03T12:22:46.895Z",
+  "ok": true,
+  "commands": [
+    [
+      "lark-cli",
+      "api",
+      "GET",
+      "/open-apis/im/v1/messages",
+      "--as",
+      "user",
+      "--params",
+      "{\"container_id_type\":\"thread\",\"container_id\":\"omt_19b5505c90cf997a\",\"page_size\":50,\"sort_type\":\"ByCreateTimeAsc\"}",
+      "--page-all",
+      "--page-limit",
+      "0",
+      "--format",
+      "json"
+    ],
+    [
+      "lark-cli",
+      "im",
+      "+threads-messages-list",
+      "--as",
+      "user",
+      "--thread",
+      "omt_19b5505c90cf997a",
+      "--order",
+      "asc",
+      "--page-size",
+      "50",
+      "--page-all",
+      "--page-limit",
+      "100",
+      "--no-reactions",
+      "--download-resources",
+      "--format",
+      "json"
+    ]
+  ],
+  "api": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"items\": [\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"@_user_1 这个是刚刚你给的 回复 对接后的反馈。\\\\nUID 以及需要的数据也给你了，麻烦一并提供 [双手合十]\\\"}\"\n        },\n        \"chat_default_name\": \"Falive PHP后端群\",\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1792071973551\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_9c6ebed1f44bd1fa7b59f32236c1932f\",\n            \"id_type\": \"open_id\",\n            \"key\": \"@_user_1\",\n            \"name\": \".Ache.l\",\n            \"tenant_key\": \"149af6980f06577c\"\n          }\n        ],\n        \"message_id\": \"om_x100b6239dc9b54a0eeda38147edc61e\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b6239c796e0a8ed6e1d46de59e1f\",\n        \"root_id\": \"om_x100b6239c796e0a8ed6e1d46de59e1f\",\n        \"sender\": {\n          \"id\": \"ou_91861d6da6cf6822e08045ba1868241e\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19b5505c90cf997a\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"1792071973767\",\n        \"updated\": true\n      },\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"@_user_1 都处理好了 再看看\\\"}\"\n        },\n        \"chat_default_name\": \"Falive PHP后端群\",\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1792076665710\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_91861d6da6cf6822e08045ba1868241e\",\n            \"id_type\": \"open_id\",\n            \"key\": \"@_user_1\",\n            \"name\": \"Aven.tong\",\n            \"tenant_key\": \"164beab51542977c\"\n          }\n        ],\n        \"message_id\": \"om_x100b623af954aca4eedf4b064c48d48\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b6239c796e0a8ed6e1d46de59e1f\",\n        \"root_id\": \"om_x100b6239c796e0a8ed6e1d46de59e1f\",\n        \"sender\": {\n          \"id\": \"ou_9c6ebed1f44bd1fa7b59f32236c1932f\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"149af6980f06577c\"\n        },\n        \"thread_id\": \"omt_19b5505c90cf997a\",\n        \"thread_message_position\": \"1\",\n        \"update_time\": \"1792076665929\",\n        \"updated\": true\n      },\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"\\u003cp\\u003e帮忙看看 @_user_1\\u003c/p\\u003e\\\"}\"\n        },\n        \"chat_default_name\": \"Falive PHP后端群\",\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1792076846846\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_caf1610a679ff12b9b92204f37572491\",\n            \"id_type\": \"open_id\",\n            \"key\": \"@_user_1\",\n            \"name\": \"Aven.Bot\",\n            \"tenant_key\": \"164beab51542977c\"\n          }\n        ],\n        \"message_id\": \"om_x100b623a8c26b0a4eedf7e62c2c9c2f\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b6239c796e0a8ed6e1d46de59e1f\",\n        \"root_id\": \"om_x100b6239c796e0a8ed6e1d46de59e1f\",\n        \"sender\": {\n          \"id\": \"ou_91861d6da6cf6822e08045ba1868241e\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19b5505c90cf997a\",\n        \"thread_message_position\": \"2\",\n        \"update_time\": \"1792076871860\",\n        \"updated\": true\n      }\n    ],\n    \"page_token\": \"\"\n  }\n}\n",
+  "apiStderr": "[page 1] fetching...\n",
+  "rendered": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"messages\": [\n      {\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"content\": \"@.Ache.l 这个是刚刚你给的 回复 对接后的反馈。\\nUID 以及需要的数据也给你了，麻烦一并提供 [双手合十]\",\n        \"create_time\": \"2026-10-15 17:46\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_9c6ebed1f44bd1fa7b59f32236c1932f\",\n            \"key\": \"@_user_1\",\n            \"name\": \".Ache.l\"\n          }\n        ],\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026open_thread_id=omt_19b5505c90cf997a\\u0026openchatid=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026openthreadid=omt_19b5505c90cf997a\\u0026thread_position=0\",\n        \"message_id\": \"om_x100b6239dc9b54a0eeda38147edc61e\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_91861d6da6cf6822e08045ba1868241e\",\n          \"id_type\": \"open_id\",\n          \"name\": \"Aven.tong\",\n          \"sender_i18n_names\": {\n            \"zh_cn\": \"Aven\"\n          },\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19b5505c90cf997a\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"2026-10-15 17:46\",\n        \"updated\": true\n      },\n      {\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"content\": \"@Aven.tong 都处理好了 再看看\",\n        \"create_time\": \"2026-10-15 19:04\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_91861d6da6cf6822e08045ba1868241e\",\n            \"key\": \"@_user_1\",\n            \"name\": \"Aven.tong\"\n          }\n        ],\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026open_thread_id=omt_19b5505c90cf997a\\u0026openchatid=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026openthreadid=omt_19b5505c90cf997a\\u0026thread_position=1\",\n        \"message_id\": \"om_x100b623af954aca4eedf4b064c48d48\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_9c6ebed1f44bd1fa7b59f32236c1932f\",\n          \"id_type\": \"open_id\",\n          \"name\": \".Ache.l\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"149af6980f06577c\"\n        },\n        \"thread_id\": \"omt_19b5505c90cf997a\",\n        \"thread_message_position\": \"1\",\n        \"update_time\": \"2026-10-15 19:04\",\n        \"updated\": true\n      },\n      {\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"content\": \"\\u003cp\\u003e帮忙看看 @Aven.Bot\\u003c/p\\u003e\",\n        \"create_time\": \"2026-10-15 19:07\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_caf1610a679ff12b9b92204f37572491\",\n            \"key\": \"@_user_1\",\n            \"name\": \"Aven.Bot\"\n          }\n        ],\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026open_thread_id=omt_19b5505c90cf997a\\u0026openchatid=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026openthreadid=omt_19b5505c90cf997a\\u0026thread_position=2\",\n        \"message_id\": \"om_x100b623a8c26b0a4eedf7e62c2c9c2f\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_91861d6da6cf6822e08045ba1868241e\",\n          \"id_type\": \"open_id\",\n          \"name\": \"Aven.tong\",\n          \"sender_i18n_names\": {\n            \"zh_cn\": \"Aven\"\n          },\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19b5505c90cf997a\",\n        \"thread_message_position\": \"2\",\n        \"update_time\": \"2026-10-15 19:07\",\n        \"updated\": true\n      }\n    ],\n    \"page_token\": \"\",\n    \"thread_id\": \"omt_19b5505c90cf997a\",\n    \"total\": 3\n  },\n  \"meta\": {\n    \"pagination\": {\n      \"complete\": true,\n      \"pages\": 1,\n      \"items\": 3\n    }\n  }\n}\n",
+  "renderedStderr": ""
+}

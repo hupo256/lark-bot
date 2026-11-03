@@ -1,0 +1,26 @@
+{
+  "recordId": "reczz28SLgO0cR5R",
+  "why": "bug-5033",
+  "fetchedAt": "2026-11-03T12:18:01.920Z",
+  "version": "now",
+  "note": "拉取时的最新状态（状态 / 备注 / 测试结果可能晚于消息当时）",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "base",
+    "+record-get",
+    "--as",
+    "user",
+    "--base-token",
+    "<bugTable.appToken>",
+    "--table-id",
+    "tblbJYjrxZsPe40V",
+    "--record-id",
+    "reczz28SLgO0cR5R",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"data\": [\n      [\n        \"Bug-5033\",\n        null,\n        [\n          \"待推版\"\n        ],\n        null,\n        null,\n        \"PM-3254\",\n        \"2026-11-02T08:12:03.000+04:00\",\n        \"App\",\n        \"2026-10-27T11:14:30.000+04:00\",\n        null,\n        \"Falive\",\n        null,\n        null,\n        [\n          {\n            \"id\": \"ou_c03810195f4db6115f3acb45d04a7fec\",\n            \"name\": \"HTShellyhsu\"\n          }\n        ],\n        null,\n        \"[https://falivepre.fdsser.com/hc-api/api/fameEx/market/symbol/list](https://falivepre.fdsser.com/hc-api/api/fameEx/market/symbol/list)\",\n        \"2026-10-27T11:14:31.266+04:00\",\n        \"【falive一期】后端/web/app\",\n        \"首頁 - 沒有顯示FameEx的漲幅[/fameEx/market/symbol/list](https://falivepre.fdsser.com/hc-api/api/fameEx/market/symbol/list)\",\n        null,\n        null,\n        [\n          \"Pre\"\n        ],\n        [\n          {\n            \"id\": \"ou_aecb3b7a443e478bcd0a7250b1f96faa\",\n            \"name\": \"Williamwang HT\"\n          }\n        ],\n        [\n          {\n            \"file_token\": \"KEltb5YiWojW76xeOb2lGkcNgnf\",\n            \"name\": \"image.png\",\n            \"size\": 387603\n          }\n        ],\n        [\n          {\n            \"id\": \"ou_aecb3b7a443e478bcd0a7250b1f96faa\",\n            \"name\": \"Williamwang HT\"\n          }\n        ],\n        \"pre测试中\",\n        [\n          \"App\"\n        ],\n        \"10-27 分类（aven bot）：本单为 App 端（截图为 App 设计稿，涉及端口 App），负责RD 填 App 开发 Williamwang HT。接口侧实测（10-27 17:0x +04）：GET https://falivepre.fdsser.com/hc-api/api/fameEx/market/symbol/list 不带 token 已回 HTTP 200、code 200，data=[{symbol:bnbusdt,pairName:BNB/USDT,changeRate24h:-0.537195,currentPrice:596.19}]；10-26 该网关路径曾 404（/hc-api 少剥一层 /api，运维已修）。Web 端（falivepre 首页登录测试号 uid 508）顶部跑马灯已显示「BNB/USDT 596.19 -0.54%」。请 App 侧用现在的网关复测；如 App 仍不显示则为 App 自身问题。另：接口目前只返回 BNB 一个币对，设计稿里的 BTC/ETH 需 hichat 后端（Arthur）配置 fameEx 行情币对。\",\n        \"1.0.3\"\n      ]\n    ],\n    \"field_id_list\": [\n      \"fldmxTvHTq\",\n      \"fld0Pe5U7G\",\n      \"fld1i6PDQT\",\n      \"fld1u0NBC5\",\n      \"fld4kVwoLs\",\n      \"fld52WVyfK\",\n      \"fld7ChUvSH\",\n      \"fld8fzIptW\",\n      \"fld8Q2XlJB\",\n      \"fldAh2Kyj0\",\n      \"fldBuyLemA\",\n      \"fldcuNmiVK\",\n      \"fldD77oYrZ\",\n      \"fldEiiSdHh\",\n      \"fldERqfLpq\",\n      \"fldGsVI1Y0\",\n      \"fldHgasO5A\",\n      \"fldhpTkoXE\",\n      \"fldIuAN6te\",\n      \"fldJ9rdSbO\",\n      \"fldMLCmFW2\",\n      \"fldPyoP99S\",\n      \"fldsV39i3n\",\n      \"fldu80s8wJ\",\n      \"fldw1TK5PO\",\n      \"fldwobTvnQ\",\n      \"fldyh4ldX6\",\n      \"fldYisQZkD\",\n      \"fldZHrw01k\"\n    ],\n    \"field_type_list\": [\n      \"auto_number\",\n      \"text\",\n      \"select\",\n      \"lookup\",\n      \"link\",\n      \"text\",\n      \"updated_at\",\n      \"lookup\",\n      \"created_at\",\n      \"text\",\n      \"lookup\",\n      \"select\",\n      \"attachment\",\n      \"user\",\n      \"datetime\",\n      \"text\",\n      \"datetime\",\n      \"lookup\",\n      \"text\",\n      \"attachment\",\n      \"datetime\",\n      \"select\",\n      \"updated_by\",\n      \"attachment\",\n      \"user\",\n      \"lookup\",\n      \"select\",\n      \"text\",\n      \"text\"\n    ],\n    \"fields\": [\n      \"Bug编号\",\n      \"测试结果\",\n      \"状态\",\n      \"测试人员所在部门\",\n      \"父記錄\",\n      \"需求ID\",\n      \"最后更新时间\",\n      \"解决人员所在部门\",\n      \"创建时间\",\n      \"项目备注\",\n      \"所属项目组\",\n      \"严重程度\",\n      \"测试结果截图\",\n      \"测试人员\",\n      \"预计上线时间\",\n      \"问题描述（复现步骤）\",\n      \"bug填写日期\",\n      \"需求名称\",\n      \"问题标题\",\n      \"附件\",\n      \"修复完成时间\",\n      \"环境\",\n      \"记录最后修改人\",\n      \"问题截图\",\n      \"负责RD\",\n      \"需求阶段\",\n      \"涉及端口\",\n      \"备注\",\n      \"Sprint\"\n    ],\n    \"has_more\": false,\n    \"record_id_list\": [\n      \"reczz28SLgO0cR5R\"\n    ],\n    \"rev\": 21326,\n    \"timezone\": \"Asia/Dubai\"\n  }\n}\n",
+  "stderr": ""
+}

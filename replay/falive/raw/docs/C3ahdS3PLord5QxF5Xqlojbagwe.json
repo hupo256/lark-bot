@@ -1,0 +1,26 @@
+{
+  "token": "C3ahdS3PLord5QxF5Xqlojbagwe",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/C3ahdS3PLord5QxF5Xqlojbagwe",
+  "fetchedAt": "2026-11-03T12:17:07.845Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/C3ahdS3PLord5QxF5Xqlojbagwe",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>William（live php 后端）引用 bot 的 Bug-4942 复测卡片问（细节）</title>\\n\\n# Bug-4942 简介转义：是不是 Bug\\n\\n## 结论\\n\\n- Web 端：不是 bug。显示前已还原，页面显示 I'm QA.\\n- 后端：Member/info 返回的 signature 仍是 htmlspecialchars 转义后的值。算不算 bug 看口径：\\n\\n  1. 契约是「存什么读什么」→ 后端改成存、返原文，这条是后端 bug；\\n  2. 产品接受保留转义、各端自己还原 → 这条可关，但 App 等其它端也必须做还原。\\n\\n## 证据（2026-10-24 本轮 pre 实测，测试号 uid 508）\\n\\n- GET /api/Member/info → code 0，原始 JSON 里是 \\\"signature\\\": \\\"I&#039;m QA.\\\"\\n- 为什么看起来一样：Lark 消息会把 &#039; 渲染成 '，所以 bot 之前写的「I&#039;m QA.」在群里显示成了「I'm QA.」。看原始响应要用 Postman 或浏览器 Network → Response。\\n\\n## 不改成存原文的影响\\n\\n- 没做还原的端会直接显示 &#039; / &amp; 这类字符。\\n- 按字数限制计算长度时，带引号或 & 的简介会被多算。\",\n      \"document_id\": \"C3ahdS3PLord5QxF5Xqlojbagwe\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

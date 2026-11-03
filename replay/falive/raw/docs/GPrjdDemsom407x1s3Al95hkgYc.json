@@ -1,0 +1,26 @@
+{
+  "token": "GPrjdDemsom407x1s3Al95hkgYc",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/GPrjdDemsom407x1s3Al95hkgYc",
+  "fetchedAt": "2026-11-03T12:17:19.362Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/GPrjdDemsom407x1s3Al95hkgYc",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"# uat /hc-ws 行情推送复测（完整内容）\\n\\n@Ache @William Encone 问的 OL 行情 ws：浏览器连 wss://www.falive.com/hc-ws，nginx 转到 [https://www.4ees1.xyz/ws/im/echo](https://www.4ees1.xyz/ws/im/echo)\\n\\n- ⚠️ 接了但还不能用 uat 登录后行情实时推送：要 uat 登录账号才能走订阅，uat 还没同步用户，缺可用账号\\n- ⚠️ 接了但还不能用 online /hc-ws：现在回的是首页，还没转发；要转到 [www.4ees1.xyz](http://www.4ees1.xyz) 的 /ws/im/echo，配置照 uat 抄\\n- ✅ 通了 uat /hc-ws 握手：带不带斜杠都回 101，连上后 hichat 回了鉴权帧，转发已经通了  \\n待确认的几点在这里：https://qfglxo2m3dc.sg.larksuite.com/docx/XKrcd0Lv7oSKaRxGYVvlxIT7gy6\\n- Ache：online 的 /hc-ws 还没转发（现在回首页），要照 uat 的配置转到 [www.4ees1.xyz](http://www.4ees1.xyz) 的 /ws/im/echo\\n- William：要一个 uat 能登录的测试账号，用来验证登录后的行情实时推送  \\n详细见：https://qfglxo2m3dc.sg.larksuite.com/docx/Lf0SdD0BuooGdxx82JzltnRug17\",\n      \"document_id\": \"GPrjdDemsom407x1s3Al95hkgYc\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

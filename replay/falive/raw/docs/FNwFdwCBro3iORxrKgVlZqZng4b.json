@@ -1,0 +1,26 @@
+{
+  "token": "FNwFdwCBro3iORxrKgVlZqZng4b",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/FNwFdwCBro3iORxrKgVlZqZng4b",
+  "fetchedAt": "2026-11-03T12:17:16.545Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/FNwFdwCBro3iORxrKgVlZqZng4b",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>线上社区没有 bbsv2 请求（细节）</title>\\n\\n# 线上（OL）为什么没有 bbsv2 请求\\n\\n## 结论\\n\\n线上 [www.falive.com](http://www.falive.com) 现在跑的是 online 分支 10-28 的前端包。这版里社区（bbsv2）服务的开关是关的，前端直接按「服务不可用」处理，**不发任何 bbsv2 请求**，所以社区广场显示「加载失败」。跟有没有登录、刷不刷新、清不清缓存都没关系，后端也不用改。\\n\\n## 证据（10-29 实测）\\n\\n| 检查 | 结果 |\\n|-|-|\\n| 线上主包 `assets/index-DgKdBFEz.js` | 内置服务开关 `{\\\"php\\\":true,\\\"golang\\\":false,\\\"hichat\\\":true,\\\"bbsv2\\\":false}`，页面源码里没有 10-29 版才有的构建标记 |\\n| 线上 `/square` 页面工具打开（游客） | HTTP 200，显示「加载失败」，全页只有 3 次接口请求，没有一次 bbsv2 |\\n| online 分支的环境地址表 | 线上 bbsv2 还是注释掉的「待后端给域名」；10-29 补上的版本已在 pre / uat 分支，online 分支还没有 |\\n| `https://www.falive.com/bbsv2/thread/listCursor`（不签名） | HTTP 407，`{\\\"code\\\":-800,\\\"msg\\\":\\\"非法请求\\\"}`：入口已转到 bbsv2 后端，只是缺签名（正常） |\\n| pre 帖子列表 `bbsv2/thread/listCursor`（经 falivepre 网关、签名） | code 0，10 条帖子 |\\n| pre `/square` 页面工具打开（游客） | 正常发 bbsv2 请求；只有游客拉通知 `notify/listCursor` 回 -700（没登录，属正常） |\\n\\n## 下一步\\n\\n- 前端（aven）：把 10-29 这版合进 online 再发布，线上就会发 bbsv2 请求。\\n- 后端：不用改。\\n\\n## 另记\\n\\nArthur 截图里失败的是直播间的 m3u8 拉流地址（play2zz.sysiyu11.com），跟社区 bbsv2 不是同一个问题，这次没查。\",\n      \"document_id\": \"FNwFdwCBro3iORxrKgVlZqZng4b\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

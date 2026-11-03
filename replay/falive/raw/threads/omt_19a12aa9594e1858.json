@@ -1,0 +1,46 @@
+{
+  "threadId": "omt_19a12aa9594e1858",
+  "fetchedAt": "2026-11-03T12:22:04.692Z",
+  "ok": true,
+  "commands": [
+    [
+      "lark-cli",
+      "api",
+      "GET",
+      "/open-apis/im/v1/messages",
+      "--as",
+      "user",
+      "--params",
+      "{\"container_id_type\":\"thread\",\"container_id\":\"omt_19a12aa9594e1858\",\"page_size\":50,\"sort_type\":\"ByCreateTimeAsc\"}",
+      "--page-all",
+      "--page-limit",
+      "0",
+      "--format",
+      "json"
+    ],
+    [
+      "lark-cli",
+      "im",
+      "+threads-messages-list",
+      "--as",
+      "user",
+      "--thread",
+      "omt_19a12aa9594e1858",
+      "--order",
+      "asc",
+      "--page-size",
+      "50",
+      "--page-all",
+      "--page-limit",
+      "100",
+      "--no-reactions",
+      "--download-resources",
+      "--format",
+      "json"
+    ]
+  ],
+  "api": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"items\": [\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"\\u003cp\\u003e@_user_1 @_user_2 @_user_3 hichat  api 三环境的域名，还没有定，请记得跟一下  cc @_user_4\\u003c/p\\u003e\\\"}\"\n        },\n        \"chat_default_name\": \"Falive产研技术沟通群\",\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1791287534820\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_e2fe553367bebc85cd0a18fbaae8fb06\",\n            \"id_type\": \"open_id\",\n            \"key\": \"@_user_1\",\n            \"name\": \"Eric.ea\",\n            \"tenant_key\": \"164beab51542977c\"\n          },\n          {\n            \"id\": \"ou_f6e95ef1cfed53a7871bc23b74006bf2\",\n            \"id_type\": \"open_id\",\n            \"key\": \"@_user_2\",\n            \"name\": \"Broker\",\n            \"tenant_key\": \"164beab51542977c\"\n          },\n          {\n            \"id\": \"ou_36e7f9a45c4f9bad97bd178d5ee90ad5\",\n            \"id_type\": \"open_id\",\n            \"key\": \"@_user_3\",\n            \"name\": \"Adrian\",\n            \"tenant_key\": \"164beab51542977c\"\n          },\n          {\n            \"id\": \"ou_f6f2dc9d81df286720a09d5ffe6b67be\",\n            \"id_type\": \"open_id\",\n            \"key\": \"@_user_4\",\n            \"name\": \"Rou\",\n            \"tenant_key\": \"164beab51542977c\"\n          }\n        ],\n        \"message_id\": \"om_x100b637a4021b130e2dbaff1d9bf4f3\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b637e68ca78b0ff4b6b8e7dc2587\",\n        \"root_id\": \"om_x100b637e68ca78b0ff4b6b8e7dc2587\",\n        \"sender\": {\n          \"id\": \"ou_91861d6da6cf6822e08045ba1868241e\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19a12aa9594e1858\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"1791289956180\",\n        \"updated\": true\n      }\n    ],\n    \"page_token\": \"\"\n  }\n}\n",
+  "apiStderr": "[page 1] fetching...\n",
+  "rendered": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"messages\": [\n      {\n        \"chat_id\": \"oc_40621901e1583e623f6133e8c66d352e\",\n        \"content\": \"\\u003cp\\u003e@Eric.ea @Broker @Adrian hichat  api 三环境的域名，还没有定，请记得跟一下  cc @Rou\\u003c/p\\u003e\",\n        \"create_time\": \"2026-10-06 15:52\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_e2fe553367bebc85cd0a18fbaae8fb06\",\n            \"key\": \"@_user_1\",\n            \"name\": \"Eric.ea\"\n          },\n          {\n            \"id\": \"ou_f6e95ef1cfed53a7871bc23b74006bf2\",\n            \"key\": \"@_user_2\",\n            \"name\": \"Broker\"\n          },\n          {\n            \"id\": \"ou_36e7f9a45c4f9bad97bd178d5ee90ad5\",\n            \"key\": \"@_user_3\",\n            \"name\": \"Adrian\"\n          },\n          {\n            \"id\": \"ou_f6f2dc9d81df286720a09d5ffe6b67be\",\n            \"key\": \"@_user_4\",\n            \"name\": \"Rou\"\n          }\n        ],\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_40621901e1583e623f6133e8c66d352e\\u0026open_thread_id=omt_19a12aa9594e1858\\u0026openchatid=oc_40621901e1583e623f6133e8c66d352e\\u0026openthreadid=omt_19a12aa9594e1858\\u0026thread_position=0\",\n        \"message_id\": \"om_x100b637a4021b130e2dbaff1d9bf4f3\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_91861d6da6cf6822e08045ba1868241e\",\n          \"id_type\": \"open_id\",\n          \"name\": \"Aven.tong\",\n          \"sender_i18n_names\": {\n            \"zh_cn\": \"Aven\"\n          },\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19a12aa9594e1858\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"2026-10-06 16:32\",\n        \"updated\": true\n      }\n    ],\n    \"page_token\": \"\",\n    \"thread_id\": \"omt_19a12aa9594e1858\",\n    \"total\": 1\n  },\n  \"meta\": {\n    \"pagination\": {\n      \"complete\": true,\n      \"pages\": 1,\n      \"items\": 1\n    }\n  }\n}\n",
+  "renderedStderr": ""
+}

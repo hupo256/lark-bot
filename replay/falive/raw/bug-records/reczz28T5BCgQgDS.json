@@ -1,0 +1,26 @@
+{
+  "recordId": "reczz28T5BCgQgDS",
+  "why": "bug-5076",
+  "fetchedAt": "2026-11-03T12:18:19.358Z",
+  "version": "now",
+  "note": "拉取时的最新状态（状态 / 备注 / 测试结果可能晚于消息当时）",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "base",
+    "+record-get",
+    "--as",
+    "user",
+    "--base-token",
+    "<bugTable.appToken>",
+    "--table-id",
+    "tblbJYjrxZsPe40V",
+    "--record-id",
+    "reczz28T5BCgQgDS",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"data\": [\n      [\n        \"Bug-5076\",\n        null,\n        [\n          \"Pre测试通过\"\n        ],\n        null,\n        null,\n        \"PM-3254\",\n        \"2026-10-30T19:48:26.000+04:00\",\n        \"Backend\",\n        \"2026-10-29T07:44:54.000+04:00\",\n        null,\n        \"Falive\",\n        null,\n        null,\n        [\n          {\n            \"id\": \"ou_c03810195f4db6115f3acb45d04a7fec\",\n            \"name\": \"HTShellyhsu\"\n          }\n        ],\n        null,\n        null,\n        \"2026-10-29T07:44:56.074+04:00\",\n        \"【falive一期】后端/web/app\",\n        \"Falive後台人員在廣場傳圖片，Hichat看不到\",\n        null,\n        null,\n        [\n          \"Pre\"\n        ],\n        [\n          {\n            \"id\": \"ou_76eea7f1089ccfb66678300fe4bc4a40\",\n            \"name\": \"HTStone.z\"\n          }\n        ],\n        [\n          {\n            \"file_token\": \"EC37btkdAouN0cxsTgulnpWsgme\",\n            \"name\": \"image.png\",\n            \"size\": 151166\n          },\n          {\n            \"file_token\": \"IkhMbOcRMo8wMgxXEGHl8pQIg2f\",\n            \"name\": \"image.png\",\n            \"size\": 239190\n          }\n        ],\n        [\n          {\n            \"id\": \"ou_358e6ed39b45c968378cb7177e109552\",\n            \"name\": \"Max\"\n          },\n          {\n            \"id\": \"ou_178b10c243b33c567f5074901e0d85ab\",\n            \"name\": \"mainly\"\n          }\n        ],\n        \"pre测试中\",\n        [\n          \"Backend\"\n        ],\n        \"【10-29 bot 分类】Backend（.Ache.l，live php 公屏 → 嗨聊群同步）。pre 实测：/room/258 的 php chat/history（vid DA861C929568A1C40A01CD03D1068F24）里有后台管理员 ShellyBC（sender 127，sender_user_type=1）10-29 11:42:32 发的图片消息（msg_type=2，pic=https://falivepre.fdsser.com/upload/chat/20261029/1c1377b1cd88f1ae3fa8cdd32c097c97.397x710.jpeg）和 11:43:17 的文字「DWWW」，Falive 直播间广场两条都正常显示；嗨聊对应直播群只收到「DWWW」，图片那条没同步过去。前端只展示 php 返回，不参与同步，请 Ache 查后台发图消息同步嗨聊群时对 msg_type=2 的处理（同类：Bug-4998 是反方向嗨聊 → php 丢图片）。\",\n        \"1.0.3\"\n      ]\n    ],\n    \"field_id_list\": [\n      \"fldmxTvHTq\",\n      \"fld0Pe5U7G\",\n      \"fld1i6PDQT\",\n      \"fld1u0NBC5\",\n      \"fld4kVwoLs\",\n      \"fld52WVyfK\",\n      \"fld7ChUvSH\",\n      \"fld8fzIptW\",\n      \"fld8Q2XlJB\",\n      \"fldAh2Kyj0\",\n      \"fldBuyLemA\",\n      \"fldcuNmiVK\",\n      \"fldD77oYrZ\",\n      \"fldEiiSdHh\",\n      \"fldERqfLpq\",\n      \"fldGsVI1Y0\",\n      \"fldHgasO5A\",\n      \"fldhpTkoXE\",\n      \"fldIuAN6te\",\n      \"fldJ9rdSbO\",\n      \"fldMLCmFW2\",\n      \"fldPyoP99S\",\n      \"fldsV39i3n\",\n      \"fldu80s8wJ\",\n      \"fldw1TK5PO\",\n      \"fldwobTvnQ\",\n      \"fldyh4ldX6\",\n      \"fldYisQZkD\",\n      \"fldZHrw01k\"\n    ],\n    \"field_type_list\": [\n      \"auto_number\",\n      \"text\",\n      \"select\",\n      \"lookup\",\n      \"link\",\n      \"text\",\n      \"updated_at\",\n      \"lookup\",\n      \"created_at\",\n      \"text\",\n      \"lookup\",\n      \"select\",\n      \"attachment\",\n      \"user\",\n      \"datetime\",\n      \"text\",\n      \"datetime\",\n      \"lookup\",\n      \"text\",\n      \"attachment\",\n      \"datetime\",\n      \"select\",\n      \"updated_by\",\n      \"attachment\",\n      \"user\",\n      \"lookup\",\n      \"select\",\n      \"text\",\n      \"text\"\n    ],\n    \"fields\": [\n      \"Bug编号\",\n      \"测试结果\",\n      \"状态\",\n      \"测试人员所在部门\",\n      \"父記錄\",\n      \"需求ID\",\n      \"最后更新时间\",\n      \"解决人员所在部门\",\n      \"创建时间\",\n      \"项目备注\",\n      \"所属项目组\",\n      \"严重程度\",\n      \"测试结果截图\",\n      \"测试人员\",\n      \"预计上线时间\",\n      \"问题描述（复现步骤）\",\n      \"bug填写日期\",\n      \"需求名称\",\n      \"问题标题\",\n      \"附件\",\n      \"修复完成时间\",\n      \"环境\",\n      \"记录最后修改人\",\n      \"问题截图\",\n      \"负责RD\",\n      \"需求阶段\",\n      \"涉及端口\",\n      \"备注\",\n      \"Sprint\"\n    ],\n    \"has_more\": false,\n    \"record_id_list\": [\n      \"reczz28T5BCgQgDS\"\n    ],\n    \"rev\": 21326,\n    \"timezone\": \"Asia/Dubai\"\n  }\n}\n",
+  "stderr": ""
+}

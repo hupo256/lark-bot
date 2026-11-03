@@ -1,0 +1,26 @@
+{
+  "recordId": "reczz28Ql2fhLf1N",
+  "why": "bug-4952",
+  "fetchedAt": "2026-11-03T12:18:10.617Z",
+  "version": "now",
+  "note": "拉取时的最新状态（状态 / 备注 / 测试结果可能晚于消息当时）",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "base",
+    "+record-get",
+    "--as",
+    "user",
+    "--base-token",
+    "<bugTable.appToken>",
+    "--table-id",
+    "tblbJYjrxZsPe40V",
+    "--record-id",
+    "reczz28Ql2fhLf1N",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"data\": [\n      [\n        \"Bug-4952\",\n        null,\n        [\n          \"Pre测试通过\"\n        ],\n        null,\n        null,\n        \"PM-3254\",\n        \"2026-10-29T11:49:18.000+04:00\",\n        \"Web\",\n        \"2026-10-23T10:44:53.000+04:00\",\n        null,\n        \"Falive\",\n        null,\n        null,\n        [\n          {\n            \"id\": \"ou_c03810195f4db6115f3acb45d04a7fec\",\n            \"name\": \"HTShellyhsu\"\n          }\n        ],\n        null,\n        \"點擊搜尋沒有反應\",\n        \"2026-10-23T10:44:54.440+04:00\",\n        \"【falive一期】后端/web/app\",\n        \"直播詳細頁-群組-搜尋助理暱稱沒有反應\",\n        null,\n        \"2026-10-28T00:00:00.000+04:00\",\n        [\n          \"Pre\"\n        ],\n        [\n          {\n            \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n            \"name\": \"World\"\n          }\n        ],\n        [\n          {\n            \"file_token\": \"UkAJbWCaiooQCVxU7rvlABHEg0e\",\n            \"name\": \"image.png\",\n            \"size\": 24125\n          }\n        ],\n        [\n          {\n            \"id\": \"ou_f429a72d959a341cd2fdd1b18a0d3772\",\n            \"name\": \"Henry\"\n          }\n        ],\n        \"pre测试中\",\n        [\n          \"Web\"\n        ],\n        \"AI 10-23 查代码：直播间群组（#35，henry）搜索只按群名前端实时过滤（filterRoomGroups 只匹配 g.name，不匹配助理昵称），「搜索」按钮只做切到列表态；已在列表态时点击无任何变化，输入助理昵称也筛不出。前端问题，转 henry。\\n【10-28 修复】直播间群组 tab「搜索助理昵称」改为照 klive（x9）调 POST /api/chat/searchAssistant { nickName }：回车 / 点搜索触发，查到的助理私聊插到群组列表（置顶群之后）并直接打开，可直接发消息（sendToAssistant）；空输入 / 查不到 / 失败有提示，清空输入回到原列表，游客先弹登录。昵称是后端精确匹配、区分大小写（pre 实测「Shelly」可查到、「shelly」查不到）。本地 pre 生产包实测（测试号 508，/room/19668 搜 Shelly → 打开会话 → 发消息 code 0）通过；live 模块单测 263 条、typecheck 通过。MR !165 http://mgit.lgroup.co/hqoi/web/falive-react/-/merge_requests/165（分支 hotfix-4952），待部署后复测。给产品：已按 klive 口径放在直播间「群组」tab，如要改去「聊天」页私聊再调整。\",\n        \"1.0.3\"\n      ]\n    ],\n    \"field_id_list\": [\n      \"fldmxTvHTq\",\n      \"fld0Pe5U7G\",\n      \"fld1i6PDQT\",\n      \"fld1u0NBC5\",\n      \"fld4kVwoLs\",\n      \"fld52WVyfK\",\n      \"fld7ChUvSH\",\n      \"fld8fzIptW\",\n      \"fld8Q2XlJB\",\n      \"fldAh2Kyj0\",\n      \"fldBuyLemA\",\n      \"fldcuNmiVK\",\n      \"fldD77oYrZ\",\n      \"fldEiiSdHh\",\n      \"fldERqfLpq\",\n      \"fldGsVI1Y0\",\n      \"fldHgasO5A\",\n      \"fldhpTkoXE\",\n      \"fldIuAN6te\",\n      \"fldJ9rdSbO\",\n      \"fldMLCmFW2\",\n      \"fldPyoP99S\",\n      \"fldsV39i3n\",\n      \"fldu80s8wJ\",\n      \"fldw1TK5PO\",\n      \"fldwobTvnQ\",\n      \"fldyh4ldX6\",\n      \"fldYisQZkD\",\n      \"fldZHrw01k\"\n    ],\n    \"field_type_list\": [\n      \"auto_number\",\n      \"text\",\n      \"select\",\n      \"lookup\",\n      \"link\",\n      \"text\",\n      \"updated_at\",\n      \"lookup\",\n      \"created_at\",\n      \"text\",\n      \"lookup\",\n      \"select\",\n      \"attachment\",\n      \"user\",\n      \"datetime\",\n      \"text\",\n      \"datetime\",\n      \"lookup\",\n      \"text\",\n      \"attachment\",\n      \"datetime\",\n      \"select\",\n      \"updated_by\",\n      \"attachment\",\n      \"user\",\n      \"lookup\",\n      \"select\",\n      \"text\",\n      \"text\"\n    ],\n    \"fields\": [\n      \"Bug编号\",\n      \"测试结果\",\n      \"状态\",\n      \"测试人员所在部门\",\n      \"父記錄\",\n      \"需求ID\",\n      \"最后更新时间\",\n      \"解决人员所在部门\",\n      \"创建时间\",\n      \"项目备注\",\n      \"所属项目组\",\n      \"严重程度\",\n      \"测试结果截图\",\n      \"测试人员\",\n      \"预计上线时间\",\n      \"问题描述（复现步骤）\",\n      \"bug填写日期\",\n      \"需求名称\",\n      \"问题标题\",\n      \"附件\",\n      \"修复完成时间\",\n      \"环境\",\n      \"记录最后修改人\",\n      \"问题截图\",\n      \"负责RD\",\n      \"需求阶段\",\n      \"涉及端口\",\n      \"备注\",\n      \"Sprint\"\n    ],\n    \"has_more\": false,\n    \"record_id_list\": [\n      \"reczz28Ql2fhLf1N\"\n    ],\n    \"rev\": 21326,\n    \"timezone\": \"Asia/Dubai\"\n  }\n}\n",
+  "stderr": ""
+}

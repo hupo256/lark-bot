@@ -1,0 +1,26 @@
+{
+  "token": "EQIzdMt6EoG6Ucx6q3rltwtVgHf",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/EQIzdMt6EoG6Ucx6q3rltwtVgHf",
+  "fetchedAt": "2026-11-03T12:17:06.238Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/EQIzdMt6EoG6Ucx6q3rltwtVgHf",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>我要直播-待确认-2026-10-22</title>\\n\\n# 我要直播（web 开播）待确认 · 2026-10-22\\n\\n前端已照 x9 迁移：本人页主播入口「我要直播」→ `/user/stream`（开播记录、开播 / 关播、开播设置弹窗：分类 / 主副标题 / 个性标签 / 开播时间 / 封面 / 推流地址）。\\n\\n## Encone（live 后端）\\n\\n1. **要一个 pre 主播测试号，或把测试号 uid 508 设成主播**：508 的 `Member/info.is_anchor=0`、`getRoomList` 0 条，主播侧流程（取推流地址、创建 / 修改、开播 / 关播、上传封面）在 pre 还没法走通。10-22 起开播设置弹窗新增「直播间介绍」（Bug-4944 `intro`），`createRoom` / `updateLive` 写入、`getRoomList` 回填、直播间介绍卡展示这一整圈同样要靠主播号才能实测（pre 现有房间 `intro` 都是空串）。\\n2. **确认 `localUpload` 返回形状**：文档示例是 `data: { data: \\\"地址\\\" }`，x9 按 `data` 直接是字符串解析，前端照 x9；如果实际是对象请告知。\\n3. **确认 `createRoom` / `updateLive` 支持 POST JSON 带 `tag_ids` 数组**（x9 同样传，文档参数表没列 `tag_ids`）。\\n4. **开播设置的「语言」字段**：产品给的 UI 稿（x9 线上「开播设置」弹窗）有必填的「语言」下拉（如 Tiếng Việt），但 `createRoom` / `updateLive` 文档参数表没有语言字段，x9 本地代码也没传。请告知：参数名、取值（是否同 `CHiChatProgram` 的 `lang` 1 中文 / 2 英文 / 3 泰文 / 4 越南文 / 5 繁中 / 6 日文）、是否必填、`getRoomList` 是否回显。我方现状：前端没做这个下拉（不传不存在的参数，也不放选了不生效的控件），后端给参数后补上。\\n5. **「标题与队伍相同 / 标题与赛事相同」勾选**：UI 稿有，但它只在选了赛事（足球 / 篮球 / 电竞）后回填标题用；falive 开播分类只有区块链 / 其他、不选赛事，x9 本地代码对这两类也不显示，前端没做。如果 falive 要开放赛事分类，请告知赛事列表接口与分类取值。\",\n      \"document_id\": \"EQIzdMt6EoG6Ucx6q3rltwtVgHf\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

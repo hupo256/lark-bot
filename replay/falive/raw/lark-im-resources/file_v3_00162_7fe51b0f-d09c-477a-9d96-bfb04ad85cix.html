@@ -1,0 +1,842 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{color-scheme:light}*,*::before,*::after{box-sizing:border-box}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>HiChat 推广助理分配机制</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#F2F3EF; --surface:#FFFFFF; --lane-a:#FBFBF9; --lane-b:#F1F3EE; --lane-h:#E6E9E1;
+  --ink:#1B2027; --ink-2:#3A424C; --muted:#646D77; --rule:#D2D6CD; --edge:#4A535E; --chip:#FFFFFF; --code:#E8EBE3;
+  --user-f:#FFFFFF; --user-s:#5B6470;
+  --portal-f:#E6EEF7; --portal-s:#2D5D8F;
+  --store-f:#FAF0DA; --store-s:#8F620E;
+  --admin-f:#DFEFE8; --admin-s:#226C57;
+  --ext-f:#F1E6F4; --ext-s:#71458A;
+  --warn:#B23C28; --badge-t:#FFFFFF;
+  --sans:"Noto Sans SC","PingFang SC","Microsoft YaHei","Hiragino Sans GB",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Consolas,"Liberation Mono",monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#101418; --surface:#171C22; --lane-a:#161B21; --lane-b:#1B2128; --lane-h:#212831;
+    --ink:#E6E9ED; --ink-2:#C3C9D1; --muted:#949DA8; --rule:#2E3641; --edge:#AAB3BE; --chip:#171C22; --code:#232A33;
+    --user-f:#1B2128; --user-s:#A3ACB7;
+    --portal-f:#172A3E; --portal-s:#86B3E2;
+    --store-f:#302710; --store-s:#DDAF57;
+    --admin-f:#122F28; --admin-s:#5FC2A2;
+    --ext-f:#2A1E31; --ext-s:#C59AD8;
+    --warn:#EE8670; --badge-t:#101418;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#101418; --surface:#171C22; --lane-a:#161B21; --lane-b:#1B2128; --lane-h:#212831;
+  --ink:#E6E9ED; --ink-2:#C3C9D1; --muted:#949DA8; --rule:#2E3641; --edge:#AAB3BE; --chip:#171C22; --code:#232A33;
+  --user-f:#1B2128; --user-s:#A3ACB7;
+  --portal-f:#172A3E; --portal-s:#86B3E2;
+  --store-f:#302710; --store-s:#DDAF57;
+  --admin-f:#122F28; --admin-s:#5FC2A2;
+  --ext-f:#2A1E31; --ext-s:#C59AD8;
+  --warn:#EE8670; --badge-t:#101418;
+}
+body{background:var(--bg);color:var(--ink);font:15px/1.65 var(--sans);padding-inline:16px;padding-block:32px 72px}
+.wrap{max-width:1600px;margin-inline:auto}
+header{display:grid;gap:10px;max-width:980px}
+.eyebrow{font:500 12px/1.4 var(--mono);color:var(--muted);letter-spacing:.02em;margin:0}
+h1{font-size:clamp(28px,4vw,40px);line-height:1.15;font-weight:700;letter-spacing:-.01em;margin:0;text-wrap:balance}
+.lede{margin:0;max-width:68ch;color:var(--ink-2)}
+.legend{display:flex;flex-wrap:wrap;gap:8px 22px;margin-top:22px;font-size:13px;color:var(--ink-2);align-items:center}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.sw{display:inline-block;width:22px;height:14px;border-radius:4px;border:1.5px solid}
+.sw-user{background:var(--user-f);border-color:var(--user-s)}
+.sw-portal{background:var(--portal-f);border-color:var(--portal-s)}
+.sw-store{background:var(--store-f);border-color:var(--store-s)}
+.sw-admin{background:var(--admin-f);border-color:var(--admin-s)}
+.sw-ext{background:var(--ext-f);border-color:var(--ext-s)}
+.lg-line{width:34px;height:10px}
+.wdot{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:50%;background:var(--warn);color:var(--badge-t);font:700 11px/1 var(--sans);font-style:normal}
+nav{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+nav a{font-size:13px;padding:5px 13px;border:1px solid var(--rule);border-radius:999px;color:var(--ink);background:var(--surface);text-decoration:none}
+nav a:hover{border-color:var(--edge)}
+nav a:focus-visible,.scroll:focus-visible{outline:2px solid var(--portal-s);outline-offset:2px}
+section{margin-top:60px;scroll-margin-top:16px}
+h2{font-size:22px;line-height:1.3;font-weight:700;margin:0;text-wrap:balance}
+.sum{color:var(--ink-2);max-width:78ch;margin:6px 0 16px}
+figure{margin:0}
+.scroll{overflow-x:auto;border:1px solid var(--rule);border-radius:10px;background:var(--surface)}
+.scroll svg{display:block;width:100%;height:auto}
+figcaption{font-size:12.5px;color:var(--muted);margin-top:8px}
+.rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:24px 48px;margin-top:22px}
+.rules h3{font-size:12.5px;font-weight:600;letter-spacing:.08em;color:var(--muted);margin:0 0 10px}
+.rules h3.wh{margin-top:20px;color:var(--warn)}
+.rules ul{margin:0;padding:0;list-style:none;display:grid;gap:9px}
+.rules li{display:grid;grid-template-columns:22px 1fr;gap:10px;font-size:14px;line-height:1.65;max-width:76ch}
+.n{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--ink);color:var(--bg);font:600 11px/1 var(--mono);margin-top:2px}
+.n-dash{background:transparent;border:1.5px solid var(--rule)}
+.n-warn{background:var(--warn);color:var(--badge-t);font-family:var(--sans);font-weight:700}
+code{font:12.5px/1.5 var(--mono);background:var(--code);padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
+/* svg */
+.lane-a{fill:var(--lane-a)} .lane-b{fill:var(--lane-b)} .lane-h{fill:var(--lane-h)}
+.lsep{stroke:var(--rule);stroke-width:1}
+.lnm{font:600 12.5px var(--sans);fill:var(--ink)}
+.lsub{font:400 10.5px var(--sans);fill:var(--muted)}
+.bx{stroke-width:1.4}
+.nd-user .bx{fill:var(--user-f);stroke:var(--user-s)} .nd-user .bd{fill:var(--user-s)}
+.nd-portal .bx{fill:var(--portal-f);stroke:var(--portal-s)} .nd-portal .bd{fill:var(--portal-s)}
+.nd-store .bx{fill:var(--store-f);stroke:var(--store-s)} .nd-store .bd{fill:var(--store-s)}
+.nd-admin .bx{fill:var(--admin-f);stroke:var(--admin-s)} .nd-admin .bd{fill:var(--admin-s)}
+.nd-ext .bx{fill:var(--ext-f);stroke:var(--ext-s)} .nd-ext .bd{fill:var(--ext-s)}
+.bdt{font:600 10px var(--mono);fill:var(--badge-t)}
+.tt{font:600 12.5px var(--sans);fill:var(--ink)}
+.tt.m{font:500 11px var(--mono)}
+.ln{font:400 11px var(--sans);fill:var(--ink-2)}
+.ln.m{font:400 10px var(--mono)}
+.tag{font:500 8.5px var(--mono);fill:var(--store-s);letter-spacing:.06em}
+.wb{fill:var(--warn)}
+.wbt{font:700 11px var(--sans);fill:var(--badge-t)}
+.eg{fill:none;stroke:var(--edge);stroke-width:1.4}
+.eg.rd{stroke-dasharray:5 4}
+.ah{fill:var(--edge)}
+.ec{fill:var(--chip)}
+.el{font:500 10.5px var(--sans);fill:var(--ink-2)}
+
+.what{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:12px;margin-top:24px;max-width:1180px}
+.what div{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:14px 16px}
+.what h3{margin:0 0 6px;font-size:12.5px;color:var(--muted);font-weight:600;letter-spacing:.08em}
+.what p{margin:0;font-size:14px;line-height:1.65}
+.tbl{overflow-x:auto;margin-top:14px;border:1px solid var(--rule);border-radius:10px;background:var(--surface)}
+table.t{border-collapse:collapse;width:100%;min-width:900px;font-size:13.5px;line-height:1.6}
+.t th,.t td{padding:10px 14px;text-align:left;vertical-align:top;border-bottom:1px solid var(--rule)}
+.t th{font-weight:600;color:var(--muted);font-size:12.5px;letter-spacing:.04em;background:var(--lane-h);white-space:nowrap}
+.t tr:last-child td{border-bottom:0}
+.t td.loc{font:12px/1.6 var(--mono);color:var(--ink-2);white-space:nowrap}
+.t td.idx{font:600 12px var(--mono);color:var(--warn);width:36px}
+.pill{display:inline-block;padding:0 8px;border-radius:999px;font-size:12px;line-height:20px;border:1px solid;white-space:nowrap}
+.pill-a{color:var(--portal-s);border-color:var(--portal-s)}
+.pill-b{color:var(--ext-s);border-color:var(--ext-s)}
+.pill-no{color:var(--warn);border-color:var(--warn)}
+.n-wide{width:auto;min-width:20px;padding:0 5px;border-radius:10px;font-size:10px}
+.rules li{grid-template-columns:30px 1fr}
+section.plain{margin-top:48px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <p class="eyebrow">hichat · master @ fe2095d45 · 2026-10-01</p>
+  <h1>HiChat 推广助理分配机制</h1>
+  <p class="lede">用户和访客在什么时候会被分配一个私聊推广助理、按什么规则选人、写了哪些数据，以及助理在线状态、后台配置、日报和清理怎样配合。逻辑主要在 hichat-portal，在线状态由 hichat-im 维护，配置与清理在 hichat-admin，日报在 hichat-crontab。</p>
+</header>
+
+<div class="what">
+  <div><h3>选谁</h3><p>后台给群配置的助理名单 + 助理是否在线 + Redis 轮流计数。两种算法：方式 A（在线轮流 → 离线轮流）和方式 B（本群在线 → 默认群在线 → 默认群随机）。</p></div>
+  <div><h3>写什么</h3><p>一条「用户 → 助理」联系人和置顶会话（方式 A 还会以助理名义发欢迎语），外加一条分配日志 <code>major_promote_group_promoter_assign_log</code>。</p></div>
+  <div><h3>之后</h3><p>分配日志进入推广员日报的在线 / 离线配客数；访客好友和超过 30 天的访客定期清理；用户和助理之间不能互相拉黑或删除。</p></div>
+</div>
+
+<section class="plain" id="entries">
+  <h2>什么时候会分配</h2>
+  <div class="tbl" tabindex="0">
+  <table class="t">
+    <thead><tr><th>场景</th><th>入口</th><th>对象</th><th>选人方式</th><th>防重复</th><th>欢迎语</th></tr></thead>
+    <tbody>
+      <tr><td>登录用户进入重点推广群</td><td><code>POST /group/promote/enter</code></td><td>非访客、非助理</td><td><span class="pill pill-a">方式 A</span> 本群</td><td>同一用户同一群只一次</td><td>有</td></tr>
+      <tr><td>注册 / 登录后</td><td>手机 / 邮箱注册；手机密码 / 短信 / 邮箱登录；Google 登录与直接注册；HICHAT 新设备登录</td><td>非助理</td><td><span class="pill pill-a">方式 A</span> 默认群</td><td>同上，只有第一次生效</td><td>有</td></tr>
+      <tr><td>访客打开推广群链接</td><td><code>GET /promote/group/getByGroupLink</code><br><code>GET /landing/promote/group/getByGroupLink</code></td><td>访客（落地页也可能是登录用户）</td><td><span class="pill pill-b">方式 B</span>；落地页可用 toChatId 指定</td><td><span class="pill pill-no">不防重复</span></td><td>无</td></tr>
+      <tr><td>Banner「默认群助理」素材</td><td>拉取 Banner，素材 url 为 <code>AsstUserName=PROMOTER_DEFAULT_GROUP</code></td><td>所有拉 Banner 的用户</td><td><span class="pill pill-b">方式 B</span> 默认群</td><td><span class="pill pill-no">不防重复</span></td><td>无</td></tr>
+      <tr><td>用户主动添加</td><td><code>POST /promoter/contact</code>（昵称模糊匹配唯一）、<code>/promoter/contact/username</code>、<code>/guest/promoter/contact</code>、<code>/landing/guest/promoter/contact</code></td><td>任何用户</td><td>不选人</td><td>已是联系人直接返回</td><td>无，也不写分配日志</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+
+<div class="legend" aria-label="图例">
+  <span><i class="sw sw-user"></i>用户 / 助理 / 访客</span>
+  <span><i class="sw sw-portal"></i>hichat-portal</span>
+  <span><i class="sw sw-admin"></i>hichat-admin · im · crontab</span>
+  <span><i class="sw sw-store"></i>数据存储</span>
+  <span><svg class="lg-line" viewBox="0 0 34 10" aria-hidden="true"><path d="M1,5 H31" class="eg"/><path d="M26,1.5 L33,5 L26,8.5 z" class="ah"/></svg>调用 / 写入</span>
+  <span><svg class="lg-line" viewBox="0 0 34 10" aria-hidden="true"><path d="M1,5 H31" class="eg rd"/><path d="M26,1.5 L33,5 L26,8.5 z" class="ah"/></svg>读取</span>
+  <span><i class="wdot">!</i>有问题（见「注意」与问题清单）</span>
+</div>
+<nav aria-label="目录">
+<a href="#mode-a">方式 A：在线 → 离线轮流</a>
+<a href="#mode-b">方式 B：逐级回退</a>
+<a href="#online">助理在线状态</a>
+<a href="#ops">后台配置 · 日报 · 清理</a>
+<a href="#issues">问题清单</a>
+</nav>
+
+<section id="mode-a">
+  <h2>方式 A：在线轮流，全员离线再离线轮流</h2>
+  <p class="sum">用于登录用户进入重点推广群，以及注册、登录后分到默认群。同一用户在同一群只分配一次。</p>
+  <figure>
+    <div class="scroll" tabindex="0" aria-label="方式 A：在线轮流，全员离线再离线轮流，可横向滚动">
+<svg viewBox="0 0 1588 524" width="1588" style="max-width:1588px;min-width:min(1588px,1180px)" role="img" aria-label="方式 A 泳道图：登录用户进入重点推广群或注册登录后，portal 先查分配日志去重，再取群配置的助理，在线助理里轮流选人，全员离线时离线轮流，选中后建立联系人、发欢迎语并写分配日志，用户会话列表出现助理。" xmlns="http://www.w3.org/2000/svg">
+<defs><marker id="ah-mode-a" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path class="ah" d="M0,0.8 L10,5 L0,9.2 z"/></marker></defs>
+<rect class="lane-a" x="0" y="0" width="1588" height="104"/>
+<rect class="lane-b" x="0" y="104" width="1588" height="108"/>
+<rect class="lane-a" x="0" y="212" width="1588" height="112"/>
+<rect class="lane-b" x="0" y="324" width="1588" height="112"/>
+<rect class="lane-a" x="0" y="436" width="1588" height="88"/>
+<rect class="lane-h" x="0" y="0" width="116" height="524"/>
+<text class="lnm" x="14" y="50">用户端</text>
+<text class="lsub" x="14" y="66">App · Web</text>
+<line class="lsep" x1="0" y1="104" x2="1588" y2="104"/>
+<text class="lnm" x="14" y="156">hichat-portal</text>
+<text class="lsub" x="14" y="172">分配逻辑</text>
+<line class="lsep" x1="0" y1="212" x2="1588" y2="212"/>
+<text class="lnm" x="14" y="266">Redis</text>
+<text class="lsub" x="14" y="282">缓存 · 计数 · 在线</text>
+<line class="lsep" x1="0" y1="324" x2="1588" y2="324"/>
+<text class="lnm" x="14" y="378">MySQL · Mongo</text>
+<text class="lsub" x="14" y="394">配置 · 联系人 · 日志</text>
+<line class="lsep" x1="0" y1="436" x2="1588" y2="436"/>
+<text class="lnm" x="14" y="478">hichat-admin</text>
+<text class="lsub" x="14" y="494">后台配置</text>
+<line class="lsep" x1="116" y1="0" x2="116" y2="524"/>
+<path class="eg" d="M309.0,44.0 L394.0,44.0 L394.0,127.0" marker-end="url(#ah-mode-a)"/>
+<path class="eg rd" d="M394.0,189.0 L394.0,349.0" marker-end="url(#ah-mode-a)"/>
+<path class="eg" d="M472.0,158.0 L496.0,158.0" marker-end="url(#ah-mode-a)"/>
+<path class="eg rd" d="M574.0,189.0 L574.0,237.0" marker-end="url(#ah-mode-a)"/>
+<path class="eg rd" d="M574.0,299.0 L574.0,349.0" marker-end="url(#ah-mode-a)"/>
+<path class="eg" d="M574.0,456.5 L574.0,411.0" marker-end="url(#ah-mode-a)"/>
+<path class="eg" d="M652.0,158.0 L676.0,158.0" marker-end="url(#ah-mode-a)"/>
+<path class="eg rd" d="M754.0,189.0 L754.0,237.0" marker-end="url(#ah-mode-a)"/>
+<path class="eg" d="M832.0,158.0 L856.0,158.0" marker-end="url(#ah-mode-a)"/>
+<path class="eg" d="M950.0,189.0 L950.0,237.0" marker-end="url(#ah-mode-a)"/>
+<path class="eg" d="M784.0,127.0 L784.0,92.0 L1084.0,92.0 L1084.0,127.0" marker-end="url(#ah-mode-a)"/>
+<path class="eg" d="M1024.0,158.0 L1036.0,158.0" marker-end="url(#ah-mode-a)"/>
+<path class="eg" d="M1122.0,189.0 L1122.0,341.5" marker-end="url(#ah-mode-a)"/>
+<path class="eg" d="M1192.0,158.0 L1216.0,158.0" marker-end="url(#ah-mode-a)"/>
+<path class="eg" d="M1302.0,189.0 L1302.0,356.5" marker-end="url(#ah-mode-a)"/>
+<path class="eg" d="M1372.0,158.0 L1474.0,158.0 L1474.0,67.5" marker-end="url(#ah-mode-a)"/>
+<g class="nd nd-user">
+<rect class="bx" x="135" y="13" width="174" height="62" rx="7"/>
+<circle class="bd" cx="151" cy="30" r="8.5"/><text class="bdt" x="151" y="33.6" text-anchor="middle">1</text>
+<text class="tt" x="165" y="34.5">进群 / 注册 / 登录</text>
+<text class="ln m" x="145" y="49.5">POST /group/promote/enter</text>
+<text class="ln" x="145" y="64.5">注册、登录成功后（默认群）</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="316" y="127" width="156" height="62" rx="7"/>
+<circle class="bd" cx="332" cy="144" r="8.5"/><text class="bdt" x="332" y="147.6" text-anchor="middle">2</text>
+<text class="tt" x="346" y="148.5">查分配日志</text>
+<text class="ln" x="326" y="163.5">同一用户 + 同一群</text>
+<text class="ln" x="326" y="178.5">已有记录 → 跳过</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="316" y="349" width="156" height="62" rx="7"/>
+<text class="tag" x="463" y="364" text-anchor="end">MYSQL</text>
+<text class="tt" x="326" y="370.5">分配日志</text>
+<text class="ln m" x="326" y="385.5">major_promote_group_</text>
+<text class="ln m" x="326" y="400.5">promoter_assign_log</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="496" y="127" width="156" height="62" rx="7"/>
+<circle class="bd" cx="512" cy="144" r="8.5"/><text class="bdt" x="512" y="147.6" text-anchor="middle">3</text>
+<text class="tt" x="526" y="148.5">取候选助理</text>
+<text class="ln" x="506" y="163.5">群里配置的助理</text>
+<text class="ln" x="506" y="178.5">去重 · 按 id 升序</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="496" y="237" width="156" height="62" rx="7"/>
+<text class="tag" x="643" y="252" text-anchor="end">REDIS</text>
+<text class="tt" x="506" y="258.5">群助理缓存</text>
+<text class="ln" x="506" y="273.5">群 → 助理名单</text>
+<text class="ln" x="506" y="288.5">3 小时 · 后台保存时清</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="496" y="349" width="156" height="62" rx="7"/>
+<text class="tag" x="643" y="364" text-anchor="end">MYSQL</text>
+<text class="tt" x="506" y="370.5">群助理配置</text>
+<text class="ln m" x="506" y="385.5">major_promote_group_</text>
+<text class="ln m" x="506" y="400.5">promoter_config</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="496" y="456.5" width="156" height="47" rx="7"/>
+<text class="tt" x="506" y="478">配置群助理</text>
+<text class="ln" x="506" y="493">整组覆盖 · 清缓存</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="676" y="127" width="156" height="62" rx="7"/>
+<circle class="bd" cx="692" cy="144" r="8.5"/><text class="bdt" x="692" y="147.6" text-anchor="middle">4</text>
+<text class="tt" x="706" y="148.5">在线轮流</text>
+<text class="ln" x="686" y="163.5">在线助理里 INCR 取余</text>
+<text class="ln" x="686" y="178.5">复核在线，最多 3 次</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="669" y="237" width="186" height="62" rx="7"/>
+<text class="tag" x="846" y="252" text-anchor="end">REDIS</text>
+<text class="tt" x="679" y="258.5">在线 Hash</text>
+<text class="ln m" x="679" y="273.5">hichat:promoter:online:hash</text>
+<text class="ln" x="679" y="288.5">助理 id → 最后活跃时间</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="856" y="127" width="168" height="62" rx="7"/>
+<circle class="bd" cx="872" cy="144" r="8.5"/><text class="bdt" x="872" y="147.6" text-anchor="middle">5</text>
+<text class="tt" x="886" y="148.5">全员离线 → 离线轮流</text>
+<text class="ln" x="866" y="163.5">全部候选里 INCR 取余</text>
+<text class="ln" x="866" y="178.5">状态反复变 → 本次不分配</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="870" y="237" width="160" height="62" rx="7"/>
+<text class="tag" x="1021" y="252" text-anchor="end">REDIS</text>
+<text class="tt" x="880" y="258.5">轮流计数</text>
+<text class="ln m" x="880" y="273.5">online-turn:{groupId}</text>
+<text class="ln m" x="880" y="288.5">offline-turn:{groupId}</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="1036" y="127" width="156" height="62" rx="7"/>
+<circle class="bd" cx="1052" cy="144" r="8.5"/><text class="bdt" x="1052" y="147.6" text-anchor="middle">6</text>
+<text class="tt" x="1066" y="148.5">建联 + 欢迎语</text>
+<text class="ln" x="1046" y="163.5">需有 promoter_config</text>
+<text class="ln" x="1046" y="178.5">按用户语言取欢迎语</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="1033" y="341.5" width="178" height="77" rx="7"/>
+<text class="tt" x="1043" y="363">联系人 · 消息 · 会话</text>
+<text class="ln m" x="1043" y="378">ums_member_contact</text>
+<text class="ln m" x="1043" y="393">ums_chat_history（欢迎语）</text>
+<text class="ln" x="1043" y="408">Mongo RecentChat · 未读</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="1216" y="127" width="156" height="62" rx="7"/>
+<circle class="bd" cx="1232" cy="144" r="8.5"/><text class="bdt" x="1232" y="147.6" text-anchor="middle">7</text>
+<text class="tt" x="1246" y="148.5">写分配日志</text>
+<text class="ln" x="1226" y="163.5">is_guest = 是否访客</text>
+<text class="ln" x="1226" y="178.5">在线 = 在线轮流选中</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="1224" y="356.5" width="156" height="47" rx="7"/>
+<text class="tag" x="1371" y="371.5" text-anchor="end">MYSQL</text>
+<text class="tt" x="1234" y="378">分配日志</text>
+<text class="ln" x="1234" y="393">同第 2 步的表</text>
+</g>
+<g class="nd nd-user">
+<rect class="bx" x="1396" y="20.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="1412" cy="37.5" r="8.5"/><text class="bdt" x="1412" y="41.1" text-anchor="middle">8</text>
+<text class="tt" x="1426" y="42">会话列表出现助理</text>
+<text class="ln" x="1406" y="57">置顶 · 未读 · 欢迎语</text>
+</g>
+<rect class="ec" x="336.0" y="28.0" width="31.0" height="16" rx="3"/><text class="el" x="341.0" y="39.8">触发</text>
+<rect class="ec" x="400.0" y="229.0" width="31.0" height="16" rx="3"/><text class="el" x="405.0" y="240.8">查询</text>
+<rect class="ec" x="463.3" y="142.0" width="41.5" height="16" rx="3"/><text class="el" x="468.3" y="153.8">无记录</text>
+<rect class="ec" x="580.0" y="205.0" width="41.5" height="16" rx="3"/><text class="el" x="585.0" y="216.8">读缓存</text>
+<rect class="ec" x="580.0" y="316.0" width="62.5" height="16" rx="3"/><text class="el" x="585.0" y="327.8">未命中查库</text>
+<rect class="ec" x="580.0" y="425.8" width="52.0" height="16" rx="3"/><text class="el" x="585.0" y="437.6">先删后插</text>
+<rect class="ec" x="760.0" y="205.0" width="41.5" height="16" rx="3"/><text class="el" x="765.0" y="216.8">读在线</text>
+<rect class="ec" x="818.0" y="142.0" width="52.0" height="16" rx="3"/><text class="el" x="823.0" y="153.8">无人在线</text>
+<rect class="ec" x="956.0" y="205.0" width="37.7" height="16" rx="3"/><text class="el" x="961.0" y="216.8">INCR</text>
+<rect class="ec" x="897.5" y="76.0" width="73.0" height="16" rx="3"/><text class="el" x="902.5" y="87.8">选中在线助理</text>
+<rect class="ec" x="1014.5" y="142.0" width="31.0" height="16" rx="3"/><text class="el" x="1019.5" y="153.8">选中</text>
+<rect class="ec" x="1128.0" y="257.3" width="51.6" height="16" rx="3"/><text class="el" x="1133.0" y="269.1">INSERT</text>
+<rect class="ec" x="1308.0" y="264.8" width="51.6" height="16" rx="3"/><text class="el" x="1313.0" y="276.6">INSERT</text>
+<rect class="ec" x="1388.5" y="142.0" width="69.0" height="16" rx="3"/><text class="el" x="1393.5" y="153.8">MQ 通知刷新</text>
+</svg>
+    </div>
+    <figcaption>第 4 步选中在线助理时直接跳到第 6 步；第 5 步只在全员离线时执行。代码：PromoterAssignmentRoundRobinService.selectPromoter、PromoterServiceImpl.assignGroupOnlinePromoterToMember。</figcaption>
+  </figure>
+  <div class="rules">
+    <div>
+      <h3>步骤说明</h3>
+      <ul><li><span class="n">1</span><span>触发点：<code>POST /group/promote/enter</code>（只处理非访客、非助理）；手机 / 邮箱注册、手机密码 / 短信 / 邮箱登录、Google 登录与直接注册、HICHAT 新设备登录（这些分到平台默认群）。</span></li>
+<li><span class="n">2</span><span>查 <code>major_promote_group_promoter_assign_log</code>：同一用户在同一群已有记录就跳过。所以登录虽然每次都触发，实际只有第一次生效。</span></li>
+<li><span class="n">3</span><span>候选 = 该群在 <code>major_promote_group_promoter_config</code> 配置的助理，按会员 id 去重、升序；名单缓存 <code>hichat:major:promote:group:promoter:config:list:{groupId}</code>，3 小时。</span></li>
+<li><span class="n">4</span><span>在线助理里轮流：<code>INCR hichat:promoter:group:assignment:online-turn:{groupId}</code>，选第 (计数 − 1) mod 在线人数 个；选中后再确认一次在线，不在线重选，最多 3 次。</span></li>
+<li><span class="n">5</span><span>一个在线的都没有：用 <code>offline-turn:{groupId}</code> 在全部候选里轮流。3 次都没选成而仍有人在线时，本次不分配（没写日志，下次进群再试）。</span></li>
+<li><span class="n">6</span><span>助理必须有 <code>promoter_config</code>，否则失败且不写日志。写联系人（用户 → 助理）；按用户语言取多语言欢迎语，以助理名义写入 <code>ums_chat_history</code>；Mongo 会话标记为助理、未读。</span></li>
+<li><span class="n">7</span><span>日志：<code>is_guest</code> 为用户是否访客，<code>is_promoter_online</code> 为是否在线轮流选中。</span></li></ul>
+    </div>
+    
+  </div>
+</section>
+<section id="mode-b">
+  <h2>方式 B：本群在线 → 默认群在线 → 默认群随机</h2>
+  <p class="sum">用于访客打开推广群链接，以及 Banner 的「默认群助理」素材。不防重复，也不发欢迎语。</p>
+  <figure>
+    <div class="scroll" tabindex="0" aria-label="方式 B：本群在线 → 默认群在线 → 默认群随机，可横向滚动">
+<svg viewBox="0 0 1588 436" width="1588" style="max-width:1588px;min-width:min(1588px,1180px)" role="img" aria-label="方式 B 泳道图：访客打开推广群链接或拉取 Banner，portal 记录进群后做前置判断，依次尝试本群在线轮流、默认群在线轮流、默认群随机，选中后建立联系人但不发欢迎语，并且每次都写分配日志。" xmlns="http://www.w3.org/2000/svg">
+<defs><marker id="ah-mode-b" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path class="ah" d="M0,0.8 L10,5 L0,9.2 z"/></marker></defs>
+<rect class="lane-a" x="0" y="0" width="1588" height="112"/>
+<rect class="lane-b" x="0" y="112" width="1588" height="108"/>
+<rect class="lane-a" x="0" y="220" width="1588" height="104"/>
+<rect class="lane-b" x="0" y="324" width="1588" height="112"/>
+<rect class="lane-h" x="0" y="0" width="116" height="436"/>
+<text class="lnm" x="14" y="54">访客 / 用户端</text>
+<text class="lsub" x="14" y="70">推广页 · App</text>
+<line class="lsep" x1="0" y1="112" x2="1588" y2="112"/>
+<text class="lnm" x="14" y="164">hichat-portal</text>
+<text class="lsub" x="14" y="180">分配逻辑</text>
+<line class="lsep" x1="0" y1="220" x2="1588" y2="220"/>
+<text class="lnm" x="14" y="270">Redis</text>
+<text class="lsub" x="14" y="286">默认群 · 在线 · 计数</text>
+<line class="lsep" x1="0" y1="324" x2="1588" y2="324"/>
+<text class="lnm" x="14" y="378">MySQL · Mongo</text>
+<text class="lsub" x="14" y="394">进群 · 联系人 · 日志</text>
+<line class="lsep" x1="116" y1="0" x2="116" y2="436"/>
+<path class="eg" d="M292.0,46.0 L394.0,46.0 L394.0,135.0" marker-end="url(#ah-mode-b)"/>
+<path class="eg" d="M394.0,197.0 L394.0,349.0" marker-end="url(#ah-mode-b)"/>
+<path class="eg" d="M472.0,166.0 L490.0,166.0" marker-end="url(#ah-mode-b)"/>
+<path class="eg rd" d="M578.0,197.0 L578.0,241.0" marker-end="url(#ah-mode-b)"/>
+<path class="eg" d="M666.0,166.0 L684.0,166.0" marker-end="url(#ah-mode-b)"/>
+<path class="eg" d="M840.0,166.0 L864.0,166.0" marker-end="url(#ah-mode-b)"/>
+<path class="eg" d="M1020.0,166.0 L1044.0,166.0" marker-end="url(#ah-mode-b)"/>
+<path class="eg rd" d="M754.0,189.5 L754.0,241.0" marker-end="url(#ah-mode-b)"/>
+<path class="eg rd" d="M934.0,189.5 L934.0,241.0" marker-end="url(#ah-mode-b)"/>
+<path class="eg" d="M894.0,73.0 L894.0,142.5" marker-end="url(#ah-mode-b)"/>
+<path class="eg" d="M628.0,135.0 L628.0,100.0 L1262.0,100.0 L1262.0,135.0" marker-end="url(#ah-mode-b)"/>
+<path class="eg" d="M802.0,142.5 L802.0,100.0 L1262.0,100.0 L1262.0,135.0" marker-end="url(#ah-mode-b)"/>
+<path class="eg" d="M982.0,142.5 L982.0,100.0 L1262.0,100.0 L1262.0,135.0" marker-end="url(#ah-mode-b)"/>
+<path class="eg" d="M1200.0,166.0 L1224.0,166.0" marker-end="url(#ah-mode-b)"/>
+<path class="eg" d="M1312.0,197.0 L1312.0,341.5" marker-end="url(#ah-mode-b)"/>
+<path class="eg" d="M1380.0,166.0 L1474.0,166.0 L1474.0,69.5" marker-end="url(#ah-mode-b)"/>
+<g class="nd nd-user">
+<rect class="bx" x="136" y="22.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="152" cy="39.5" r="8.5"/><text class="bdt" x="152" y="43.1" text-anchor="middle">1</text>
+<text class="tt" x="166" y="44">打开推广群链接</text>
+<text class="ln" x="146" y="59">SLINK / 落地页</text>
+</g>
+<g class="nd nd-user">
+<rect class="bx" x="851" y="11" width="166" height="62" rx="7"/>
+<text class="tt" x="861" y="32.5">拉取 Banner</text>
+<text class="ln" x="861" y="47.5">素材 AsstUserName=</text>
+<text class="ln m" x="861" y="62.5">PROMOTER_DEFAULT_GROUP</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="316" y="135" width="156" height="62" rx="7"/>
+<circle class="bd" cx="332" cy="152" r="8.5"/><text class="bdt" x="332" y="155.6" text-anchor="middle">2</text>
+<text class="tt" x="346" y="156.5">记录进群</text>
+<text class="ln" x="326" y="171.5">访客这一步不分配</text>
+<text class="ln" x="326" y="186.5">30 秒内重复不记</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="309" y="349" width="170" height="62" rx="7"/>
+<text class="tag" x="470" y="364" text-anchor="end">MYSQL</text>
+<text class="tt" x="319" y="370.5">进群记录</text>
+<text class="ln m" x="319" y="385.5">major_promote_group_entry</text>
+<text class="ln" x="319" y="400.5">7 天后清理</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="490" y="135" width="176" height="62" rx="7"/>
+<circle class="bd" cx="506" cy="152" r="8.5"/><text class="bdt" x="506" y="155.6" text-anchor="middle">3</text>
+<text class="tt" x="520" y="156.5">前置判断</text>
+<text class="ln" x="500" y="171.5">落地页 toChatId → 指定助理</text>
+<text class="ln" x="500" y="186.5">进的是默认群 → 不分配</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="490" y="241" width="176" height="62" rx="7"/>
+<text class="tt" x="500" y="262.5">默认群 id 缓存</text>
+<text class="ln m" x="500" y="277.5">promoter:default:group:id</text>
+<text class="ln" x="500" y="292.5">3 小时 · 后台改了不清</text>
+<circle class="wb" cx="665" cy="242" r="8"/><text class="wbt" x="665" y="246" text-anchor="middle">!</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="684" y="142.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="700" cy="159.5" r="8.5"/><text class="bdt" x="700" y="163.1" text-anchor="middle">4</text>
+<text class="tt" x="714" y="164">① 本群在线轮流</text>
+<text class="ln" x="694" y="179">本群在线助理 INCR 取余</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="864" y="142.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="880" cy="159.5" r="8.5"/><text class="bdt" x="880" y="163.1" text-anchor="middle">5</text>
+<text class="tt" x="894" y="164">② 默认群在线轮流</text>
+<text class="ln" x="874" y="179">本群无人在线时</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="676" y="241" width="336" height="62" rx="7"/>
+<text class="tag" x="1003" y="256" text-anchor="end">REDIS</text>
+<text class="tt" x="686" y="262.5">在线 Hash · 轮流计数</text>
+<text class="ln m" x="686" y="277.5">hichat:promoter:online:hash</text>
+<text class="ln m" x="686" y="292.5">hichat:promoter:group:assignment:online-turn:{群}</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="1044" y="142.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="1060" cy="159.5" r="8.5"/><text class="bdt" x="1060" y="163.1" text-anchor="middle">6</text>
+<text class="tt" x="1074" y="164">③ 默认群随机</text>
+<text class="ln" x="1054" y="179">不看是否在线</text>
+<circle class="wb" cx="1199" cy="143.5" r="8"/><text class="wbt" x="1199" y="147.5" text-anchor="middle">!</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="1224" y="135" width="156" height="62" rx="7"/>
+<circle class="bd" cx="1240" cy="152" r="8.5"/><text class="bdt" x="1240" y="155.6" text-anchor="middle">7</text>
+<text class="tt" x="1254" y="156.5">建联（无欢迎语）</text>
+<text class="ln" x="1234" y="171.5">已是联系人则跳过</text>
+<text class="ln" x="1234" y="186.5">每次都写分配日志</text>
+<circle class="wb" cx="1379" cy="136" r="8"/><text class="wbt" x="1379" y="140" text-anchor="middle">!</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="1209" y="341.5" width="190" height="77" rx="7"/>
+<text class="tt" x="1219" y="363">联系人 · 日志 · 会话</text>
+<text class="ln m" x="1219" y="378">ums_member_contact</text>
+<text class="ln m" x="1219" y="393">assign_log（is_guest=true）</text>
+<text class="ln" x="1219" y="408">Mongo RecentChat</text>
+</g>
+<g class="nd nd-user">
+<rect class="bx" x="1396" y="22.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="1412" cy="39.5" r="8.5"/><text class="bdt" x="1412" y="43.1" text-anchor="middle">8</text>
+<text class="tt" x="1426" y="44">看到助理</text>
+<text class="ln" x="1406" y="59">助理信息返回页面</text>
+</g>
+<rect class="ec" x="327.5" y="30.0" width="31.0" height="16" rx="3"/><text class="el" x="332.5" y="41.8">打开</text>
+<rect class="ec" x="400.0" y="234.6" width="51.6" height="16" rx="3"/><text class="el" x="405.0" y="246.4">INSERT</text>
+<rect class="ec" x="584.0" y="211.0" width="52.0" height="16" rx="3"/><text class="el" x="589.0" y="222.8">读默认群</text>
+<rect class="ec" x="659.5" y="150.0" width="31.0" height="16" rx="3"/><text class="el" x="664.5" y="161.8">继续</text>
+<rect class="ec" x="826.0" y="150.0" width="52.0" height="16" rx="3"/><text class="el" x="831.0" y="161.8">无人在线</text>
+<rect class="ec" x="1006.0" y="150.0" width="52.0" height="16" rx="3"/><text class="el" x="1011.0" y="161.8">无人在线</text>
+<rect class="ec" x="760.0" y="207.3" width="41.5" height="16" rx="3"/><text class="el" x="765.0" y="219.1">读在线</text>
+<rect class="ec" x="940.0" y="207.3" width="41.5" height="16" rx="3"/><text class="el" x="945.0" y="219.1">读在线</text>
+<rect class="ec" x="900.0" y="82.4" width="73.0" height="16" rx="3"/><text class="el" x="905.0" y="94.2">以默认群进入</text>
+<rect class="ec" x="634.0" y="107.8" width="52.0" height="16" rx="3"/><text class="el" x="639.0" y="119.5">指定助理</text>
+<rect class="ec" x="1140.1" y="84.0" width="31.0" height="16" rx="3"/><text class="el" x="1145.1" y="95.8">选中</text>
+<rect class="ec" x="1196.5" y="150.0" width="31.0" height="16" rx="3"/><text class="el" x="1201.5" y="161.8">选中</text>
+<rect class="ec" x="1318.0" y="261.3" width="51.6" height="16" rx="3"/><text class="el" x="1323.0" y="273.1">INSERT</text>
+<rect class="ec" x="1480.0" y="109.8" width="52.0" height="16" rx="3"/><text class="el" x="1485.0" y="121.5">返回助理</text>
+</svg>
+    </div>
+    <figcaption>第 3、4、5 步选中后都直接进入第 7 步；Banner 以默认群为本群进入，第 4、5 步效果相同。代码：PromoterServiceImpl.getCandidatePromoter、assignPromoterToMember。</figcaption>
+  </figure>
+  <div class="rules">
+    <div>
+      <h3>步骤说明</h3>
+      <ul><li><span class="n">1</span><span>入口：<code>GET /promote/group/getByGroupLink</code>（SLINK，用 X-HC-UID 取访客）、<code>GET /landing/promote/group/getByGroupLink</code>（落地页，用当前登录态，可带 <code>toChatId</code>）；只处理重点推广群。</span></li>
+<li><span class="n">2</span><span>先调用 <code>enterPromoteGroup</code> 写进群记录；访客在这一步不分配，登录用户会在这里先按方式 A 分配一次。</span></li>
+<li><span class="n">3</span><span>落地页带 <code>toChatId=u{助理id}</code> 时直接用该助理（只要他在任意群有配置）；进入的就是默认群时不分配（Banner 不做这项判断）。</span></li>
+<li><span class="n n-wide">4–6</span><span>依次：本群在线轮流 → 默认群在线轮流 → 默认群随机一个（不看在线）。和方式 A 共用在线轮流计数；没有离线轮流。</span></li>
+<li><span class="n">7</span><span>已是联系人就不再建；否则写联系人和会话，不发欢迎语。每次请求都会写一条分配日志，<code>is_guest</code> 固定为 true，<code>is_promoter_online</code> 为当时真实在线状态。</span></li>
+<li><span class="n n-dash"></span><span>Banner：素材 url 为 <code>AsstUserName=PROMOTER_DEFAULT_GROUP</code> 时，服务端选人并建联，再把 url 换成 <code>AsstUserName={助理 username}</code> 返回。</span></li></ul>
+    </div>
+    <div><h3 class="wh">注意</h3><ul class="warns"><li><span class="n n-warn">!</span><span>同一访客每打开一次链接就重新选一次人，可能被加上多个助理；Banner 每拉取一次也会推进轮流计数。</span></li>
+<li><span class="n n-warn">!</span><span>落地页的登录用户会先按方式 A、再按方式 B 各分配一次，可能拿到两个不同的助理。</span></li>
+<li><span class="n n-warn">!</span><span>默认群兜底是随机且不看在线，访客容易分到离线助理。</span></li></ul></div>
+  </div>
+</section>
+<section id="online">
+  <h2>助理在线状态</h2>
+  <p class="sum">「在线」只看 Redis 的在线 Hash：助理连着 WebSocket 且 2 分钟内有活动。</p>
+  <figure>
+    <div class="scroll" tabindex="0" aria-label="助理在线状态，可横向滚动">
+<svg viewBox="0 0 1588 542" width="1588" style="max-width:1588px;min-width:min(1588px,1180px)" role="img" aria-label="助理在线状态泳道图：助理连上 WebSocket 后 hichat-im 写入在线 Hash，断开最后一个连接时移除；主动登出时 portal 移除在线并设 5 分钟离线锁；admin 每分钟移除 2 分钟无活动的助理；分配逻辑和会话列表读取在线 Hash。" xmlns="http://www.w3.org/2000/svg">
+<defs><marker id="ah-online" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path class="ah" d="M0,0.8 L10,5 L0,9.2 z"/></marker></defs>
+<rect class="lane-a" x="0" y="0" width="1588" height="88"/>
+<rect class="lane-b" x="0" y="88" width="1588" height="108"/>
+<rect class="lane-a" x="0" y="196" width="1588" height="100"/>
+<rect class="lane-b" x="0" y="296" width="1588" height="150"/>
+<rect class="lane-a" x="0" y="446" width="1588" height="96"/>
+<rect class="lane-h" x="0" y="0" width="116" height="542"/>
+<text class="lnm" x="14" y="42">推广助理</text>
+<text class="lsub" x="14" y="58">App · Web</text>
+<line class="lsep" x1="0" y1="88" x2="1588" y2="88"/>
+<text class="lnm" x="14" y="140">hichat-im</text>
+<text class="lsub" x="14" y="156">WebSocket</text>
+<line class="lsep" x1="0" y1="196" x2="1588" y2="196"/>
+<text class="lnm" x="14" y="244">hichat-portal</text>
+<text class="lsub" x="14" y="260">登出 · 分配</text>
+<line class="lsep" x1="0" y1="296" x2="1588" y2="296"/>
+<text class="lnm" x="14" y="369">Redis</text>
+<text class="lsub" x="14" y="385">在线 · 离线锁</text>
+<line class="lsep" x1="0" y1="446" x2="1588" y2="446"/>
+<text class="lnm" x="14" y="492">hichat-admin</text>
+<text class="lsub" x="14" y="508">每分钟任务</text>
+<line class="lsep" x1="116" y1="0" x2="116" y2="542"/>
+<path class="eg" d="M292.0,44.0 L394.0,44.0 L394.0,111.0" marker-end="url(#ah-online)"/>
+<path class="eg" d="M394.0,173.0 L394.0,379.5" marker-end="url(#ah-online)"/>
+<path class="eg" d="M472.0,142.0 L496.0,142.0" marker-end="url(#ah-online)"/>
+<path class="eg rd" d="M754.0,277.0 L754.0,379.5" marker-end="url(#ah-online)"/>
+<path class="eg" d="M832.0,44.0 L934.0,44.0 L934.0,111.0" marker-end="url(#ah-online)"/>
+<path class="eg" d="M934.0,173.0 L934.0,379.5" marker-end="url(#ah-online)"/>
+<path class="eg" d="M1192.0,44.0 L1294.0,44.0 L1294.0,215.0" marker-end="url(#ah-online)"/>
+<path class="eg" d="M1244.0,277.0 L1244.0,379.5" marker-end="url(#ah-online)"/>
+<path class="eg" d="M1348.0,277.0 L1348.0,309.5" marker-end="url(#ah-online)"/>
+<path class="eg" d="M1474.0,463.0 L1474.0,426.5" marker-end="url(#ah-online)"/>
+<g class="nd nd-user">
+<rect class="bx" x="136" y="20.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="152" cy="37.5" r="8.5"/><text class="bdt" x="152" y="41.1" text-anchor="middle">1</text>
+<text class="tt" x="166" y="42">连上 WebSocket</text>
+<text class="ln" x="146" y="57">鉴权 · 心跳 · 发消息</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="316" y="111" width="156" height="62" rx="7"/>
+<circle class="bd" cx="332" cy="128" r="8.5"/><text class="bdt" x="332" y="131.6" text-anchor="middle">2</text>
+<text class="tt" x="346" y="132.5">刷新在线</text>
+<text class="ln" x="326" y="147.5">有离线锁 → 忽略</text>
+<text class="ln" x="326" y="162.5">写会话 Hash（2 分钟）</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="496" y="118.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="512" cy="135.5" r="8.5"/><text class="bdt" x="512" y="139.1" text-anchor="middle">3</text>
+<text class="tt" x="526" y="140">首次上线</text>
+<text class="ln" x="506" y="155">MQ 通知会话列表</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="676" y="215" width="156" height="62" rx="7"/>
+<text class="tt" x="686" y="236.5">读取在线状态</text>
+<text class="ln" x="686" y="251.5">分配选人</text>
+<text class="ln" x="686" y="266.5">会话列表显示在线</text>
+</g>
+<g class="nd nd-user">
+<rect class="bx" x="676" y="28" width="156" height="32" rx="7"/>
+<circle class="bd" cx="692" cy="45" r="8.5"/><text class="bdt" x="692" y="48.6" text-anchor="middle">4</text>
+<text class="tt" x="706" y="49.5">断开 / 掉线</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="851" y="111" width="166" height="62" rx="7"/>
+<circle class="bd" cx="867" cy="128" r="8.5"/><text class="bdt" x="867" y="131.6" text-anchor="middle">5</text>
+<text class="tt" x="881" y="132.5">移除该连接</text>
+<text class="ln" x="861" y="147.5">清掉 2 分钟无活动的连接</text>
+<text class="ln" x="861" y="162.5">全部断开 → 移出在线</text>
+</g>
+<g class="nd nd-user">
+<rect class="bx" x="1036" y="28" width="156" height="32" rx="7"/>
+<circle class="bd" cx="1052" cy="45" r="8.5"/><text class="bdt" x="1052" y="48.6" text-anchor="middle">6</text>
+<text class="tt" x="1066" y="49.5">主动登出</text>
+</g>
+<g class="nd nd-portal">
+<rect class="bx" x="1216" y="215" width="156" height="62" rx="7"/>
+<circle class="bd" cx="1232" cy="232" r="8.5"/><text class="bdt" x="1232" y="235.6" text-anchor="middle">7</text>
+<text class="tt" x="1246" y="236.5">登出处理</text>
+<text class="ln" x="1226" y="251.5">移出在线 · 设离线锁</text>
+<text class="ln" x="1226" y="266.5">记录最后登出时间</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="1258" y="309.5" width="180" height="47" rx="7"/>
+<text class="tag" x="1429" y="324.5" text-anchor="end">REDIS</text>
+<text class="tt" x="1268" y="331">离线锁</text>
+<text class="ln m" x="1268" y="346">promoter:offline:lock:{id}</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="316" y="379.5" width="1236" height="47" rx="7"/>
+<text class="tag" x="1543" y="394.5" text-anchor="end">REDIS</text>
+<text class="tt m" x="326" y="401">hichat:promoter:online:hash</text>
+<text class="ln" x="326" y="416">字段 = 助理 id，值 = 最后活跃时间（毫秒）；分配与会话列表都以这里为准</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="1396" y="463" width="156" height="62" rx="7"/>
+<circle class="bd" cx="1412" cy="480" r="8.5"/><text class="bdt" x="1412" y="483.6" text-anchor="middle">8</text>
+<text class="tt" x="1426" y="484.5">每分钟清理</text>
+<text class="ln" x="1406" y="499.5">2 分钟无活动 → 移出</text>
+<text class="ln" x="1406" y="514.5">MQ 通知会话列表</text>
+</g>
+<rect class="ec" x="331.1" y="28.0" width="23.9" height="16" rx="3"/><text class="el" x="336.1" y="39.8">WS</text>
+<rect class="ec" x="400.0" y="247.6" width="82.9" height="16" rx="3"/><text class="el" x="405.0" y="259.4">HSET 活跃时间</text>
+<rect class="ec" x="468.5" y="126.0" width="31.0" height="16" rx="3"/><text class="el" x="473.5" y="137.8">首次</text>
+<rect class="ec" x="760.0" y="320.3" width="31.0" height="16" rx="3"/><text class="el" x="765.0" y="332.1">读取</text>
+<rect class="ec" x="867.5" y="28.0" width="31.0" height="16" rx="3"/><text class="el" x="872.5" y="39.8">断开</text>
+<rect class="ec" x="940.0" y="247.6" width="37.7" height="16" rx="3"/><text class="el" x="945.0" y="259.4">HDEL</text>
+<rect class="ec" x="1300.0" y="121.5" width="52.0" height="16" rx="3"/><text class="el" x="1305.0" y="133.3">登出接口</text>
+<rect class="ec" x="1250.0" y="340.8" width="37.7" height="16" rx="3"/><text class="el" x="1255.0" y="352.6">HDEL</text>
+<rect class="ec" x="1354.0" y="285.3" width="64.1" height="16" rx="3"/><text class="el" x="1359.0" y="297.1">SET 5 分钟</text>
+<rect class="ec" x="1480.0" y="436.8" width="61.9" height="16" rx="3"/><text class="el" x="1485.0" y="448.6">HDEL 超时</text>
+</svg>
+    </div>
+    <figcaption>写入方是 hichat-im，移除方有三个：断开最后一个连接、主动登出、admin 每分钟清理。</figcaption>
+  </figure>
+  <div class="rules">
+    <div>
+      <h3>步骤说明</h3>
+      <ul><li><span class="n">2</span><span>WS 鉴权（CLI_AUTH）、心跳、收到消息、SYS_ONLINE 时刷新：先看离线锁，有锁就忽略；记录连接到会话 Hash（2 分钟过期），并把当前时间写入在线 Hash。</span></li>
+<li><span class="n">3</span><span>从不在线变为在线时，通过 MQ 通知刷新用户的会话列表，用户看到助理上线。</span></li>
+<li><span class="n">5</span><span>连接断开：移除该连接，并清掉 2 分钟无活动的连接；一个连接都不剩时移出在线 Hash 并通知会话列表。</span></li>
+<li><span class="n">7</span><span>主动登出：移出在线 Hash，设离线锁 <code>hichat:promoter:offline:lock:{id}</code> 5 分钟（期间心跳不会重新上线），记录 <code>last_logout_time</code>。</span></li>
+<li><span class="n">8</span><span>admin 每分钟检查在线 Hash，最后活跃超过 2 分钟的移出并通知会话列表。</span></li></ul>
+    </div>
+    
+  </div>
+</section>
+<section id="ops">
+  <h2>后台配置、推广员日报与清理</h2>
+  <p class="sum">配置决定候选名单和欢迎语；分配日志进入推广员日报；访客好友和访客账号定期清理。</p>
+  <figure>
+    <div class="scroll" tabindex="0" aria-label="后台配置、推广员日报与清理，可横向滚动">
+<svg viewBox="0 0 1408 408" width="1408" style="max-width:1408px;min-width:min(1408px,1180px)" role="img" aria-label="后台配置与后续处理泳道图：admin 配置群助理、默认群和欢迎语；crontab 每天 04:00 读取分配日志生成推广员日报；admin 每天 05:32 清理离线助理的访客好友，03:00 清理超过 30 天的访客。" xmlns="http://www.w3.org/2000/svg">
+<defs><marker id="ah-ops" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path class="ah" d="M0,0.8 L10,5 L0,9.2 z"/></marker></defs>
+<rect class="lane-a" x="0" y="0" width="1408" height="108"/>
+<rect class="lane-b" x="0" y="108" width="1408" height="96"/>
+<rect class="lane-a" x="0" y="204" width="1408" height="108"/>
+<rect class="lane-b" x="0" y="312" width="1408" height="96"/>
+<rect class="lane-h" x="0" y="0" width="116" height="408"/>
+<text class="lnm" x="14" y="52">hichat-admin</text>
+<text class="lsub" x="14" y="68">后台 · 定时任务</text>
+<line class="lsep" x1="0" y1="108" x2="1408" y2="108"/>
+<text class="lnm" x="14" y="154">Redis</text>
+<text class="lsub" x="14" y="170">缓存 · 在线</text>
+<line class="lsep" x1="0" y1="204" x2="1408" y2="204"/>
+<text class="lnm" x="14" y="256">MySQL · Mongo</text>
+<text class="lsub" x="14" y="272">配置 · 日志 · 联系人</text>
+<line class="lsep" x1="0" y1="312" x2="1408" y2="312"/>
+<text class="lnm" x="14" y="358">hichat-crontab</text>
+<text class="lsub" x="14" y="374">每天 04:00</text>
+<line class="lsep" x1="116" y1="0" x2="116" y2="408"/>
+<path class="eg" d="M186.0,85.0 L186.0,132.5" marker-end="url(#ah-ops)"/>
+<path class="eg" d="M266.0,85.0 L266.0,227.0" marker-end="url(#ah-ops)"/>
+<path class="eg" d="M446.0,77.5 L446.0,227.0" marker-end="url(#ah-ops)"/>
+<path class="eg" d="M574.0,77.5 L574.0,227.0" marker-end="url(#ah-ops)"/>
+<path class="eg rd" d="M754.0,289.0 L754.0,329.0" marker-end="url(#ah-ops)"/>
+<path class="eg" d="M832.0,360.0 L946.0,360.0 L946.0,289.0" marker-end="url(#ah-ops)"/>
+<path class="eg rd" d="M946.0,227.0 L946.0,77.5" marker-end="url(#ah-ops)"/>
+<path class="eg rd" d="M1090.0,85.0 L1090.0,132.5" marker-end="url(#ah-ops)"/>
+<path class="eg" d="M1174.0,85.0 L1174.0,227.0" marker-end="url(#ah-ops)"/>
+<path class="eg" d="M1302.0,85.0 L1302.0,227.0" marker-end="url(#ah-ops)"/>
+<g class="nd nd-admin">
+<rect class="bx" x="136" y="23" width="156" height="62" rx="7"/>
+<circle class="bd" cx="152" cy="40" r="8.5"/><text class="bdt" x="152" y="43.6" text-anchor="middle">1</text>
+<text class="tt" x="166" y="44.5">配置群助理</text>
+<text class="ln" x="146" y="59.5">只限重点推广群</text>
+<text class="ln" x="146" y="74.5">整组先删后插（无事务）</text>
+<circle class="wb" cx="291" cy="24" r="8"/><text class="wbt" x="291" y="28" text-anchor="middle">!</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="123" y="132.5" width="126" height="47" rx="7"/>
+<text class="tt" x="133" y="154">群助理缓存</text>
+<text class="ln" x="133" y="169">保存时清除</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="136" y="227" width="156" height="62" rx="7"/>
+<text class="tag" x="283" y="242" text-anchor="end">MYSQL</text>
+<text class="tt" x="146" y="248.5">群助理配置</text>
+<text class="ln m" x="146" y="263.5">major_promote_group_</text>
+<text class="ln m" x="146" y="278.5">promoter_config</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="301" y="30.5" width="186" height="47" rx="7"/>
+<circle class="bd" cx="317" cy="47.5" r="8.5"/><text class="bdt" x="317" y="51.1" text-anchor="middle">2</text>
+<text class="tt" x="331" y="52">设置默认群</text>
+<text class="ln m" x="311" y="67">POST /promote/group/default</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="305" y="132.5" width="126" height="47" rx="7"/>
+<text class="tt" x="315" y="154">默认群缓存</text>
+<text class="ln" x="315" y="169">3 小时 · 未清除</text>
+<circle class="wb" cx="430" cy="133.5" r="8"/><text class="wbt" x="430" y="137.5" text-anchor="middle">!</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="316" y="227" width="156" height="62" rx="7"/>
+<text class="tag" x="463" y="242" text-anchor="end">MYSQL</text>
+<text class="tt" x="326" y="248.5">默认群配置</text>
+<text class="ln m" x="326" y="263.5">platform_promoter_</text>
+<text class="ln m" x="326" y="278.5">default_group</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="496" y="30.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="512" cy="47.5" r="8.5"/><text class="bdt" x="512" y="51.1" text-anchor="middle">3</text>
+<text class="tt" x="526" y="52">配置欢迎语</text>
+<text class="ln" x="506" y="67">多语言 · 保存时清缓存</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="496" y="227" width="156" height="62" rx="7"/>
+<text class="tag" x="643" y="242" text-anchor="end">MYSQL</text>
+<text class="tt" x="506" y="248.5">助理配置</text>
+<text class="ln m" x="506" y="263.5">promoter_config</text>
+<text class="ln m" x="506" y="278.5">welcome_message_i18n</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="676" y="227" width="156" height="62" rx="7"/>
+<text class="tag" x="823" y="242" text-anchor="end">MYSQL</text>
+<text class="tt" x="686" y="248.5">分配日志</text>
+<text class="ln m" x="686" y="263.5">major_promote_group_</text>
+<text class="ln m" x="686" y="278.5">promoter_assign_log</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="676" y="329" width="156" height="62" rx="7"/>
+<circle class="bd" cx="692" cy="346" r="8.5"/><text class="bdt" x="692" y="349.6" text-anchor="middle">4</text>
+<text class="tt" x="706" y="350.5">生成推广员日报</text>
+<text class="ln" x="686" y="365.5">只算 is_guest = false</text>
+<text class="ln" x="686" y="380.5">（助理, 用户）去重</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="854" y="227" width="184" height="62" rx="7"/>
+<text class="tt" x="864" y="248.5">日报表</text>
+<text class="ln m" x="864" y="263.5">stats_daily_promoter_report</text>
+<text class="ln" x="864" y="278.5">在线 / 离线配客数</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="868" y="30.5" width="156" height="47" rx="7"/>
+<circle class="bd" cx="884" cy="47.5" r="8.5"/><text class="bdt" x="884" y="51.1" text-anchor="middle">5</text>
+<text class="tt" x="898" y="52">推广员日报页面</text>
+<text class="ln" x="878" y="67">在线 / 离线配客数</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="1037" y="23" width="170" height="62" rx="7"/>
+<circle class="bd" cx="1053" cy="40" r="8.5"/><text class="bdt" x="1053" y="43.6" text-anchor="middle">6</text>
+<text class="tt" x="1067" y="44.5">05:32 清理访客好友</text>
+<text class="ln" x="1047" y="59.5">只处理离线助理</text>
+<text class="ln" x="1047" y="74.5">没聊 &gt;30 分钟 / 最后聊 &gt;7 天</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="1026" y="132.5" width="128" height="47" rx="7"/>
+<text class="tt" x="1036" y="154">在线 Hash</text>
+<text class="ln" x="1036" y="169">跳过在线助理</text>
+</g>
+<g class="nd nd-admin">
+<rect class="bx" x="1219" y="23" width="166" height="62" rx="7"/>
+<circle class="bd" cx="1235" cy="40" r="8.5"/><text class="bdt" x="1235" y="43.6" text-anchor="middle">7</text>
+<text class="tt" x="1249" y="44.5">03:00 清理访客</text>
+<text class="ln" x="1229" y="59.5">建号 &gt;30 天 → 置删除</text>
+<text class="ln" x="1229" y="74.5">删联系人 · 会话</text>
+</g>
+<g class="nd nd-store">
+<rect class="bx" x="1036" y="227" width="336" height="62" rx="7"/>
+<text class="tt" x="1046" y="248.5">联系人 · 会话</text>
+<text class="ln m" x="1046" y="263.5">ums_member_contact（双向）</text>
+<text class="ln" x="1046" y="278.5">Mongo RecentChat（双向）</text>
+</g>
+<rect class="ec" x="192.0" y="100.8" width="30.8" height="16" rx="3"/><text class="el" x="197.0" y="112.5">DEL</text>
+<rect class="ec" x="272.0" y="112.5" width="52.0" height="16" rx="3"/><text class="el" x="277.0" y="124.3">先删后插</text>
+<rect class="ec" x="452.0" y="106.9" width="51.6" height="16" rx="3"/><text class="el" x="457.0" y="118.7">UPDATE</text>
+<rect class="ec" x="580.0" y="114.3" width="51.6" height="16" rx="3"/><text class="el" x="585.0" y="126.1">UPDATE</text>
+<rect class="ec" x="760.0" y="301.0" width="62.5" height="16" rx="3"/><text class="el" x="765.0" y="312.8">读当天日志</text>
+<rect class="ec" x="873.5" y="344.0" width="31.0" height="16" rx="3"/><text class="el" x="878.5" y="355.8">写入</text>
+<rect class="ec" x="952.0" y="151.7" width="31.0" height="16" rx="3"/><text class="el" x="957.0" y="163.5">读取</text>
+<rect class="ec" x="1096.0" y="100.8" width="41.5" height="16" rx="3"/><text class="el" x="1101.0" y="112.5">读在线</text>
+<rect class="ec" x="1180.0" y="112.5" width="51.6" height="16" rx="3"/><text class="el" x="1185.0" y="124.3">DELETE</text>
+<rect class="ec" x="1308.0" y="112.5" width="51.6" height="16" rx="3"/><text class="el" x="1313.0" y="124.3">DELETE</text>
+</svg>
+    </div>
+    <figcaption>第 1–3 步是后台配置，第 4–5 步是日报，第 6–7 步是清理。</figcaption>
+  </figure>
+  <div class="rules">
+    <div>
+      <h3>步骤说明</h3>
+      <ul><li><span class="n">1</span><span><code>GET/PUT /group/{groupId}/promoterAssignment</code>：只能配置重点推广群；可选助理为有 <code>promoter_config</code> 且同平台的；保存时整组先删后插，并清掉群 → 助理、助理 → 群两组缓存。</span></li>
+<li><span class="n">2</span><span><code>GET/POST /promote/group/default</code>：按平台写 <code>platform_promoter_default_group</code>。</span></li>
+<li><span class="n">3</span><span><code>POST /promoter</code>、<code>POST /promoter/update/I18n/WelcomeMessage</code>：写 <code>promoter_config</code>，保存时清缓存。新建 PR 助理账号时会自动初始化这份配置。</span></li>
+<li><span class="n">4</span><span>每天 04:00 统计前一天：取 <code>is_guest = false</code> 的分配日志，同一（助理, 用户）只算一次，统计日之前配对过的不再算；按 <code>is_promoter_online</code> 分为在线 / 离线配客数。</span></li>
+<li><span class="n">6</span><span>每天 05:32，只处理当时不在线的助理：删除其访客联系人——没聊过且添加超过 30 分钟，或最后聊天超过 7 天；联系人和会话两个方向都删。</span></li>
+<li><span class="n">7</span><span>每天 03:00，建号超过 30 天的访客置为删除，清掉其所有联系人与会话，并通知相关助理刷新。</span></li>
+<li><span class="n n-dash"></span><span>访客注册转会员沿用同一个会员 id，访客期间分到的助理联系人保留；用户与助理之间不能互相拉黑或删除。</span></li></ul>
+    </div>
+    <div><h3 class="wh">注意</h3><ul class="warns"><li><span class="n n-warn">!</span><span>修改默认群不清 portal 缓存 <code>hichat:promoter:default:group:id:{平台}</code>，最长 3 小时后生效。</span></li>
+<li><span class="n n-warn">!</span><span>群助理名单先删后插且没有事务，中途失败该群会没有助理。</span></li>
+<li><span class="n n-warn">!</span><span>方式 B 写的日志 <code>is_guest</code> 固定为 true，落地页登录用户、Banner 会员的分配不计入日报配客数。</span></li></ul></div>
+  </div>
+</section>
+
+<section class="plain" id="issues">
+  <h2>问题清单</h2>
+  <p class="sum">按影响从大到小排列。路径中的 <code>…</code> 为 <code>src/main/java/com/py/hichat/{模块}</code>。</p>
+  <div class="tbl" tabindex="0">
+  <table class="t">
+    <thead><tr><th>#</th><th>问题</th><th>影响</th><th>位置</th></tr></thead>
+    <tbody>
+      <tr><td class="idx">1</td><td>分配日志 <code>is_guest</code> 写死为 true</td><td>落地页登录用户、Banner 会员的分配被记成访客，不计入推广员日报配客数</td><td class="loc">hichat-portal/…/service/impl/PromoterServiceImpl.java:332</td></tr>
+      <tr><td class="idx">2</td><td>访客链接和 Banner 不防重复</td><td>每次请求都重新选人、多写一条日志；同一访客可能被加上多个助理；Banner 拉取会推进轮流计数，影响进群分配的均匀度</td><td class="loc">hichat-portal/…/controller/PromoteGroupController.java:148<br>hichat-portal/…/service/impl/BannerServiceImpl.java:294</td></tr>
+      <tr><td class="idx">3</td><td>落地页登录用户被分配两次</td><td><code>enterPromoteGroup</code> 按方式 A 分一次，<code>processGuestEnterGroup</code> 再按方式 B 分一次，可能是两个不同助理</td><td class="loc">hichat-portal/…/controller/landing/LandingPromoteGroupController.java:153</td></tr>
+      <tr><td class="idx">4</td><td>候选不检查助理账号状态</td><td>已禁用或删除的助理只要还在群配置里，离线轮流和默认群随机仍可能选中</td><td class="loc">hichat-portal/…/service/impl/PromoterServiceImpl.java:312</td></tr>
+      <tr><td class="idx">5</td><td>改默认群不清缓存</td><td>portal 缓存 3 小时，后台修改最长 3 小时后才生效</td><td class="loc">hichat-admin/…/service/impl/PromoteGroupServiceImpl.java:58</td></tr>
+      <tr><td class="idx">6</td><td>群助理名单保存无事务</td><td>先删后插，中途失败该群会变成没有助理</td><td class="loc">hichat-admin/…/service/impl/PromoterServiceImpl.java:344</td></tr>
+      <tr><td class="idx">7</td><td>默认群兜底随机且不看在线</td><td>访客容易分到离线助理，也没有轮流均衡</td><td class="loc">hichat-portal/…/service/impl/PromoterServiceImpl.java:633</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+</div>
+
+</body>
+</html>

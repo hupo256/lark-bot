@@ -1,0 +1,26 @@
+{
+  "token": "L9NTd9ZHgoKPB9xac7MlrLq4g2c",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/L9NTd9ZHgoKPB9xac7MlrLq4g2c",
+  "fetchedAt": "2026-11-03T12:17:20.549Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/L9NTd9ZHgoKPB9xac7MlrLq4g2c",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"# 任务中心 5139 / 5140 / 5141 要不要 web 改（完整内容）\\n\\n逐条核对过了，这 3 个都不用 web 改；bug 表 PM-3254 目前也没有要 web 修的待处理单。\\n\\n- ⚠️ 接了但还不能用 Bug-5139 社区帖子评论完成后没置灰：后端问题：这项要靠社区回调 Go 来标完成。online Go 对 Kaiser 的号一直返回未完成，积分流水只有一笔 −20、没有 +20，前端只是照实显示。需要 Adrian 和 Go / 社区后端查回调\\n- ⚠️ 接了但还不能用 Bug-5141 改头像 / 昵称没拿到积分：后端问题：「完善资料」不在前端申报的任务里，要由 Go 判定后发积分；改昵称走 php，Go 有没有收到要后端查\\n- ⚠️ 接了但还不能用 Bug-5140 fameex 入口跳转错误：前端不用改，页面上显示的是 Go 返回的报错原文；按 Arthur 说的，要等交易所领导批准加白，明天 Will 跟  \\n详细见：https://qfglxo2m3dc.sg.larksuite.com/docx/WCTndrybSozmSFxW3zKlqX1ygUh\",\n      \"document_id\": \"L9NTd9ZHgoKPB9xac7MlrLq4g2c\",\n      \"revision_id\": 4\n    }\n  }\n}\n",
+  "stderr": ""
+}

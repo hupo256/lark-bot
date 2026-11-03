@@ -1,0 +1,26 @@
+{
+  "token": "V2EhdXjcOoua79xaXpNld5a6gwh",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/V2EhdXjcOoua79xaXpNld5a6gwh",
+  "fetchedAt": "2026-11-03T12:17:12.536Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/V2EhdXjcOoua79xaXpNld5a6gwh",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>Bug-4970 复现 curl 文档（细节）</title>\\n\\n# Bug-4970 复现 curl（旧 Hichat 账号在 portal 登录回「用户不存在」）\\n\\n实测时间：2026-10-27 18:35（UTC+8），pre 环境。\\n\\n## 账号\\n\\n- 测试同学提供的旧 Hichat 账号：手机号 `16517528005`（+86），用户名 `shellyPre5`；该号在 hichat 后台存在（见 Bug-4970 单截图）。\\n- 真实密码见 Bug-4970 单里的截图，下面 curl 里用 `<截图里的密码>` 占位。\\n- 我们实测时故意用错密码 `wrong-pass-1027`：账号能查到的话应该回「密码错误」，现在回「用户不存在」，说明是查不到这个用户。\\n\\n## Web 前端实际发的请求\\n\\n密码登录走 portal `POST /go-api/api/auth/login`，明文 JSON，不签名、不带鉴权头；手机号不带区号，密码登录不传 `country_code`；`platform_code` 固定 `hichat`，`device_type` 固定 `pc`。\\n\\n## 复现 curl\\n\\n### 1. 手机号（和 Web 登录框发的完全一致）\\n\\n```bash\\ncurl -X POST 'https://falivepre.fdsser.com/go-api/api/auth/login' \\\\\\n  -H 'Content-Type: application/json' \\\\\\n  -d '{\\\"username\\\":\\\"16517528005\\\",\\\"password\\\":\\\"<截图里的密码>\\\",\\\"platform_code\\\":\\\"hichat\\\",\\\"device_type\\\":\\\"pc\\\"}'\\n```\\n\\n返回（HTTP 200）：\\n\\n```json\\n{\\\"code\\\":-1,\\\"msg\\\":\\\"用户不存在\\\",\\\"data\\\":[],\\\"sec\\\":\\\"kB9WH5b4gdV7W1C/ukUkhg==\\\"}\\n```\\n\\n### 2. 手机号 + 区号 86\\n\\n```bash\\ncurl -X POST 'https://falivepre.fdsser.com/go-api/api/auth/login' \\\\\\n  -H 'Content-Type: application/json' \\\\\\n  -d '{\\\"username\\\":\\\"16517528005\\\",\\\"password\\\":\\\"<截图里的密码>\\\",\\\"platform_code\\\":\\\"hichat\\\",\\\"device_type\\\":\\\"pc\\\",\\\"country_code\\\":\\\"86\\\"}'\\n```\\n\\n返回（HTTP 200）：`{\\\"code\\\":-1,\\\"msg\\\":\\\"用户不存在\\\",\\\"data\\\":[]}`\\n\\n### 3. 用户名\\n\\n```bash\\ncurl -X POST 'https://falivepre.fdsser.com/go-api/api/auth/login' \\\\\\n  -H 'Content-Type: application/json' \\\\\\n  -d '{\\\"username\\\":\\\"shellyPre5\\\",\\\"password\\\":\\\"<截图里的密码>\\\",\\\"platform_code\\\":\\\"hichat\\\",\\\"device_type\\\":\\\"pc\\\"}'\\n```\\n\\n返回（HTTP 200）：`{\\\"code\\\":-1,\\\"msg\\\":\\\"用户不存在\\\",\\\"data\\\":[]}`\\n\\n### 对照：portal 里已有的账号输错密码\\n\\n```bash\\ncurl -X POST 'https://falivepre.fdsser.com/go-api/api/auth/login' \\\\\\n  -H 'Content-Type: application/json' \\\\\\n  -d '{\\\"username\\\":\\\"aven-pretest@probe.test\\\",\\\"password\\\":\\\"wrong-pass-1027\\\",\\\"platform_code\\\":\\\"hichat\\\",\\\"device_type\\\":\\\"pc\\\"}'\\n```\\n\\n返回（HTTP 200）：`{\\\"code\\\":-1,\\\"msg\\\":\\\"密码错误\\\",\\\"data\\\":[]}`\\n\\n## 结论\\n\\n- 同一支接口、同样的参数：portal 里已有的账号回「密码错误」，旧 Hichat 账号回「用户不存在」。说明是 portal 用户表里查不到这个旧账号，不是密码或前端传参的问题。\\n- 10-23、10-26 测过的写法（`8616517528005`、`+8616517528005`）当时也都回「用户不存在」。\\n- 请后端确认旧 Hichat 账号在 portal 登录的处理方式：提前迁移进 portal，还是登录时回查 hichat 库。定了以后如果前端要改参数，告诉我们就行。\",\n      \"document_id\": \"V2EhdXjcOoua79xaXpNld5a6gwh\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

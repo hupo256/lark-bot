@@ -1,0 +1,26 @@
+{
+  "token": "RlnbdGeJSooB0tx2JS6lgXJ7g2b",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/RlnbdGeJSooB0tx2JS6lgXJ7g2b",
+  "fetchedAt": "2026-11-03T12:17:10.065Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/RlnbdGeJSooB0tx2JS6lgXJ7g2b",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>修改头像接口-待确认-2026-10-26</title>\\n\\n# 修改头像接口 — 待确认（2026-10-26）\\n\\n> 来源：Arthur 10-23 发的《修改头像接口文档》（`docs/delivery/pending/修改头像接口文档.md`）。Web 前端（aven）10-26 已按文档接入。\\n\\n## Go 后端（Arthur / William）\\n\\n1. **~~pre 部署头像接口~~已答复，见 reply/修改头像接口-答复-2026-10-26.md**：Arthur 10-26 发布后 404 已修，复测时两支接口都在了（不带 token 回 -700）。\\n\\n   - 原述：10-26 10:5x / 12:00 实测 `POST /api/auth/avatar/upload`、`GET /api/auth/avatar/requests/{request_id}` 都回 HTTP 404。\\n2. **上传头像回 503「Internal server error」（新，阻塞）**\\n\\n   - 要什么：查一下 pre 上头像上传为什么一直回 503，按文档第 5 节，可能是上传存储没配、三端功能没开或并发满了；修好后在群里说一声。\\n   - 为什么：10-26 14:30 左右（+04），用测试号 uid 508（`aven-pretest@probe.test`）先走 portal 登录拿到 token（`code=0`），再 multipart 上传（只带 `request_id` 和 `file`，32×32 / 64×64 的 PNG）。网关 `https://falivepre.fdsser.com/go-api/api/auth/avatar/upload` 和直连 `http://falivego.fdsser.com/api/auth/avatar/upload` 都回 HTTP 503 `{\\\"code\\\":-1,\\\"msg\\\":\\\"Internal server error\\\",\\\"data\\\":[]}`，连测 4 次都是这样（同一个 ID 重复提交、同 ID 换文件、换新 ID 都一样）。最后一次带了 `X-Request-ID: avatar-probe-<时间戳>`，方便查日志。上传之后用同一个 request_id 查状态，回 `code=-1`「头像修改记录不存在」，说明请求没有落库；Go `GET /api/auth/profile` 的 avatar 也还是原来的 `/upload/default_avatar/…jpg`。\\n   - 我方现状：前端不用改。遇到这种情况会先按原 ID 查一次，查不到就提示后端返回的 msg，并保留原 ID 和原文件让用户点「重试」。现在 Web 上换头像会提示「Internal server error」。\\n   - 建议：修好后我们用测试号把文档第 6 节的验收项走一遍：上传成功、返回的 URL 能打开、查状态、同 ID 同文件不重复修改、同 ID 换文件被拒、三端头像一致。这些项要等上传通了才能测。\\n3. **HTTP 状态码前端拿不到区分（确认即可，不阻塞；10-26 未答复）**\\n\\n   - 文档第 5 节按 400 / 200 / 503 给了不同处理；前端请求层对 Go 的非 2xx 只回信封（`code=-1` + msg），不区分 HTTP 码。\\n   - 我方现状：所有 `code=-1` 一律先按原 `request_id` 查一次状态，查不到就提示后端 msg，并保留原 ID + 原文件给用户「重试」（同 ID + 同文件重复提交按文档不会重复修改）。如果后端认为 400 场景不该带原 ID 重试，请说明。\",\n      \"document_id\": \"RlnbdGeJSooB0tx2JS6lgXJ7g2b\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

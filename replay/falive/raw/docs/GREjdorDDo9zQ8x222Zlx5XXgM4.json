@@ -1,0 +1,26 @@
+{
+  "token": "GREjdorDDo9zQ8x222Zlx5XXgM4",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/GREjdorDDo9zQ8x222Zlx5XXgM4",
+  "fetchedAt": "2026-11-03T12:17:09.571Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/GREjdorDDo9zQ8x222Zlx5XXgM4",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"# Encone（portal 后端）@bot 要一份前端 API 调试还没通过的文档（完整内容）\\n\\n清单给了：pre 上现在还有 6 项接口没通，3 项卡网关 / 运维、2 项卡 Go、1 项卡 php。@Arthur Bug-4923 的 symbol/list 接口本身确实是通的（直连 200），没通的是 pre 网关 /hc-api 转发（经网关 404），要改网关配置；头像查询接口今天已部署，上传接口我们用测试号传图确认后再回。\\n\\n- ⚠️ 接了但还不能用 嗨聊网关 /hc-api（symbol/list、oneTimeToken/v2、profile/my）：经网关回 Spring 404，直连 pre-hailiao 是 200；要运维把 /hc-api 上游改到 pre-hailiao（Bug-4923）\\n- ⚠️ 接了但还不能用 嗨聊 WS /hc-ws：握手失败，pre 缺 /hc-ws 反代，跑马灯实时行情用不了（运维）\\n- ⚠️ 接了但还不能用 Go oneTimeToken/v2：HTTP 500 Internal server error，任务中心 FameEX 跳转 / 兑换前绑定受影响（Go 后端）\\n- ⚠️ 接了但还不能用 Go 头像上传 / 查询：查询接口已部署（不再 404，查不存在的 ID 回「三端资料同步失败」，请确认是否预期）；上传是写操作这次没打，要页面实传确认\\n- ⚠️ 接了但还不能用 Go 任务中心签到 / 商城配置：uid 508 签到回「未查询到签到积分配置」、商城回「暂未上线权益」、任务列表 0 条；HTStone 的号商城有数据，按账号配（Arthur）\\n- ⚠️ 接了但还不能用 php 勋章 /bbs/member/medals：回 404 No Router，个人主页勋章 tab 没数据（live php 后端，Bug-4937）\",\n      \"document_id\": \"GREjdorDDo9zQ8x222Zlx5XXgM4\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

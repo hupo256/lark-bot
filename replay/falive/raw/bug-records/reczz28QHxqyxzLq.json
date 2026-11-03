@@ -1,0 +1,26 @@
+{
+  "recordId": "reczz28QHxqyxzLq",
+  "why": "bug-4917",
+  "fetchedAt": "2026-11-03T12:17:41.896Z",
+  "version": "now",
+  "note": "拉取时的最新状态（状态 / 备注 / 测试结果可能晚于消息当时）",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "base",
+    "+record-get",
+    "--as",
+    "user",
+    "--base-token",
+    "<bugTable.appToken>",
+    "--table-id",
+    "tblbJYjrxZsPe40V",
+    "--record-id",
+    "reczz28QHxqyxzLq",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"data\": [\n      [\n        \"Bug-4917\",\n        null,\n        [\n          \"产品后续优化\"\n        ],\n        null,\n        null,\n        \"PM-3254\",\n        \"2026-10-29T11:49:21.000+04:00\",\n        \"Backend,Product\",\n        \"2026-10-22T06:18:54.000+04:00\",\n        null,\n        \"Falive\",\n        null,\n        null,\n        [\n          {\n            \"id\": \"ou_57bd40c686c743f8def7d503c70e8491\",\n            \"name\": \"HTJames.y\"\n          }\n        ],\n        null,\n        \"1. b2b設定輪播圖\\n2. 首頁成功顯示 banner \\n3. 點擊 banner 成功顯示 連結圖示\\n4. 點擊 連結圖示 跳轉失敗, 網址顯示 \\\"about:blank#blocked\\\"\",\n        \"2026-10-22T06:18:55.504+04:00\",\n        \"【falive一期】后端/web/app\",\n        \"首頁 Banner 點擊連結跳轉失敗\",\n        null,\n        null,\n        [\n          \"Pre\"\n        ],\n        [\n          {\n            \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n            \"name\": \"World\"\n          }\n        ],\n        [\n          {\n            \"file_token\": \"WU4fbnucYoJG2bxyfNJlM9GJgzc\",\n            \"name\": \"截圖 2026-10-22 10.21.34.png\",\n            \"size\": 1063591\n          },\n          {\n            \"file_token\": \"BDmmbrIefoQHHRxaXU2l2YpwgNf\",\n            \"name\": \"2-成功顯示Banner.png\",\n            \"size\": 551076\n          },\n          {\n            \"file_token\": \"VF6JbFpx8oI16axkTiBl0HuVgIf\",\n            \"name\": \"3-成功顯示連結按鈕.png\",\n            \"size\": 395534\n          },\n          {\n            \"file_token\": \"PGNqb9B1vofcDAxbogylFp5vgPO\",\n            \"name\": \"1-b2b設定.png\",\n            \"size\": 45476\n          },\n          {\n            \"file_token\": \"XI0bbYtIjo3x1Nx2fSQlGXDEgbb\",\n            \"name\": \"4-點擊連結跳轉失敗.png\",\n            \"size\": 15397\n          }\n        ],\n        [\n          {\n            \"id\": \"ou_9c6ebed1f44bd1fa7b59f32236c1932f\",\n            \"name\": \".Ache.l\"\n          },\n          {\n            \"id\": \"ou_089c0e5c53df38e1920e9c0013077f84\",\n            \"name\": \"Mateo\"\n          }\n        ],\n        \"pre测试中\",\n        [\n          \"Backend\"\n        ],\n        \"原KLVE設定不支援跳轉外部鏈接，僅可設定網站內對應頁面，需確認是否需要支援外部鏈接?\\n【aven 10-22 实测】后台 id 39 配的链接是 [https://falivepre.fdsser.com/](https://falivepre.fdsser.com/) ，但 preload/getBannerList 返回的 url / ios_url / android_url 都成了「https:///」（域名被后端去掉了），浏览器一打开就是 about:blank#blocked；id 37 配的站内路径 /room/128 正常。前端是按接口返回的 url 原样跳转的，根因在后端处理链接时把本站域名剥掉，只剩 https:///（.Ache.l）。外链要不要支持，仍等产品 Mateo 确认（产品 10-12 P15 答复过「先用 url 外链」）。\\n10-27 16:0x（+04）复测：后端已修，preload/getBannerList 里 id 39「Test-Banner」的 url / ios_url / android_url 都已是 [https://falivepre.fdsser.com/](https://falivepre.fdsser.com/)（原 https:///），前端未改。状态改已推版，请测试复测点击跳转；外链是否支持仍待产品 Mateo。\",\n        \"1.0.3\"\n      ]\n    ],\n    \"field_id_list\": [\n      \"fldmxTvHTq\",\n      \"fld0Pe5U7G\",\n      \"fld1i6PDQT\",\n      \"fld1u0NBC5\",\n      \"fld4kVwoLs\",\n      \"fld52WVyfK\",\n      \"fld7ChUvSH\",\n      \"fld8fzIptW\",\n      \"fld8Q2XlJB\",\n      \"fldAh2Kyj0\",\n      \"fldBuyLemA\",\n      \"fldcuNmiVK\",\n      \"fldD77oYrZ\",\n      \"fldEiiSdHh\",\n      \"fldERqfLpq\",\n      \"fldGsVI1Y0\",\n      \"fldHgasO5A\",\n      \"fldhpTkoXE\",\n      \"fldIuAN6te\",\n      \"fldJ9rdSbO\",\n      \"fldMLCmFW2\",\n      \"fldPyoP99S\",\n      \"fldsV39i3n\",\n      \"fldu80s8wJ\",\n      \"fldw1TK5PO\",\n      \"fldwobTvnQ\",\n      \"fldyh4ldX6\",\n      \"fldYisQZkD\",\n      \"fldZHrw01k\"\n    ],\n    \"field_type_list\": [\n      \"auto_number\",\n      \"text\",\n      \"select\",\n      \"lookup\",\n      \"link\",\n      \"text\",\n      \"updated_at\",\n      \"lookup\",\n      \"created_at\",\n      \"text\",\n      \"lookup\",\n      \"select\",\n      \"attachment\",\n      \"user\",\n      \"datetime\",\n      \"text\",\n      \"datetime\",\n      \"lookup\",\n      \"text\",\n      \"attachment\",\n      \"datetime\",\n      \"select\",\n      \"updated_by\",\n      \"attachment\",\n      \"user\",\n      \"lookup\",\n      \"select\",\n      \"text\",\n      \"text\"\n    ],\n    \"fields\": [\n      \"Bug编号\",\n      \"测试结果\",\n      \"状态\",\n      \"测试人员所在部门\",\n      \"父記錄\",\n      \"需求ID\",\n      \"最后更新时间\",\n      \"解决人员所在部门\",\n      \"创建时间\",\n      \"项目备注\",\n      \"所属项目组\",\n      \"严重程度\",\n      \"测试结果截图\",\n      \"测试人员\",\n      \"预计上线时间\",\n      \"问题描述（复现步骤）\",\n      \"bug填写日期\",\n      \"需求名称\",\n      \"问题标题\",\n      \"附件\",\n      \"修复完成时间\",\n      \"环境\",\n      \"记录最后修改人\",\n      \"问题截图\",\n      \"负责RD\",\n      \"需求阶段\",\n      \"涉及端口\",\n      \"备注\",\n      \"Sprint\"\n    ],\n    \"has_more\": false,\n    \"record_id_list\": [\n      \"reczz28QHxqyxzLq\"\n    ],\n    \"rev\": 21326,\n    \"timezone\": \"Asia/Dubai\"\n  }\n}\n",
+  "stderr": ""
+}

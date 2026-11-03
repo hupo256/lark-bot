@@ -1,0 +1,26 @@
+{
+  "token": "SzDMdlUlRoQhkVx2ppplUOAJgDe",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/SzDMdlUlRoQhkVx2ppplUOAJgDe",
+  "fetchedAt": "2026-11-03T12:17:17.956Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/SzDMdlUlRoQhkVx2ppplUOAJgDe",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"# William 接着 bot 19（完整内容）\\n\\nuat 后端那边配了 client_id，但前端读不到：前端的 Google client_id 是打包时从前端自己的配置写进去的，不从后端接口取，现在只配了 pre 的。我刚查了已部署的包，pre 里有，uat 和 online 里都没有，所以按钮被隐藏了。麻烦把 uat 用的 client_id 值（online 有的话一起）发给我们，并在 Google 后台把 [https://faliveuat.fdsser.com](https://faliveuat.fdsser.com) 加进授权来源，前端填上重新打包按钮就会出来。\\n\\n- ⚠️ 接了但还不能用 uat / online 的 Google 登录按钮：接了但还不能用：前端还没拿到 uat / online 的 client_id 值（pre 的已配好）；Google Console 也要加 faliveuat.fdsser.com、www.falive.com 授权来源。拿到值后前端补配置、重新打包即可  \\n详细见：https://qfglxo2m3dc.sg.larksuite.com/docx/CSCxdC6E5oypLrxhJhNloAwNgNc\",\n      \"document_id\": \"SzDMdlUlRoQhkVx2ppplUOAJgDe\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

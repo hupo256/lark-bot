@@ -1,0 +1,26 @@
+{
+  "recordId": "reczz28RvuGnaXHD",
+  "why": "bug-4988",
+  "fetchedAt": "2026-11-03T12:17:50.072Z",
+  "version": "now",
+  "note": "拉取时的最新状态（状态 / 备注 / 测试结果可能晚于消息当时）",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "base",
+    "+record-get",
+    "--as",
+    "user",
+    "--base-token",
+    "<bugTable.appToken>",
+    "--table-id",
+    "tblbJYjrxZsPe40V",
+    "--record-id",
+    "reczz28RvuGnaXHD",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"data\": [\n      [\n        \"Bug-4988\",\n        null,\n        [\n          \"非BUG，已关闭\"\n        ],\n        \"QA\",\n        null,\n        \"PM-3254\",\n        \"2026-10-29T11:49:29.000+04:00\",\n        \"Backend\",\n        \"2026-10-26T10:02:15.000+04:00\",\n        null,\n        \"Falive\",\n        null,\n        null,\n        [\n          {\n            \"id\": \"ou_76eea7f1089ccfb66678300fe4bc4a40\",\n            \"name\": \"HTStone.z\"\n          }\n        ],\n        null,\n        \"在以積分兌換商城權益的時候，點擊兌換應該會扣除積分，並由FAMEEX提供對應權益，目前點擊兌換後出現導入FAMEEX畫面\",\n        \"2026-10-26T10:02:16.191+04:00\",\n        \"【falive一期】后端/web/app\",\n        \"商城兌換異常\",\n        null,\n        null,\n        [\n          \"Pre\"\n        ],\n        [\n          {\n            \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n            \"name\": \"World\"\n          }\n        ],\n        [\n          {\n            \"file_token\": \"QhB5bpEqLoGxNixcR1wlF1vigUe\",\n            \"name\": \"image.png\",\n            \"size\": 75116\n          },\n          {\n            \"file_token\": \"PRklbQ5ViokClFxNwwIlM9lagvu\",\n            \"name\": \"image.png\",\n            \"size\": 107811\n          }\n        ],\n        [\n          {\n            \"id\": \"ou_0474e2a35ff1054cdbc0bb9d9d9c9766\",\n            \"name\": \"HQUCEncone\"\n          },\n          {\n            \"id\": \"ou_a0c48d661b36b1e16bf0d89b4a3bb775\",\n            \"name\": \"Arthur.a\"\n          }\n        ],\n        \"pre测试中\",\n        [\n          \"Backend\"\n        ],\n        \"根因在 Go 后端（10-26 pre 实测）：点「兑换」前端先读 Go GET /go-api/api/member/profile/my 的 hasFameExAccount，非 true 就按 Flutter onTapBenefit 进 FameEX 绑定页（/tasks/fameex?action=rewards），已绑定才弹确认框、调 POST /api/mallRights/exchange/{id} 扣积分。现在 pre 这个接口只回 data={\\\"id\\\":129180,\\\"memberId\\\":129180}（code 0，sec 解密也一样），10-20 还在返回的 hasFameExAccount、fameExAssetsPath 两个字段没了，前端只能当作未绑定，所以谁点兑换都会跳到 FameEX 页面。请 Go 恢复这两个字段（已绑定 FameEX 的账号回 hasFameExAccount=true）；恢复后已绑定账号会直接弹兑换确认，未绑定账号跳 FameEX 绑定是设计如此。前端不用改。fameExAssetsPath 缺失也会影响个人主页 FameEX 入口。\\n10-26 已在 Falive PHP后端群 @HTStone.z 要能看到商城列表的 pre 账号，拿到后复测。\",\n        \"1.0.3\"\n      ]\n    ],\n    \"field_id_list\": [\n      \"fldmxTvHTq\",\n      \"fld0Pe5U7G\",\n      \"fld1i6PDQT\",\n      \"fld1u0NBC5\",\n      \"fld4kVwoLs\",\n      \"fld52WVyfK\",\n      \"fld7ChUvSH\",\n      \"fld8fzIptW\",\n      \"fld8Q2XlJB\",\n      \"fldAh2Kyj0\",\n      \"fldBuyLemA\",\n      \"fldcuNmiVK\",\n      \"fldD77oYrZ\",\n      \"fldEiiSdHh\",\n      \"fldERqfLpq\",\n      \"fldGsVI1Y0\",\n      \"fldHgasO5A\",\n      \"fldhpTkoXE\",\n      \"fldIuAN6te\",\n      \"fldJ9rdSbO\",\n      \"fldMLCmFW2\",\n      \"fldPyoP99S\",\n      \"fldsV39i3n\",\n      \"fldu80s8wJ\",\n      \"fldw1TK5PO\",\n      \"fldwobTvnQ\",\n      \"fldyh4ldX6\",\n      \"fldYisQZkD\",\n      \"fldZHrw01k\"\n    ],\n    \"field_type_list\": [\n      \"auto_number\",\n      \"text\",\n      \"select\",\n      \"lookup\",\n      \"link\",\n      \"text\",\n      \"updated_at\",\n      \"lookup\",\n      \"created_at\",\n      \"text\",\n      \"lookup\",\n      \"select\",\n      \"attachment\",\n      \"user\",\n      \"datetime\",\n      \"text\",\n      \"datetime\",\n      \"lookup\",\n      \"text\",\n      \"attachment\",\n      \"datetime\",\n      \"select\",\n      \"updated_by\",\n      \"attachment\",\n      \"user\",\n      \"lookup\",\n      \"select\",\n      \"text\",\n      \"text\"\n    ],\n    \"fields\": [\n      \"Bug编号\",\n      \"测试结果\",\n      \"状态\",\n      \"测试人员所在部门\",\n      \"父記錄\",\n      \"需求ID\",\n      \"最后更新时间\",\n      \"解决人员所在部门\",\n      \"创建时间\",\n      \"项目备注\",\n      \"所属项目组\",\n      \"严重程度\",\n      \"测试结果截图\",\n      \"测试人员\",\n      \"预计上线时间\",\n      \"问题描述（复现步骤）\",\n      \"bug填写日期\",\n      \"需求名称\",\n      \"问题标题\",\n      \"附件\",\n      \"修复完成时间\",\n      \"环境\",\n      \"记录最后修改人\",\n      \"问题截图\",\n      \"负责RD\",\n      \"需求阶段\",\n      \"涉及端口\",\n      \"备注\",\n      \"Sprint\"\n    ],\n    \"has_more\": false,\n    \"record_id_list\": [\n      \"reczz28RvuGnaXHD\"\n    ],\n    \"rev\": 21326,\n    \"timezone\": \"Asia/Dubai\"\n  }\n}\n",
+  "stderr": ""
+}

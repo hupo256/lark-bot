@@ -1,0 +1,20 @@
+{
+  "messageId": "om_x100b62aa56abd8a0ffcbec0164fae4d",
+  "fetchedAt": "2026-11-03T12:18:45.401Z",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "im",
+    "+messages-mget",
+    "--as",
+    "user",
+    "--message-ids",
+    "om_x100b62aa56abd8a0ffcbec0164fae4d",
+    "--no-reactions",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"messages\": [\n      {\n        \"chat_id\": \"oc_21a29d687ecfcd6d6776cac669a4c5d3\",\n        \"content\": \"\\u003cforwarded_messages\\u003e\\n[2026-10-22T14:04:33+04:00] mainly:\\n    ![Image](img_v3_0216n_4d290119-9c71-47a1-965a-89b9c22191hu)\\n    直播的图片有个加密，似乎是前端没处理对 ...\\n    \\n    也就是这种地址\\n    [https://falivepre.fdsser.com/upload/chat/20261022/_3f2ca4f3c8db9e9cc81ae90850b7bb88.2700x1825.jpeg.bnc](https://falivepre.fdsser.com/upload/chat/20261022/_3f2ca4f3c8db9e9cc81ae90850b7bb88.2700x1825.jpeg.bnc)\\n    \\n    falive 的前端找谁 ...\\n[2026-10-22T14:04:54+04:00] Aven.tong:\\n    找我\\n[2026-10-22T14:05:14+04:00] mainly:\\n    对，我的 stone 的消息 ...\\n[2026-10-22T14:05:26+04:00] mainly:\\n    所以，现在有个图片不显示的问题\\n[2026-10-22T14:06:04+04:00] Aven.tong:\\n    后台给过来的图片是加密的，需要前端解一下，再显示。\\n[2026-10-22T14:06:07+04:00] Aven.tong:\\n    是这个逻辑么\\n[2026-10-22T14:06:24+04:00] mainly:\\n    对，没错的\\n[2026-10-22T14:06:34+04:00] mainly:\\n    其实你也可以偷懒，用没加密的那个\\n[2026-10-22T14:06:54+04:00] mainly:\\n    后端的聊天历史记录接口同时给了加密的和没加密的\\n[2026-10-22T14:07:16+04:00] Aven.tong:\\n    加密是硬要求是吧\\n[2026-10-22T14:07:30+04:00] Aven.tong:\\n    之前 klive 也是加密的么\\n[2026-10-22T14:07:35+04:00] mainly:\\n    这种地址，加密的\\n    https://falivepre.fdsser.com/upload/chat/20261022/_3f2ca4f3c8db9e9cc81ae90850b7bb88.2700x1825.jpeg.bnc\\n    \\n    去掉最后的那个 .bnc 就是没加密的了\\n    https://falivepre.fdsser.com/upload/chat/20261022/_3f2ca4f3c8db9e9cc81ae90850b7bb88.2700x1825.jpeg\\n[2026-10-22T14:07:52+04:00] mainly:\\n    嗯，其实我也不确定是不是硬要求 ...\\n[2026-10-22T14:07:56+04:00] mainly:\\n    反正后端都给了\\n[2026-10-22T14:08:15+04:00] mainly:\\n    运维的意思是，只要访问量不大，就没啥问题\\n[2026-10-22T14:08:29+04:00] Aven.tong:\\n    行，走加密好了。后期肯定会要求这个的\\n[2026-10-22T14:08:50+04:00] mainly:\\n    好\\n[2026-10-22T14:09:11+04:00] mainly:\\n    运维的意思是，访问量大的话，会被云存储的服务商自动检查，然后你图片涉黄啥的，就会被警告，警告次数多了，就被封号 ...\\n[2026-10-22T14:09:17+04:00] Aven.tong:\\n    只有 直播的图片 会有这个逻辑么，其他的图片呢？\\n[2026-10-22T14:09:28+04:00] mainly:\\n    只有聊天的图片有这个逻辑\\n[2026-10-22T14:09:35+04:00] mainly:\\n    用户发的图片\\n[2026-10-22T14:09:47+04:00] mainly:\\n    用户群组聊天，或者私聊的时候发的图片\\n[2026-10-22T14:10:27+04:00] Aven.tong:\\n    好的，我先按这个逻辑接入，有什么问题我再问下你哈\\n[2026-10-22T14:10:33+04:00] mainly:\\n    好\\n[2026-10-22T14:10:48+04:00] mainly:\\n    你可以先参考 klive\\n[2026-10-22T14:11:25+04:00] mainly:\\n    要是 klive 没搞加密的话 ... 你也可以不搞\\n    \\n    实在要搞 ... 我帮你找找以前的图片加密的文档\\n[2026-10-22T14:11:51+04:00] mainly:\\n    我记得是很简单一个固定 key 的 ASE 加密才对\\n\\u003c/forwarded_messages\\u003e\",\n        \"create_time\": \"2026-10-22 14:12\",\n        \"deleted\": false,\n        \"message_app_link\": \"https://applink.larksuite.com/client/chat/open?openChatId=oc_21a29d687ecfcd6d6776cac669a4c5d3\\u0026position=129\",\n        \"message_id\": \"om_x100b62aa56abd8a0ffcbec0164fae4d\",\n        \"message_position\": \"129\",\n        \"msg_type\": \"merge_forward\",\n        \"sender\": {\n          \"id\": \"ou_91861d6da6cf6822e08045ba1868241e\",\n          \"id_type\": \"open_id\",\n          \"name\": \"Aven.tong\",\n          \"sender_i18n_names\": {\n            \"zh_cn\": \"Aven\"\n          },\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"updated\": false\n      }\n    ],\n    \"total\": 1\n  }\n}\n",
+  "stderr": ""
+}

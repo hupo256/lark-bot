@@ -1,0 +1,26 @@
+{
+  "token": "LSPWddrwQoXDyyx7lnTlxdJ5gA0",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/LSPWddrwQoXDyyx7lnTlxdJ5gA0",
+  "fetchedAt": "2026-11-03T12:17:22.431Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/LSPWddrwQoXDyyx7lnTlxdJ5gA0",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"# 社区帖子评论任务部署后复测（完整内容）\\n\\n@Arthur @Kai 之前说好上线后在生产再测评论任务和积分到账：评论成功后申报任务的那部分前端，生产和 pre 都已经是新版；但「发评论 → 任务完成 → 积分到账」这一整条这次还是没测到。pre 测试号的任务列表是空的，生产 bot 又没有账号能发评论。想麻烦你确认一下：生产 Go 现在是不是 10-31 uat 修好评论任务的那一版？确认后我们请有生产号的同学发一条评论，把任务完成和 +20 到账的结果再告诉你。\\n\\n- ⚠️ 生产发评论后任务完成 + 积分到账：这次没测到：bot 没有生产账号发不了评论；生产 Go 是否已是 uat 修好的那版还要 Arthur 确认\\n- ⚠️ pre 发评论后任务完成 + 积分到账：pre 测试号登录后任务中心新手 / 每日任务两栏都是空的，没有评论任务可测\\n- ✅ 评论成功后申报社区帖子评论 / 帖子回复评论任务（前端）：生产和 pre 线上前端都已包含评论成功后同时申报新手、每日两个任务的逻辑；生产这版和 10-31 一样，没变  \\n待确认的几点在这里：https://qfglxo2m3dc.sg.larksuite.com/docx/XJuldI8IXoaA0ixR4hplwBf1g7f\\n- Arthur：确认生产 Go 是否已是 10-31 uat 修好评论任务的版本 2026103104\\n- Kai：Go 确认后用生产号 uid 484 在生产发一条评论，看社区帖子评论新手任务是否完成、积分是否 +20  \\n详细见：https://qfglxo2m3dc.sg.larksuite.com/docx/Eao2daM2ZoxAV4x5bthlHIDIgph\",\n      \"document_id\": \"LSPWddrwQoXDyyx7lnTlxdJ5gA0\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}

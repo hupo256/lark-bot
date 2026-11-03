@@ -1,0 +1,52 @@
+邮箱 / 短信厂商说明（给 Go）
+
+以嗨聊 OL 为准。PRE 短信不准。密钥、密码不进仓库，用运维手里的 OL 配置。
+
+一、邮箱：Mailgun（SMTP）
+
+厂商：Mailgun
+协议：SMTP，不是 Mailgun HTTP API
+发信服务：hichat-mail，JavaMail 发出
+业务侧：hichat-portal 把渲染好的 HTML POST 到本机 http://127.0.0.1:8298/mail/send，再由 hichat-mail 走 SMTP
+mailgun-signing-key 只用于回调验签，发信用不到
+
+SMTP：
+host：smtp.mailgun.org
+端口：yml 未写，Mailgun 常规为 587 + STARTTLS（对不上再试 465 + SSL）
+账号 / 发件人：otp-noreply@notice.ujyhjg.com
+密码：dev yml 那组。Max 确认 OL 后来没改过
+
+验证码邮件是 HTML 模板，变量是验证码和有效分钟数。标题、正文由业务自己组，Mailgun 不审核模板。
+
+live 侧：后台邮箱配置投递渠道选 SMTP，填上面这组即可。另有 Postmark 通道，这次对齐嗨聊不用。
+
+二、短信：腾讯云，按国家拆两套
+
+接口都是 sms.tencentcloudapi.com，Action=SendSms，Version=2021-01-11。
+号码带 + 和国家码。模板只有一个变量：验证码。
+
+1）大陆（国家 CN / 区号 86）中文
+
+节点：ap-guangzhou
+配置来源：库表 ums_sms_account，类型腾讯云（smsAccountType=1），在启用账号里随机抽一个
+OL 这套：
+sdkAppId：1401048219
+签名：南京佰威科技（signId 675543，发信用签名名，不用 signId）
+模板：2557443
+密钥：Max 消息里的 secretId / secretKey
+请求带 SignName
+
+2）海外（除大陆、台湾）英文
+
+节点：ap-singapore
+配置来源：写死在 hichat-portal 的 TencentSmsService，和上面不是同一套应用、同一套密钥
+sdkAppId：2400001433
+模板：2907520（代码注释：英文模板）
+签名：请求里不传 SignName
+密钥：该类里的另一组，不在 ums_sms_account
+
+3）台湾（国家 TW / 区号 886）
+
+不走腾讯云，走三竹 Mitake。
+
+live 侧：短信网关按国家码一行，template 写在该行上。86 填中文这套，其它国家各建一行填英文这套。两套 sdkAppId 和密钥不要混。某个国家没配启用网关会发送失败，没有「非大陆一律英文」的兜底。

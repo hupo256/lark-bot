@@ -1,0 +1,46 @@
+{
+  "threadId": "omt_19adf79b980f1946",
+  "fetchedAt": "2026-11-03T12:22:18.326Z",
+  "ok": true,
+  "commands": [
+    [
+      "lark-cli",
+      "api",
+      "GET",
+      "/open-apis/im/v1/messages",
+      "--as",
+      "user",
+      "--params",
+      "{\"container_id_type\":\"thread\",\"container_id\":\"omt_19adf79b980f1946\",\"page_size\":50,\"sort_type\":\"ByCreateTimeAsc\"}",
+      "--page-all",
+      "--page-limit",
+      "0",
+      "--format",
+      "json"
+    ],
+    [
+      "lark-cli",
+      "im",
+      "+threads-messages-list",
+      "--as",
+      "user",
+      "--thread",
+      "omt_19adf79b980f1946",
+      "--order",
+      "asc",
+      "--page-size",
+      "50",
+      "--page-all",
+      "--page-limit",
+      "100",
+      "--no-reactions",
+      "--download-resources",
+      "--format",
+      "json"
+    ]
+  ],
+  "api": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"items\": [\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"https://streampreadmin.fdsser.com/doc/liveDoc  \\\\n这里的接口已接，还有以下问题，需求各位再支持一下  @_user_1 @_user_2  cc @_user_3\\\"}\"\n        },\n        \"chat_default_name\": \"Falive PHP后端群\",\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1791524741020\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_9c6ebed1f44bd1fa7b59f32236c1932f\",\n            \"id_type\": \"open_id\",\n            \"key\": \"@_user_1\",\n            \"name\": \".Ache.l\",\n            \"tenant_key\": \"149af6980f06577c\"\n          },\n          {\n            \"id\": \"ou_0474e2a35ff1054cdbc0bb9d9d9c9766\",\n            \"id_type\": \"open_id\",\n            \"key\": \"@_user_2\",\n            \"name\": \"HQUCEncone\",\n            \"tenant_key\": \"144dc2a94988d77e\"\n          },\n          {\n            \"id\": \"ou_f6f2dc9d81df286720a09d5ffe6b67be\",\n            \"id_type\": \"open_id\",\n            \"key\": \"@_user_3\",\n            \"name\": \"Rou\",\n            \"tenant_key\": \"164beab51542977c\"\n          }\n        ],\n        \"message_id\": \"om_x100b63b3b68664a0ee8438d80d14ced\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b63b3bbe66ca0eeadaa16361d626\",\n        \"root_id\": \"om_x100b63b3bbe66ca0eeadaa16361d626\",\n        \"sender\": {\n          \"id\": \"ou_91861d6da6cf6822e08045ba1868241e\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19adf79b980f1946\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"1791524741241\",\n        \"updated\": true\n      },\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"下一批接口如果 pre 环境 ready ，也辛苦发出来 [双手合十]\\\"}\"\n        },\n        \"chat_default_name\": \"Falive PHP后端群\",\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1791524850470\",\n        \"deleted\": false,\n        \"message_id\": \"om_x100b63b3b1e804a0ed0e2a77695bfbd\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b63b3bbe66ca0eeadaa16361d626\",\n        \"root_id\": \"om_x100b63b3bbe66ca0eeadaa16361d626\",\n        \"sender\": {\n          \"id\": \"ou_91861d6da6cf6822e08045ba1868241e\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19adf79b980f1946\",\n        \"thread_message_position\": \"1\",\n        \"update_time\": \"1791524850470\",\n        \"updated\": false\n      },\n      {\n        \"body\": {\n          \"content\": \"{\\\"text\\\":\\\"这个都是用bbsv2 的\\\"}\"\n        },\n        \"chat_default_name\": \"Falive PHP后端群\",\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"chat_type\": \"group\",\n        \"create_time\": \"1791524864163\",\n        \"deleted\": false,\n        \"message_id\": \"om_x100b63bc4ecc7ca0ed09a0cf3695ee2\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"parent_id\": \"om_x100b63b3bbe66ca0eeadaa16361d626\",\n        \"root_id\": \"om_x100b63b3bbe66ca0eeadaa16361d626\",\n        \"sender\": {\n          \"id\": \"ou_0474e2a35ff1054cdbc0bb9d9d9c9766\",\n          \"id_type\": \"open_id\",\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"144dc2a94988d77e\"\n        },\n        \"thread_id\": \"omt_19adf79b980f1946\",\n        \"thread_message_position\": \"2\",\n        \"update_time\": \"1791524864163\",\n        \"updated\": false\n      }\n    ],\n    \"page_token\": \"\"\n  }\n}\n",
+  "apiStderr": "[page 1] fetching...\n",
+  "rendered": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"has_more\": false,\n    \"messages\": [\n      {\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"content\": \"https://streampreadmin.fdsser.com/doc/liveDoc  \\n这里的接口已接，还有以下问题，需求各位再支持一下  @.Ache.l @HQUCEncone  cc @Rou\",\n        \"create_time\": \"2026-10-09 09:45\",\n        \"deleted\": false,\n        \"mentions\": [\n          {\n            \"id\": \"ou_9c6ebed1f44bd1fa7b59f32236c1932f\",\n            \"key\": \"@_user_1\",\n            \"name\": \".Ache.l\"\n          },\n          {\n            \"id\": \"ou_0474e2a35ff1054cdbc0bb9d9d9c9766\",\n            \"key\": \"@_user_2\",\n            \"name\": \"HQUCEncone\"\n          },\n          {\n            \"id\": \"ou_f6f2dc9d81df286720a09d5ffe6b67be\",\n            \"key\": \"@_user_3\",\n            \"name\": \"Rou\"\n          }\n        ],\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026open_thread_id=omt_19adf79b980f1946\\u0026openchatid=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026openthreadid=omt_19adf79b980f1946\\u0026thread_position=0\",\n        \"message_id\": \"om_x100b63b3b68664a0ee8438d80d14ced\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_91861d6da6cf6822e08045ba1868241e\",\n          \"id_type\": \"open_id\",\n          \"name\": \"Aven.tong\",\n          \"sender_i18n_names\": {\n            \"zh_cn\": \"Aven\"\n          },\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19adf79b980f1946\",\n        \"thread_message_position\": \"0\",\n        \"update_time\": \"2026-10-09 09:45\",\n        \"updated\": true\n      },\n      {\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"content\": \"下一批接口如果 pre 环境 ready ，也辛苦发出来 [双手合十]\",\n        \"create_time\": \"2026-10-09 09:47\",\n        \"deleted\": false,\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026open_thread_id=omt_19adf79b980f1946\\u0026openchatid=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026openthreadid=omt_19adf79b980f1946\\u0026thread_position=1\",\n        \"message_id\": \"om_x100b63b3b1e804a0ed0e2a77695bfbd\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_91861d6da6cf6822e08045ba1868241e\",\n          \"id_type\": \"open_id\",\n          \"name\": \"Aven.tong\",\n          \"sender_i18n_names\": {\n            \"zh_cn\": \"Aven\"\n          },\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"164beab51542977c\"\n        },\n        \"thread_id\": \"omt_19adf79b980f1946\",\n        \"thread_message_position\": \"1\",\n        \"updated\": false\n      },\n      {\n        \"chat_id\": \"oc_c2a63ac7c217235e14407ed1bba69d06\",\n        \"content\": \"这个都是用bbsv2 的\",\n        \"create_time\": \"2026-10-09 09:47\",\n        \"deleted\": false,\n        \"message_app_link\": \"https://applink.larksuite.com/client/thread/open?open_chat_id=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026open_thread_id=omt_19adf79b980f1946\\u0026openchatid=oc_c2a63ac7c217235e14407ed1bba69d06\\u0026openthreadid=omt_19adf79b980f1946\\u0026thread_position=2\",\n        \"message_id\": \"om_x100b63bc4ecc7ca0ed09a0cf3695ee2\",\n        \"message_position\": \"-3\",\n        \"msg_type\": \"text\",\n        \"sender\": {\n          \"id\": \"ou_0474e2a35ff1054cdbc0bb9d9d9c9766\",\n          \"id_type\": \"open_id\",\n          \"name\": \"HQUCEncone\",\n          \"sender_i18n_names\": {\n            \"zh_cn\": \"Encone\"\n          },\n          \"sender_type\": \"user\",\n          \"tenant_key\": \"144dc2a94988d77e\"\n        },\n        \"thread_id\": \"omt_19adf79b980f1946\",\n        \"thread_message_position\": \"2\",\n        \"updated\": false\n      }\n    ],\n    \"page_token\": \"\",\n    \"thread_id\": \"omt_19adf79b980f1946\",\n    \"total\": 3\n  },\n  \"meta\": {\n    \"pagination\": {\n      \"complete\": true,\n      \"pages\": 1,\n      \"items\": 3\n    }\n  }\n}\n",
+  "renderedStderr": ""
+}

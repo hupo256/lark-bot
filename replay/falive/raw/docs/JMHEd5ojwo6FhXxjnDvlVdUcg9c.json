@@ -1,0 +1,26 @@
+{
+  "token": "JMHEd5ojwo6FhXxjnDvlVdUcg9c",
+  "url": "https://qfglxo2m3dc.sg.larksuite.com/docx/JMHEd5ojwo6FhXxjnDvlVdUcg9c",
+  "fetchedAt": "2026-11-03T12:17:12.944Z",
+  "version": "now",
+  "note": "拉取时的最新版，不是消息当时的版本",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "docs",
+    "+fetch",
+    "--api-version",
+    "v2",
+    "--doc",
+    "https://qfglxo2m3dc.sg.larksuite.com/docx/JMHEd5ojwo6FhXxjnDvlVdUcg9c",
+    "--doc-format",
+    "markdown",
+    "--as",
+    "user",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"document\": {\n      \"content\": \"<title>508 主播号复测（细节）</title>\\n\\n# 508 主播号 pre 复测（2026-10-27）\\n\\n测试号：aven-pretest@probe.test（uid 508）\\n\\n## 接口（探针，经 pre 网关）\\n\\n- `GET /api/Member/info`：code 0，`is_anchor=1`（10-27 之前是 0）\\n- `GET /api/live/getRoomList?page=1`：code 0，`total=7`，`has_more=false`，场次 1268、1267、1266、1265、1264、1263、1260\\n\\n## 页面（pre 站点，登录测试号）\\n\\n- `/user/me`：出现「我要直播」入口\\n- `/user/stream`：没有被打回本人页，「开播记录」列出 7 张场次卡，主标题、副标题、开播时间、分类、直播状态都和接口一致\\n\\n## 前端\\n\\n前端判断主播只看 `Member/info.is_anchor=1`，后端改完就生效，不用改代码。如果之前已经登录过，刷新一次页面就能看到入口。\\n\\n## 这次没测\\n\\n开播、关播、取推流地址、封面上传、直播间介绍写入这些操作会改 pre 数据，这次没点。\",\n      \"document_id\": \"JMHEd5ojwo6FhXxjnDvlVdUcg9c\",\n      \"revision_id\": 3\n    }\n  }\n}\n",
+  "stderr": ""
+}
