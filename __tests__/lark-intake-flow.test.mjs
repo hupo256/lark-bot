@@ -433,6 +433,19 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
         { name: '不，找后端', text: '不，找后端', want: { kind: 'decline', closureReason: 'cancelled' } },
         { name: '不是，这个归 App', text: '不是，这个归 App', want: { kind: 'decline', closureReason: 'cancelled' } },
         { name: '不对，运维那边的事', text: '不对，运维那边的事', want: { kind: 'decline', closureReason: 'cancelled' } },
+        // 11-03 第二次 review：否定头词（不做 / 不用了 / 先不做 / 不归我们…）后接归属后半句原来返回 null → 挂起任务当补料开跑
+        { name: '不做，这是后端的', text: '不做，这是后端的', want: { kind: 'decline', closureReason: 'no_longer_needed' } },
+        { name: '先不做', text: '先不做', want: { kind: 'decline', closureReason: 'no_longer_needed' } },
+        { name: '这个不归我们，找后端', text: '这个不归我们，找后端', want: { kind: 'decline', closureReason: 'cancelled' } },
+        { name: '不用了，后端在改', text: '不用了，后端在改', want: { kind: 'decline', closureReason: 'no_longer_needed' } },
+        { name: '别做了，服务端那边已经在改了', text: '别做了，服务端那边已经在改了', want: { kind: 'decline', closureReason: 'no_longer_needed' } },
+        { name: '不对，算了（后半句本身是不做）', text: '不对，算了', want: { kind: 'decline', closureReason: 'cancelled' } },
+        { name: '不归我们，属于 App 的问题', text: '不归我们，属于 App 的问题', want: { kind: 'decline', closureReason: 'cancelled' } },
+        // 否定头词 + 认不出的后半句 → 问一句不动（不当补料开跑）
+        { name: '不做，先放着 → 只问', text: '不做，先放着', want: { kind: 'unclear', closureReason: 'no_longer_needed' } },
+        { name: '不用了，我自己来 → 只问', text: '不用了，我自己来', want: { kind: 'unclear', closureReason: 'no_longer_needed' } },
+        { name: '不是，没必要 → 只问', text: '不是，没必要', want: { kind: 'unclear', closureReason: 'cancelled' } },
+        { name: '不归我们，找 William → 只问（强否定头不当补料）', text: '不归我们，找 William 要账号', want: { kind: 'unclear', closureReason: 'cancelled' } },
         // 11-03 合入前 review：后半句不是归属说法的是补料（原来「应该是 / 是 / 找」后面随便跟什么都算否定，补料被关单）
         { name: '不对，应该是 508 账号（补料）', text: '不对，应该是 508 账号', want: null },
         { name: '不是，这个是 B 页面（补料）', text: '不是，这个是 B 页面', want: null },
