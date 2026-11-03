@@ -106,7 +106,7 @@
    - **说「锁定 uat」实际测的 pre**：模拟配置只给了 pre 的地址（envSites），bot 只能测 pre——回放台要补 falive 的 uat / online 地址。
    - **实测只能发只读 GET、不能登录**：aven 私信给了账号，bot 仍「没用给的账号登录」；falive 当时有 pre-probe 脚本能登录。lark-bot 的实测模式没有登录能力（fameex 线 11-02 也遇到），这是能力缺口，要 aven 定：给实测模式开登录（POST）口子，还是继续只读。
    - aven 私信给账号锚到了「最近一条通知」的任务（member/info）而不是 falive 当时等账号的任务中心单——在 lark-bot 自己的时间线里这个锚是对的（那条刚说没登录态），不算错。
-12. **L2 裁判 10-26 一天（修复版 fix-b 6 条差异：lark-bot 2 / 一样 1 / falive 3）**：
+12. **L2 裁判 10-26 一天（基线 full-b 7 条差异：falive 5 / lark-bot 2；修复版 fix-b 6 条：lark-bot 2 / 一样 1 / falive 3）**。基线独有的：同一条处理两遍先「已修复」又「不用改」（duplicate，continues 老问题）、阻塞清单与结论前后矛盾（三条消息）。两轮共有：
    - **光一条「@Aven.Bot」（没正文）被摄入层直接丢掉**（2 条 missed）：人在自己上一条话后面单独 @ 一下是常见的催 / 接话方式，lark-ingest 对「没正文、没附件、没引用」的消息直接 return，根本没到分类器。falive 接上了前文。待修：群里直接 @bot 的一律进分类（上下文包会带前文），只有私信空消息才丢。
    - aven 私信「已部署」→ falive 把 bug 表从待推版改成已推版（bugpoll 流程），lark-bot 回「知道了」；这是 falive 线的约定，fameex 线由 bug-watch 处理，不改。
    - 结论 @ 了 Eric 而不是提问人（wrong_target，同 10-30 主题）。
