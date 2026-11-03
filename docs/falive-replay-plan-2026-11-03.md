@@ -126,4 +126,5 @@
    - **改了别人负责的模块**（2 条，falive 按功能总表转给 henry）：lark-bot 没有归属表（falive 的 ownership.table 没移植，fameex 线暂无对应），模拟里也没配。待 aven 定 fameex 线要不要归属表。
    - 光 @bot 被丢（3 条）：fix4 已修；「已关闭没推流的直播间」只记一笔没复测：fix3b 提示已改（已配好 / 已关掉的是我们报的 → 复测）。
 22. **第三轮 c 段（fix4 早期 95db743）整体重判：falive 5 / lark-bot 0**，没比第二轮好——它不含 fix5 / fix6。新暴露：William「复测 OL」被并进之前的 uat 实测任务，envTargets 仍是第一条的 uat，收尾环境核对给结论加了「测的不是你说的 uat」。fix4 b2081c2：并入时点名环境跟新消息走（重开 / 续跑取新的，在跑 / 没开跑取并集），都是实测但环境不相交的不算延续；全量 639，变异 93/93。第四轮 c 段用含它的代码（r4 c6c707e）10:06 重起。
+23. **b 段两轮（10-25 → 10-29）**：基线 falive 11 / lark-bot 6，第二轮 falive 10 / lark-bot 7；重复回复 5 → 4；任务 done 12 → 16、superseded 9 → 5（并入收窄）。第二轮仍差的：光 @bot 被丢 3 条（fix4 已修，第二轮代码不含）、「已關閉沒推流的直播間」判 ignore 没复测（fix3b 提示里已有「已配好 → 复测」，仍没判出来，第四轮再看）、配 Google client 后没提醒加授权来源。报告：sim/rounds-b.md。
 
