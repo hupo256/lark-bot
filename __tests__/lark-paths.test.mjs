@@ -9,9 +9,11 @@ import {
   attachmentsDirFor,
   auditDirFor,
   larkAttachmentsRoot,
+  larkAppSecretPath,
   larkAuditsRoot,
   larkBotRoot,
   larkRuntimeDir,
+  larkTenantTokenCachePath,
   resolveConsumerRoot,
   resolvePrdCacheRoot,
 } from '../lib/lark-paths.mjs'
@@ -24,6 +26,8 @@ describe('lark-paths 基座', () => {
     assert.equal(attachmentsDirFor('PR-00001', 'om_x'), join(larkAttachmentsRoot, 'PR-00001', 'om_x'))
     assert.equal(auditDirFor('PR-00001'), join(larkAuditsRoot, 'PR-00001'))
     assert.equal(auditDirFor(''), join(larkAuditsRoot, '_adhoc'))
+    assert.equal(larkAppSecretPath, join(homedir(), '.config', 'fameex-lark', 'lark-app-secret'))
+    assert.equal(larkTenantTokenCachePath, join(larkRuntimeDir, 'lark-tenant-token.local.json'))
   })
 
   it('consumerRoot：env > local.json > 默认；支持 ~ 展开', () => {

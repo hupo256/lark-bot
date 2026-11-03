@@ -65,7 +65,7 @@ lark-bot 是跑在**本机**的一套常驻服务：群里 @ 一下机器人（�
 
 - **fail-closed 白名单**：信任边界是白名单群（推荐 `allowedChatIds:"auto"` = bot 所在群动态成员制）；没配任何白名单就拒绝所有事件。`@所有人`/`@负责人`（没叫 bot）的消息 2026-11-02 起不再触发（之前经只读意图分类入队，判归属太复杂、准确性低，aven 决定先关掉）。
 - **本地 API 鉴权**：Gateway 写接口必须带 `LARK_GATEWAY_SECRET`（0600 文件注入，不落 plist）；缺失即拒绝启动——「只绑 127.0.0.1」不构成边界。
-- **身份复用 lark-cli**：收发消息、读话题、下图、读写多维表格全走 lark-cli 已登录的 bot 身份（keychain），配置里不放 appSecret。
+- **身份复用 lark-cli**：收发消息、读话题、下图、读写多维表格全走 lark-cli 已登录的 bot 身份（keychain），配置里不放 appSecret；应用令牌由 lark-bot 铸一次共用（`lib/lark-tenant-token.mjs`，secret 只在 0600 的 `~/.config/fameex-lark/lark-app-secret`，见 runtime-and-scheduling.md）。
 - **人类 WIP 不可侵犯**：目标 worktree 已有未提交改动时，任务改道隔离 hotfix worktree；命中人类分支时只 scoped 提交本任务实测文件。
 - **无人值守防线**：任务租约回收孤儿（40min）+ claim epoch fencing（迟到回写 409）+ 死信 cap + AI 超时 < 租约的启动断言。
 - **不谎报完成**：done 但零 diff、修复类只动测试文件、L2 契约改动缺 type-check 证据 → 一律降级人工复核，不发绿卡。
