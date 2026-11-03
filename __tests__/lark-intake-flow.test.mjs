@@ -139,6 +139,14 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       assert.deepEqual(await flushPendingAck({ config, store, task: silent, send: false, deliver }), { sent: false, usedReply: false })
       assert.deepEqual([silent.ackPending, deliveries.length], [null, 4])
       assert.deepEqual(await flushPendingAck({ config, store, task: null, deliver }), { sent: false, usedReply: false })
+      // 等分类期间单子被关（close = superseded + closureReason / 判不处理 = ignored）：只撤不发；手上是旧对象也看库里的最新状态，不把旧对象写回
+      for (const [id, patch] of [['om_c1', { status: 'superseded', closureReason: 'completed_elsewhere' }], ['om_c2', { closureReason: 'cancelled' }], ['om_c3', { status: 'ignored' }]]) {
+        const held = { id, status: 'received', ackPending: { at: iso(now) }, createdAt: iso(now) }
+        store.upsert({ ...held, ...patch })
+        assert.deepEqual(await flushPendingAck({ config, store, task: held, reply: '收到', deliver }), { sent: false, usedReply: false }, id)
+        assert.deepEqual([store.get(id).ackPending, store.get(id).ackedInGroup, store.get(id).status, store.get(id).closureReason, held.ackPending], [null, undefined, patch.status || 'received', patch.closureReason, null], id)
+      }
+      assert.equal(deliveries.length, 4, '关掉的单一条都不发')
       // 「收到」已发过 / 被拦后单独回的那句：自答走 self_answer、追问走 ask_back（11-03 R11：按消息去重——两个人问同样的问题各自要得到答复——不按内容 24h、不按人 2 分钟拦）；空的不发
       const sends = []
       const send = async (args) => { sends.push(args); return { ok: true, messageId: 'om_x', gated: false, reason: null } }

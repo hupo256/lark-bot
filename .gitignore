@@ -36,3 +36,5 @@ runtime/lark-gateway-alive-state.json
 runtime/lark-latency.jsonl
 # 负责人维护的固定知识（环境与部署等，含内部站点 / 流程，aven 11-02）
 runtime/knowledge/
+# 应用令牌缓存的锁目录 / 原子写临时文件（lib/lark-tenant-token，11-03；缓存本身由 *.local.json 覆盖）
+runtime/lark-tenant-token.local.json.*
