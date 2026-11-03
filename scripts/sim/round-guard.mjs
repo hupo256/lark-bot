@@ -37,7 +37,7 @@ for (;;) {
   if (!existsSync(simRoot)) continue
   const why = []
   const paused = Boolean(pausedUntil())
-  for (const seg of readdirSync(simRoot).filter((d) => d.startsWith(`${round}-`))) {
+  for (const seg of readdirSync(simRoot).filter((d) => d.startsWith(`${round}-`) && !d.includes('.'))) { // 存档点 <段>.ckpt / 日志 <段>.run-days.out 不算段
     const dir = join(simRoot, seg)
     if (existsSync(join(dir, 'DONE'))) continue
     const read = (f) => (existsSync(join(dir, f)) ? readFileSync(join(dir, f), 'utf8') : '')
