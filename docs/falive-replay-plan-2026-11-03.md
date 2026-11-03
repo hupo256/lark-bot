@@ -76,3 +76,21 @@
    根因：提示里「候选任务里是某条的延续 / 追问 → continues」没有区分「同一主题」和「同一交付物」；并入 done 的答疑任务后重跑的是整个任务、回复目标还是原消息。待修：continues 只在交付物兼容（追问 → 原答疑；补料 → 在跑的改码单）时生效，不同诉求（api_reply/change、requirement）另起任务；并入已完成任务重跑时回复新消息而不是旧消息，且只答增量。
 7. L2 smoke 里 worker 真的去探了 falivepre（envSites.pre），拿到 503 写进了答复——模拟时外网仍是真的，结论里带了「现在」的环境状态，对照 L3 时要记得这一点。
 
+## 5. 静态 review（11-03，子代理只读 20 个主链文件；每条先用失败测试验证再修）
+高置信：
+- R1 lark-principal-channel:153 负责人私信回「不是 / 不用 / 算了」给挂起任务，主通道无条件 resume，把否定句当补料放行执行（主通道没调 classifyClosureIntent）。
+- R2 lark-task-store closeAsExternallyResolved 不清 ackPending → 结单后 45 秒巡检照发「收到，我看一下，稍后回你」。
+- R3 lark-principal-channel:159 负责人对在跑的锚点任务说「不做」只建指示任务，锚点任务照跑到 done 再回群。
+- R5 lark-message parseControlDirective / parseResumeDirective：指令词后任意 ≥4 位 ASCII 单词当 taskId（「关闭 Google 登录入口」→「没找到任务 Google」）。
+- R6 lark-routes-intake intake_failed 出口：先发固定「收到」再永久静默，不私信负责人，逾期巡检也跳过。
+- R13 控制通道对 failed 任务回「还在处理中」。
+中置信（先看回放有没有撞到再决定）：
+- R4 群里带项目号的任务被改投绑定群（发件簿 / 义务 / 活跃都记在别的群，对话锚定看不到）。
+- R7 目标正在分类时仍当 supplement 并入，分类器拿旧正文跑完判 ignore 后补料无声丢失。
+- R8 mergeTaskObjects 不更新 operator / replyTarget：并入后结论回到原任务的消息、@ 原提单人（与 §4-6 同根）。
+- R9 selfAnswer 提示没限定提问人：别人问 bot 能做什么 → reply 已是完整答案又 queued 再答一次。
+- R10 默认锚点 / 正在进行的事读到被闸拦下的发件簿条目（gated）。
+- R11 自答走 done 相位的 content_24h 去重：两人问同样的问题第二条被拦，状态却 answered。
+- R12 回执重试每 5 分钟重建一份细节文档（docUrl 不持久化）。
+分组修：fix worktree A（lark-bot-fix，分支 lark/falive-fix）：R1 R3 R5 R7 R13；fix worktree B（lark-bot-fix2，分支 lark/falive-fix2）：R2 R6 R11。
+
