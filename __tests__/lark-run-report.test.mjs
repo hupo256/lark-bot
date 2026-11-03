@@ -222,7 +222,8 @@ describe('worker 侧对话层：outcome / 契约映射 / 群回复补写 / 模�
         { name: '分类器的 reply 没发出去 → 不算', task: { intake: { classification: { reply: '好，我查下发你' } } }, want: '' },
         { name: '只有上一单结论', task: { priorConclusion: prior }, want: PRIOR_LINE },
         { name: '上一单没摘要', task: { priorConclusion: { ...prior, summary: null } }, want: '本条接着任务 om_prev，那单 bot 的结论（以前的记录，用前对一下）：\n- 标题翻译：18726–18742' },
-        { name: '重开后接着本单自己上一轮 → 说「本单上一轮」', task: { id: 'om_prev', priorConclusion: prior }, want: '本单上一轮 bot 的结论（以前的记录，用前对一下）：\n- 标题翻译：18726–18742' },
+        // 重开 / 在跑时并入跑完重跑：说清是本单已经回过的，这轮只接新补充（11-03 review 遗留：重跑把答过的再答一遍）
+        { name: '接着本单自己上一轮 → 说「本单上一轮已经回给对方」、只处理新补充', task: { id: 'om_prev', priorConclusion: prior }, want: '本单上一轮 bot 已经回给对方的结论（这轮只处理之后新追加的【同主题补充】，上一轮答过的不再重复；以前的记录，用前对一下）：\n- 标题翻译：18726–18742' },
         // 11-03 第二次 review #8：环境不相交不并入、continues 仍指上一单（uat 的实测结论）——实测模式里它只作背景，环境事实本轮实测
         { name: '实测模式：上一单结论只作背景，不顶替本轮实测', task: { priorConclusion: prior }, verification: true, want: '本条接着任务 om_prev（翻译实测），那单 bot 的结论（以前的记录，只作背景：环境能不能用 / 有没有数据以本轮实测为准，不拿它顶替）：\n- 标题翻译：18726–18742' },
         { name: '两者都有：「收到」在前', task: { priorConclusion: prior, ackReply: '好' }, want: `群里已先回了一句：「好」\n${PRIOR_LINE}` },
