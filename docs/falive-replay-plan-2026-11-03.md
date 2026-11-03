@@ -1,0 +1,78 @@
+# falive 实战数据回放 lark-bot（立于 2026-11-03）
+
+> 一句话：这两天的升级（上下文分层 11-01、对话层重建 11-02）没经过实战。拿 falive bot 10-20 → 11-02 的真实运行数据，
+> 在 lark-bot 现在的代码上**先跑基线、再修、再跑**，差异清单驱动迭代；静态 review 并行，但它的发现只进同一张清单，不单独改码。
+> 范围：只做主链「消息进来 → 分类 / 接话 → 执行 → 回复」；bug 表轮询、邮件转评分、每日报告不回放（aven 11-03）。预算不限。
+> 代码在 `~/github/lark-bot-conv`（lark/conversation 分支，`scripts/sim/`），数据与模拟运行目录在 `~/github/lark-bot/runtime/falive-replay/`（gitignore）。
+
+## 0. 进度（做完一步回写一行）
+
+| 步 | 内容 | 状态 |
+|---|---|---|
+| A1 | 拉三个群历史（渲染版 + raw API 版，含附件）、读网关 / worker 日志、台账、审计 | ✅ 11-03 |
+| A2 | 数据集：`scripts/sim/build-dataset.mjs` → `dataset/timeline.json`（2371 条）、`dataset/episodes.json`（331 条，210 条有原文） | ✅ 11-03 |
+| A3 | L1 分类回放：`scripts/sim/replay-intake.mjs`，真跑分类器，两档强度（现网 low / falive 当时 high） | ✅ 两档都跑完（210 条，0 错；low 中位 5.9s，high 9.0s；两档互相一致 131/158） |
+| A4 | L1 对照：`scripts/sim/compare-intake.mjs`，混淆矩阵 + 逐条差异 + `--md` 报告 | ✅ `l1/base-low/report.md` |
+| A5 | L1 裁判：`scripts/sim/judge-intake.mjs`，差异条目用模型 + 事后信息判「谁对」 | ✅ 第一轮 45 条（非 aven 部分）：lark-bot 更好 19 / falive 更好 16 / 一样 9 / 都不对 1；aven 发的 52 条因发件簿污染重跑中 |
+| B1 | 离线模拟器：`scripts/sim/{fake-lark-cli,lark-cli,virtual-clock,run-sim,compare-sim}.mjs` | ✅ 跑通（smoke：10-20 08:30–10:00Z 11 条）；业务仓副本改成按基线检出的 worktree |
+| B2 | L2 对话层回放：逐事件按时间推进，比每条 @bot 的下文 / 义务状态 vs falive 当时 | 🔄 `scripts/sim/run-days.sh 2026-10-20 2026-11-03 full` 跑中（同一 sim 跨天续跑，每天重起进程、重钉基线；非触发消息只等 3 秒） |
+| B3 | L3 执行层回放：与 B2 同一次模拟，worker 真跑 claude，baseRef 钉到当天的 falive-react 提交（不抽样，全跑） | 🔄 同上 |
+| C | 差异清单 → 修 → 只重跑受影响层 → 全量测试绿 → 合运行分支 | ⬜ |
+
+## 1. 数据（都在本机，只读）
+
+| 来源 | 内容 | 量 |
+|---|---|---|
+| 飞书群历史（aven 身份） | Falive PHP后端群 `oc_c2a6…`、Falive产研技术沟通群 `oc_4062…`、webhook bot（falive 控制台）`oc_21a2…`，10-01 起全部消息 + 附件。渲染版 `raw/<群>.json`（`+chat-messages-list --download-resources`：内联 @名字的文本、sender 名、附件落地）；raw API 版 `raw/<群>.api.json`（`lark-cli api GET /im/v1/messages`：parent_id / root_id / thread_id / 原始 content） | 1135 / 555 / 679 条 |
+| `~/Library/Logs/falive-lark/gateway.log` | 每条消息的分类（`classified=<decision>/<confidence>`）与路由（并入 / 指示任务 / 续跑 / suspected / blocked ask / noted / outcome） | 269 条分类 |
+| `~/Library/Logs/falive-lark/worker.log` | 领取时的完整正文（`claimed <id> via claude: …`，含「【被引用消息】」「【群里这条之前的消息】」「【aven 私聊指示】」） | 134 条 |
+| `~/github/lark-bot-falive/runtime/lark-ledger/falive.json` | 对接台账：每条消息的 decision、触及条目、转移、摘录 | 139 条目 / 243 事件 |
+| `~/github/lark-bot-falive/runtime/lark-audits/FALIVE/` | 任务审计：原文、附件、workContext、最终结论、提交、claude 事件流 | 100 任务 / 164 代 |
+| `~/github/falive-react` | 业务仓，真跑回放按当时的父提交检出临时 worktree | — |
+
+拉不到的：【专项】Falive融合技术讨论群（aven 不在群里；台账 0 事件，75 条 ignore 没原文）；aven ↔ bot 的真私聊（原文在 worker.log）。
+
+## 2. 三层回放（便宜 → 贵），每层都是「同一条输入，falive 当时 vs lark-bot 现在」
+
+### L1 分类 / 接单层（`scripts/sim/replay-intake.mjs` → `l1/<run>/results.jsonl`）
+上下文包用 lark-bot 自己的 `buildConversationBundle`，四个拉取函数注入成「从时间线取」（引用消息 / 话题 / 最近 20 条 / 附件），分类器真跑 `classifyTaskIntent`，
+落地走 `applyIntakeClassification`。比：decision / confidence / deliverable / 落地（actionable / selfAnswer / askBack / suspected / recordOnly / ignored）vs 网关日志。
+局限：没有任务仓历史 → 候选任务 / 默认锚点 / 负责人私聊锚定（privateOrigin）都空，这些只能靠 L2。
+
+### L2 对话层（离线模拟器）
+假 `lark-cli`（`LARK_CLI_BIN`）：`event consume` 按虚拟时钟吐时间线事件；`+chat-messages-list` / `+messages-mget` / `+threads-messages-list` 按时间点截断供数；
+`+messages-send` / `+messages-reply` 记到 sim 发件簿并回 message_id；`+chat-list` 给三个群；其余子命令回 ok 空。真网关 + 真 worker 跑在隔离运行目录
+（`LARK_RUNTIME_DIR`、独立端口、`LARK_DRAIN_RESTART=0`、`LARK_WAKE_CATCHUP=0`）；虚拟时钟 preload 让 `Date.now()` 跟事件时间走，事件之间等系统空闲再跳。
+比：每条 @bot 有没有下文、下文是什么（人话 / 结论 / 追问 / 私信负责人）、义务状态；对照 falive 当时的卡片回复和人的后续反应。
+
+### L3 执行层（同一模拟器，worker 真跑 claude）
+抽 20 条左右覆盖 bugfix / requirement / verification / no_change_needed / blocked / failed；按天把 falive-react 的 baseRef 钉到当天的提交。比 status、结论、改动文件集 vs 审计。
+
+## 3. 回放时做的映射（都记在这里，免得以后当成 bot 的行为）
+- falive bot 在不同群里的 @ open_id 不同（PHP 群 `ou_caf1…`、产研群 `ou_f57c…`、webhook 群 `ou_9699…`）：事件里统一改写成配置的 `botOpenId`。
+- webhook 群是 falive 的「控制台」（只有 aven 一个人，他在那里说的话 falive 按负责人私聊处理）：映射成 lark-bot 的负责人私信（p2p，chat_id = aven open_id）。
+- 撤回的消息（渲染版「[Invalid text JSON]」/ raw「This message was recalled」）按已删除。
+- 回复了 bot 任何一条消息都算 bot_reply（生产只认登记过的回执；近似）。
+- 分类提示里写死的「只做 fameex-web 前端仓的事」改成 `localConfig.repoLabel`（缺省不变）——这是回放的前提，也是一个真缺陷：提示词与仓绑定。
+
+## 3b. 回放台自己的坑（已修，记下免得再踩）
+- L1 第一轮把 `LARK_RUNTIME_DIR` 指到现网 runtime 读 persona，结果对话数据按 chatId 读到了现网发件簿：aven 的私信 chatId 就是他的 open_id，fameex 线最近 7 天对他说的话被当成「正在进行的事」，回复里冒出 fameex 的「档位弹窗」。发件簿 / 义务已改指空目录，aven 发的 52 条重跑。
+  顺带一个真问题：`buildConversationData` 的时间窗按 `Date.now()` 算，不按消息时间——开盖补拉旧消息时会拿「现在」去框 2 小时 / 7 天窗口。
+- 只读答疑原本直接在业务仓主目录跑（HEAD 是最新代码），答案里出现「10-30～11-02 最后一次实测」这种未来信息；已改成按窗口起点检出的 worktree。
+
+## 4. 发现（随时追加；最后汇总成差异清单）
+1. **只 @ 负责人的消息 lark-bot 一律不处理（11-02 决定）**：falive 当时分类了 52 条这类消息，46 条 ignore，6 条有动作——4 条入队（3 条是「发对接文档 @aven」→ 文档入库，1 条 Adrian 发任务中心文档）、2 条疑似。影响面小，但「发文档只 @aven」这个入库入口没了。
+2. **falive 的 18 条「疑似」里 12 条后来 aven 放行了**：lark-bot 现在按 10-24 规则 medium 直接 actionable，与 aven 事后的决定一致（更好）；没放行的 6 条里 lark-bot 有 4 条会直接开跑（「手机号登录账号存一下」「uid 508 设成主播」「开播语言没接」「完善资料部分需要前端接入」），要看 L2 / L3 跑出来是不是无害的实测 / 只记一笔。
+3. **L1（low）可比 96 条：决策一致 65，落地一致 64**。差异类型：api_reply → lark-bot 判 recordOnly（falive 入队，2 条）；falive question/actionable → lark-bot ignore（「把你的账户昵称给我发一下」）；图片 + 「@Aven.Bot」短句 → lark-bot ignore/medium（falive bug/medium，aven 放行过）。
+4. 负责人私聊的指示（「就这样回，哪里拿不准了」「已部署」×4）在 L1 没有锚点上下文 → 判 question/low 追问或 ignore；是 L1 局限，L2 再看。
+5. **L1 裁判（非 aven 的 45 条差异）**：lark-bot 更好 19（多是「medium 直接做」对上了 aven 事后的放行、reply 更像人话），falive 更好 16，一样 9。falive 更好的里值得修的：
+   - 「@Aven.Bot 把你的账户昵称给我发一下」→ lark-bot ignore（漏接；该 selfAnswer / question）；
+   - 「直播间关注会同步到 Go，这个不要改 go」→ ignore/low（后端要前端撤改动，该 api_reply）；
+   - 截图 + 短句「@Aven.Bot」（Encone 报广场发帖缺功能）→ ignore，且 reply 把截图读错；
+   - 「404 不用修了，已切 golang 实测通过」→ lark-bot 建任务复测（该 recordOnly，扰民）；
+   - 「能不能先打包到 uat OL」→ ignore（falive 核对后答了「不用打包」）；
+   - 「测试帖子多语言翻译以及 AI 识图」→ reply 反问「test 还是 pre」，前文一直在 pre（persona 的「先确认环境」用过头）。
+6. **L2（smoke，10-20 08:39–08:49）continues 归并过宽，同一份答案连发三遍**：Encone @bot 要「api 待处理清单」（question → 答了）；4 分钟后 William @bot「portal 接口不需要带嗨聊头，更新清单」、Encone @bot「你自己写脚本批量造测试帖」，分类器都填了 continues = 清单任务（理由：「清单上一项的答复」），落地 rerun_after_done：清单任务各重跑一遍，整份清单又作为对**第一条**消息的回复发了两次（08:45、08:49），William / Encone 自己的消息只得到「收到」；aven 也收到三条「替你答了」。falive 当时是三条独立任务。
+   根因：提示里「候选任务里是某条的延续 / 追问 → continues」没有区分「同一主题」和「同一交付物」；并入 done 的答疑任务后重跑的是整个任务、回复目标还是原消息。待修：continues 只在交付物兼容（追问 → 原答疑；补料 → 在跑的改码单）时生效，不同诉求（api_reply/change、requirement）另起任务；并入已完成任务重跑时回复新消息而不是旧消息，且只答增量。
+7. L2 smoke 里 worker 真的去探了 falivepre（envSites.pre），拿到 503 写进了答复——模拟时外网仍是真的，结论里带了「现在」的环境状态，对照 L3 时要记得这一点。
+
