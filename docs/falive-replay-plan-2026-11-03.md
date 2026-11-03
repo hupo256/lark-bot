@@ -59,6 +59,8 @@
 - L1 第一轮把 `LARK_RUNTIME_DIR` 指到现网 runtime 读 persona，结果对话数据按 chatId 读到了现网发件簿：aven 的私信 chatId 就是他的 open_id，fameex 线最近 7 天对他说的话被当成「正在进行的事」，回复里冒出 fameex 的「档位弹窗」。发件簿 / 义务已改指空目录，aven 发的 52 条重跑。
   顺带一个真问题：`buildConversationData` 的时间窗按 `Date.now()` 算，不按消息时间——开盖补拉旧消息时会拿「现在」去框 2 小时 / 7 天窗口。
 - 只读答疑原本直接在业务仓主目录跑（HEAD 是最新代码），答案里出现「10-30～11-02 最后一次实测」这种未来信息；已改成按窗口起点检出的 worktree。
+- falive-react 的 commit-msg 钩子（scripts/verify-commit-msg.mjs）要求 `<type>(<scope>)?: 主题`，lark-bot 的 hotfix 提交标题是「lark hotfix: …」→ 全被拒、任务降级 failed（full-b 第一轮 6 次）。falive 当时靠 repo profile 的 commitPrefix；已移植成运行配置 `commitPrefix`（fix3 0a69b79 / conv 53117d4），模拟配置填 feat(bot)。三段基线 07:48 用带它的代码重启。
+- 三个模拟同时 `git worktree add` 撞过一次（failed to read .git/worktrees/…/commondir），启动错开 20 秒。
 
 ## 4. 发现（随时追加；最后汇总成差异清单）
 1. **只 @ 负责人的消息 lark-bot 一律不处理（11-02 决定）**：falive 当时分类了 52 条这类消息，46 条 ignore，6 条有动作——4 条入队（3 条是「发对接文档 @aven」→ 文档入库，1 条 Adrian 发任务中心文档）、2 条疑似。影响面小，但「发文档只 @aven」这个入库入口没了。
