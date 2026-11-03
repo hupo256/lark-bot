@@ -121,6 +121,10 @@ describe('对话层：契约、入队门槛、分类落态、归并', () => {
       { name: 'A P ignore high（带 deliverable answer）→ 否（负责人说不做就不做）', t: { addressedToBot: true, fromPrincipal: true }, c: cls('ignore', 'high', { deliverable: 'answer' }), want: false },
       { name: 'A P question + selfAnswer + answer → 否（分类器已答完）', t: { addressedToBot: true, fromPrincipal: true, text: '你能发邮件吗' }, c: cls('question', 'high', { selfAnswer: true, deliverable: 'answer' }), want: false },
       { name: 'A P question + selfAnswer 但显式「修复：」→ 契约 change，selfAnswer 不成立 → 是', t: { addressedToBot: true, fromPrincipal: true, text: '修复：登录' }, c: cls('question', 'high', { selfAnswer: true }), want: true },
+      // 11-03 静态 review R9：别人问「bot 能做什么」分类器也把完整答案写进 reply 并置 selfAnswer，原先只对负责人生效——别人的照样 actionable，
+      // reply 作「收到」发出（已是完整答案）后 worker 再代答一遍、发第二次。自答不看提问人：@bot 的问 bot 自己的问题答一次就结。
+      { name: 'A ¬P question + selfAnswer + answer → 否（分类器已答完，不看提问人）', t: { addressedToBot: true, text: 'bot 能做什么' }, c: cls('question', 'high', { selfAnswer: true, deliverable: 'answer' }), want: false },
+      { name: 'A ¬P question + selfAnswer 但显式「修复：」→ 契约 change → 是', t: { addressedToBot: true, text: '修复：登录' }, c: cls('question', 'high', { selfAnswer: true }), want: true },
       { name: 'A P 未知类别 → 否', t: { addressedToBot: true, fromPrincipal: true }, c: cls('chitchat'), want: false },
       { name: 'A P 私聊指示 + bug high → 是（负责人分支不看 privateOrigin）', t: { addressedToBot: true, fromPrincipal: true, privateOrigin: { anchorId: 'a' } }, c: cls('bug'), want: true },
       { name: 'A ¬P ignore + verification high → 是（帮测不看归属）', t: { addressedToBot: true }, c: cls('ignore', 'high', { deliverable: 'verification' }), want: true },
@@ -161,11 +165,14 @@ describe('对话层：契约、入队门槛、分类落态、归并', () => {
         want: { status: 'answered', result: '摘要-question' },
       },
       {
-        name: 'selfAnswer 只对负责人：别人问同样的话 → 开跑（actionable）',
+        // 11-03 R9：原预期「selfAnswer 只对负责人：别人问同样的话 → 开跑」——那会把分类器已写完整的 reply 当「收到」发出，再让 worker 代答一遍发第二次。
+        name: 'selfAnswer 不看提问人：别人问 bot 自己的问题 → answered，答一次就结、不排队',
         t: { addressedToBot: true, text: '你能发邮件吗' },
-        c: cls('question', 'high', { selfAnswer: true, deliverable: 'answer' }),
-        want: { out: { actionable: true, selfAnswer: false, requeue: true }, commandType: 'status', commandTypeSource: 'explicit' },
+        c: cls('question', 'high', { selfAnswer: true, deliverable: 'answer', reply: '能发，部署信那类私信 aven 就行' }),
+        want: { out: { actionable: false, selfAnswer: true, requeue: false, suspected: false, recordOnly: false }, status: 'answered', selfAnswered: true, result: '能发，部署信那类私信 aven 就行', commandType: undefined },
       },
+      { name: '别人问 bot 自己、forMe=false 也自答（问题是关于 bot 的，归属无关）', t: { addressedToBot: true, text: 'bot 能做什么' }, c: cls('question', 'high', { selfAnswer: true, deliverable: 'answer', forMe: false, reply: '能看代码答问题、改前端' }), want: { out: { selfAnswer: true, actionable: false }, status: 'answered', result: '能看代码答问题、改前端' } },
+      { name: '别人问 bot 自己、low 也自答（与负责人同口径，不走疑似）', t: { addressedToBot: true, text: 'bot 能做什么' }, c: cls('question', 'low', { selfAnswer: true, deliverable: 'answer', reply: '能看代码答问题' }), want: { out: { selfAnswer: true, suspected: false }, status: 'answered' } },
       {
         name: 'actionable question：commandType=status、契约 answer、waitsFor / topic / continues / relatedTaskId 落上、claimedAt 清',
         t: { addressedToBot: true, text: '有哪些差别', claimedAt: 'x' },
