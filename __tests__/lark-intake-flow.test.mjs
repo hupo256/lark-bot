@@ -99,9 +99,12 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       store.upsert({ id: 'om_later', status: 'received', ackPending: { at: iso(now), deadline: iso(now + 30_000) }, createdAt: iso(now) })
       store.upsert({ id: 'om_bad', status: 'received', ackPending: { at: 'garbage' }, createdAt: iso(now) })
       store.upsert({ id: 'om_none', status: 'received', createdAt: iso(now) })
+      // 11-03 R2：到点前任务已被关掉 / 判完（superseded / ignored / answered / intake_failed）——「收到」只撤不发，不再给已取消的任务说「稍后回你」
+      for (const [id, status] of [['om_closed', 'superseded'], ['om_ign', 'ignored'], ['om_ans', 'answered'], ['om_if', 'intake_failed']]) store.upsert({ id, status, ackPending: { at: iso(now - 50_000), deadline: iso(now - 1) }, createdAt: iso(now) })
       assert.equal(await sweepPendingAcks({ config, store, now, deliver }), 3)
       assert.deepEqual(deliveries.map(([id]) => id).sort(), ['om_due', 'om_edge', 'om_fallback'])
       for (const id of ['om_due', 'om_edge', 'om_fallback']) assert.deepEqual([store.get(id).ackPending, store.get(id).ackedInGroup], [null, true], id)
+      for (const id of ['om_closed', 'om_ign', 'om_ans', 'om_if']) assert.deepEqual([store.get(id).ackPending, store.get(id).ackedInGroup], [null, undefined], `${id}：撤掉、没发、不算回过`)
       assert.equal(store.get('om_later').ackPending.deadline, iso(now + 30_000))
       assert.equal(await sweepPendingAcks({ config, store, now, deliver }), 0, '发过的不再到点')
       const t = store.upsert({ id: 'om_f', status: 'received', chatId: 'oc_g', ackPending: { at: iso(now), deadline: iso(now + 45_000) }, createdAt: iso(now) })
