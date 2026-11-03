@@ -194,6 +194,10 @@ const env = {
   LARK_CLAUDE_IDLE_TIMEOUT_MS: String(8 * 3600_000),
   LARK_INTENT_CLASSIFIER_TIMEOUT_MS: String(8 * 3600_000),
   LARK_WORKER_AI_TIMEOUT_MS: String(8 * 3600_000),
+  LARK_TASK_LEASE_MS: String(9 * 3600_000), // worker 启动自检：AI 超时必须小于租约（r10 第一次起跑 worker 因此拒绝启动，任务全卡 received）
+  // 应用令牌直铸（lib/lark-tenant-token，1cc516e）会读线上 ~/.config/fameex-lark/lark-app-secret 去请求真飞书：回放里指到本机不存在的端口，立刻失败、回落假 lark-cli
+  LARK_APP_ID: 'cli_sim_replay',
+  LARK_OPEN_API_HOST: 'http://127.0.0.1:9',
   SIM_ORIG_IDLE_MS: process.env.LARK_CLAUDE_IDLE_TIMEOUT_MS || '600000',
   SIM_ORIG_INTENT_MS: process.env.LARK_INTENT_CLASSIFIER_TIMEOUT_MS || '120000',
   SIM_ORIG_TOTAL_MS: process.env.LARK_WORKER_AI_TIMEOUT_MS || '1800000',
