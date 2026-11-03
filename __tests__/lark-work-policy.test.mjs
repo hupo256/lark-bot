@@ -212,12 +212,28 @@ describe('resolveAnalysisGate', () => {
       '缺调用时机和触发方式：是前端在 updateInfo 成功后调 task/complete，还是后端回调？',
       '缺「账户同步问题」的具体内容：要说明前端在登录或注册流程的哪一步调用什么',
       '需后端再确认：Go 是否已放开主动申报，会不会和社区回调重复发奖',
+      '缺 userFeedback 的字段说明：提交后 statement 怎么生成', // feedback / statement 不算敏感字段词
+    ]
+    const moneyStatusAsks = [
+      '需后端确认 fee 字段的计算口径：是否含返佣',
+      '缺少接口实际返回样例：金额字段 available 是否已扣冻结',
+      '需后端再确认状态字段 status 的枚举含义',
+      '缺 feeRate 的字段说明',
+      '缺 tradeAmount 定义：totalBalance 同理',
+      '缺 orderState 的字段说明',
+      '需后端再确认：余额、手续费、费率、价格是否已按精度截断',
+      '缺 pnl 和 margin 的字段说明', '缺 lastPrice 定义',
+      '需后端确认 permission 字段的取值',
+      '需后端再确认：未开通权限时接口返回什么',
+      '缺 enum 定义：side 有哪些取值',
     ]
     const replyTask = larkTask({ text: '帖子回复部分已经完成，完善资料部分需要前端接入', commandType: 'api', intake: { classification: { decision: 'api_reply' } } })
     await eachCase([
       { name: 'api: 前缀 / api_reply 定的 commandType', task: replyTask, blockers: docAsks, status: 'ready', kept: [] },
       { name: '只有契约标了 api（分类器判 api_reply）', task: larkTask({ text: '完善资料部分需要前端接入', contract: { v: 1, deliverable: 'change', api: true } }), blockers: docAsks, status: 'ready', kept: [] },
       { name: '首句在要账号 / 权限：仍停', task: replyTask, blockers: ['缺测试账号：要用真实账号登录后才能验证', ...docAsks], status: 'blocked', kept: ['缺测试账号：要用真实账号登录后才能验证'] },
+      // 金额 / 状态 / 权限字段取不到证据要停（分析提示的硬规则），首句或细节里提到都不降级（fix10 review：fee 口径、available 是否扣冻结按 Mock 假设去实施了）。
+      { name: '提到金额 / 状态 / 权限字段：仍停', task: larkTask({ text: '资产页接口已提供', contract: { v: 1, deliverable: 'change', api: true } }), blockers: [...moneyStatusAsks, ...docAsks], status: 'blocked', kept: moneyStatusAsks },
       { name: '首句没在要文档的读不懂 blocker：仍按 hard 停', task: replyTask, blockers: ['情况比较复杂，建议先讨论一下', ...docAsks], status: 'blocked', kept: ['情况比较复杂，建议先讨论一下'] },
       { name: '不是对接答复：原样按 hard 停', task: larkTask({ text: '完善资料部分需要前端接入', intake: { classification: { decision: 'requirement' } } }), blockers: docAsks, status: 'blocked', kept: docAsks },
     ], ({ name, task, blockers, status, kept }) => {
