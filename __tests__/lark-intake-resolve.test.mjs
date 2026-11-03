@@ -263,6 +263,9 @@ describe('对话层：契约、入队门槛、分类落态、归并', () => {
       { name: '那条还没结论 → 不带', t: { addressedToBot: true, text: 'x' }, c: cls('question', 'high', { deliverable: 'answer', continues: 'om_prev' }), known: { om_prev: { id: 'om_prev', outcome: null } }, want: { priorConclusion: undefined } },
       { name: 'continues 指自己 → 不带', t: { addressedToBot: true, text: 'x' }, c: cls('question', 'high', { deliverable: 'answer', continues: 'om_1' }), known: { om_1: { id: 'om_1', outcome: { summary: '自己' } } }, want: { priorConclusion: undefined } },
       { name: '没开跑（疑似）→ 不带', t: { addressedToBot: true, text: 'x' }, c: cls('bug', 'low', { continues: 'om_prev' }), known: { om_prev: { id: 'om_prev', outcome: { summary: '上一单' } } }, want: { out: { suspected: true }, priorConclusion: undefined } },
+      // 11-03 第二次 review #5：priorConclusion 只写不清——重新分类后新结果没有 prior（或不开跑）还带着上一次分类的那单结论
+      { name: '重新分类、新结果没有 prior → 删掉旧的', t: { addressedToBot: true, text: 'x', priorConclusion: { taskId: 'om_old', text: '旧' } }, c: cls('question', 'high', { deliverable: 'answer' }), known: {}, want: { out: { actionable: true } }, check: (t) => assert.equal('priorConclusion' in t, false) },
+      { name: '重新分类成不开跑（疑似）→ 也删掉旧的', t: { addressedToBot: true, text: 'x', priorConclusion: { taskId: 'om_old', text: '旧' } }, c: cls('bug', 'low', { continues: 'om_prev' }), known: { om_prev: { id: 'om_prev', outcome: { summary: '上一单' } } }, want: { out: { suspected: true } }, check: (t) => assert.equal('priorConclusion' in t, false) },
       { name: '不给 lookup → 不带也不炸', t: { addressedToBot: true, text: 'x' }, c: cls('question', 'high', { deliverable: 'answer', continues: 'om_prev' }), want: { out: { actionable: true }, priorConclusion: undefined } },
       {
         name: 'ignore 被放行（只读活归别人）：reply 不当「收到」发，挪到 replyDropped',
@@ -354,6 +357,11 @@ describe('对话层：契约、入队门槛、分类落态、归并', () => {
         { name: 'ackReply：重开、来源没发过 → 删掉', into: fresh('answered', { ackReply: 'A 那句' }), mode: 'reopened', after: (into) => assert.equal('ackReply' in into, false) },
         { name: 'ackReply：没开跑、来源没发过 → 目标那句留着（这轮还欠着）', into: fresh('queued', { ackReply: 'A 那句' }), mode: 'appended', after: (into) => assert.equal(into.ackReply, 'A 那句') },
         { name: 'ackReply：在跑、来源已发过 → 换成来源的', into: fresh('running', { ackReply: 'A 那句' }), source: from({ ackReply: 'B 那句' }), mode: 'rerun_after_done', after: (into) => assert.equal(into.ackReply, 'B 那句') },
+        // 11-03 第二次 review #5：重开后 B 接着的是目标自己上一轮的结论，不是目标第一次分类时接着的那单；续跑 / 追加还是同一件事，留着。
+        { name: 'priorConclusion：重开 → 换成目标自己上一轮的结论（outcome）', into: fresh('done', { summary: 's', outcome: { report: { answer: '不一样', items: [] } }, priorConclusion: { taskId: 'om_x', text: '别单' } }), mode: 'reopened', after: (into) => assert.deepEqual(into.priorConclusion, { taskId: 'into', summary: 's', text: '不一样' }) },
+        { name: 'priorConclusion：重开、上一轮没 outcome → 用 result', into: fresh('answered', { result: '能发', priorConclusion: { taskId: 'om_x', text: '别单' } }), mode: 'reopened', after: (into) => assert.deepEqual(into.priorConclusion, { taskId: 'into', summary: null, text: '能发' }) },
+        { name: 'priorConclusion：重开、上一轮什么都没有 → 删掉', into: fresh('failed', { priorConclusion: { taskId: 'om_x', text: '别单' } }), mode: 'reopened', after: (into) => assert.equal('priorConclusion' in into, false) },
+        { name: 'priorConclusion：续跑 / 追加 → 保留（还是那件事，接着的那单仍是背景）', into: fresh('blocked', { result: '等文档', priorConclusion: { taskId: 'om_x', text: '别单' } }), mode: 'resumed', after: (into) => assert.deepEqual(into.priorConclusion, { taskId: 'om_x', text: '别单' }) },
         { name: '疑似挂起 → appended_suspected：保持原目标', into: fresh('waiting_confirmation', { suspected: true, operator: 'ou_a' }), source: from({ operator: 'ou_b' }), mode: 'appended_suspected', after: (into) => assert.equal(into.operator, 'ou_a') },
       ], ({ into, source, mode, after, sourceEpoch = 1 }) => {
         const r = run(into, source)

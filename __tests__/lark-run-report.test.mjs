@@ -222,6 +222,7 @@ describe('worker 侧对话层：outcome / 契约映射 / 群回复补写 / 模�
         { name: '分类器的 reply 没发出去 → 不算', task: { intake: { classification: { reply: '好，我查下发你' } } }, want: '' },
         { name: '只有上一单结论', task: { priorConclusion: prior }, want: PRIOR_LINE },
         { name: '上一单没摘要', task: { priorConclusion: { ...prior, summary: null } }, want: '本条接着任务 om_prev，那单 bot 的结论（以前的记录，用前对一下）：\n- 标题翻译：18726–18742' },
+        { name: '重开后接着本单自己上一轮 → 说「本单上一轮」', task: { id: 'om_prev', priorConclusion: prior }, want: '本单上一轮 bot 的结论（以前的记录，用前对一下）：\n- 标题翻译：18726–18742' },
         { name: '两者都有：「收到」在前', task: { priorConclusion: prior, ackReply: '好' }, want: `群里已先回了一句：「好」\n${PRIOR_LINE}` },
       ], ({ task, want }) => {
         assert.equal(buildCarryOverBlock(task), want)
@@ -230,7 +231,7 @@ describe('worker 侧对话层：outcome / 契约映射 / 群回复补写 / 模�
         for (const [contract, carried] of [[{ v: 1, deliverable: 'answer', readOnly: true, expectsCode: false }, true], [{ v: 1, deliverable: 'verification', readOnly: false, expectsCode: false }, true], [{ v: 1, deliverable: 'change', readOnly: false, expectsCode: true }, false]]) {
           const { user } = buildTaskPromptParts(ctx, { ...full, contract, intake: { ...full.intake, classification: { decision: 'bug', ...full.intake?.classification } } }, 'claude', { ruleContext: { text: '', sources: [] } })
           if (want) assert.equal(user.includes(`\n${want}\n`), carried, `${contract.deliverable}：${carried ? '要带' : '不带'}`)
-          assert.equal(user.includes('群里已先回了一句') || user.includes('本条接着任务'), carried && Boolean(want))
+          assert.equal(['群里已先回了一句', '本条接着任务', '本单上一轮'].some((line) => user.includes(line)), carried && Boolean(want))
         }
       })
     }],
