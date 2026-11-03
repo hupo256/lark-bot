@@ -53,6 +53,7 @@
 - webhook 群是 falive 的「控制台」（只有 aven 一个人，他在那里说的话 falive 按负责人私聊处理）：映射成 lark-bot 的负责人私信（p2p，chat_id = aven open_id）。
 - 撤回的消息（渲染版「[Invalid text JSON]」/ raw「This message was recalled」）按已删除。
 - 回复了 bot 任何一条消息都算 bot_reply（生产只认登记过的回执；近似）。
+- **运维指令（核对 uat / online 后发部署信、推 MR）不在回放范围**：要真读当时的环境分支、真发邮件 / 推送，回放台不提供（opsActions 不配，任务会 failed「运维配置缺」）。裁判里这类 stuck 不计入 lark-bot 的问题。
 - 分类提示里写死的「只做 fameex-web 前端仓的事」改成 `localConfig.repoLabel`（缺省不变）——这是回放的前提，也是一个真缺陷：提示词与仓绑定。
 
 ## 3b. 回放台自己的坑（已修，记下免得再踩）
