@@ -110,7 +110,13 @@ const config = {
   commitPrefix: 'feat(bot)', // falive-react 的 commit-msg 钩子要求 <type>(<scope>): 主题（falive 当时的 repo profile 同值）
   consumerRoot: repoLink,
   intake: repo.intake || undefined,
-  envSites: { pre: 'https://falivepre.fdsser.com', uat: 'https://faliveuat.fdsser.com', online: 'https://www.falive.com' }, // 时间线里出现的三个环境（10-30 回放：只给 pre 时「锁定 uat」却测了 pre）
+  // 环境按时间线里第一次出现的日子生效（11-03：中途把 uat / online 一律加进来，10-22 的回放就「编出了当时还不存在的 uat」）：
+  // pre 10-08 起；uat 10-28 起（Encone 首次给出 faliveuat）；online 10-29 起（www.falive.com 首次出现）。
+  envSites: {
+    pre: 'https://falivepre.fdsser.com',
+    ...(fromMs >= Date.parse('2026-10-28T00:00:00Z') ? { uat: 'https://faliveuat.fdsser.com' } : {}),
+    ...(fromMs >= Date.parse('2026-10-29T00:00:00Z') ? { online: 'https://www.falive.com' } : {}),
+  },
   dailyReport: { enabled: false },
   chatRetention: { enabled: false },
   digest: { enabled: false },
