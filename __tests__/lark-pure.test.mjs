@@ -888,16 +888,14 @@ describe('parseControlDirective', () => {
     assert.equal(parseControlDirective('这个功能取消了吧'), null) // 动词不在句首
     assert.equal(parseControlDirective('帮我改一下这个页面'), null)
     assert.equal(parseControlDirective(''), null)
-  })
-
-  // 11-03 静态 review R5：「@bot 关闭 Google 登录入口」→ taskId='Google' → 回「没找到任务 Google，结单不了」，需求丢了。
-  it('指令词后不是真实 id 形状 → null（整句按普通消息走分类）', () => {
+    // 「@bot 关闭 Google 登录入口」→ taskId='Google' → 回「没找到任务 Google，结单不了」，需求丢了。
     assert.equal(parseControlDirective('关闭 Google 登录入口'), null)
     assert.equal(parseControlDirective('取消 debug 模式的弹窗'), null)
     assert.equal(parseControlDirective('cancel subscription 页面的二次确认'), null)
     assert.deepEqual(parseControlDirective('取消任务 recABC_123'), { action: 'close', taskId: 'recABC_123', closureReason: 'cancelled', supplementText: '' })
     assert.deepEqual(parseControlDirective('重开任务 daily-20261103-a1 再发一次'), { action: 'reopen', taskId: 'daily-20261103-a1', closureReason: null, supplementText: '再发一次' })
   })
+
 })
 
 describe('classifyReopenIntent', () => {

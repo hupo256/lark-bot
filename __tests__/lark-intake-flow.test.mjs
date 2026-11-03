@@ -22,7 +22,7 @@ process.env.LARK_RUNTIME_DIR = runtime
 
 const { ACK_SWEEP_EVERY_MS, DEFAULT_ACK_TIMEOUT_MS, appendSuspectedSupplement, deliverFollowUpReply, flushPendingAck, holdsSuspectedForPrincipal, intakeTiming, isCompleteMessage, markAckPending, mergeThreadSupplement, pickSupplementTarget, resolveIntakeLane, resolveIntakeNotBefore, sweepPendingAcks } = await import('../lib/lark-intake-ack.mjs')
 const { DEFAULT_PRINCIPAL_REPLY_WINDOW_MS, anchorHead, buildPrincipalInstructionTask, classifyPrincipalReply, decidePrincipalAction, isDeployNotice, isReleaseHeldReply, isShortDeictic, latestDmReceipt, maybeHandlePrincipalChannel, resolvePrincipalAnchor } = await import('../lib/lark-principal-channel.mjs')
-const { RERUN_ACK_REPLY, handleIntakeResolution, mergeableTarget, resolveMergeTarget } = await import('../lib/lark-routes-intake.mjs')
+const { RERUN_ACK_REPLY, compatibleContinuation, handleIntakeResolution, mergeableTarget, resolveMergeTarget } = await import('../lib/lark-routes-intake.mjs')
 const { buildConversationBundle } = await import('../lib/lark-conversation-bundle.mjs')
 const { ingestLarkEvent } = await import('../lib/lark-ingest.mjs')
 const { handleBotAddedEvent, parseBotAddedEvent } = await import('../lib/lark-project-chat-sync.mjs')
@@ -458,6 +458,34 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
         { name: '没分类 → null', task: { id: 'om_me', intake: { anchorTaskId: 'om_a' } }, want: null },
         { name: '没 intake → null', task: { id: 'om_me' }, want: null },
       ], ({ task, want }) => assert.equal(resolveMergeTarget({ task, store: st }), want))
+    }],
+    ['routes-intake：continues 只在交付物兼容时并入（11-03 falive 回放 smoke：答完的清单 + 新交办被并进去重跑，整份清单连发三遍）', () => {
+      const c = (deliverable) => ({ deliverable })
+      const me = (d) => ({ id: 'om_me', contract: d ? c(d) : null })
+      const target = (status, d) => ({ id: 'om_t', status, contract: d ? c(d) : null })
+      const tasks = new Map([['om_list', { id: 'om_list', status: 'answered', contract: c('answer') }], ['om_fix', { id: 'om_fix', status: 'running', contract: c('change') }]])
+      const store = { get: (id) => tasks.get(id) || null }
+      const quiet = console.log
+      console.log = () => {}
+      try {
+        assert.equal(resolveMergeTarget({ task: { id: 'om_me', contract: c('change'), intake: { classification: { decision: 'api_reply', continues: 'om_list' } } }, store }), null, '交付物不同的已了结任务不并')
+        assert.equal(resolveMergeTarget({ task: { id: 'om_me', contract: c('verification'), intake: { classification: { decision: 'requirement', continues: 'om_list' } } }, store }), null)
+        assert.equal(resolveMergeTarget({ task: { id: 'om_me', contract: c('answer'), intake: { classification: { decision: 'question', continues: 'om_list' } } }, store })?.id, 'om_list', '追问照并')
+        assert.equal(resolveMergeTarget({ task: { id: 'om_me', contract: c('change'), intake: { classification: { decision: 'bug', continues: 'om_fix' } } }, store })?.id, 'om_fix', '补料照并')
+      } finally {
+        console.log = quiet
+      }
+      return eachCase([
+        { name: '还没开跑：一起跑', task: me('change'), target: target('queued', 'answer'), want: true },
+        { name: '等补料：并进去', task: me('change'), target: target('waiting_confirmation', 'answer'), want: true },
+        { name: '追问 → 原答疑', task: me('answer'), target: target('answered', 'answer'), want: true },
+        { name: '补料 → 在跑的改码单', task: me('change'), target: target('running', 'change'), want: true },
+        { name: '答完的清单 + 新交办：另起', task: me('change'), target: target('answered', 'answer'), want: false },
+        { name: '答完 + 要实测：另起', task: me('verification'), target: target('done', 'answer'), want: false },
+        { name: '在跑的答疑 + 要实测：另起', task: me('verification'), target: target('running', 'answer'), want: false },
+        { name: '本条没契约：照旧', task: me(null), target: target('done', 'answer'), want: true },
+        { name: '目标没契约：照旧', task: me('change'), target: target('done', null), want: true },
+      ], ({ task, target: into, want }) => assert.equal(compatibleContinuation({ task, target: into }), want))
     }],
     ['routes-intake：handleIntakeResolution 每条出口', async () => {
       let outcome = null
