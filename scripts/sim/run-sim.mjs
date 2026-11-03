@@ -267,9 +267,12 @@ const isIdle = async () => {
   const tasks = await listTasks()
   return Boolean(tasks) && !tasks.some((t) => ACTIVE.has(t.status) || t.ackPending)
 }
-const advanceTo = async (targetMs, label) => {
+const byIdAll = new Map(timeline.map((m) => [m.id, m]))
+// 触发 bot 的（@bot / 私信 / 回复 bot 的消息）喂完等网关接住；其余只进上下文（读历史时按时钟从时间线取），网关直接丢，不用等。
+const triggersBot = (m) => m.atBot || m.chatKey === 'webhook-group' || Boolean(m.parentId && byIdAll.get(m.parentId)?.ownBot)
+const advanceTo = async (targetMs, label, settleMs = 1500) => {
   const started = Date.now()
-  await sleep(1500) // 刚喂的消息先让网关接住（建任务 / 挂「收到」），再判空闲
+  await sleep(settleMs) // 刚喂的消息先让网关接住（建任务 / 挂「收到」），再判空闲
   for (;;) {
     if (clockNow() >= targetMs) return
     if (await isIdle()) {
@@ -299,7 +302,7 @@ for (const [index, m] of events.entries()) {
   writeFileSync(fedPath, JSON.stringify([...fed]))
   log(`喂 ${m.id} ${new Date(m.atMs).toISOString().slice(5, 16)} ${m.chatKey} ${m.senderName}：${String(m.text).replace(/\s+/g, ' ').slice(0, 60)}${m.atBot ? '（@bot）' : ''}`)
   const next = events[index + 1]
-  if (next) await advanceTo(next.atMs, m.id)
+  if (next) await advanceTo(next.atMs, m.id, triggersBot(m) ? 1500 : 200)
 }
 log('事件喂完；再等一轮空闲后收尾')
 await waitIdle('final')

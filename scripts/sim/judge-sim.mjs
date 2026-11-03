@@ -183,7 +183,9 @@ const callJudge = async (prompt) => {
 }
 
 // —— 待判队列 ——
-const triggered = fed.map((id) => byId.get(id)).filter(isTrigger)
+// --score-from：分段并行时热身那天只为留状态、不计分（docs/falive-replay-plan-2026-11-03.md 39）
+const scoreFromMs = value('--score-from', null) ? Date.parse(value('--score-from', null)) : 0
+const triggered = fed.map((id) => byId.get(id)).filter(isTrigger).filter((m) => m.atMs >= scoreFromMs)
 let queue = triggered
   .map((m) => ({ m, lark: larkSideOf(m), falive: faliveSideOf(m) }))
   .filter(({ m, lark, falive }) => !done.has(m.id) && (all || differs(lark, falive)))
