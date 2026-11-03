@@ -3,12 +3,14 @@
  * 离线模拟器编排（docs/falive-replay-plan-2026-11-03.md §2 L2 / L3）：真网关 + 真 worker 跑在隔离运行目录，
  * lark-cli 换成 scripts/sim/lark-cli（时间线供数、发件落 outbox），Date 换成虚拟时钟，按时间线逐条喂事件，每条等系统空闲再喂下一条。
  *   node scripts/sim/run-sim.mjs --sim day1020 --from 2026-10-20T08:00+04:00 --to 2026-10-20T20:00+04:00 [--reset] [--effort medium] [--intent-effort high]
- *        [--max-wait-min 30] [--settle-sec 25] [--dry]（只准备目录与事件，不起进程）
+ *        [--max-wait-min 30] [--settle-sec 25] [--dry]（只准备目录与事件，不起进程）[--no-ai-cache]（关掉 claude 调用缓存，全部真调）
  * 产物：runtime/falive-replay/sim/<sim>/ 下 outbox.jsonl（bot 发了什么）、runtime/（任务 / 审计 / 发件簿 / 义务）、gateway.log / worker.log、events.ndjson。
+ * claude 调用缓存（§6 改法 2）：LARK_CLAUDE_BIN 指到 scripts/sim/claude（claude-cache.mjs），只读调用（分类 / 分诊 / 分析 / 代答 / 实测）
+ *   按规范化后的完整输入复用上次输出，可写调用与续会话直通；每次调用记 SIM_DIR/ai-cache.log，收尾在 sim.log 打本次 hit / miss / bypass 计数。
  * 基线代码：按窗口起点把 falive-react 的 feature/phase-6-ol 钉到当时的提交（主仓建分支 sim-base-<日期>；每个 sim 一份 clone --shared，origin = 主仓）。
  */
 import { spawn, spawnSync } from 'node:child_process'
-import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -28,6 +30,7 @@ const maxWaitMs = Number(value('--max-wait-min', 30)) * 60_000
 const settleMs = Number(value('--settle-sec', 25)) * 1000
 const port = Number(value('--port', 3105))
 const dry = flag('--dry')
+const aiCache = !flag('--no-ai-cache')
 const BOT_OPEN_ID = 'ou_e331d79d4491e64b7bba89bb4e3b5e43'
 const FALIVE_REPO = join(homedir(), 'github', 'falive-react')
 const FALIVE_BRANCH = 'feature/phase-6-ol'
@@ -135,6 +138,33 @@ if (dry) {
   process.exit(0)
 }
 
+// —— claude 调用缓存 ——
+// 真 claude：SIM_REAL_CLAUDE 显式给的优先，否则 PATH 里第一个不是包装壳的（包装壳自己也按同一规则找，这里先解析好传下去，日志里看得到用的哪个）。
+const { resolveRealClaude } = await import('./claude-cache.mjs')
+const aiCacheLog = join(simDir, 'ai-cache.log')
+const aiCacheLogStart = existsSync(aiCacheLog) ? statSync(aiCacheLog).size : 0
+const aiCacheEnv = aiCache ? { LARK_CLAUDE_BIN: join(here, 'claude'), SIM_REAL_CLAUDE: resolveRealClaude() } : {}
+log(aiCache ? `claude 调用缓存开（真 claude：${aiCacheEnv.SIM_REAL_CLAUDE}）` : 'claude 调用缓存关（--no-ai-cache），全部真调')
+// 本次运行追加到 ai-cache.log 的行：hit / miss / bypass 计数 + 按 resultKind 细分（同一 sim 跨天续跑，只数本次）。
+const aiCacheSummary = () => {
+  if (!existsSync(aiCacheLog)) return '无 claude 调用'
+  const lines = readFileSync(aiCacheLog).subarray(aiCacheLogStart).toString('utf8').split('\n').filter(Boolean)
+  const total = { hit: 0, miss: 0, bypass: 0 }
+  const byKind = {}
+  let savedMs = 0
+  for (const line of lines) {
+    const [, outcome, kind, , , ...rest] = line.split(' ')
+    if (!(outcome in total)) continue
+    total[outcome] += 1
+    byKind[kind] ??= { hit: 0, miss: 0, bypass: 0 }
+    byKind[kind][outcome] += 1
+    if (outcome === 'hit') savedMs += Number(/原耗时 (\d+)ms/.exec(rest.join(' '))?.[1] || 0)
+  }
+  const cacheable = total.hit + total.miss
+  const kinds = Object.entries(byKind).map(([kind, c]) => `${kind} ${c.hit}/${c.miss}/${c.bypass}`).join('，')
+  return `hit ${total.hit} / miss ${total.miss} / bypass ${total.bypass}（可缓存命中率 ${cacheable ? Math.round((total.hit / cacheable) * 100) : 0}%，命中省下 ${Math.round(savedMs / 1000)}s）；按类 hit/miss/bypass：${kinds || '无'}`
+}
+
 // —— 进程 ——
 const env = {
   ...process.env,
@@ -154,6 +184,7 @@ const env = {
   LARK_SELF_FIX: '0',
   LARK_WORKER_CONCURRENCY: value('--conc', '2'),
   LARK_CHAT_NAME_TTL_MS: '600000',
+  ...aiCacheEnv,
 }
 const clockPath = join(simDir, 'clock.json')
 const setClock = (virtualMs) => writeFileSync(clockPath, JSON.stringify({ virtualMs, realMs: Date.now() }))
@@ -241,5 +272,6 @@ setClock(virtualNow)
 await sleep(20_000)
 shutdown()
 await sleep(2000)
+log(`claude 调用缓存：${aiCache ? aiCacheSummary() : '关'}`)
 log('完成')
 process.exit(0)
