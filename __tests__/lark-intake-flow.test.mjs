@@ -132,6 +132,10 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
         assert.deepEqual([store.get(id).ackPending, store.get(id).ackedInGroup, store.get(id).status, store.get(id).closureReason, held.ackPending], [null, undefined, patch.status || 'received', patch.closureReason, null], id)
       }
       assert.equal(deliveries.length, 2, '关掉的单一条都不发')
+      // 并进别的任务（superseded + supersededBy，无 closureReason）不算关单：照发
+      const mergedAway = store.upsert({ id: 'om_c4', status: 'superseded', supersededBy: 'om_into4', ackPending: { at: iso(now) }, createdAt: iso(now) })
+      assert.deepEqual(await flushPendingAck({ config, store, task: mergedAway, reply: '好，我接着看', deliver }), { sent: true, usedReply: true })
+      deliveries.pop()
       // 「收到」已发过 / 被拦后单独回的那句：自答走 done、追问走 blocked_ask（按内容去重，不按人 2 分钟拦）；空的不发
       const sends = []
       const send = async (args) => { sends.push(args); return { ok: true, messageId: 'om_x', gated: false, reason: null } }
