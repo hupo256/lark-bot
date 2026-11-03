@@ -118,4 +118,5 @@
 16. **基线 full-a 10-20 重跑后裁判（4 条：falive 3 / 一样 1）**：「就这样回」锚到刚私信过的 preload 任务而不是扣着草稿的 lives 卡（回「没有草稿」）；aven「滚到底看看」并进了 preload 旧任务。fix4 f4c4cc0：放行草稿时锚到的任务没草稿 → 改找窗口内最近有草稿的任务。
 17. **c 段（10-30 → 11-02）两轮整体重判**：基线 full-c 8 条差异全是 falive 更好；修复版 fix-c（fix3 代码）5 条：falive 4 / 一样 1。并排：群里回复 27 vs 27，重复回复 2 → 1，私信 aven 23 → 26，任务终态分布基本一致。剩余主题（@ 错人、打包问题判 ignore、运维配置缺、答复被当缺料）大多在 fix4 里才修，要再跑一轮 fix4 验证——第三轮 r3-*（worktree lark-bot-r3，分支 lark/falive-round3 = fix4 95db743 + 回放脚本），c 段 09:20 先起（端口 3111），a / b 等第一二轮跑完再起。报告：runtime/falive-replay/sim/rounds-c.md。
 18. **09:50 再加并行（aven：多启 agent 加速）**：第三轮 r3-a / r3-b 起跑（端口 3112 / 3113），与 full-a/b、fix-a/b、r3-c 共 7 段同跑；回放目录加 .metadata_never_index（Spotlight 索引曾占大半 CPU）。三个子代理：lark-bot-fix5（lark/falive-fix5）修「结论 @ 错人」+ R8 后半（并入的提单人也 @）；lark-bot-fix6（lark/falive-fix6）修「对方答复被分析阶段当缺料判阻塞」；conv 上写 scripts/sim/summarize.mjs 汇总总账。fix4 合入前检查：6 条真实消息分类回放 6/6、53 条回归集 53/53、全量 639、变异 53/53。
+19. **fix5 合进 fix4（b8efa6f，快进）**：代答 / 实测结论第一行 @ 提问人（原来正常回复时从不 @ 他，renderMentions 反而把待跟进的人全补到行首），待跟进只 @ 有事项的；并入消息的提单人在结论末行 @ 上（rerunAfterDone 那轮先不 @，留给带补充的重跑轮；task.mergedNotified 防重复）。全量 639 绿，变异 31/31。
 
