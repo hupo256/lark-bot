@@ -39,6 +39,7 @@ import { createRuntimeVersion } from './lib/lark-runtime-version.mjs'
 import { GATEWAY_HOST, defaultGatewayPort, defaultTaskLeaseMs, isRepoOnlyInstance } from './lib/lark-constants.mjs'
 import { addRepoChatIds, listRepoProfiles, registerRepoProfiles, repoProfileForTask } from './lib/lark-repo-profile.mjs'
 import { startChatPoller } from './lib/lark-chat-poller.mjs'
+import { findCustomBot } from './lib/lark-chat-onboard.mjs'
 import { startKeepAwake } from './lib/lark-keep-awake.mjs'
 import { startWakeCatchup } from './lib/lark-wake-catchup.mjs'
 import { startDailyReportScheduler } from './lib/lark-daily-schedule.mjs'
@@ -126,7 +127,8 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
     for (const chatId of profile.chatIds) {
       if (profile.botMentionOpenIds[chatId]) continue
       const bots = await listChatCustomBots(chatId)
-      const hit = bots.find((bot) => bot.name.replace(/\s+/g, '') === profile.botName.replace(/\s+/g, ''))
+      // 不区分大小写（11-03 交接群里叫「Aven.bot」，配置是「Aven.Bot」，区分大小写时认不出）
+      const hit = findCustomBot(bots, profile.botName)
       if (hit) {
         profile.botMentionOpenIds[chatId] = hit.openId
         console.log(`[lark-gateway] repo ${profile.key} 群 ${profile.chatNameById?.[chatId] || chatId} 的 ${profile.botName} = ${hit.openId}`)

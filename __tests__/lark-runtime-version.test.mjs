@@ -57,6 +57,12 @@ describe('lark-runtime-version', () => {
         mkdirSync(join(root, 'runtime', 'some-future-dir'), { recursive: true })
         writeFileSync(join(root, 'runtime', 'some-future-dir', 'x.json'), '{}')
         assert.equal(computeCodeHash(root).hash, base)
+        // runtime/ 根下的 json（配置备份 / 链接缓存）、.claude 设置也不算源码（11-03：add-chat 备份配置就排空重启一轮）
+        writeFileSync(join(root, 'runtime', 'lark-bot.bak-20261103T0955.local.json'), '{}')
+        writeFileSync(join(root, 'runtime', 'lark-bug-record-links.json'), '{}')
+        mkdirSync(join(root, '.claude'), { recursive: true })
+        writeFileSync(join(root, '.claude', 'settings.json'), '{}')
+        assert.equal(computeCodeHash(root).hash, base, 'runtime 根下 json / .claude 不进代码指纹')
         writeFileSync(join(root, 'runtime', 'launchd.mjs'), 'export {}')
         assert.notEqual(computeCodeHash(root).hash, base, 'runtime/ 根下的脚本仍算源码')
       } finally {

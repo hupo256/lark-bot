@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # falive 独立实例的控制脚本（gateway + worker，端口 3006，只服务 falive 外部群）。
 # aven 2026-10-20：falive 与 fameex 分开部署、互不影响；fameex 那套用 ~/github/lark-bot 的 lark-bot 命令。
-# Usage: lark-bot {start|stop|restart|status|doctor|logs|poll-on|poll-off|claude-auth [local|proxy]}
+# Usage: lark-bot {start|stop|restart|status|doctor|logs|poll-on|poll-off|claude-auth [local|proxy]|add-chat --name <群名> --webhook <地址> --secret <密钥>}
 set -euo pipefail
 
 REPO="/Users/aven/github/falive-react"
@@ -370,6 +370,7 @@ case "${1:-}" in
   sweep)
     curl -s -X POST "http://127.0.0.1:$PORT/lark/sweep" -H "x-lark-gateway-secret: $(cat "$SECRET_FILE")" -H 'Content-Type: application/json' \
       -d "$(node -e 'process.stdout.write(JSON.stringify({ repo: process.argv[1] || "falive", date: process.argv[2] || "" }))' "${2:-falive}" "${3:-}")"; echo ;;
+  add-chat) ( cd "$LARK_BOT_ROOT" && node scripts/lark-add-chat.mjs "${@:2}" ) ;;
   daily-report) ( cd "$LARK_BOT_ROOT" && node scripts/lark-daily-report-now.mjs "${2:-falive}" "${@:3}" ) ;;
   intake-stats) ( cd "$LARK_BOT_ROOT" && node scripts/lark-intake-stats.mjs "${2:-falive}" "${3:-1}" "${@:4}" ) ;;
   doctor)   ( cd "$LARK_BOT_ROOT" && LARK_GATEWAY_SECRET="${LARK_GATEWAY_SECRET:-$(cat "$SECRET_FILE" 2>/dev/null || true)}" node scripts/lark-doctor.mjs "${@:2}" ) ;;
