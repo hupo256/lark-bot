@@ -97,6 +97,10 @@ describe('任务的人话出口', () => {
       // 义务上记的是渲染 @ 之前的原文（草稿放行时再渲染一次）
       assert.deepEqual([getObligation(t).state, getObligation(t).answerText], ['answered', '修好了。\n分支 fix/login · 改了 2 个文件\n@后端：补接口\n详细见：https://doc/1'])
       assert.deepEqual(store.get('om_1').receipts.map((r) => r.kind), ['done', 'done'])
+      // 待跟进里点名负责人本人 → 群里不 @ 他（他看私信；11-03 falive 回放 10-30 扰民）
+      const t2 = task({ id: 'om_2', branch: 'fix/x', outcome: out({ summary: '好了。', changedFiles: ['a'], followUps: [{ owner: 'aven', items: ['定口径'] }, { owner: 'William', items: ['复测'] }] }) })
+      await deliverOutcome({ config, store, task: t2, status: 'done', deps })
+      assert.ok(!group().at(-1).markdown.includes('ou_aven') && group().at(-1).markdown.includes('<at user_id="ou_w">William</at>：复测'), '不 @ 负责人，照 @ 别人')
     })],
     // 11-03 静态 review R12：docUrl 原先不持久化，回执没送达时 retryPendingReceipts 每 5 分钟重跑 deliverOutcome 都建一份细节文档（上限 12 份同内容）。
     ['细节文档只建一次：同任务同代同状态重发（回执重试）复用第一次建成的 docUrl；换代另建', () => quiet(async () => {
