@@ -93,4 +93,5 @@
 - R11 自答走 done 相位的 content_24h 去重：两人问同样的问题第二条被拦，状态却 answered。
 - R12 回执重试每 5 分钟重建一份细节文档（docUrl 不持久化）。
 分组修：fix worktree A（lark-bot-fix，分支 lark/falive-fix）：R1 R3 R5 R7 R13；fix worktree B（lark-bot-fix2，分支 lark/falive-fix2）：R2 R6 R11。
+8. **L1 修后对照（fix3b，分类提示 + continues 收窄）**：同一批差异条目裁判从 lark-bot 更好 19 / falive 16 / 一样 9 → **28 / 8 / 11**，reply 质量 good 30 → 37；53 条分类回归集全过；分类器两档互相一致度不变。剩下 falive 更好的 8 条：3 条是 aven 私信「已部署」（约定口令 = 去 pre 复测 + 待推版改已推版，L1 没锚点，看 L2）、2 条是「medium 直接做 vs 先私信确认」的策略差（aven 10-24 定的口径，保留）、「能不能先打包到 uat OL」仍判 ignore、截图短句仍 ignore、一条回复里 HTML 实体没转义（I&#39;m）。
 
