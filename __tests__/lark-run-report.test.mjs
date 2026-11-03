@@ -223,14 +223,17 @@ describe('worker 侧对话层：outcome / 契约映射 / 群回复补写 / 模�
         { name: '只有上一单结论', task: { priorConclusion: prior }, want: PRIOR_LINE },
         { name: '上一单没摘要', task: { priorConclusion: { ...prior, summary: null } }, want: '本条接着任务 om_prev，那单 bot 的结论（以前的记录，用前对一下）：\n- 标题翻译：18726–18742' },
         { name: '重开后接着本单自己上一轮 → 说「本单上一轮」', task: { id: 'om_prev', priorConclusion: prior }, want: '本单上一轮 bot 的结论（以前的记录，用前对一下）：\n- 标题翻译：18726–18742' },
+        // 11-03 第二次 review #8：环境不相交不并入、continues 仍指上一单（uat 的实测结论）——实测模式里它只作背景，环境事实本轮实测
+        { name: '实测模式：上一单结论只作背景，不顶替本轮实测', task: { priorConclusion: prior }, verification: true, want: '本条接着任务 om_prev（翻译实测），那单 bot 的结论（以前的记录，只作背景：环境能不能用 / 有没有数据以本轮实测为准，不拿它顶替）：\n- 标题翻译：18726–18742' },
         { name: '两者都有：「收到」在前', task: { priorConclusion: prior, ackReply: '好' }, want: `群里已先回了一句：「好」\n${PRIOR_LINE}` },
-      ], ({ task, want }) => {
-        assert.equal(buildCarryOverBlock(task), want)
+      ], ({ task, verification = false, want }) => {
+        assert.equal(buildCarryOverBlock(task, { verification }), want)
         const ctx = { projectId: 'PR-99999', projectName: 't', projectDocs: [], cwd: '/tmp/repo' }
         const full = { id: 't', attachments: [], chatId: 'oc', text: '测试的tid 发出来', ...task }
         for (const [contract, carried] of [[{ v: 1, deliverable: 'answer', readOnly: true, expectsCode: false }, true], [{ v: 1, deliverable: 'verification', readOnly: false, expectsCode: false }, true], [{ v: 1, deliverable: 'change', readOnly: false, expectsCode: true }, false]]) {
           const { user } = buildTaskPromptParts(ctx, { ...full, contract, intake: { ...full.intake, classification: { decision: 'bug', ...full.intake?.classification } } }, 'claude', { ruleContext: { text: '', sources: [] } })
-          if (want) assert.equal(user.includes(`\n${want}\n`), carried, `${contract.deliverable}：${carried ? '要带' : '不带'}`)
+          const block = buildCarryOverBlock(full, { verification: contract.deliverable === 'verification' })
+          if (want) assert.equal(user.includes(`\n${block}\n`), carried, `${contract.deliverable}：${carried ? '要带' : '不带'}`)
           assert.equal(['群里已先回了一句', '本条接着任务', '本单上一轮'].some((line) => user.includes(line)), carried && Boolean(want))
         }
       })
