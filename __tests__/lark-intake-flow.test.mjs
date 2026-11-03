@@ -356,15 +356,27 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       anchor = { task: held, via: 'reply' }
       assert.equal(await run('就这样回'), true)
       assert.deepEqual(notes.pop(), { config, store, text: '「登录页报错」这条没有扣下的草稿，没什么可发的。', taskId: 'om_h', kind: 'private', idempotencyKey: 'om_p-pn' })
-      // 锚到的任务没草稿、另一条最近有草稿 → 放行那条（11-03 回放：放行 lives 草稿锚到了 preload）
+      // 锚到的任务没草稿、另一条最近有草稿 → 放行那条（11-03 回放：放行 lives 草稿锚到了 preload）——只限「最近一条」锚的、且锚点从没扣过草稿
       const other = store.upsert({ id: 'om_h3', status: 'done', chatId: 'oc_g', messageId: 'om_h3', operator: 'ou_qa', summary: '直播列表', text: '直播列表', createdAt: iso(now), receipts: [{ chatId: 'ou_aven', kind: 'done', createdAt: iso(now - 60_000) }] })
       noteHeld({ task: other, text: '草稿 2' })
+      // 11-03 合入前 review：引用回复 / 显式点名的就是说那条，不改找别的任务的草稿发进别的群（不可撤回）
+      for (const via of ['reply', 'explicit']) {
+        anchor = { task: held, via }
+        assert.equal(await run('就这样回'), true)
+        assert.deepEqual([notes.pop().text, releases.length], ['「登录页报错」这条没有扣下的草稿，没什么可发的。', 0], `via ${via} 不改找`)
+      }
+      anchor = { task: held, via: 'recent' }
       assert.equal(await run('就这样回'), true)
       assert.deepEqual([releases.pop(), notes.pop().text], ['om_h3', '已按原文回群（直播列表）。'])
-      noteAnswer({ task: other, text: '发了' })
-      noteAnswer({ task: held, text: '结论' })
+      noteAnswer({ task: held, text: '结论' }) // 放行是桩，om_h3 的草稿还挂着：锚点已发过结论的不改找它
       assert.equal(await run('就这样回'), true)
       assert.deepEqual([notes.pop().text, releases.length], ['「登录页报错」这条已经发过更新的结论了，没有待放行的草稿。', 0])
+      noteHeld({ task: held, text: '旧草稿' })
+      clearHeldDraft({ task: held })
+      assert.equal(await run('就这样回'), true)
+      assert.deepEqual([notes.pop().text, releases.length], ['「登录页报错」这条没有扣下的草稿，没什么可发的。', 0], '锚点扣过草稿（已清掉）也不改找')
+      noteAnswer({ task: other, text: '发了' })
+      noteAnswer({ task: held, text: '结论' })
       noteHeld({ task: held, text: '草稿' })
       assert.equal(await run('就这样回'), true)
       assert.deepEqual([releases, notes.pop()], [['om_h'], { config, store, text: '已按原文回群（登录页报错）。', taskId: 'om_h', kind: 'private', idempotencyKey: 'om_p-pn' }])
