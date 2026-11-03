@@ -112,4 +112,6 @@
    - aven 私信「已部署」→ falive 把 bug 表从待推版改成已推版（bugpoll 流程），lark-bot 回「知道了」；这是 falive 线的约定，fameex 线由 bug-watch 处理，不改。
    - 结论 @ 了 Eric 而不是提问人（wrong_target，同 10-30 主题）。
 13. 10-31 基线补判 2 条：aven 私信「核对 online / uat 一致后发部署信」→ lark-bot 运维任务因模拟配置没有 opsActions（deployMail 脚本）直接 failed（回放台缺口，fameex 线有）；Arthur 回答 bot 自己提的问题（改资料后调 task/complete）→ lark-bot 判阻塞、反过来要接口文档并在群里发求助文档（wrong_content）——api_reply·change 进实施前的分析把「对方答复」当成缺料，待看修复版同一条。
+14. **裁判时机**：按天跑 judge-sim 时，跨天还在跑的任务会被当成「没回」误判（fix-a 10-21 的昵称答复 40 秒后就发了，裁判先跑了）。已判的条目不重判，所以中途的裁判只当早期信号；六段跑完后删掉 judge.jsonl 整体重判一次再算总账。
+15. **fix-a 10-20**：「pre 更新了，检查下 preload」（api_reply·verification）被 continues 并进了排队中的「写脚本造帖」（requirement·change）——fix3 的兼容规则对「还没开跑」的目标放行了，结果一个任务干两件事、结论混在一起连发两条，aven 的「继续任务 <preload id>」又顺着 supersededBy 指到造帖单重跑一遍。fix4 收紧：只有在等补料（waiting_confirmation / blocked）的目标什么都能并，排队中的也要交付物相同（4 层回放 → 修的例子）。
 
