@@ -401,7 +401,9 @@ describe('createTaskStore', () => {
 
     // 11-02 复核：requeueMergedFollowUp 消费在跑时并入的后续——终态 / 挂起才回队（换代、记 threadHistory、清结果与挂起字段、rerunCount++、清标记）；
     // 没标记 / 标记不是 true / 还在跑（running、verifying）/ 不存在 → null 不动。
-    store.upsert({ id: 'm', status: 'done', epoch: 1, rerunAfterDone: true, result: '第一轮结论', owner: 'x', noChangeReason: 'env_version', scopeRequest: { paths: ['a'] }, parkedAt: 'p', parkedRemindedRound: 1, pendingReceipt: { status: 'done' }, createdAt: '2026-01-01T00:00:00Z' })
+    // priorConclusion 换成本单刚发出去的这轮（11-03 review 遗留：原先留着当初接着的那单，重跑把答过的再答一遍）；这轮没结论的留原背景（m-blocked）。
+    const otherPrior = { taskId: 'om_other', summary: '上一单', text: '上一单的结论' }
+    store.upsert({ id: 'm', status: 'done', epoch: 1, rerunAfterDone: true, priorConclusion: otherPrior, summary: '本单', outcome: { groupReply: '本轮已回：pre 正常' }, result: '第一轮结论', owner: 'x', noChangeReason: 'env_version', scopeRequest: { paths: ['a'] }, parkedAt: 'p', parkedRemindedRound: 1, pendingReceipt: { status: 'done' }, createdAt: '2026-01-01T00:00:00Z' })
     const closedAt = store.get('m').updatedAt
     const rerun = store.requeueMergedFollowUp('m')
     assert.equal(rerun.status, 'queued')
@@ -413,10 +415,12 @@ describe('createTaskStore', () => {
     assert.equal(rerun.pendingReceipt, undefined)
     assert.deepEqual([rerun.result, rerun.owner, rerun.noChangeReason, rerun.scopeRequest, rerun.parkedAt, rerun.parkedRemindedRound], [null, null, null, null, null, 0])
     assert.deepEqual(rerun.threadHistory.map((h) => [h.status, h.result]), [['done', '第一轮结论']])
+    assert.deepEqual(rerun.priorConclusion, { taskId: 'm', summary: '本单', text: '本轮已回：pre 正常' })
     assert.equal(store.requeueMergedFollowUp('m'), null, '标记已清，再调不动')
     assert.equal(createTaskStore({ tasksDir: dir, leaseMs: 1000 }).get('m').rerunCount, 1, '已持久化')
-    store.upsert({ id: 'm-blocked', status: 'blocked', rerunAfterDone: true, createdAt: '2026-01-01T00:00:00Z' })
-    assert.equal(store.requeueMergedFollowUp('m-blocked')?.status, 'queued', '挂起态也回队')
+    store.upsert({ id: 'm-blocked', status: 'blocked', rerunAfterDone: true, priorConclusion: otherPrior, createdAt: '2026-01-01T00:00:00Z' })
+    const blocked = store.requeueMergedFollowUp('m-blocked')
+    assert.deepEqual([blocked?.status, blocked?.priorConclusion], ['queued', otherPrior], '挂起态也回队；这轮没结论留原背景')
     store.upsert({ id: 'm-running', status: 'running', rerunAfterDone: true, createdAt: '2026-01-01T00:00:00Z' })
     store.upsert({ id: 'm-verifying', status: 'verifying', rerunAfterDone: true, createdAt: '2026-01-01T00:00:00Z' })
     store.upsert({ id: 'm-false', status: 'done', rerunAfterDone: false, createdAt: '2026-01-01T00:00:00Z' })
