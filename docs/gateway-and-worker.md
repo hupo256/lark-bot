@@ -26,7 +26,7 @@ Claude / Codex / Pi / Cursor Worker 领取任务
 Bot Gateway 是独立的本机常驻服务，不放进 `apps/web` 运行时。当前由 `lark-cli event consume im.message.receive_v1` 长连接接收事件，不需要公网 tunnel 或自建 challenge / 验签端点。它负责：
 
 - 只接受白名单群和白名单用户。信任边界是**白名单群**：群内 QA / PM / 后台 @ 都能触发，群消息只按群放行、不按发送人过滤；p2p 直发才按白名单用户放行。**推荐动态成员制 `allowedChatIds:"auto"`**：白名单 = bot 当前所在的群（`im +chat-list`），新群拉进去即时响应、无需改配置或重启（未知 chat 首次 @ 自动刷新再判）。**fail-closed 硬规则**：完全没配任何白名单（`allowedChatIds` 非 `"auto"` 且群 + 用户皆空）时拒绝所有事件，绝不因配置漏填而放行所有人。
-- 群内 `@应用` 直接入队；**`@所有人` 与 `@taskMentionOpenIds` 中负责人同档**，先走严格只读意图分类，只有中高置信度的 bug / 明确需求才正式入队，其余静默忽略（喊一句全体通知不该等于「授权改代码」）。未配 `botOpenId` 的旧配置同样收紧到只读分类。普通群聊永远不调用 AI。
+- 只处理三种触发：群里 `@应用`、私信、回复 bot 的消息，都先过意图分类再决定开跑 / 自答 / 追问 / 疑似 / 只记一笔 / 忽略。**只 `@所有人` 或只 @ 负责人（`taskMentionOpenIds`）的消息 11-02 起不再送分类**（判「是不是负责人的活」太难、准确性低），只作为之后 @bot 时的上下文。普通群聊永远不调用 AI。
 - `@负责人` 代理触发依赖 Lark 应用的“获取群组中所有消息”只读权限（申请项为 `im:message.group_msg:readonly`；当前应用 scope API 展示 tenant `im:message:readonly`）及 `im.message.receive_v1` 事件订阅；未获该权限时 Lark 不会投递未 @bot 的群消息，代码侧无法补救。
 - 前置分类必须持久化 `received` 后由 Worker 执行；Claude 仅开放 Read + plan 权限，Codex 使用 read-only + network off。分类失败（瞬时错误先重试两次）落 `intake_failed`、不改代码、不发群失败卡，挂着的「收到」也撤掉不发（先说「稍后回你」再永久静默等于骗人），只私信负责人一句（11-03 R6）；分类结论与 CLI 输出进入执行审计。全量消息中的 `sender_type=bot` 必须在触发判定前丢弃，防自身卡片回流。
 - 使用 `message_id` 做幂等，避免重复执行。
