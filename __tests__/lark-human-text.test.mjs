@@ -7,7 +7,7 @@ import { describe, it } from 'node:test'
 import {
   addressTo, changeFacts, chatLabel, dedupeMentions, firstClause, firstSentence, headline, humanizeLegacyResult, mentionTag, resolveOwnerMention,
   sayAck, sayBlockedAsk, sayDigest, sayDoneAnswerGroup, sayDoneAnswerPrincipal, sayDoneChangeGroup, sayDoneChangePrincipal, sayFailedPrincipal,
-  sayHeldDraft, sayHeldFailed, sayHeldReleased, sayHeldStale, sayIgnoredAfterAck, sayNoChangeGroup, sayNoted, sayOps, sayOverdue, sayReminderGroup,
+  sayHeldDraft, sayHeldFailed, sayHeldReleased, sayHeldStale, sayIgnoredAfterAck, sayIntakeFailed, sayNoChangeGroup, sayNoted, sayOps, sayOverdue, sayReminderGroup,
   sayReminderPrincipal, sayStart, saySuspected, saySuspectedExpired, trimPunct,
 } from '../lib/lark-human-text.mjs'
 import { applyRunEvidence, collectRunEvidence, normalizeOutcome, normalizeReport, renderReport, unverifiedClaims } from '../lib/lark-report-render.mjs'
@@ -110,6 +110,7 @@ const CELLS = [
     want: [`🧹 这 2 条疑似 48 小时没人认领，已关掉：\n- ${H}（${G}）\n- 充值问题（oc_h）`, ''],
   },
   { name: 'ignored-after-ack（aven）有 / 无理由', got: () => [sayIgnoredAfterAck({ task, chatLabel: G, reason: '只是通知' }), sayIgnoredAfterAck({ task, chatLabel: G, reason: null })], want: [`🤔 群里 @我 的这条看了，判断不用我处理（${G}）：${H}\n理由：只是通知\n判错了回「继续任务 om_1 做」。`, `🤔 群里 @我 的这条看了，判断不用我处理（${G}）：${H}\n理由：未给出\n判错了回「继续任务 om_1 做」。`] },
+  { name: 'intake-failed（aven，11-03 R6）：分类器非瞬时失败，群里不承诺，私信一句', got: () => sayIntakeFailed({ task, chatLabel: G }), want: `⛔ 这条我没分出来是什么事，你看下（${G}）：${H}` },
   { name: 'overdue（aven）有 / 无 ack 文本', got: () => [sayOverdue({ task, chatLabel: G, ackText: '收到，我看一下。' }), sayOverdue({ task, chatLabel: G, ackText: null })], want: [`⏰ 群里答应过「收到，我看一下」（${G}），4 小时了还没结论，任务可能没跑完。要重跑回「继续任务 om_1」，不用管就忽略。`, `⏰ 群里答应过「收到」（${G}），4 小时了还没结论，任务可能没跑完。要重跑回「继续任务 om_1」，不用管就忽略。`] },
   { name: 'ops（aven）原样 / 失败', got: () => [sayOps({ text: 'online 已经是 9f3c2a1（上次部署），没有新内容，不发。' }), sayOps({ text: 'build 红', failed: true })], want: ['online 已经是 9f3c2a1（上次部署），没有新内容，不发。', '⛔ build 红'] },
   {
