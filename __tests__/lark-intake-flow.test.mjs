@@ -476,7 +476,8 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
         console.log = quiet
       }
       return eachCase([
-        { name: '还没开跑：一起跑', task: me('change'), target: target('queued', 'answer'), want: true },
+        { name: '排队中但交付物不同：另起（11-03 fix-a：复测并进了排队中的造帖单）', task: me('change'), target: target('queued', 'answer'), want: false },
+        { name: '排队中同交付物：一起跑', task: me('change'), target: target('queued', 'change'), want: true },
         { name: '等补料：并进去', task: me('change'), target: target('waiting_confirmation', 'answer'), want: true },
         { name: '追问 → 原答疑', task: me('answer'), target: target('answered', 'answer'), want: true },
         { name: '补料 → 在跑的改码单', task: me('change'), target: target('running', 'change'), want: true },
