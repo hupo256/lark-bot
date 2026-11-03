@@ -62,6 +62,7 @@
 - falive-react 的 commit-msg 钩子（scripts/verify-commit-msg.mjs）要求 `<type>(<scope>)?: 主题`，lark-bot 的 hotfix 提交标题是「lark hotfix: …」→ 全被拒、任务降级 failed（full-b 第一轮 6 次）。falive 当时靠 repo profile 的 commitPrefix；已移植成运行配置 `commitPrefix`（fix3 0a69b79 / conv 53117d4），模拟配置填 feat(bot)。三段基线 07:48 用带它的代码重启。
 - 三个模拟同时 `git worktree add` 撞过一次（failed to read .git/worktrees/…/commondir），启动错开 20 秒。
 - **多个 sim 共用一个 falive-react 会互相撞任务分支**：bot 的临时分支 hotfix/adhoc-<任务 id> 按 id 定死（重试复用），smoke 跑过的任务在 full-a 里再跑时遇到「分支已有提交但不包含本次基线」→ failed；基线与修复两轮跑同一批任务 id 也会互撞。08:30 改成每个 sim 一份 `git clone --shared`（对象共享，分支 / worktree 独立；origin = 主仓，基线分支 sim-base-<日期> 建在主仓供 fetch），六段全部重启。主仓里清掉了 hotfix/adhoc-* 与 remote sim。
+- clone 带着主仓全部分支，worker 看 online 分支 / git log --all 能看到窗口之后的合入（10-31 回放：「Justin 10-31 已合入 online」）；09:05 起副本只留基线分支的引用（从各段的下一天起生效，两轮同时）。
 
 ## 4. 发现（随时追加；最后汇总成差异清单）
 1. **只 @ 负责人的消息 lark-bot 一律不处理（11-02 决定）**：falive 当时分类了 52 条这类消息，46 条 ignore，6 条有动作——4 条入队（3 条是「发对接文档 @aven」→ 文档入库，1 条 Adrian 发任务中心文档）、2 条疑似。影响面小，但「发文档只 @aven」这个入库入口没了。
