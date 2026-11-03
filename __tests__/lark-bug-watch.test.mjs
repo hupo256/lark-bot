@@ -16,6 +16,8 @@ import {
   parseBugNotification,
   pickNotifiedRecord,
   reconcileAgainstBaseline,
+  RETRY_CAP_MS,
+  retryDelayMs,
   setWatchMode,
   tickClock,
   titleProbe,
@@ -281,7 +283,7 @@ describe('bug 发现两档调度（读通知 + 对账）', () => {
       const dms = []
       for (let i = 1; i <= 3; i += 1) {
         const { calls, deps } = roundDeps({ fail: 'notify' })
-        state = (await runWatchRound({ config: { bugTable: BUG }, cfg, state: { ...state, lastNotifyReadAt: 0, lastReconcileAt: now }, now: now + i, deps })).state
+        state = (await runWatchRound({ config: { bugTable: BUG }, cfg, state: { ...state, retryAt: {}, lastNotifyReadAt: 0, lastReconcileAt: now }, now: now + i, deps })).state
         dms.push(...calls.dm)
         assert.equal(calls.failures[0].consecutive, i)
       }
@@ -289,16 +291,16 @@ describe('bug 发现两档调度（读通知 + 对账）', () => {
       assert.equal(dms.length, 1)
       assert.equal(dms[0], '⚠ 读新 bug 通知已连续 3 次失败，期间新 bug 通知读不到。\n原因：Unexpected token < in JSON at position 0\n已开自修工单 sf-x。')
       const ok = roundDeps({})
-      state = (await runWatchRound({ config: { bugTable: BUG }, cfg, state: { ...state, lastNotifyReadAt: 0, lastReconcileAt: now }, now: now + 10, deps: ok.deps })).state
+      state = (await runWatchRound({ config: { bugTable: BUG }, cfg, state: { ...state, retryAt: {}, lastNotifyReadAt: 0, lastReconcileAt: now }, now: now + 10, deps: ok.deps })).state
       assert.equal(state.failures.notify, 0)
       assert.deepEqual(ok.calls.dm, ['读新 bug 通知恢复正常。'])
       const rc = roundDeps({ fail: 'reconcile' })
-      const r = await runWatchRound({ config: { bugTable: BUG }, cfg, state: { ...state, lastNotifyReadAt: 0, lastReconcileAt: 0 }, now: now + 20, deps: rc.deps })
+      const r = await runWatchRound({ config: { bugTable: BUG }, cfg, state: { ...state, retryAt: {}, lastNotifyReadAt: 0, lastReconcileAt: 0 }, now: now + 20, deps: rc.deps })
       assert.ok(r.report.reconcile.error)
       assert.deepEqual(r.report.notify, { fresh: 0, outcomes: [] })
       const ext = roundDeps({ fail: 'notify' })
       ext.deps.recordFailure = () => ({ external: true, selfFix: null })
-      const extState = { ...state, failures: { notify: 2 }, lastNotifyReadAt: 0, lastReconcileAt: now }
+      const extState = { ...state, retryAt: {}, failures: { notify: 2 }, lastNotifyReadAt: 0, lastReconcileAt: now }
       await runWatchRound({ config: { bugTable: BUG }, cfg, state: extState, now: now + 30, deps: ext.deps })
       assert.match(ext.calls.dm[0], /\n外部原因（网络 \/ 登录 \/ 权限），只告警。$/)
     }],
@@ -344,7 +346,7 @@ describe('bug 发现两档调度（读通知 + 对账）', () => {
       for (let i = 1; i <= 3; i += 1) {
         last = roundDeps({ fail: 'reconcile' })
         last.deps.recordFailure = () => ({ external: false, selfFix: { opened: false } })
-        st = (await runWatchRound({ config: { bugTable: BUG }, cfg, state: { ...st, lastReconcileAt: 0, lastNotifyReadAt: now }, now: now + i, deps: last.deps })).state
+        st = (await runWatchRound({ config: { bugTable: BUG }, cfg, state: { ...st, retryAt: {}, lastReconcileAt: 0, lastNotifyReadAt: now }, now: now + i, deps: last.deps })).state
       }
       assert.equal(last.calls.dm[0], '⚠ 对账已连续 3 次失败，期间验退 / 漏掉的 bug 捞不到。\n原因：reconcile boom')
       const b = roundDeps({ cursorInit: { position: 1, readFrom: 'x' }, records: [rec('r1'), rec('r2'), rec('r3', { status: '验退' })] })
@@ -481,6 +483,27 @@ describe('bug 发现两档调度（读通知 + 对账）', () => {
       const team = roundDeps({ records })
       await runWatchRound({ config: { bugTable: BUG }, cfg: normalizeWatchConfig({ enabled: true, notifyChatId: 'oc_n', utcOffsetMin: 240, team: { enabled: true, assignees: ['ou_a'] } }), state: base, now, deps: team.deps })
       assert.deepEqual(team.calls.handled, ['r1', 'r2'])
+    }],
+    ['失败退避：第 n 次等 tick×2^(n-1)、封顶 30 分钟；退避期内不跑，成功清零；报告带错误原文', async () => {
+      assert.deepEqual([1, 2, 3, 6, 99].map((n) => retryDelayMs(n, cfg)), [MIN, 2 * MIN, 4 * MIN, RETRY_CAP_MS, RETRY_CAP_MS])
+      assert.equal(retryDelayMs(0, cfg), MIN)
+      const now = at('2026-11-02T10:00:00')
+      const st = { ...initialWatchState(0), cursor: { position: 1, readFrom: 'x' }, baseline: { at: 'x', statuses: {} }, lastReconcileAt: now }
+      const fail = roundDeps({ fail: 'notify' })
+      const r1 = await runWatchRound({ config: { bugTable: BUG }, cfg, state: st, now, deps: fail.deps })
+      assert.equal(r1.report.notify.error, 'Unexpected token < in JSON at position 0')
+      assert.equal(r1.state.retryAt.notify, now + MIN)
+      assert.equal(dueActions(r1.state, now + MIN - 1, cfg).notify, false, '退避期内不跑')
+      assert.equal(dueActions(r1.state, now + MIN, cfg).notify, true)
+      const r2 = await runWatchRound({ config: { bugTable: BUG }, cfg, state: r1.state, now: now + MIN, deps: roundDeps({ fail: 'notify' }).deps })
+      assert.equal(r2.state.retryAt.notify, now + MIN + 2 * MIN)
+      const okRun = await runWatchRound({ config: { bugTable: BUG }, cfg, state: { ...r2.state, retryAt: { notify: 0 } }, now: now + 10 * MIN, deps: roundDeps({}).deps })
+      assert.equal(okRun.state.retryAt.notify, 0)
+      assert.equal(okRun.state.failures.notify, 0)
+      assert.equal(dueActions({ ...st, lastNotifyReadAt: 0, retryAt: { reconcile: now + 5 } }, now, cfg).reconcile, false)
+      const plain = roundDeps({ fail: 'notify' })
+      plain.deps.readMessages = async () => { throw 'plain text' }
+      assert.equal((await runWatchRound({ config: { bugTable: BUG }, cfg, state: st, now, deps: plain.deps })).report.notify.error, 'plain text')
     }],
   ], hooks))
 })
