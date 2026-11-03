@@ -28,8 +28,9 @@ Bot Gateway 是独立的本机常驻服务，不放进 `apps/web` 运行时。�
 - 只接受白名单群和白名单用户。信任边界是**白名单群**：群内 QA / PM / 后台 @ 都能触发，群消息只按群放行、不按发送人过滤；p2p 直发才按白名单用户放行。**推荐动态成员制 `allowedChatIds:"auto"`**：白名单 = bot 当前所在的群（`im +chat-list`），新群拉进去即时响应、无需改配置或重启（未知 chat 首次 @ 自动刷新再判）。**fail-closed 硬规则**：完全没配任何白名单（`allowedChatIds` 非 `"auto"` 且群 + 用户皆空）时拒绝所有事件，绝不因配置漏填而放行所有人。
 - 群内 `@应用` 直接入队；**`@所有人` 与 `@taskMentionOpenIds` 中负责人同档**，先走严格只读意图分类，只有中高置信度的 bug / 明确需求才正式入队，其余静默忽略（喊一句全体通知不该等于「授权改代码」）。未配 `botOpenId` 的旧配置同样收紧到只读分类。普通群聊永远不调用 AI。
 - `@负责人` 代理触发依赖 Lark 应用的“获取群组中所有消息”只读权限（申请项为 `im:message.group_msg:readonly`；当前应用 scope API 展示 tenant `im:message:readonly`）及 `im.message.receive_v1` 事件订阅；未获该权限时 Lark 不会投递未 @bot 的群消息，代码侧无法补救。
-- 前置分类必须持久化 `received` 后由 Worker 执行；Claude 仅开放 Read + plan 权限，Codex 使用 read-only + network off。分类失败落 `intake_failed`、不改代码、不发群失败卡；分类结论与 CLI 输出进入执行审计。全量消息中的 `sender_type=bot` 必须在触发判定前丢弃，防自身卡片回流。
+- 前置分类必须持久化 `received` 后由 Worker 执行；Claude 仅开放 Read + plan 权限，Codex 使用 read-only + network off。分类失败（瞬时错误先重试两次）落 `intake_failed`、不改代码、不发群失败卡，挂着的「收到」也撤掉不发（先说「稍后回你」再永久静默等于骗人），只私信负责人一句（11-03 R6）；分类结论与 CLI 输出进入执行审计。全量消息中的 `sender_type=bot` 必须在触发判定前丢弃，防自身卡片回流。
 - 使用 `message_id` 做幂等，避免重复执行。
+- 私信里的空消息丢掉；群里光一条「@bot」（没正文、没附件、没引用）照样建 `received` 进分类，上下文包标「无附言，只 @ 了机器人」，按本人上一条的事判（11-03 falive 回放 10-26：人在自己上一条后面单独 @ 一下催 / 接话，原来被丢）。
 - 将消息解析为 Job，写入任务队列。
 - 提供任务领取、任务状态回写和群通知能力。
 
@@ -100,7 +101,7 @@ Claude / Codex / Pi / Cursor Worker 领取任务后：
 5. UI / 交互变更后验证桌面、390px H5、dark / light。
 6. 输出 diff 摘要、验证结果、风险和待确认项。
 7. 完成后回群通知结果。结果卡连续发送失败时持久化为 `result_pending_receipt`，由 Gateway 定时重试，送达前不进入可自动清理的终态；修复发送能力后可用 `lark-bot receipt-retry <id>` 恢复重试，且不会重复执行 AI 或提交。Worker 仍会用内置扫描器（`scripts/code-rules.mjs --json`，默认基线 `origin/online`，见 [lark-code-rules.mjs](../lib/lark-code-rules.mjs)；扫描器缺失或跑不成时只记 `ran:false`）在任务 worktree 里跑规则扫描：命中本次改动文件的 error 会阻断（出口是修掉，或在该行/上一行写 `code-rules-ignore <RULE-ID>: <理由>`），扫描详情或解析失败原因只写审计与日志，不展示在普通群结果卡中。
-8. 完成后 bot 会把**自己产生的改动**本地提交（临时 worktree 提交到其 hotfix 分支；命中已有 worktree 提交到其当前分支），但**从不 push、不开 PR、不合并**，留待人工 review。提交正文带 `lark-task: <id>` trailer（标题里的 `[<id>]` 给人看，trailer 供 `git log --grep '^lark-task: <id>'` 精确对到「群里哪条反馈 → 哪个提交」）。绝不自动提交人类的既存 WIP：命中的已有 worktree 在任务开始前若已有未提交改动，任务会改路由到隔离的临时 worktree，bot 的改动落隔离分支、完全不碰人类工作区。
+8. 完成后 bot 会把**自己产生的改动**本地提交（临时 worktree 提交到其 hotfix 分支；命中已有 worktree 提交到其当前分支），但**从不 push、不开 PR、不合并**，留待人工 review。临时 worktree 的提交标题是 `<commitPrefix>: <摘要> [<id>]`，前缀缺省 `lark hotfix`，业务仓 commit-msg 钩子要求 `<type>(<scope>): 主题` 时在运行配置填 `commitPrefix`（11-03 falive 回放：falive-react 钩子把「lark hotfix: …」全拒了、任务降级 failed）；命中已有 worktree 的提交标题仍是 `lark task: …`。提交正文带 `lark-task: <id>` trailer（标题里的 `[<id>]` 给人看，trailer 供 `git log --grep '^lark-task: <id>'` 精确对到「群里哪条反馈 → 哪个提交」）。绝不自动提交人类的既存 WIP：命中的已有 worktree 在任务开始前若已有未提交改动，任务会改路由到隔离的临时 worktree，bot 的改动落隔离分支、完全不碰人类工作区。
 
 任务生命周期、自动执行 / 必须确认的具体边界与回复格式见 [task-boundaries-and-reply.md](./task-boundaries-and-reply.md)。
 
@@ -122,7 +123,7 @@ bug 表来源的修复任务在实施前先跑**只读分诊**（`lib/lark-triag
 
 审计写入 `runtime/lark-audits/<PROJECT>/<taskId>-e<epoch>.json/.log`：记录附件、规则来源/版本、分析/最终结果、Gateway 状态和 CLI 输出；该目录已 gitignore。
 
-对话层（2026-11-01）新增的可选配置键，都有默认值：
+对话层（2026-11-01）起新增的可选配置键（11-03 加了 `repoLabel` / `commitPrefix`），都有默认值：
 
 | 键 | 含义 |
 |---|---|
@@ -137,5 +138,7 @@ bug 表来源的修复任务在实施前先跑**只读分诊**（`lib/lark-triag
 | `chatRetention` | `{ enabled, idleDays: 14, graceHours: 48, at: "09:35", keep: [] }` 闲置群自动退出（11-02）：每天到点查一次 bot 所在群，14 天没人 @bot / 回复 bot、bot 也没在群里回过任务的，合并私信负责人「这 n 个群 14 天没人 @我了，48 小时后我自动退出」；48 小时后还没人找就退群并私信「已退出」，期间有人找 bot 就作废。时钟从功能上线那一刻起算、不回填历史。永远不退：`keep` 里的 chat_id、bug 表群（`bugTable.chatId` / `bugTable.watch.notifyChatId`）（falive-bot 是同一个飞书应用，它的流量这边看不见）、私信「留下 群名里的几个字」标过的；私信「退群列表」看待退 / 不退的群。退群要应用开通 `im:chat`、`im:chat.members:write_only`，没开时私信一次要开哪个、之后每天静默再试。记账 `runtime/lark-chat-activity-state.json`，实现 `lib/lark-chat-retention.mjs` / `lib/lark-chat-activity.mjs`。例：`"chatRetention": { "keep": ["oc_要永远留的群"] }`（其余用默认值；`enabled: false` 关掉巡检，私信指令照样能用） |
 | `personaPath` | 负责人 persona 文件（默认 `runtime/persona/aven.md`）：口吻 / 取舍 / 常见问题怎么答，进分类器与代答提示 |
 | `principalReplyWindowMs` | 负责人私信锚到上一条通知的窗口（默认 12h） |
+| `repoLabel` | 分类提示里「只做 X 的事」的仓名（默认 `fameex-web 前端仓`；11-03 falive 回放台填 falive-react） |
+| `commitPrefix` | 临时 worktree（hotfix 分支）提交标题前缀（默认 `lark hotfix`，命中已有 worktree 的不受影响）；业务仓 commit-msg 钩子要求约定式标题时填，如 `feat(bot)` |
 
 回写接口 `POST /lark/tasks/:id/status` 多一个 `outcome`（结构化结果：summary / nextStep / blockers / report / groupReply / detailDoc / followUps / changedFiles / change），网关 `normalizeOutcome` 后存 `task.outcome`，人话出口只读它。

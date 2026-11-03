@@ -40,7 +40,7 @@
 bug 表按 `项目ID` 跨项目路由，与群 @ 共用 `resolveWorkContext`：
 
 - 项目号须通过 `(PR|TR|PM)-\d{3,}` 校验：自由文本提取用带词边界的 `\b(PR|TR|PM)-\d{3,}\b`（`matchProjectId`，`SUPR-01947` 不吞出 `PR-01947`），整串校验用 `isProjectId`；群任务按“群名 > 正文 > adhoc”解析，poller 与群链路共用同一正则，Gateway/Worker 双重拦截非法路径。
-- bug 表任务的回执与结果卡发到**项目群绑定表**里该项目号的群（`runtime/lark-project-chats.json`，`lib/lark-project-chats.mjs`；aven 2026-11-01：不再按群名找，群名会改、不规范）：gateway 每 5 分钟拉 bot 所在群，首次按群名唯一对上的建表，之后新出现的群 = bot 入群、按群名线索绑定，同项目号的新群改绑，群改名不影响绑定，变化都私信负责人；负责人可「绑定 PR-x [oc_]」「PR-x 群是 oc_」「解绑 PR-x」「项目群」。没绑定时私聊负责 RD，负责人也不可用时才回落默认通知群。群消息归属项目同样先查绑定表。
+- bug 表任务的回执与结果卡发到**项目群绑定表**里该项目号的群（`runtime/lark-project-chats.json`，`lib/lark-project-chats.mjs`；aven 2026-11-01：不再按群名找，群名会改、不规范）：gateway 每 5 分钟拉 bot 所在群，首次按群名唯一对上的建表，之后新出现的群 = bot 入群、按群名线索绑定，同项目号的新群改绑，群改名不影响绑定，变化都私信负责人；负责人可「绑定 PR-x [oc_]」「PR-x 群是 oc_」「解绑 PR-x」「项目群」。没绑定时私聊负责 RD，负责人也不可用时才回落默认通知群。群消息归属项目同样先查绑定表。按项目号改投只对 bug 表任务：Lark 消息发起的任务（私信 / 群里 @bot）结论留在原会话，正文带了别的项目号也不改投（11-02 豁免私信，11-03 R4 群里的也不改投）。
 - 已有 worktree 时先隔离既存 WIP，done 后提交本次改动；失败/阻塞不提交，提交失败保留现场。
 - 无 worktree 时默认基于 `origin/online` 建 `hotfix/<项目ID|adhoc>-<id>`；命中项目 worktree 但已有未提交 WIP 时，隔离 hotfix 必须基于该项目分支当时的已提交 HEAD，绝不退回 `online`。仅 done 提交并清理，失败/阻塞有半成品则保留，无改动可删除。
 - 引用消息由 `messages-mget` 合并；`[Image: img_xxx]` / `![Image](img_xxx)` 占位会恢复、去重，并按实际项目下载。
@@ -60,7 +60,7 @@ bug 表按 `项目ID` 跨项目路由，与群 @ 共用 `resolveWorkContext`：
 负责人私信 bot「部署 pre / uat / online」「发 pre / uat / online」这类事，lark-bot 按**固定动作**办（`lib/lark-ops-task.mjs` 识别 + `lib/lark-ops-run.mjs` 执行）：不跑模型、不执行任意命令，消息只会被解析成下面几种之一，由固定代码执行；认不出就回「支持哪些」。
 
 - **只认负责人私信**（`notifyOpenId` / `allowedOpenIds`）：首行「运维：」显式，或负责人原话里出现部署 / 发信 / 发推合 pre·uat·online 时推断；别人发的、群里发的一律不当运维。
-- **部署 X**：〔原话说了「Y 通过了…合到 X」时〕先 `git cherry origin/X origin/Y` 查 Y 的提交是否都已进 X，没进齐就停并列出；→ `deploy_mail.py info`（build 不绿 / 没新内容就停）→ 按提交标题生成主题摘要与更新说明（去掉 docs / test / chore / bot 提交）→ 原话说「不用确认 / 直接发」才 `draft` + `send`（send 后脚本自动盯部署、在该环境复测）；没说就只回将要发的内容，等负责人回「部署 X 直接发」。
+- **部署 X**：〔原话说了「Y 通过了…合到 X」时〕先 `git cherry origin/X origin/Y` 查 Y 的提交是否都已进 X，没进齐就停并列出；→ `deploy_mail.py info`（build 不绿 / 没新内容就停）→ 按提交标题生成主题摘要与更新说明（去掉 docs / test / chore / bot 提交）→ 原话说「不用确认 / 直接发」才 `draft` + `send`（send 后只提示「部署好后要复测就私信我「X 复测」」——lark-bot 没有部署探测 → 自动复测的链路，falive 靠 bugpoll 部署钩子、没移植，11-03 falive 回放发现原文案在空口承诺）；没说就只回将要发的内容，等负责人回「部署 X 直接发」。
 - **发 X**：`git push -o merge_request.create -o merge_request.target=X origin <devBranch>`，回 MR 链接。
 - 配置 `opsActions = { repo, deployMail, devBranch }`；运维任务不建 worktree、不进提交链、不过需求闸，结果私信回负责人（一项一行）。
 
