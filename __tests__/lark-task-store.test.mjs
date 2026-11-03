@@ -5,7 +5,7 @@
  */
 
 import assert from 'node:assert/strict'
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, it, mock } from 'node:test'
@@ -661,6 +661,16 @@ describe('createTaskStore', () => {
       // 缺省 / 非法 reason 回落 completed_elsewhere（向后兼容旧调用点）
       store.upsert({ id: 'c3', status: 'running', createdAt: '2026-09-01T08:00:00Z' })
       assert.equal(store.closeAsExternallyResolved({ id: 'c3' }).closureReason, 'completed_elsewhere')
+    })
+
+    it('人工结单 / 取消清掉挂着的「收到」（11-03 R2：用户 20 秒内回「算了不用了」关掉后，45s 巡检不再给它发固定句）', () => {
+      const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
+      store.upsert({ id: 'p1', status: 'received', ackPending: { at: '2026-11-03T08:00:00Z', deadline: '2026-11-03T08:00:45Z' }, createdAt: '2026-11-03T08:00:00Z' })
+      const closed = store.closeAsExternallyResolved({ id: 'p1', operator: 'ou_user', messageId: 'om_bye', closureReason: 'no_longer_needed' })
+      assert.equal(closed.task.ackPending, null, '内存里清掉')
+      assert.equal(JSON.parse(readFileSync(join(dir, 'p1.json'), 'utf8')).ackPending, null, '落盘的也清掉（网关重启后巡检读的是文件）')
+      store.upsert({ id: 'p2', status: 'queued', createdAt: '2026-11-03T08:00:00Z' })
+      assert.equal(store.closeAsExternallyResolved({ id: 'p2', closureReason: 'cancelled' }).task.ackPending, null, '本来没挂的也是 null，巡检一律不认')
     })
 
     it('findTaskByAnyReceipt 忽略代次命中；listActiveByThread 只返回未了结、可含 running', () => {

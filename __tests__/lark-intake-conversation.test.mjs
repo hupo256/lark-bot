@@ -304,7 +304,7 @@ describe('对话层：锚点、上下文、对话包、发件簿、义务、pers
       assert.equal(buildQuotedBotBlock({ ownText: '没有引用', chatIds: ['oc_g'], list: () => entries }), '')
       assert.equal(buildQuotedBotBlock({ ownText: '没接 开播设置里的『语言』下拉，后端没给字段', chatIds: [], list: () => entries }), '')
     }],
-    ['outbox：记 / 列 / 清；shouldSend 两种去重（content_24h 看内容哈希，per_person_2min 看同人同主题同阶段）；拦下的不算发过', () => {
+    ['outbox：记 / 列 / 清；shouldSend 三种去重（content_24h 看内容哈希，per_person_2min 看同人同主题同阶段，per_message_24h 看同消息同阶段）；拦下的不算发过', () => {
       const chatId = 'oc_ob'
       assert.equal(recordOutbox({ chatId: '', phase: 'done', text: 'x', dir }), null)
       assert.equal(recordOutbox({ chatId, phase: '', text: 'x', dir }), null)
@@ -334,6 +334,13 @@ describe('对话层：锚点、上下文、对话包、发件簿、义务、pers
       assert.deepEqual(shouldSend({ chatId, phase: 'noted', to: 'ou_u', topic: 'diff', text: '收到', nowMs: NOW_MS, dir }), { send: true }, '阶段不同')
       assert.deepEqual(shouldSend({ chatId, phase: 'ack', to: 'ou_u', topic: 'diff', text: '收到', nowMs: NOW_MS + 2 * MIN, dir }), { send: true }, '过了 2 分钟')
       assert.deepEqual(shouldSend({ chatId, phase: 'ack', to: 'ou_u', topic: 'diff', text: '收到', nowMs: NOW_MS + MIN, dir }), { send: true }, '恰好满 2 分钟也算过了')
+      // 11-03 R11：per_message_24h（自答 / 追问）——按消息（taskId）+ 阶段去重，不看内容：两条消息同样的答复各发各的；同一条消息 24h 只回一次
+      recordOutbox({ chatId: 'oc_pm', taskId: 'om_q1', phase: 'self_answer', text: '能力答复', now: NOW_MS - HOUR, dir })
+      assert.deepEqual(shouldSend({ chatId: 'oc_pm', taskId: 'om_q2', phase: 'self_answer', text: '能力答复', nowMs: NOW_MS, dir }), { send: true }, '另一条消息同样的答复照发')
+      assert.deepEqual(shouldSend({ chatId: 'oc_pm', taskId: 'om_q1', phase: 'self_answer', text: '另一句', nowMs: NOW_MS, dir }), { send: false, reason: `这条消息 ${localHHMM(NOW_MS - HOUR)} 已回过（self_answer）` })
+      assert.deepEqual(shouldSend({ chatId: 'oc_pm', taskId: 'om_q1', phase: 'ask_back', text: '另一句', nowMs: NOW_MS, dir }), { send: true }, '同一条消息另一阶段不拦')
+      assert.deepEqual(shouldSend({ chatId: 'oc_pm', taskId: 'om_q1', phase: 'self_answer', text: '另一句', nowMs: NOW_MS + 24 * HOUR, dir }), { send: true }, '过了 24h')
+      assert.deepEqual(shouldSend({ chatId: 'oc_pm', taskId: null, phase: 'self_answer', text: '能力答复', nowMs: NOW_MS, dir }), { send: true }, '没 taskId 不拦')
       assert.equal(pruneOutbox({ dir, now: NOW_MS }), 1, '清掉 7 天前那条')
       assert.equal(listOutbox({ chatId, dir }).length, 3)
       assert.equal(pruneOutbox({ dir, now: NOW_MS, keepMs: 2 * HOUR }), 1, '恰好满 keepMs 的也清')

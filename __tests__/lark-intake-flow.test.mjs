@@ -29,7 +29,7 @@ const { handleBotAddedEvent, parseBotAddedEvent } = await import('../lib/lark-pr
 const { defaultRemindAfterMs, defaultRemindRounds, isNeverNagged, remindParkedTasks } = await import('../lib/lark-parked-reminder.mjs')
 const { collectDigest, expireSuspectedAndNotify, renderDigest, runDailyDigest, startDailyDigest } = await import('../lib/lark-daily-digest.mjs')
 const { createTaskStore, isControlActiveStatus } = await import('../lib/lark-task-store.mjs')
-const { getObligation, noteAnswer, noteHeld } = await import('../lib/lark-reply-obligation.mjs')
+const { getObligation, noteAck, noteAnswer, noteHeld } = await import('../lib/lark-reply-obligation.mjs')
 const { localHHMM } = await import('../lib/lark-outbox.mjs')
 
 const H = 3_600_000
@@ -99,9 +99,12 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       store.upsert({ id: 'om_later', status: 'received', ackPending: { at: iso(now), deadline: iso(now + 30_000) }, createdAt: iso(now) })
       store.upsert({ id: 'om_bad', status: 'received', ackPending: { at: 'garbage' }, createdAt: iso(now) })
       store.upsert({ id: 'om_none', status: 'received', createdAt: iso(now) })
+      // 11-03 R2：到点前任务已被关掉 / 判完（superseded / ignored / answered / intake_failed）——「收到」只撤不发，不再给已取消的任务说「稍后回你」
+      for (const [id, status] of [['om_closed', 'superseded'], ['om_ign', 'ignored'], ['om_ans', 'answered'], ['om_if', 'intake_failed']]) store.upsert({ id, status, ackPending: { at: iso(now - 50_000), deadline: iso(now - 1) }, createdAt: iso(now) })
       assert.equal(await sweepPendingAcks({ config, store, now, deliver }), 3)
       assert.deepEqual(deliveries.map(([id]) => id).sort(), ['om_due', 'om_edge', 'om_fallback'])
       for (const id of ['om_due', 'om_edge', 'om_fallback']) assert.deepEqual([store.get(id).ackPending, store.get(id).ackedInGroup], [null, true], id)
+      for (const id of ['om_closed', 'om_ign', 'om_ans', 'om_if']) assert.deepEqual([store.get(id).ackPending, store.get(id).ackedInGroup], [null, undefined], `${id}：撤掉、没发、不算回过`)
       assert.equal(store.get('om_later').ackPending.deadline, iso(now + 30_000))
       assert.equal(await sweepPendingAcks({ config, store, now, deliver }), 0, '发过的不再到点')
       const t = store.upsert({ id: 'om_f', status: 'received', chatId: 'oc_g', ackPending: { at: iso(now), deadline: iso(now + 45_000) }, createdAt: iso(now) })
@@ -124,15 +127,15 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       assert.deepEqual(await flushPendingAck({ config, store, task: silent, send: false, deliver }), { sent: false, usedReply: false })
       assert.deepEqual([silent.ackPending, deliveries.length], [null, 2])
       assert.deepEqual(await flushPendingAck({ config, store, task: null, deliver }), { sent: false, usedReply: false })
-      // 「收到」已发过 / 被拦后单独回的那句：自答走 done、追问走 blocked_ask（按内容去重，不按人 2 分钟拦）；空的不发
+      // 「收到」已发过 / 被拦后单独回的那句：自答走 self_answer、追问走 ask_back（11-03 R11：按消息去重——两个人问同样的问题各自要得到答复——不按内容 24h、不按人 2 分钟拦）；空的不发
       const sends = []
       const send = async (args) => { sends.push(args); return { ok: true, messageId: 'om_x', gated: false, reason: null } }
       const ft = { id: 'om_f', epoch: 1, chatId: 'oc_g' }
       assert.deepEqual(await deliverFollowUpReply({ config, store, task: ft, text: ' 能发 ', send }), { ok: true, messageId: 'om_x', gated: false, reason: null })
       assert.deepEqual(await deliverFollowUpReply({ config, store, task: ft, text: '哪个环境？', kind: 'ask_back', send }), { ok: true, messageId: 'om_x', gated: false, reason: null })
       assert.deepEqual(sends, [
-        { config, store, task: ft, phase: 'done', text: '能发', idempotencyKey: 'om_f-e1-ans' },
-        { config, store, task: ft, phase: 'blocked_ask', text: '哪个环境？', idempotencyKey: 'om_f-e1-askb' },
+        { config, store, task: ft, phase: 'self_answer', text: '能发', idempotencyKey: 'om_f-e1-ans' },
+        { config, store, task: ft, phase: 'ask_back', text: '哪个环境？', idempotencyKey: 'om_f-e1-askb' },
       ])
       assert.deepEqual(await deliverFollowUpReply({ config, store, task: ft, text: '  ', send }), { ok: false, gated: false, reason: 'empty follow-up' })
       assert.equal(sends.length, 2)
@@ -556,12 +559,21 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       // 瞬时失败延后 / 分类失败
       assert.deepEqual(await run({ ok: true, retried: true, task: task({ status: 'received' }) }), body({ retried: true }))
       assert.deepEqual(saidNames(), ['notePerson'])
-      const failedTask = task({ status: 'intake_failed' }, null)
+      // 11-03 R6：分类非瞬时失败——挂着的「收到」撤掉不发（不能先承诺「稍后回你」再永久静默）、私信负责人一句；没回过「收到」不开义务
+      const failedTask = task({ id: 'om_if1', status: 'intake_failed', summary: '登录页报错' }, null)
       assert.deepEqual(await run({ ok: true, task: failedTask }, { epoch: 0, error: 'boom' }), body({ intakeFailed: true }))
-      assert.deepEqual([said, logs.at(-1)], [[['flushPendingAck', { config: cfg, store: st, task: failedTask, reply: null, send: true, reason: 'intake_failed' }]], '[lark-gateway] 分类落地 om_me：分类失败，已静默停止：boom'])
+      assert.deepEqual([said, getObligation(failedTask), logs.at(-1)], [[
+        ['flushPendingAck', { config: cfg, store: st, task: failedTask, reply: null, send: false, reason: 'intake_failed' }],
+        ['sendPrincipalNote', { config: cfg, store: st, text: '⛔ 这条我没分出来是什么事，你看下（oc_g）：登录页报错', taskId: 'om_if1', kind: 'intake_failed' }],
+      ], null, '[lark-gateway] 分类落地 om_if1：分类失败，已私信负责人：boom'])
+      // 分类超 45s、「收到」已被巡检发了固定句：义务记 owed（答应了没结论，不算了结），逾期巡检不再当 settled 跳过
+      const ackedFailed = task({ id: 'om_if2', status: 'intake_failed', ackedInGroup: true }, null)
+      noteAck({ task: ackedFailed, text: '收到，我看一下，稍后回你。' })
+      assert.deepEqual(await run({ ok: true, task: ackedFailed }, { epoch: 0, error: 'boom' }), body({ intakeFailed: true }))
+      assert.deepEqual([getObligation(ackedFailed).state, getObligation(ackedFailed).owedStatus, saidNames()], ['owed', 'intake_failed', ['flushPendingAck', 'sendPrincipalNote']])
       assert.deepEqual(await run({ ok: true, task: task({ status: 'running' }, null) }, { epoch: 0, error: 'boom' }), body({ intakeFailed: true }), '带 error 的回写一律按失败处理')
       assert.deepEqual(await run({ ok: true, task: task({ status: 'intake_failed' }, null) }), body({ intakeFailed: true }))
-      assert.equal(logs.at(-1), '[lark-gateway] 分类落地 om_me：分类失败，已静默停止：')
+      assert.equal(logs.at(-1), '[lark-gateway] 分类落地 om_me：分类失败，已私信负责人：')
       // 延续：并入原任务，挂起 / 终态的并入后要重新开跑
       const cont = task({}, cls({ decision: 'bug', continues: 'om_target' }))
       mergeResult = { mode: 'resumed', into: target }

@@ -49,7 +49,7 @@ describe('群 / 私信唯一出口', () => {
   it('阶段表校验与源码字面量、reply→send 回落、出口闸、超长转文档、@ 渲染、幂等键、私信回执', () => runSteps([
     ['validatePhaseTable：缺列 / 非法值 / 表外列各报一条；好表零错', () => {
       const errors = validatePhaseTable({ bad: { overflow: 'to_doc', dedupe: 'weekly', anchor: 'reply_origin', extra: 1 } })
-      assert.deepEqual(errors, ['bad.dedupe = weekly 不合法（合法值：content_24h / per_person_2min）', 'bad 缺列 receipt（合法值：task / none）', 'bad 多了表外的列 extra：先在 POLICY_COLUMNS 登记'])
+      assert.deepEqual(errors, ['bad.dedupe = weekly 不合法（合法值：content_24h / per_person_2min / per_message_24h）', 'bad 缺列 receipt（合法值：task / none）', 'bad 多了表外的列 extra：先在 POLICY_COLUMNS 登记'])
       assert.deepEqual(validatePhaseTable({ good: { overflow: 'as_is', dedupe: 'content_24h', anchor: 'send', receipt: 'none' } }), [])
       assert.deepEqual(validatePhaseTable({}), [])
     }],
@@ -161,6 +161,13 @@ describe('群 / 私信唯一出口', () => {
       assert.equal((await sendReply({ config, store, task, phase: 'done', text: '结论一样', deps: s })).ok, true)
       assert.equal((await sendReply({ config, store, task: newTask({ id: 'om_4', messageId: 'om_4' }), phase: 'done', text: '结论一样', deps: s })).gated, true)
       assert.equal((await sendReply({ config, store, task: newTask({ id: 'om_5', messageId: 'om_5' }), phase: 'done', text: '结论不一样', deps: s })).ok, true)
+      // 11-03 R11：自答 / 追问是「对某条消息的回复」——按消息去重：两个人问同样的问题、同一句答复各发各的；同一条消息同阶段 24h 只回一次
+      assert.equal((await sendReply({ config, store, task: newTask({ id: 'om_6', messageId: 'om_6' }), phase: 'self_answer', text: '我能查版本、复测页面', deps: s })).ok, true)
+      assert.equal((await sendReply({ config, store, task: newTask({ id: 'om_7', messageId: 'om_7', operator: 'ou_else' }), phase: 'self_answer', text: '我能查版本、复测页面', deps: s })).ok, true, '另一条消息同样的答复照发')
+      const again = await sendReply({ config, store, task: newTask({ id: 'om_6', messageId: 'om_6' }), phase: 'self_answer', text: '换个说法的答复', deps: s })
+      assert.deepEqual([again.ok, again.gated], [false, true], '同一条消息不重复答')
+      assert.match(again.reason, /^出口闸拦下：这条消息 .* 已回过（self_answer）/)
+      assert.equal((await sendReply({ config, store, task: newTask({ id: 'om_6', messageId: 'om_6' }), phase: 'ask_back', text: '哪个环境？', deps: s })).ok, true, '同一条消息另一种阶段不拦')
     })],
     ['超长转文档：to_doc 的 phase 建成文档留第一行 + 链接（发件簿记 fullText，文档标题是任务标题 / 没标题用 id）；建不成原文照发不截；as_is 的 phase 不转', () => quiet(async () => {
       const titles = []
