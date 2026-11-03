@@ -172,7 +172,10 @@ describe('对话层：契约、入队门槛、分类落态、归并', () => {
         want: { out: { actionable: false, selfAnswer: true, requeue: false, suspected: false, recordOnly: false }, status: 'answered', selfAnswered: true, result: '能发，部署信那类私信 aven 就行', commandType: undefined },
       },
       { name: '别人问 bot 自己、forMe=false 也自答（问题是关于 bot 的，归属无关）', t: { addressedToBot: true, text: 'bot 能做什么' }, c: cls('question', 'high', { selfAnswer: true, deliverable: 'answer', forMe: false, reply: '能看代码答问题、改前端' }), want: { out: { selfAnswer: true, actionable: false }, status: 'answered', result: '能看代码答问题、改前端' } },
-      { name: '别人问 bot 自己、low 也自答（与负责人同口径，不走疑似）', t: { addressedToBot: true, text: 'bot 能做什么' }, c: cls('question', 'low', { selfAnswer: true, deliverable: 'answer', reply: '能看代码答问题' }), want: { out: { selfAnswer: true, suspected: false }, status: 'answered' } },
+      // 11-03 合入前 review：别人 @bot、分类器拿不准（low）却直接自答结单，原来会落疑似私信 aven——非负责人自答要 high / medium。
+      { name: '别人问 bot 自己、low → 不自答，照旧落疑似', t: { addressedToBot: true, text: 'bot 能做什么' }, c: cls('question', 'low', { selfAnswer: true, deliverable: 'answer', reply: '能看代码答问题' }), want: { out: { selfAnswer: false, suspected: true, actionable: false }, status: 'waiting_confirmation', suspected: true, selfAnswered: undefined } },
+      { name: '别人问 bot 自己、medium → 自答', t: { addressedToBot: true, text: 'bot 能做什么' }, c: cls('question', 'medium', { selfAnswer: true, deliverable: 'answer', reply: '能看代码答问题' }), want: { out: { selfAnswer: true, suspected: false }, status: 'answered' } },
+      { name: '负责人问 bot 自己、low → 仍自答（负责人口径不变，不走 askBack）', t: { addressedToBot: true, fromPrincipal: true, text: '你能发邮件吗' }, c: cls('question', 'low', { selfAnswer: true, deliverable: 'answer', reply: '能发' }), want: { out: { selfAnswer: true, askBack: false }, status: 'answered', result: '能发' } },
       {
         name: 'actionable question：commandType=status、契约 answer、waitsFor / topic / continues / relatedTaskId 落上、claimedAt 清',
         t: { addressedToBot: true, text: '有哪些差别', claimedAt: 'x' },
