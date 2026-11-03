@@ -213,6 +213,11 @@ describe('resolveAnalysisGate', () => {
       '缺「账户同步问题」的具体内容：要说明前端在登录或注册流程的哪一步调用什么',
       '需后端再确认：Go 是否已放开主动申报，会不会和社区回调重复发奖',
       '缺 userFeedback 的字段说明：提交后 statement 怎么生成', // feedback / statement 不算敏感字段词
+      // 普通英文词 / UI 词不算（fix16 review：带 i 标志时驼峰分支把 generate / operate / separate / iterate 里的 rate、useState 的 State 都认成字段）
+      '缺 generate 和 operate 的调用时机：separate、iterate 两步也要说明',
+      '需后端再确认：useState / setState 里存的列表要不要分页，Generate 按钮的 loading state 谁管',
+      '缺 RATE_LIMIT 的说明：rate limit 触发后前端怎么退避，API_RATE_LIMITED 也同理',
+      '需后端再确认：loading 状态、按钮状态、页面状态、弹窗 margin-top / marginTop 由谁控制',
     ]
     const moneyStatusAsks = [
       '需后端确认 fee 字段的计算口径：是否含返佣',
@@ -226,6 +231,10 @@ describe('resolveAnalysisGate', () => {
       '需后端确认 permission 字段的取值',
       '需后端再确认：未开通权限时接口返回什么',
       '缺 enum 定义：side 有哪些取值',
+      // 额度 / 精度 / 数量 / 可用 / 角色与数据语义的「状态」（状态枚举 / 值 / 码 / 订单状态 / xx 状态字段）也停；大写 / 下划线写法同样认
+      '需后端再确认提现额度字段说明', '缺下单精度的字段说明', '缺委托数量的字段定义', '需后端再确认：可用字段怎么算', '缺角色字段的取值说明',
+      '需后端再确认订单状态的取值', '缺状态码定义', '缺审核状态字段说明', '需后端再确认：状态值有哪些', '缺状态枚举定义',
+      '缺 ORDER_STATUS 的字段说明', '缺 trade_fee 的字段说明', '缺 TotalAmount 的字段说明', '缺 tradePnL 的字段说明',
     ]
     const replyTask = larkTask({ text: '帖子回复部分已经完成，完善资料部分需要前端接入', commandType: 'api', intake: { classification: { decision: 'api_reply' } } })
     await eachCase([
