@@ -10,7 +10,7 @@
 | 状态 | 含义 | 下一步 |
 |------|------|--------|
 | `received` | Gateway 收到 Lark 事件并通过白名单、幂等校验，等 worker 的只读分类器判这条是什么（11-01 起 @bot / 私信 / 回复 bot 都先到这里；只 @ 负责人 / @所有人 的 11-02 起不处理） | 分类后开跑 / 自答 / 追问 / 疑似 / 忽略（见 §7） |
-| `answered` | 问 bot 自己的问题，分类器一句就答完（`selfAnswer`），不建执行 | 终态，定期清理 |
+| `answered` | 问 bot 自己的问题，分类器一句就答完（`selfAnswer`），不建执行；负责人以外的人问也走这里（11-03 R9），但要 high / medium，low 照旧落疑似 | 终态，定期清理 |
 | `ignored` | 判定不用处理（普通聊天 / 别人的事 / 只记一笔的对接答复），@ 了 bot 的回一句「记下了」 | 静默终止，定期清理 |
 | `intake_failed` | 只读分类器异常（瞬时错误会先重试两次） | 不执行代码；挂着的「收到」撤掉不发、私信负责人一句（11-03）；health 告警、保留审计 |
 | `queued` | 已生成 Job 并入队 | Worker 领取 |
@@ -36,10 +36,10 @@ Gateway / Worker 至少提取：
 - 任务类型：`docs / fix / test / api / qa / status`。
 - 项目范围：优先从消息中的项目名、PR 号、路由、文档路径推断；推断不到则回群询问。
 - 目标文件或页面：如 `/tradfi`、`apps/web/src/apps/TradFi`、`packages/ui`。
-- 上下文与附件：合并被引用父消息及同话题其他真人回复的文字；父消息、当前消息和兄弟回复中的图片都必须进入 task，并通过 lark-cli bot 身份下载成 `localPath`，让 AI 可以直接看图。下载失败须保留 `imageKey/width/height/downloadError`。
+- 上下文与附件：合并被引用父消息及同话题其他真人回复的文字；父消息、当前消息和兄弟回复中的图片都必须进入 task，并通过 lark-cli bot 身份下载成 `localPath`，让 AI 可以直接看图。下载失败须保留 `imageKey/width/height/downloadError`。上下文包还会把被引用 / 话题 / 群里之前消息里别人发的图和文件挂进附件（`origin` 标来源）；有非「本条」来源时，提示在数据块外注明「标『本条』的才是这条消息自己带的，其余只作前文证据，别说成对方这条发的」（11-03 falive 回放 r3-c：Encone 的消息没带图，结论却说「截图里浏览器直接打开报的非法请求」，图全是群里之前 Kaiser 等人发的）。
 - 是否需要确认：群任务和 Bug 表反馈只确认修改范围；安全动作仍按原边界处理，不混成 G2。
 - 责任人：优先从 @ 对象、消息上下文、项目文档负责人字段、QA / API / 设计归属推断；无法推断时标记为项目负责人 / 群内负责人。
-- 回群线程：使用原消息 thread / message id 作为汇报目标，避免刷屏。
+- 回群线程：使用原消息 thread / message id 作为汇报目标，避免刷屏。Lark 消息发起的任务（私信或群里 @bot）结论只回原会话，正文带了别的项目号也不改投项目群（`deliveryChatIdFor`；11-02 豁免私信，11-03 R4 群里发起的也留在原群——改投后回复失败回落直发，群 A 的答案进了群 B，发件簿 / 回复义务也记错会话）；按项目号改投只给没有来源群的 bug 表任务。
 
 ## 3. 自动执行 / 必须确认边界
 
@@ -97,6 +97,8 @@ Gateway / Worker 至少提取：
 
 关键：`resolveAnalysisGate` **从不覆写 AI 的判断**，只把 blockers 分门别类，再由 workKind 决定哪些类构成停机（`hard` + 非快车道时的 `process`）。这取代了旧的 `SCOPE_OR_ACCESS_BLOCKER_RE`「命不中就整条改写成 ready」的默认放行。
 
+**对接答复类的降级**（`classifyTaskBlockers`，只对契约 `api` / `api:` 前缀的任务）：对方在答复我方的对接问题，答复本身就是材料。blocker 首句（冒号前）是「再要文档 / 契约 / 调用时机 / 再确认」的，从 `hard` 降为 `soft`，转成假设随实施下发、不停机（10-31 falive 回放：Arthur 答「完善资料部分需要前端接入」，bot 反过来要接口文档，四条全判 hard 停机）。两种不降：首句在要账号 / 权限 / 凭证 / token / 授权；整条（首句或细节）提到金额 / 余额 / 手续费 / 费率 / 价格 / 状态 / 枚举 / 权限（含 `fee` / `amount` / `balance` / `price` / `status` / `enum` / `permission` 及 `feeRate` / `orderStatus` 这类驼峰）——这几类取不到证据就该 blocked，不按 Mock 猜着实施（fix10 review：fee 口径、available 是否扣冻结、status 枚举含义原来被降成 soft → ready）。分析提示同时加了一条「答复正文就是材料，能推就推，不把再要文档 / 再确认写成 blocker；前文别的事不并进本条」。
+
 **新需求放行闸（混合兜底）**（`requirementGate`，在 [lark-task-runner.mjs](../lib/lark-task-runner.mjs) 里于**跑 AI、动 worktree 之前**执行）：判为 `requirement` 且人尚未放行过（无 `resumeCount`/`waitingHistory`/`qaReturnCount`）时——**仅当连自评材料都没有（`requirementHasSpecContext` 为 false：无附件，且正文短于 `REQUIREMENT_SELF_ASSESS_MIN_CHARS`=24 的裸一句话）**——才直接回一张 `waiting_confirmation` 卡、一次 AI 都不跑（这种消息 AI 也只能空手，先问一句比烧一次 AI 省）。**其余新需求（有附件 / 正文有细节）不再盲拦**，一律放行到 AI 由能读上下文的它自评。历史上这里对**每条**新需求盲拦，靠纯正则读不到话题讨论 / 设计稿，把已说清的新需求也退回补料——正是「太烦人」的根因。自评在只读分析阶段做（四种执行器同一阶段，`buildAnalysisPrompt` 的「新需求自评」段）：能从上下文唯一推导规格就 `ready` 直接做，不够再 `blocked` 并**具体**列出缺口，经 `resolveAnalysisGate` 归类。人回复卡片补一句预期行为即视为放行、续跑。
 
 ## 3.1.1 只读分析阶段与修改范围契约
@@ -140,7 +142,9 @@ Lark 保留自己的任务生命周期、AI 分析、质量闸和本地提交链
 
 任务相关的所有回复都是 **markdown 文本、回复原消息**（原消息在话题里就回话题流），由代码按结构化结果渲染（`lib/lark-human-text.mjs`），不再有「任务 ID / 执行器 / 等待轮次 / 如何继续」这类模板行。卡片只剩网关告警（死信 / 长连接掉线 / bug 表回写失败）。
 
-一条 @bot / 私信有且只有一个下文（falive 不变量 I1）：先一句「收到」（分类器按上下文写的，到点 45s 没分类才用固定句），再一条结论；私聊指示、续跑、重跑都记在同一份**回复义务**上（`runtime/lark-obligations/`），答应了 4h 没结论私信负责人一次，群里不补话。
+一条 @bot / 私信有且只有一个下文（falive 不变量 I1）：先一句「收到」（分类器按上下文写的，到点 45s 没分类才用固定句），再一条结论；私聊指示、续跑、重跑都记在同一份**回复义务**上（`runtime/lark-obligations/`），答应了 4h 没结论私信负责人一次，群里不补话。终态重开并入的来源（`task.answerFor`，见 §7）这轮结论发出时，它的义务一并记 answered（只补开过、还没答的）。
+
+「收到」挂着时任务先了结（人工结单 / 取消、判不处理、自答、分类失败）就只撤不发（11-03 R2：@bot 后 20 秒内回「算了不用了」，结单回执之后 45s 巡检又补一句「稍后回你」）：`closeAsExternallyResolved` 清掉 `ackPending`，巡检对非活动态到点的也只撤不发。
 
 每种消息（phase）走 `lib/lark-group-phases.mjs` 的出口规则表（超长转文档 / 去重 / 回复还是直发 / 要不要登记回执），`lib/lark-group-exit.mjs sendReply` 是唯一出口：过出口闸（同内容 24h 不重发、固定话术同人 2 分钟一条、自答 / 追问按消息 24h 一次——两个人问同样的问题各自要得到答复）、记发件簿（`runtime/lark-outbox/`）、发成功登记回执（回复 bot 任何一句都能锚回任务）。
 
@@ -148,24 +152,25 @@ Lark 保留自己的任务生命周期、AI 分析、质量闸和本地提交链
 
 | 交付物 · 状态 | 群里（回复原消息） | 负责人私信 |
 |---|---|---|
-| 收到 | 分类器写的那句（≤40 字口语）；无则「收到，我看一下，稍后回你。」 | — |
+| 收到 | 分类器写的那句（≤40 字口语，不许诺发帖 / 造数这类写操作、前文说清的环境不反问，11-03 falive 回放）；无则「收到，我看一下，稍后回你。」；分类前任务已了结的只撤不发 | — |
 | 开跑 | — | `🛠 开始做：<标题>（<群>）`（负责人自己私信发起的不发） |
-| 代答 done | report 原样（答案首行 + 保留项符号），不加 ✅；行首 @ 提问人（他不是负责人、也不在待跟进里时）；待跟进只列要动手的、每人一行；材料超长转文档附链接 | 提单人不是他时 `💬 替你答了（群）：首行` |
+| 代答 done | report 原样（答案首行 + 保留项符号），不加 ✅；行首 @ 提问人（他不是负责人、也不在待跟进里时；11-03 falive 回放 wrong_target：原来只 @ 待跟进的人，像在催别人）；待跟进只列要动手的、每人一行，不 @ 负责人本人；材料超长转文档附链接 | 提单人不是他、或待跟进里有他的事项时 `💬 替你答了（群）：首行`（去掉行首 @）+ 末行 `你这边：…` |
 | 实测 done | `<对象>：都通了 / 通了 a 项，没通 b 项` + `- ✅/⚠️/❌ 条目：证据`；会话里没真跑过探针 / 页面工具的条目标「待验证」 | 同上 |
-| 改码 done | 摘要首句 / `分支 X · 改了 N 个文件` / 待跟进每人一行 / `详细见：链接` | `✅ 标题（群）· 分支 · 改了 N 个文件` + `群里已回「…」` |
+| 改码 done | 摘要首句 / `分支 X · 改了 N 个文件` / 待跟进每人一行（不 @ 负责人本人，11-03 falive 回放 10-30：「找 aven」把他 @ 出来讲内部限制）/ `详细见：链接` | `✅ 标题（群）· 分支 · 改了 N 个文件` + `群里已回「…」`；待跟进里写给他的事项进末行 `你这边：…`（他私信发起的照常列在结论里） |
 | 改码 no_change | `看过了，这个不用改前端：…要 X 看下。` | `ℹ️ 看过了，不用改（群）：…` |
 | 改码 blocked / waiting | 有外部可要的材料且有人可 @：`@人 「标题」需要你们帮忙：- …`（查到根因在对方：`请处理：`）；否则不发群 | `⏸ 停下来了（群）：标题 / 要：…`；写了群回复却没发的作草稿：`没问题就回「就这样回」，我把下面这段原样发群：` |
 | 改码 failed | 不发群 | `⛔ 没做成（群）：…` + 下一步；有完成旁证 `⚠ 可能做成了、但没拿到结果` |
-| 运维 | — | 结果原文（`online 已经是 9f3c2a1，没有新内容，不发。`）；失败前加 ⛔ |
-| 判不用处理但 @ 了 bot | `收到，记下了。` 或分类器的礼貌一句 | forMe≠true 时 `🤔 …判断不用我处理…判错了回「继续任务 id 做」` |
+| 运维 | — | 结果原文（`online 已经是 9f3c2a1，没有新内容，不发。`）；失败前加 ⛔。部署信发出后只提示「部署好后要复测就私信我「<env> 复测」」，不承诺自动探测复测（lark-bot 没有这条链路，falive 靠 bugpoll 部署钩子、没移植；11-03 falive 回放发现） |
+| 判不用处理但 @ 了 bot | `收到，记下了。` 或分类器的礼貌一句（不承诺后续） | forMe≠true 时 `🤔 …判断不用我处理…判错了回「继续任务 id 做」` |
 | 分类失败（非瞬时） | —（挂着的「收到」撤掉，不先承诺再静默） | `⛔ 这条我没分出来是什么事，你看下（群）：标题`；「收到」已发过固定句的义务记 owed，不当了结 |
 | 疑似（没叫 bot 的提问 / 拿不准） | — | `❓ 可能是你的事（群）：标题 / 是 → 回「继续任务 id 做」；不是 → 回「取消任务 id」。不回也不催，48 小时后自动关。` |
 | 催办 | 改码类等材料 4h：`@提单人 「标题」还在等你补：…补上回我一句就继续。` | 8h：`⏰ …等了 8 小时没人补材料，我不再催群里了。要关掉回「取消任务 id」。` |
 | 每天 09:30 | — | `等你决定的 n 条`（疑似 / 扣下的群回复 / 答应了没结论 / 等材料超 24h）；n=0 不发 |
+| 并入了别人的补充（done / no_change_needed） | 结论末行 `@并入人 你（们）的补充也一起处理了。`（见 §7） | — |
 
 规则：
 
-- 群消息先一句结论、说人话、写短；不贴 diff、路径、sha、内部状态名；细节（curl / 复现步骤 / 清单）写进 `detailDoc`，bot 建成 Lark 文档、群里只放链接。
+- 群消息先一句结论、说人话、写短；不贴 diff、路径、sha、内部状态名；细节（curl / 复现步骤 / 清单）写进 `detailDoc`，bot 建成 Lark 文档、群里只放链接；文档链接按「任务 + 代次 + 状态」记在 `task.publishedDoc`，回执重试复用、不重复建（11-03 R12）。
 - 闸只管改动能不能提交，不吞对提问人的回答（I3）：代答 / 实测即便 AI 判 blocked 也是 done，答案里说「查不到 / 没测通」；改码类做砸了草稿扣下私信负责人，回「就这样回」才发群。
 - 群里能不说就不说（I6）：开跑知会、失败、疑似、过期、催办第二轮都只私信负责人；同话题挂起兄弟被收尾也不在群里知会。
 - 任务 ID、触达文件、规则扫描、完整命令输出只写审计；`lark-bot status` 与旧任务回落仍用文本 `result`。
@@ -178,17 +183,18 @@ Lark 保留自己的任务生命周期、AI 分析、质量闸和本地提交链
 
 能锚定到 Bot 卡片 / 原任务消息的回复进入**任务控制通道**：结单、残余请求确认、暂停、重开、补料、查状态或意图确认，**绝不 fall through 新建 task**。实现位于 [lark-ingest.mjs](../lib/lark-ingest.mjs) 与 [lark-message.mjs](../lib/lark-message.mjs)，路由决策为纯函数。
 
-- **两条入口**：① **L3 显式指令**（`maybeHandleControlDirective`，最强意图，先于回复锚定）——`结单 <id>` / `取消任务 <id>` / `重开任务 <id>`（`parseControlDirective`，与 `parseResumeDirective` 对称，带显式 taskId、不依赖回复）；目标缺失也显式回话并 return，绝不建孤儿任务。② **回复锚定**（`resolveControlTarget`）：直接回复**已登记的 Bot 回执卡**时无需再次 @bot；普通用户消息的回复仍要求 @bot。回执反查忽略代次，任务续跑过 epoch++ 后回复旧卡也能命中；direct 精确锚定失败再回落同话题唯一活动任务，话题内 ≥2 条活动任务则列候选让人指定，绝不猜测或新建。
+- **两条入口**：① **L3 显式指令**（`maybeHandleControlDirective`，最强意图，先于回复锚定）——`结单 <id>` / `取消任务 <id>` / `重开任务 <id>`（`parseControlDirective`，与 `parseResumeDirective` 对称，带显式 taskId、不依赖回复）；目标缺失也显式回话并 return，绝不建孤儿任务。指令词后面必须是本仓真实 id 形状（`om_…` / `rec…`（≥6 位）/ `daily-…` / `sf-…`，`isTaskIdShape`），否则整句按普通消息走分类（11-03 R5：「@bot 关闭 Google 登录入口」原来把 Google 当 taskId、回「没找到任务」，需求丢了；「继续 debug 一下」同理）。② **回复锚定**（`resolveControlTarget`）：直接回复**已登记的 Bot 回执卡**时无需再次 @bot；普通用户消息的回复仍要求 @bot。回执反查忽略代次，任务续跑过 epoch++ 后回复旧卡也能命中；direct 精确锚定失败再回落同话题唯一活动任务，话题内 ≥2 条活动任务则列候选让人指定，绝不猜测或新建。
 - **结单语义（`classifyClosureIntent`）**：先按语族正则给出结构化判定 `{ intent, closureReason, scope, confidence }`。三种 `closureReason`：`completed_elsewhere`（已解决 / 已由其他人·AI 完成 / 已上线 / 重复工单）、`cancelled`（取消 / 终止 / 撤销 / 停止处理 / 结束）、`no_longer_needed`（不用做了 / 不需要处理 / 需求变了 / 算了）。**一票否决**（降级为 unclear 去确认，绝不自动结单）：疑问句（修复了吗 / 解决了没 / 是不是已上线）、否定关闭、条件未来时、未完成、只完成部分、还需继续、转述他人。独立暂停表达走 `pause`，保持状态且不续跑、不新建。若明确结单后仍有缺陷/修改请求（如“上个已解决，现在下拉框还是空的”），先结原任务，再把残余正文显式展示并询问是否另发新任务，绝不静默吞请求或自动扩张执行范围。
 - **弱信号轻量仲裁（不引 AI）**：高置信语族没命中、但形状**疑似结单**（收工 / 到此为止 / 先放着 / 就这样吧 / 这事到这了 / 不弄这个了…`SUSPECTED_CLOSURE_RE`）的锚定消息，不再默认当补料续跑或忽略，而是升级为 `unclear`（`scope=suspected` + 猜测 `closureReason=cancelled`）去 `confirm`——零 AI、零新异步流程，只是把「疑似」交人一键裁决。仍受弱信号专用否决门 `SUSPECTED_VETO_RE` 约束（否定 / 继续 / 未完成词出现即退回，「先别收工，继续做」= 继续，不问「要结单吗」）。confirm 文案据 `scope` 分流：`partial` 问「整单关还是只取消一部分」，`suspected` 直接摆出猜测方向 + **带真实 taskId 的一键指令**（回复 `取消任务 <id>` / `结单 <id>` 结束，或补充说明继续）。
 - **重开语义（`classifyReopenIntent`）**：误结单可逆。窄语族——只认明确的重开 / 恢复 / 纠错措辞（重开 / 重新做 / 恢复执行 / 其实还要做 / 关错了 / 误关 / 不该取消），避免把「继续下一步」这类正常补料误判成重开。仅当回复的目标是一条**人工结单**任务（`superseded` 且带 `externalResolution`）时才生效。
 - **路由决策（`decideControlAction`）硬不变量**：锚定到的任务为**活动态**（`received/queued/running/verifying/waiting_confirmation/blocked/failed`）时，任何意图都不返回 `passthrough` —— 即**回复活动任务卡的消息永远不会新建任务**。纯确认 / 寒暄（如 `OK`、`收到`、`👌`）和仅要求他人稍后补充的协调话术属于 `ignore`：无论原任务处于活动态还是终态，都在控制通道内静默消费，不续跑、不发提示卡、不创建 `[OK]` 一类任务；带附件或方案、字段、样例等实质内容不忽略。仅「终态任务 + 有实质内容的非结单/非重开表达」放行老路径，允许在已了结话题里发起真正的新请求。
-  - `close`：`closeAsExternallyResolved` 落终态 `superseded` + `epoch++`（拦截已领取 worker 的迟到回写）+ 清排队/催办/待发回执；`closureReason` 写入落态存档——**取消类绝不记成「已完成」**。**running 中取消**除 AI 前和提交前检查外，还在 AI 执行期间轮询 Gateway；检出 `superseded`/换代立即用独立 `AbortController` 终止 AI 子进程。所有 prompt 都禁止 AI 自行 commit，提交只由 Worker 在最终状态与 epoch 闸通过后执行，因此已取消任务零 commit；半成品由既有收尾策略保留并写入审计供人工检查。
+  - `close`：`closeAsExternallyResolved` 落终态 `superseded` + `epoch++`（拦截已领取 worker 的迟到回写）+ 清排队/催办/待发回执与挂着的「收到」；`closureReason` 写入落态存档——**取消类绝不记成「已完成」**。**running 中取消**除 AI 前和提交前检查外，还在 AI 执行期间轮询 Gateway；检出 `superseded`/换代立即用独立 `AbortController` 终止 AI 子进程。所有 prompt 都禁止 AI 自行 commit，提交只由 Worker 在最终状态与 epoch 闸通过后执行，因此已取消任务零 commit；半成品由既有收尾策略保留并写入审计供人工检查。
   - `reopen`：`reopenClosed` 把人工结单的任务复活回 `queued` + `epoch++`，把本次结单存档进 `closureHistory` 留痕后清 `closureReason`/`externalResolution`；显式指令保存去掉指令前缀后的补充正文，回复式重开保存真实正文、附件与操作消息 ID 到任务历史。复用原 `task.id` → 复用原分支/worktree。兄弟归并 `supersede`（有 `supersededBy` 无 `externalResolution`）与 `done` 一律不可重开。
   - `pause`：仅确认暂停表达，不改变任务状态、不触发 parked 任务续跑、不新建任务，并明确回执当前状态。
   - `confirm`：意图不明，回一句让用户澄清「结束整个任务 or 只取消一部分」，原任务不变、不新建。
   - `resume`：活动态(parked) + 无结单信号 → 复用原任务补料续跑（见 5.1）。
-  - `notice`：其它活动态 + 无结单信号 → 记录并引导，不新建。
+  - `supplement`：目标还没分类（`received`，或正在分类）→ 并进原任务一起分类，不回第二句。正在分类的（worker 拿的是旧正文）标 `intake.reclassify`，这轮分类结果作废、放回 `received` 带补充重分类一次，不换代、不计瞬时重试（11-03 R7：原来判 ignore / 疑似时补的内容无声丢失）。
+  - `notice`：其它活动态 + 无结单信号 → 记录并引导，不新建。`failed` 也在活动态，但回的是「上次没做成，已经告诉 aven 了，不是还在处理；要关掉回「取消任务 id」，要重做直接 @我 再发一条」（11-03 R13），不说「还在处理中」。
   - `ignore`：锚定回复只有确认、寒暄或协调话术且没有附件 → 仅写本地日志，任务状态保持不变，不发群消息、不续跑、不新建。
 
 > 沿革：早期只识别「已解决 / 已完成」窄语族且判定散在 ingest 线性 if 链里，取消 / 不用做了 / 已结束等表达全部漏判、fall through 建新任务；且回复旧代次卡因 epoch 不匹配锚定失败；误结单只能人工改文件。现收敛为统一控制通道 + 忽略代次锚定 + closureReason 分流 + 显式指令 + 误结单可逆。
@@ -240,12 +246,34 @@ Lark 保留自己的任务生命周期、AI 分析、质量闸和本地提交链
 
 每条 **@bot / 负责人私信 / 回复 bot 消息** 都先建 `received` 任务（只 @ 负责人本人或 @所有人、没叫 bot 的消息 11-02 起不处理：判「是不是负责人的活」太复杂、准确性低，aven 决定先关掉，这些消息只作为后续 @bot 时的上下文），由 worker 的只读分类器（`lib/lark-classify-prompt.mjs`，五类 `bug / requirement / api_reply / question / ignore` + `deliverable` + `reply` + `forMe` + `continues` + `selfAnswer`）决定怎么落（`lib/lark-intake-resolve.mjs`）：开跑 / 自答（问 bot 自己的问题，分类器一句答完，不建执行）/ 追问（负责人的话拿不准）/ 疑似（私信负责人放行）/ 只记一笔 / 忽略。只有显式控制指令（取消 / 结单 / 重开 / 继续任务 `<id>`、绑定 PR-x）和负责人的运维指令（「运维：」或原话里的部署 / 发推）不过模型。
 
-分类器看得到的上下文（`lib/lark-conversation-bundle.mjs`）：被引用消息、话题其它回复、本群紧挨着的最近 20 条（含 bot 自己说的）、这个人 2h 内的任务与 bot 对他说过的话、本群 7 天候选任务、别人贴 bot 以前说过的话；15 分钟内的短指代句默认接 bot 上一句。分类出的 `continues` 命中已有任务 → 并入原任务（`lib/lark-task-merge.mjs`：未开跑追加、在跑完成后再跑一轮、已了结重开续答），本条落 superseded。追加 / 在跑并入的（结论仍回原消息）本轮结论末行 @ 并入人「你（们）的补充也一起处理了」；还欠一轮重跑时留给重跑那轮，@ 过的记 `mergedNotified` 不再 @。
+群里光一条「@bot」（没正文、没附件、没引用）也进分类（11-03 falive 回放 10-26：两条这样的催 / 接话被摄入层直接丢了）：上下文包标「【本条 @】（无附言，只 @ 了机器人）」，分类提示按本人上一条在说的事判；私信里的空消息照旧丢。别人问 bot 自己的问题也能自答（R9，原来只对负责人生效，别人问「bot 能做什么」照样开跑、答两遍），要 high / medium。分类非瞬时失败（`intake_failed`）不发「收到」、私信负责人一句（R6，见 §4 出口表）。
+
+分类器看得到的上下文（`lib/lark-conversation-bundle.mjs`）：被引用消息、话题其它回复、本群紧挨着的最近 20 条（含 bot 自己说的）、这个人 2h 内的任务与 bot 对他说过的话、本群 7 天候选任务、别人贴 bot 以前说过的话；15 分钟内的短指代句默认接 bot 上一句。分类出的 `continues` 命中已有任务 → 并入原任务（`lib/lark-task-merge.mjs`：未开跑追加、在跑完成后再跑一轮、挂起的当补料续跑、已了结重开续答），本条落 superseded。
+
+并入要交付物兼容（`compatibleContinuation`，`lib/lark-routes-intake.mjs`）：
+
+- 目标在等补料（`waiting_confirmation` / `blocked`）的，什么都能并。
+- 其它状态（排队 / 在跑 / 已了结）只有同一种交付物才算延续（追问 → 原答疑，补料 → 改码单），不同就另起任务（11-03 falive 回放 smoke：「portal 不用带头，更新清单」「你写脚本造测试帖」都并进答完的清单答疑重跑，整份清单连发三遍）。排队中也不例外（fix-a 回放：「检查下 preload」实测并进排队中的「写脚本造帖」改码单，一个任务干两件事、结论混发）。
+- 实测 / 答疑点名的环境与目标不相交（uat 那条答完，又要「复测 OL」）不算延续，另起；改码不看环境——「pre 也有这个问题」改的是同一处代码，照交付物规则并入（11-03 合入前 review）。
+- 没有契约的老任务照旧并。
+
+并入后谁说了算：
+
+- 契约、对话包跟新消息走；点名环境也跟新消息走——重开 / 续跑取新消息的，在跑 / 没开跑取并集（11-03 falive 回放 r3-c：「复测 OL」并进 uat 那条，结论开头警告「测的不是你说的 uat」）。
+- 终态重开（reopened）把回复目标、提单人、话题根（`replyTarget` / `operator` / `threadRootId`）换成新消息的，结论回到后来问的人（R8：A 问「test / pre 是否一样」答完，B「有哪些差别」并入重开，结论原来回到 A、B 的义务停在 acked）；`messageId` 不换（是任务自己那条消息，重试按它重下原附件）。来源记进 `task.answerFor`，结论发出时它的回复义务一并记 answered。
+- 挂起续跑（resumed）是补料，不换回复目标（A 报 bug 挂着等文档，William「@bot 文档在这」并入，换了 A 就收不到结论）；在跑 / 没开跑的并入同样只记 `mergedFrom`、结论仍回原消息。
+- 这些结论仍回原消息的，并入人靠结论末行 `@并入人 你（们）的补充也一起处理了`：只在 done / no_change_needed 加（代答类 blocked / failed 也发群，但不是结论；改码没做成扣下的草稿也不带）；还欠一轮重跑时留给重跑那轮；发出后整份 `mergedFrom` 记进 `mergedNotified`，下一轮（换了提单人的重开）不再 @。
+
+开跑的任务分类时 `continues` / `relatedTaskId` 指着别的任务、又没并进去的（交付物不同另起，或只是相关），带上那条的结论 `task.priorConclusion`（答案 + 条目 + 细节文档，截到 2000 字，`lib/lark-intake-resolve.mjs`）；代答 / 实测提示里连同「收到」那句一起给 worker，并要求要什么本轮给什么：要事实（tid / 账号 / 地址）就查出来直接列，要写操作（发帖 / 注册 / 下单）本模式做不了就直说找谁，不写「回头再发你」，「收到」里答应过的要兑现（11-03 falive 回放：William「测试的tid 发出来」，tid 就在上一单结论里，却回「去翻文档」；「创建最新的帖子 进行测试」先回了「我在 pre 发几条新帖」，实测只读发不了）。
 
 任务契约 `task.contract.deliverable ∈ change / verification / answer / record / ops` 只在分类回写时算一次（`lib/lark-task-contract.mjs`），任务性质、是否建 worktree、提示模式、出口都只读它。
 
 负责人私信 = 控制通道（`lib/lark-principal-channel.mjs`）：显式「继续任务 id」> 回复了某条私信 > 12h 内最近一条「在问他」的通知（或本条是短指代句）→ 挂着的续跑、「就这样回」放行草稿、其它建「私聊指示」任务（群 / 发送人沿用被指示的群消息，私信原话不进群）；锚错了回「取消任务 id」。没锚到的私信是独立任务。
 
+- 对挂起任务（疑似 / 追问 / blocked / waiting）的回复先判是不是否定（`classifyPrincipalReply`，11-03 R1：bot 私信「是 → 继续；不是 → 取消」，aven 回「不是」原来被当补料开跑）：整句就是否定（不是 / 不对 / 不用 / 算了 / 不做了 / 取消…）或否定 + 归属方（「不对，这是后端的」「不归我们」，归属方只认后端 / 服务端 / App / 客户端 / 原生 / 运维）→ 关掉，回结单那句；结单语族拿不准（「别做了？」「不用改了，复测一下」）→ 问一句、不动；其余是补料照旧续跑（「不对，应该是 508 账号」「不是，这个是 B 页面」「不，找 William 要账号」都是补料）。显式「继续任务 id」看后面的补充，单发是放行。
+- 「就这样回」只在锚点是「最近一条」通知、且锚点从没扣过草稿（义务没到过 held / answered）时，改找窗口内最近有草稿的任务（11-03 falive 回放 10-20：放行 lives 卡的草稿，锚到了刚私信过的 preload 任务，回「没有草稿」）。引用回复 / 显式点名的就是说那条；锚点扣过草稿已放行 / 已发过更新结论的，「没草稿」是对的——改找会把别的任务的草稿发进别的群，撤不回。
+- 私聊指示判 ignore 时，锚点还在活动态（在跑 / 排队 / 挂起 / 没做成）且是**明确拒绝**才一并结掉（no_longer_needed，换代挡掉迟到回写，私信加「原来在跑的那条也关掉了，不再回群结论」；11-03 R3：对在跑的锚点说「不做，这是后端的」，原来锚点照跑到 done，群里先「不归我们」后「改好了」）。明确拒绝 = 分类器 `forMe === false`，或写了 reply 且 `forMe !== true`；reason 说是寒暄 / 知会、或负责人原话整句就是「收到 / 知道了 / 好的」的不算——在跑的锚点不动、私信回「那条照常在做，没动它」；原话整句是寒暄的，分类器写的 reply 也不回群。
+
 回放：`node scripts/lark-replay-intake.mjs --fixture __tests__/fixtures/intake-replay-1101.json [--live]` 用 11-01 的 6 条真实消息核分类 → 契约 → 可执行性。
 「群里这条之前的消息」时间窗（11-02，`lib/lark-chat-context.mjs` `applyRecentWindow`）：近 `recentContextHours`（默认 4）小时全留，更早的只留本 bot 最近 3 条（对方隔夜接 bot 的话，falive 10-23 #74 的教训）和本条发送人最近 2 条，别人的旧闲聊、别家机器人的旧通知、隔天的长卡片不再进上下文，也不再下它们的图。回归集按 4 小时截后 22 条受影响、全部通过（另 3 条波动与截断无关）。
-分类回归集（11-02）：`node scripts/lark-replay-intake.mjs --fixture __tests__/fixtures/intake-regression-1102.json --live [--model m] [--effort e] [--conc 8]`，53 条（fameex 真实消息 23 条 + falive 存档按类别 / 交付分层 30 条），按运行配置的分类模型（`claudeIntentModel` / `claudeIntentEffort`）真跑、带 persona，逐条比 decision / deliverable / selfAnswer / continues（expected 是可接受值集合），并报耗时中位 / P90。换分类模型 / 强度、改分类提示前先跑；11-02 的对比：Opus high 中位 8.6s、Opus low 5.2s（都 0 处明确误判），Sonnet high 8.2s（漏 2 条负责人私聊指示），Haiku high 11.4s（漏 8 条，含「online 异常，修掉」判 ignore）。
+分类回归集（11-02）：`node scripts/lark-replay-intake.mjs --fixture __tests__/fixtures/intake-regression-1102.json --live [--model m] [--effort e] [--conc 8]`，56 条（fameex 真实消息 23 条 + falive 存档按类别 / 交付分层 33 条，11-03 falive 回放补了 3 条「对方说已办好我们在等的事 → 复测」），按运行配置的分类模型（`claudeIntentModel` / `claudeIntentEffort`）真跑、带 persona，逐条比 decision / deliverable / selfAnswer / continues（expected 是可接受值集合），并报耗时中位 / P90。换分类模型 / 强度、改分类提示前先跑；11-02 的对比：Opus high 中位 8.6s、Opus low 5.2s（都 0 处明确误判），Sonnet high 8.2s（漏 2 条负责人私聊指示），Haiku high 11.4s（漏 8 条，含「online 异常，修掉」判 ignore）。

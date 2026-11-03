@@ -110,3 +110,16 @@
 1. 合进运行分支前在 `runtime/lark-bot.local.json` 加 `"claudeModel": "claude-opus-5-5", "claudeEffort": "high"`（= 现在从个人设置继承来的值）；不加则隔离不启用、doctor 持续 warn，其余改动照常生效。
 2. 合并：`git -C ~/github/lark-bot merge lark/context-practices`（排空重启会自动上线）。
 3. 可选：fameex-web `CLAUDE.md` 顶部加 `@AGENTS.md`。
+
+## 6. 后续增补：新规则放在哪一层（2026-11-03，falive 回放修复批）
+
+按 §1 目标 2 的口径（换一条任务还成立的进系统层，只对本轮成立的留 user），这批新加的提示内容都没进系统层，原因各不相同：
+
+| 内容 | 放在哪 | 为什么不进系统层 |
+|---|---|---|
+| 附件归属说明（「标『本条』的才是这条消息自己带的，其余是上下文里别人发的」；11-03 falive 回放 r3-c） | 实施 / 分析 / 分诊提示，紧跟 `UNTRUSTED_TASK_INPUT` 数据块之后，只在有非本条来源的附件时出现 | 随数据出现、说明的是本轮附件，不是驾驶规则 |
+| 「收到」那句 + 接着的那单结论（`task.priorConclusion`，`buildCarryOverBlock`） | 代答 / 实测模式的 user 层 | 本轮事实；代答 / 实测按只读单趟跑，本来就不带系统层 |
+| 「对方要什么本轮就给什么」（`DELIVER_NOW_RULE`：要事实就查出来列，写操作做不了就直说，不写「回头再发你」） | 挂在代答 / 实测两个模式块末尾（user 层） | 是驾驶规则，但这两种模式不走系统层，放系统层到不了模型 |
+| 「对接答复就是材料，不把再要文档 / 再确认写成 blocker」（10-31 falive 回放） | 只读分析提示 | blockers 只在分析阶段产出；codex 的分析没有系统层；实施提示总预算（系统层 + user ≤ 9500）已无余量 |
+
+改这几处同样要跑 `node scripts/lark-replay-prompts.mjs --audits <审计目录>`，核系统层跨任务仍逐字相同。
