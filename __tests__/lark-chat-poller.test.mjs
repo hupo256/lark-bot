@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { afterEach, describe, it } from 'node:test'
 import { runSteps } from './support/steps.mjs'
 
-import { chatListMessageToEvent, flattenThreadReplies, isPollableMessage, nextDelayMs, parseKernSleepTime, pickThreadsToPoll, startChatPoller, toEpochMs } from '../lib/lark-chat-poller.mjs'
+import { chatListMessageToEvent, flattenThreadReplies, isPollableMessage, nextDelayMs, parseKernSleepTime, pickThreadsToPoll, startChatPoller, toEpochMs, describePollError, formatPollNotice } from '../lib/lark-chat-poller.mjs'
 import { extractInlineFileAttachments, hasDocAttachment, normalizeMessage, parseTextAndAttachments, resolveMessageTrigger } from '../lib/lark-message.mjs'
 import { DEFAULT_POLL, registerRepoProfiles, resetRepoProfiles } from '../lib/lark-repo-profile.mjs'
 import { pickEarlierDoc, pickRecentContext, pickThreadContext } from '../lib/lark-chat-context.mjs'
@@ -121,6 +121,7 @@ describe('轮询一轮（IO 全注入）', () => {
         deps: {
           now: () => new Date(nowMs),
           setTimeout: () => ({ unref() {} }), // 不真正排程，手动 pollOnce
+          noticeTimeout: (fn) => { fn(); return { unref() {} } }, // 告警合并窗口：测试里立即发
           listChatMessages: async ({ start }) => {
             listCalls += 1
             if (failing) return { ok: false, reason: 'missing_scope', transient: false }
@@ -154,12 +155,18 @@ describe('轮询一轮（IO 全注入）', () => {
       assert.equal(poller.observe().oc_falive.consecutiveFailures, 10)
       assert.equal(sent.length, 1, '连续失败 10 次只告警一次')
       assert.equal(sent[0].chatId, 'ou_aven')
+      // 告警说人话（aven 11-03）：群名 + 原因，不贴 lark-cli 原文
+      assert.match(JSON.stringify(sent[0].card), /这些群的消息轮询已连续失败.*oc_falive（已连续失败 10 次）.*原因：缺读群消息的权限（im scope），要补授权/)
+      assert.match(JSON.stringify(sent[0].card), /需人工关注/)
       await poller.pollOnce(target)
       assert.equal(sent.length, 1)
       failing = false
       await poller.pollOnce(target)
       assert.equal(poller.observe().oc_falive.consecutiveFailures, 0)
       assert.equal(sent.length, 2, '恢复后发一次恢复通知')
+      // 恢复用「运行状态通知」卡，不再标「需人工关注」
+      assert.match(JSON.stringify(sent[1].card), /消息轮询已恢复，期间漏掉的消息会补读.*oc_falive（此前连续失败 11 次）/)
+      assert.doesNotMatch(JSON.stringify(sent[1].card), /需人工关注/)
       // 应用机器人进群后：本群停止轮询，不再调列消息接口
       botMember = true
       const callsBefore = listCalls
@@ -170,6 +177,13 @@ describe('轮询一轮（IO 全注入）', () => {
       await poller.pollOnce(target)
       assert.equal(listCalls, callsBefore + 1)
       assert.ok(listCalls >= 13)
+      // 原因翻成人话；同窗口多个群合成一条
+      assert.match(describePollError('{"subtype":"token_missing","message":"need_user_authorization"}'), /用户登录失效了，要在本机重新登录/)
+      assert.match(describePollError('lark-cli timeout after 60000ms'), /超时，多半是网络/)
+      assert.match(describePollError('missing_scope'), /缺读群消息的权限/)
+      assert.equal(describePollError('weird'), '其它错误：weird')
+      assert.deepEqual(formatPollNotice({ kind: 'failed', items: [{ label: 'PHP后端群', reason: 'A' }, { label: '产研群', reason: 'A' }] }), ['**详情**：这些群的消息轮询已连续失败，期间群里的 @ 与文档都收不到：', '- PHP后端群', '- 产研群', '原因：A'])
+      assert.deepEqual(formatPollNotice({ kind: 'recovered', items: [{ label: 'PHP后端群' }, { label: '产研群' }] }), ['**详情**：消息轮询已恢复，期间漏掉的消息会补读：', '- PHP后端群', '- 产研群'])
       poller.stop()
     } finally {
       rmSync(dir, { recursive: true, force: true })
