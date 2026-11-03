@@ -172,6 +172,9 @@ describe('任务的人话出口', () => {
       const failed = task({ id: 'om_4', messageId: 'om_4', contract: { deliverable: 'answer' }, outcome: out({ report: { answer: '查不到。', items: [] }, followUps: [{ owner: '后端', items: ['补字段'] }] }) })
       await deliverOutcome({ config, store, task: failed, status: 'failed', deps })
       assert.equal(group()[3].markdown, '<at user_id="ou_qa"></at> 查不到。', '没做成也是给提问人的结论；待跟进照旧只在做成时 @')
+      const named = task({ id: 'om_5', messageId: 'om_5', operator: 'ou_be', contract: { deliverable: 'answer' }, outcome: out({ report: { answer: '后端问的答案。', items: [] } }) })
+      await deliverOutcome({ config, store, task: named, status: 'done', deps })
+      assert.deepEqual([group()[4].markdown, dm().at(-1)], ['<at user_id="ou_be">后端</at> 后端问的答案。', `💬 替你答了（${G}）：后端问的答案`], '提问人在 ownerMap 里带名字；私信首行不带 @')
     })],
     // 11-03 静态 review R8 后半：在跑 / 没开跑时并入的别人的消息（appended / rerun_after_done）只记 mergedFrom、结论仍回原消息，并入人只得到一句「收到」。
     ['并入的别人的补充：结论末行 @ 那些提单人（去重；排除负责人 / 本任务提单人 / bot / 已 @ 的 / 已清掉的）；还欠一轮重跑的留给重跑那轮；@ 过的下一轮不再 @', () => quiet(async () => {
