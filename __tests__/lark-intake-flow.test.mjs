@@ -385,6 +385,8 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       anchor = { task: waiting, via: 'recent' }
       assert.equal(await run('用 508 号试'), true)
       assert.deepEqual([resumes.pop().resumeDirective, resumes.at(-1), notes.length, downloads.length], [undefined, undefined, 0, 0])
+      assert.equal(await run('不对，应该是 508 账号'), true)
+      assert.deepEqual([resumes.pop().parentTask.taskId, store.get('om_w').status, notes.length], ['om_w', 'waiting_confirmation', 0], '「不对，应该是…」是补料：续跑，不关单')
       // 11-03 静态 review R1：疑似单私信「是 → 继续任务 id 做；不是 → 取消任务 id」，aven 回「不是」原先当补料放行开跑。否定 → 关掉并回一句；拿不准 → 问一句不动
       const sus = store.upsert({ id: 'om_sus1', status: 'waiting_confirmation', suspected: true, chatId: 'oc_g', summary: '登录页报错', text: '登录页报错', createdAt: iso(now) })
       anchor = { task: sus, via: 'recent' }
@@ -414,7 +416,21 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
         { name: '算了', text: '算了', want: { kind: 'decline', closureReason: 'no_longer_needed' } },
         { name: '不做了', text: '不做了', want: { kind: 'decline', closureReason: 'no_longer_needed' } },
         { name: '取消', text: '取消', want: { kind: 'decline', closureReason: 'cancelled' } },
-        { name: '已经有人在改了', text: '已经有人在改了', want: { kind: 'decline', closureReason: 'no_longer_needed' } },
+        { name: '取消吧。', text: '取消吧。', want: { kind: 'decline', closureReason: 'cancelled' } },
+        { name: '不归我们', text: '不归我们', want: { kind: 'decline', closureReason: 'cancelled' } },
+        { name: '不，找后端', text: '不，找后端', want: { kind: 'decline', closureReason: 'cancelled' } },
+        { name: '不是，这个归 App', text: '不是，这个归 App', want: { kind: 'decline', closureReason: 'cancelled' } },
+        { name: '不对，运维那边的事', text: '不对，运维那边的事', want: { kind: 'decline', closureReason: 'cancelled' } },
+        // 11-03 合入前 review：后半句不是归属说法的是补料（原来「应该是 / 是 / 找」后面随便跟什么都算否定，补料被关单）
+        { name: '不对，应该是 508 账号（补料）', text: '不对，应该是 508 账号', want: null },
+        { name: '不是，这个是 B 页面（补料）', text: '不是，这个是 B 页面', want: null },
+        { name: '不，找 William 要账号（补料）', text: '不，找 William 要账号', want: null },
+        { name: '不，找后端要账号（补料）', text: '不，找后端要账号', want: null },
+        // 结单语族在私信这里最多问一句（补料里常带「不用管 / 取消那个 / 不用改了」），不直接关
+        { name: '用 508 账号，不用管验证码 → 只问', text: '用 508 账号，不用管验证码', want: { kind: 'unclear', closureReason: 'no_longer_needed' } },
+        { name: '取消那个弹窗，直接跳转 → 只问', text: '取消那个弹窗，直接跳转', want: { kind: 'unclear', closureReason: 'cancelled' } },
+        { name: '后端已经修了，不用改了，复测一下 → 只问', text: '后端已经修了，不用改了，复测一下', want: { kind: 'unclear', closureReason: 'no_longer_needed' } },
+        { name: '已经有人在改了 → 只问', text: '已经有人在改了', want: { kind: 'unclear', closureReason: 'no_longer_needed' } },
         { name: '别做了？', text: '别做了？', want: { kind: 'unclear', closureReason: 'cancelled' } },
         { name: '是', text: '是', want: null },
         { name: '做', text: '做', want: null },
