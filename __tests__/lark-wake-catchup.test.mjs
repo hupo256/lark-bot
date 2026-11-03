@@ -5,12 +5,22 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { DM_CHAT_KEEP_MS, DM_CHAT_MAX, chatListMessageToEvent, flattenThreadReplies, isPollableMessage, mergeDmChats, readDmChats, readLastAliveAt, startWakeCatchup, writeLastAliveAt } from '../lib/lark-wake-catchup.mjs'
+import { CATCHUP_PACE_MS, CATCHUP_RETRY_DELAYS_MS, DM_CHAT_KEEP_MS, DM_CHAT_MAX, chatListMessageToEvent, flattenThreadReplies, isPollableMessage, mergeDmChats, readDmChats, readLastAliveAt, startWakeCatchup, writeLastAliveAt } from '../lib/lark-wake-catchup.mjs'
 import { normalizeMessage } from '../lib/lark-message.mjs'
 
+const quietWarn = async (fn) => {
+  const original = console.warn
+  console.warn = () => {}
+  try {
+    return await fn()
+  } finally {
+    console.warn = original
+  }
+}
+
 describe('开盖补拉群消息（长连接睡着时收不到，飞书重推只覆盖约 7 小时的几个时间点）', () => {
-  const setup = ({ messages = [], failTimes = 0, lastAlive = null, chats = ['oc_in'], failChats = [], tasks = [{ chatId: 'oc_in', updatedAt: '2026-10-16T16:00:00Z' }], dmFile = {} } = {}) => {
-    const env = { now: Date.parse('2026-10-16T20:20:00+04:00'), closed: false, sleptAt: Date.parse('2026-10-16T09:00:00+04:00'), calls: [], ingested: [], fail: failTimes, alive: [] }
+  const setup = ({ messages = [], failTimes = 0, lastAlive = null, chats = ['oc_in'], failChats = [], tasks = [{ chatId: 'oc_in', updatedAt: '2026-10-16T16:00:00Z' }], dmFile = {}, limited = {} } = {}) => {
+    const env = { now: Date.parse('2026-10-16T20:20:00+04:00'), closed: false, sleptAt: Date.parse('2026-10-16T09:00:00+04:00'), calls: [], ingested: [], fail: failTimes, alive: [], sleeps: [], limited: { ...limited } }
     const catchup = startWakeCatchup({
       config: {},
       store: { has: (id) => id === 'om_task', list: () => tasks },
@@ -26,6 +36,10 @@ describe('开盖补拉群消息（长连接睡着时收不到，飞书重推只�
         listChatMessages: async ({ chatId, start }) => {
           env.calls.push({ chatId, start })
           if (failChats.includes(chatId)) return { ok: false } // 没带 reason：日志里要落成 list failed
+          if (env.limited[chatId] > 0) {
+            env.limited[chatId] -= 1
+            return { ok: false, reason: 'TAT endpoint rate limited (HTTP 429)', transient: true }
+          }
           if (env.fail > 0) {
             env.fail -= 1
             return { ok: false, reason: 'network' }
@@ -33,6 +47,7 @@ describe('开盖补拉群消息（长连接睡着时收不到，飞书重推只�
           return { ok: true, messages, hasMore: false, pageToken: null }
         },
         setInterval: () => ({ unref() {} }),
+        sleep: async (ms) => { env.sleeps.push(ms); if (env.onSleep) await env.onSleep(ms) },
       },
     })
     return { env, catchup }
@@ -188,6 +203,35 @@ describe('开盖补拉群消息（长连接睡着时收不到，飞书重推只�
     allFail.env.now += 60_000
     assert.equal(await allFail.catchup.tick(), null, '全失败保留窗口重试')
     assert.equal(allFail.env.calls.length, 4)
+
+    // 11-03：会话之间隔 300ms；撞限流（瞬时）的会话 5 秒、15 秒后各再补一轮，还不行才算拉不到；不是瞬时的不重试
+    const limited = setup({ messages: [user('om_l')], chats: ['oc_a', 'oc_b', 'oc_c'], limited: { oc_b: 1, oc_c: 5 } })
+    limited.env.sleptAt = limited.env.now + 10_000
+    limited.env.now += 3600_000
+    const warned2 = []
+    console.warn = (line) => warned2.push(String(line))
+    try {
+      assert.deepEqual(await limited.catchup.tick(), { chats: 3, fed: 2, failedChats: 1 }, 'oc_a 首轮、oc_b 重试后各补到一条')
+    } finally {
+      console.warn = originalWarn
+    }
+    assert.deepEqual(limited.env.calls.map((c) => c.chatId), ['oc_a', 'oc_b', 'oc_c', 'oc_b', 'oc_c', 'oc_c'])
+    assert.deepEqual(limited.env.sleeps, [300, 300, 5000, 300, 15000], '首轮两次间隔 + 5s；第二轮一次间隔 + 15s；第三轮只剩一个不用间隔')
+    assert.match(warned2.join('\n'), /补拉 2 个会话撞限流 \/ 网络，5 秒后再补（第 1 次）/)
+    assert.match(warned2.join('\n'), /补拉有 1 个群拉不到（跳过）：群 oc_c：TAT endpoint rate limited/)
+    assert.deepEqual([CATCHUP_PACE_MS, CATCHUP_RETRY_DELAYS_MS], [300, [5000, 15000]])
+
+    // 补拉（含重试）还没跑完时到点的 tick 跳过，不叠加；跑完后照常
+    const slow = setup({ messages: [], chats: ['oc_a', 'oc_b'], limited: { oc_a: 1 } })
+    slow.env.sleptAt = slow.env.now + 10_000
+    slow.env.now += 3600_000
+    let release = null
+    slow.env.onSleep = (ms) => (ms === 5000 ? new Promise((resolve) => { release = resolve }) : null)
+    const first = quietWarn(() => slow.catchup.tick())
+    await new Promise((resolve) => setImmediate(resolve))
+    assert.equal(await slow.catchup.tick(), null, '上一轮补拉还在跑')
+    release()
+    assert.deepEqual(await first, { chats: 2, fed: 0, failedChats: 0 })
   })
 
   it('列消息形态 → 长连接同形事件，normalizeMessage 能吃；话题回复拍平并指回 host；只喂真人消息', () => {
