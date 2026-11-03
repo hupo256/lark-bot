@@ -2367,12 +2367,15 @@ describe('resolveDeliveryChatId（发送时改投项目群）', () => {
     assert.equal(called, false, 'project 为空时不得调用 resolve')
 
     // 11-02 复核：deliveryChatIdFor（状态回写与 routes deliverTo 共用）——人私信里发起的 Lark 任务（source=lark 且私信）不按 PR 号改投群：
-    // 改投后回复原消息一旦非瞬时失败就回落直发群，私聊的答案进了项目群。bug 表任务的 ou_ chatId 只是 bot 没进群时的回落，照旧改投；群里的 Lark 任务照旧。
+    // 改投后回复原消息一旦非瞬时失败就回落直发群，私聊的答案进了项目群。bug 表任务的 ou_ chatId 只是 bot 没进群时的回落，照旧改投。
+    // 11-03 静态 review R4：群里 @bot 发起的 Lark 任务也不改投——改投只是给「入队时 bot 没进群、chatId 冻结成私聊」的 bug 表任务用的；
+    // 群 A 里「@bot PR-x 这个页面报错」正文带了别的项目号，回复仍靠 replyTarget 落在 A，发件簿 / 回执 / 回复义务却记在绑定群 B，
+    // A 里后续「重跑一次」看不到这条，回复失败回落直发时结论还发进 B。Lark 来源的任务 chatId 就是人说话的地方，一律留在原群。
     const resolve = async (p) => (p === 'PR-1' ? 'oc_group' : '')
     await eachCase([
       { name: 'lark 私信（chatType p2p）→ 不改投', task: { source: 'lark', chatType: 'p2p', project: 'PR-1', chatId: 'oc_p2p' }, want: 'oc_p2p' },
       { name: 'lark 私信入口（intake.trigger dm）→ 不改投', task: { source: 'lark', intake: { trigger: 'dm' }, project: 'PR-1', chatId: 'oc_p2p' }, want: 'oc_p2p' },
-      { name: 'lark 群任务 → 改投项目群', task: { source: 'lark', chatType: 'group', project: 'PR-1', chatId: 'oc_old' }, want: 'oc_group' },
+      { name: 'lark 群任务（群 A 里 @bot、正文带别的项目号）→ 留在原群，不改投绑定群', task: { source: 'lark', chatType: 'group', project: 'PR-1', chatId: 'oc_old' }, want: 'oc_old' },
       { name: 'lark 群任务、群解析不到 → 原 chatId', task: { source: 'lark', chatType: 'group', project: 'PR-9', chatId: 'oc_old' }, want: 'oc_old' },
       { name: 'bug 表任务 chatId 是 operator 私聊（ou_）→ 照旧改投项目群', task: { source: 'lark-bugtable', project: 'PR-1', chatId: 'ou_operator' }, want: 'oc_group' },
       { name: '没 source 的旧任务、ou_ chatId → 照旧改投', task: { project: 'PR-1', chatId: 'ou_operator' }, want: 'oc_group' },
@@ -2382,12 +2385,14 @@ describe('resolveDeliveryChatId（发送时改投项目群）', () => {
     const store = createTaskStore({ tasksDir: dir, leaseMs: 1000 })
     store.upsert({ id: 'dm', source: 'lark', chatType: 'p2p', intake: { trigger: 'dm' }, project: 'PR-1', chatId: 'oc_p2p', status: 'running', createdAt: '2026-01-01T00:00:00Z' })
     store.upsert({ id: 'bt', source: 'lark-bugtable', project: 'PR-1', chatId: 'ou_operator', status: 'running', createdAt: '2026-01-01T00:00:00Z' })
+    store.upsert({ id: 'grp', source: 'lark', chatType: 'group', project: 'PR-1', chatId: 'oc_a', status: 'running', createdAt: '2026-01-01T00:00:00Z' })
     const seen = []
     const deliver = async ({ task }) => { seen.push([task.id, task.chatId]); return { ok: true, messageId: `om_${task.id}` } }
     await handleStatusUpdate({ config: {}, store, id: 'dm', status: 'done', result: 'x', deliver, resolveGroupChat: resolve })
     await handleStatusUpdate({ config: {}, store, id: 'bt', status: 'done', result: 'x', deliver, resolveGroupChat: resolve })
-    assert.deepEqual(seen, [['dm', 'oc_p2p'], ['bt', 'oc_group']])
-    assert.deepEqual([store.get('dm').chatId, store.get('bt').chatId], ['oc_p2p', 'oc_group'])
+    await handleStatusUpdate({ config: {}, store, id: 'grp', status: 'done', result: 'x', deliver, resolveGroupChat: resolve })
+    assert.deepEqual(seen, [['dm', 'oc_p2p'], ['bt', 'oc_group'], ['grp', 'oc_a']])
+    assert.deepEqual([store.get('dm').chatId, store.get('bt').chatId, store.get('grp').chatId], ['oc_p2p', 'oc_group', 'oc_a'], '群里发起的结论留在原群 A')
     rmSync(dir, { recursive: true, force: true })
   })
 })
