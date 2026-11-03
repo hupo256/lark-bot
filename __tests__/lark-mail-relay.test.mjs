@@ -8,6 +8,7 @@ import { describe, it } from 'node:test'
 import { exemptReason } from '../lib/lark-chat-retention.mjs'
 import { validateConfig } from '../lib/lark-config.mjs'
 import { startConsumer } from '../lib/lark-consumer.mjs'
+import { headlinePostContent } from '../lib/lark-cli.mjs'
 import { classifyOlKind, hasOlSubject, renderOlScore, scoreOlMail } from '../lib/lark-mail-ol-score.mjs'
 import { RELAY_POLL_MS, RELAY_POLL_OVERLAP_MS, catchUpRelay, createRelayCli, createRelayHandler, fileRelayIo, mailFromWatchLine, pickRoute, relayPollMs, startMailRelay } from '../lib/lark-mail-relay.mjs'
 import { forwardMail, renderRelayNote } from '../lib/lark-mail-relay-forward.mjs'
@@ -186,7 +187,13 @@ describe('审批邮件转群：OL 评分、路由、转发、引擎、拆分接�
       assert.deepEqual(calls.map((call) => [call.identity, call.args[0], call.args[1]]), [['user', 'mail', '+message'], ['user', 'mail', '+share-to-chat'], ['bot', 'im', '+messages-reply']])
       assert.deepEqual(calls[1].args.slice(2, 6), ['--message-id', 'm1', '--receive-id', 'oc_ol'])
       assert.equal(calls[2].args[calls[2].args.indexOf('--message-id') + 1], 'om_card')
-      assert.match(calls[2].args[calls[2].args.indexOf('--markdown') + 1], /16\/16（A 档/)
+      assert.equal(calls[2].args.includes('--markdown'), false)
+      assert.equal(calls[2].args[calls[2].args.indexOf('--msg-type') + 1], 'post')
+      const rows = JSON.parse(calls[2].args[calls[2].args.indexOf('--content') + 1]).zh_cn.content
+      assert.deepEqual(rows[0], [{ tag: 'text', text: 'OL 上线申请规范度：16/16（A 档 · 标准） · 发件人 Alec', style: ['bold'] }], '首行进 text 段、去掉 **：话题收起时摘要只取 text 段')
+      assert.equal(rows[1][0].tag, 'md')
+      assert.match(rows[1][0].text, /^- 主题 3\/3 ✓/)
+      assert.deepEqual(JSON.parse(headlinePostContent('**只有一行**')).zh_cn.content, [[{ tag: 'text', text: '只有一行', style: ['bold'] }]])
     }],
     ['转发：没评分器只标类别；reply:false 只分享不回；不符合路由不发；读信 / 分享失败如实返回；dryRun 只出说明；force 跳过复核', async () => {
       const wlMail = { subject: '申请加白名单', body_plain_text: 'x', head_from: { name: 'Ops', mail_address: 'ops@hqstech.com' }, to: STD_TO }
