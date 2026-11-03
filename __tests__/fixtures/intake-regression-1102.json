@@ -1765,12 +1765,15 @@
    ],
    "expected": {
     "decision": [
-     "ignore"
+     "ignore",
+     "question"
     ],
     "deliverable": [
-     null
+     null,
+     "answer"
     ]
-   }
+   },
+   "note": "11-03 falive 回放：问「能不能先打包到 uat OL」，falive 当时核版本后答「不用重新打包、差在配置」被判更好；question/answer 也接受（aven 可否决）"
   },
   {
    "id": "om_x100b610344fa30a8eda7d625d08e8f6",
