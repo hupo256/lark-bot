@@ -456,10 +456,12 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       let mergeResult = null
       const target = { id: 'om_target', status: 'queued' }
       const calls = []
+      let anchorTask = null
       const st = {
         resolveIntake: (args) => { calls.push(['resolveIntake', args]); return outcome },
-        get: (id) => ({ om_target: target })[id],
+        get: (id) => ({ om_target: target, om_g1: anchorTask })[id],
         mergeIntoTask: (args) => { calls.push(['merge', args]); return mergeResult },
+        closeAsExternallyResolved: (args) => { calls.push(['close', args]); return anchorTask && isControlActiveStatus(anchorTask.status) ? { task: anchorTask, previousStatus: anchorTask.status, closureReason: args.closureReason } : null },
         upsert: (task) => task,
       }
       const said = []
@@ -604,6 +606,24 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       assert.deepEqual(said.slice(1), [['deliverNoted', { config: cfg, store: st, task: { ...priv, privateOrigin: null }, reply: '这个不改' }], ['sendPrincipalNote', { config: cfg, store: st, text: '记下了，「导出按钮」这条不用动手。', taskId: 'om_me', kind: 'ignored_after_ack' }]])
       await run({ ok: true, task: task({ status: 'ignored', privateOrigin: { anchorId: 'om_g1', anchorHead: '导出按钮' } }, cls({ decision: 'ignore', reply: null })) })
       assert.deepEqual(saidNames(), ['notePerson', 'sendPrincipalNote'], '没说怎么回群就不回')
+      // 11-03 静态 review R3：锚点任务还在跑，负责人私信「不做，这是后端的」→ 指示任务判 ignore：锚点一并结掉（externalResolution，换代挡掉迟到回写），
+      // 不再回群「改好了」；锚点已了结 / 不存在的不碰
+      anchorTask = { id: 'om_g1', status: 'running', epoch: 1 }
+      const privStop = task({ status: 'ignored', privateOrigin: { anchorId: 'om_g1', anchorHead: '导出按钮', senderOpenId: 'ou_aven' } }, cls({ decision: 'ignore', reply: '这个归后端' }))
+      assert.deepEqual(await run({ ok: true, task: privStop }), body({ ignored: true, anchorClosed: 'om_g1' }))
+      assert.deepEqual(calls.at(-1), ['close', { id: 'om_g1', operator: 'ou_aven', messageId: 'om_me', closureReason: 'no_longer_needed' }])
+      assert.deepEqual(said.slice(1), [['deliverNoted', { config: cfg, store: st, task: { ...privStop, privateOrigin: null }, reply: '这个归后端' }], ['sendPrincipalNote', { config: cfg, store: st, text: '记下了，「导出按钮」这条不用动手；原来在跑的那条也关掉了，不再回群结论。', taskId: 'om_me', kind: 'ignored_after_ack' }]])
+      assert.equal(logs.at(-1), '[lark-gateway] 分类落地 om_me：负责人指示：不处理，锚点 om_g1 由 running 结掉')
+      for (const status of ['waiting_confirmation', 'received', 'failed']) {
+        anchorTask = { id: 'om_g1', status }
+        await run({ ok: true, task: privStop })
+        assert.equal(calls.at(-1)[1].id, 'om_g1', `${status} 也是活动态，一并结掉`)
+      }
+      calls.length = 0
+      anchorTask = { id: 'om_g1', status: 'done' }
+      assert.deepEqual(await run({ ok: true, task: privStop }), body({ ignored: true }))
+      assert.deepEqual([calls.map(([name]) => name), said.at(-1)[1].text], [['resolveIntake'], '记下了，「导出按钮」这条不用动手。'], '已了结的不碰')
+      anchorTask = null
       const ign = task({ status: 'ignored' }, cls({ decision: 'ignore', reply: '不用我' }))
       assert.deepEqual(await run({ ok: true, task: ign }), body({ ignored: true }))
       assert.deepEqual(said.slice(1), [['flushPendingAck', { config: cfg, store: st, task: ign, reply: null, send: false }], ['deliverNoted', { config: cfg, store: st, task: ign, reply: '不用我' }], ['deliverIgnoredAfterAck', { config: cfg, store: st, task: ign }]])
