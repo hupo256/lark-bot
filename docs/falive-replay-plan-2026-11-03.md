@@ -115,5 +115,5 @@
 14. **裁判时机**：按天跑 judge-sim 时，跨天还在跑的任务会被当成「没回」误判（fix-a 10-21 的昵称答复 40 秒后就发了，裁判先跑了）。已判的条目不重判，所以中途的裁判只当早期信号；六段跑完后删掉 judge.jsonl 整体重判一次再算总账。
 15. **fix-a 10-20**：「pre 更新了，检查下 preload」（api_reply·verification）被 continues 并进了排队中的「写脚本造帖」（requirement·change）——fix3 的兼容规则对「还没开跑」的目标放行了，结果一个任务干两件事、结论混在一起连发两条，aven 的「继续任务 <preload id>」又顺着 supersededBy 指到造帖单重跑一遍。fix4 收紧：只有在等补料（waiting_confirmation / blocked）的目标什么都能并，排队中的也要交付物相同（4 层回放 → 修的例子）。
 16. **基线 full-a 10-20 重跑后裁判（4 条：falive 3 / 一样 1）**：「就这样回」锚到刚私信过的 preload 任务而不是扣着草稿的 lives 卡（回「没有草稿」）；aven「滚到底看看」并进了 preload 旧任务。fix4 f4c4cc0：放行草稿时锚到的任务没草稿 → 改找窗口内最近有草稿的任务。
-17. **c 段（10-30 → 11-02）两轮整体重判**：基线 full-c 8 条差异全是 falive 更好；修复版 fix-c（fix3 代码）5 条：falive 4 / 一样 1。并排：群里回复 27 vs 27，重复回复 2 → 1，私信 aven 23 → 26，任务终态分布基本一致。剩余主题（@ 错人、打包问题判 ignore、运维配置缺、答复被当缺料）大多在 fix4 里才修，要再跑一轮 fix4 验证。报告：runtime/falive-replay/sim/rounds-c.md。
+17. **c 段（10-30 → 11-02）两轮整体重判**：基线 full-c 8 条差异全是 falive 更好；修复版 fix-c（fix3 代码）5 条：falive 4 / 一样 1。并排：群里回复 27 vs 27，重复回复 2 → 1，私信 aven 23 → 26，任务终态分布基本一致。剩余主题（@ 错人、打包问题判 ignore、运维配置缺、答复被当缺料）大多在 fix4 里才修，要再跑一轮 fix4 验证——第三轮 r3-*（worktree lark-bot-r3，分支 lark/falive-round3 = fix4 95db743 + 回放脚本），c 段 09:20 先起（端口 3111），a / b 等第一二轮跑完再起。报告：runtime/falive-replay/sim/rounds-c.md。
 
