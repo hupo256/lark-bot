@@ -21,7 +21,7 @@ process.env.LARK_CLI_BIN = cliBin
 process.env.LARK_RUNTIME_DIR = runtime
 
 const { ACK_SWEEP_EVERY_MS, DEFAULT_ACK_TIMEOUT_MS, appendSuspectedSupplement, deliverFollowUpReply, flushPendingAck, holdsSuspectedForPrincipal, intakeTiming, isCompleteMessage, markAckPending, mergeThreadSupplement, pickSupplementTarget, resolveIntakeLane, resolveIntakeNotBefore, sweepPendingAcks } = await import('../lib/lark-intake-ack.mjs')
-const { DEFAULT_PRINCIPAL_REPLY_WINDOW_MS, anchorHead, buildPrincipalInstructionTask, classifyPrincipalReply, decidePrincipalAction, isDeployNotice, isReleaseHeldReply, isShortDeictic, latestDmReceipt, maybeHandlePrincipalChannel, resolvePrincipalAnchor } = await import('../lib/lark-principal-channel.mjs')
+const { DEFAULT_PRINCIPAL_REPLY_WINDOW_MS, anchorHead, buildPrincipalInstructionTask, classifyPrincipalReply, decidePrincipalAction, findHeldDraftTask, isDeployNotice, isReleaseHeldReply, isShortDeictic, latestDmReceipt, maybeHandlePrincipalChannel, resolvePrincipalAnchor } = await import('../lib/lark-principal-channel.mjs')
 const { RERUN_ACK_REPLY, compatibleContinuation, handleIntakeResolution, mergeableTarget, resolveMergeTarget } = await import('../lib/lark-routes-intake.mjs')
 const { buildConversationBundle } = await import('../lib/lark-conversation-bundle.mjs')
 const { ingestLarkEvent } = await import('../lib/lark-ingest.mjs')
@@ -423,6 +423,26 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
         { name: '不用截图，直接按方案 A 做', text: '不用截图，直接按方案 A 做', want: null },
         { name: '空', text: '', want: null },
       ], ({ text, want }) => assert.deepEqual(classifyPrincipalReply(text), want))
+      // findHeldDraftTask（11-03「就这样回」改找有草稿的）：回执时间优先、没回执按草稿时间；超窗口不算；同时刻先到的保住；窗口读配置
+      {
+        const t0 = Date.now()
+        const mk = (id, { receiptAgoMs = null, draftAgoMs = null } = {}) => {
+          const task = { id, chatId: 'oc_g', receipts: receiptAgoMs == null ? [] : [{ chatId: 'ou_aven', kind: 'done', createdAt: iso(t0 - receiptAgoMs) }] }
+          if (draftAgoMs != null) noteHeld({ task, text: '草稿', now: t0 - draftAgoMs })
+          return task
+        }
+        const [a, b, c, d] = [mk('om_fa', { receiptAgoMs: 5 * 60_000, draftAgoMs: 30 * 60_000 }), mk('om_fb', { draftAgoMs: 2 * 60_000 }), mk('om_fc', { receiptAgoMs: 30 * 3600_000, draftAgoMs: 30 * 3600_000 }), mk('om_fd', { receiptAgoMs: 5 * 60_000, draftAgoMs: 60_000 })]
+        const st = (list) => ({ list: () => list })
+        const msgDm = { chatId: 'oc_p2p' }
+        assert.equal(findHeldDraftTask({ store: st([a, b]), config, msg: msgDm, now: t0 }).id, 'om_fb', '没回执的按草稿时间（2 分钟前）胜过 5 分钟前的回执')
+        assert.equal(findHeldDraftTask({ store: st([a, c]), config, msg: msgDm, now: t0 }).id, 'om_fa', '超过窗口的不算')
+        assert.equal(findHeldDraftTask({ store: st([c]), config: { ...config, principalReplyWindowMs: 48 * 3600_000 }, msg: msgDm, now: t0 }).id, 'om_fc', '窗口读配置：放宽到 48h 后 c 算在内')
+        assert.equal(findHeldDraftTask({ store: st([a, d]), config, msg: msgDm, now: t0 }).id, 'om_fa', '回执同时刻：先到的保住（草稿更新不改顺序）')
+        assert.equal(findHeldDraftTask({ store: st([a, b]), config, msg: msgDm, excludeId: 'om_fb', now: t0 }).id, 'om_fa', '排除锚到的那条')
+        assert.equal(findHeldDraftTask({ store: st([{ id: 'om_none', chatId: 'oc_g', receipts: [] }]), config, msg: msgDm, now: t0 }), null, '没草稿 → null')
+        assert.equal(findHeldDraftTask({ store: st([mk('om_fe', { receiptAgoMs: DEFAULT_PRINCIPAL_REPLY_WINDOW_MS, draftAgoMs: 60_000 })]), config, msg: msgDm, now: t0 }).id, 'om_fe', '正好在窗口边上算在内')
+        for (const task of [a, b, c, d]) clearHeldDraft({ task })
+      }
       const doneTask = store.upsert({ id: 'om_d', status: 'done', chatId: 'oc_g', messageId: 'om_d', operator: 'ou_qa', summary: '导出按钮', text: '导出按钮没反应', project: 'PR-X', attachments: [{ type: 'image', imageKey: 'g' }], createdAt: iso(now) })
       anchor = { task: doneTask, via: 'recent' }
       assert.equal(await run('修复：这个要做', { attachments: [{ type: 'image', imageKey: 'p' }] }), true)
