@@ -188,7 +188,7 @@ describe('resolveAnalysisGate', () => {
     assert.deepEqual(gate.analysis.blockers, ambiguous.blockers)
   })
 
-  it('soft / decision 不构成停机，转成显式假设进 requirements（这才是「自己 MSW 推到 G5」）', () => {
+  it('soft / decision 不构成停机，转成显式假设进 requirements（这才是「自己 MSW 推到 G5」）', async () => {
     const gate = resolveAnalysisGate({
       task: larkTask({ text: '列表加载失败时没提示' }),
       analysis: blocked([
@@ -204,6 +204,28 @@ describe('resolveAnalysisGate', () => {
     // 假设必须真的下发给实施阶段，否则等于没记录。
     for (const item of gate.assumptions) assert.ok(gate.analysis.requirements.includes(item))
     assert.deepEqual(gate.analysis.assumptions, gate.assumptions)
+    // 对接答复（api_reply / api: 前缀）：对方的答复本身就是材料，首句在「再要文档 / 再确认」的 blocker 归 soft，细节里顺带的
+    // token / 登录 / 测试环境不算（10-31 falive 回放：Arthur 答「完善资料部分需要前端接入」，bot 反过来要接口文档，四条全判 hard 停机）。
+    // 首句本身在要账号 / 权限的仍是 hard；非对接答复的同一批 blocker 不受影响。
+    const docAsks = [
+      '缺「完善资料」的接口契约：要写清路径、鉴权头（`Authorization: hiApp <token>`）和响应结构',
+      '缺调用时机和触发方式：是前端在 updateInfo 成功后调 task/complete，还是后端回调？',
+      '缺「账户同步问题」的具体内容：要说明前端在登录或注册流程的哪一步调用什么',
+      '需后端再确认：Go 是否已放开主动申报，会不会和社区回调重复发奖',
+    ]
+    const replyTask = larkTask({ text: '帖子回复部分已经完成，完善资料部分需要前端接入', commandType: 'api', intake: { classification: { decision: 'api_reply' } } })
+    await eachCase([
+      { name: 'api: 前缀 / api_reply 定的 commandType', task: replyTask, blockers: docAsks, status: 'ready', kept: [] },
+      { name: '只有契约标了 api（分类器判 api_reply）', task: larkTask({ text: '完善资料部分需要前端接入', contract: { v: 1, deliverable: 'change', api: true } }), blockers: docAsks, status: 'ready', kept: [] },
+      { name: '首句在要账号 / 权限：仍停', task: replyTask, blockers: ['缺测试账号：要用真实账号登录后才能验证', ...docAsks], status: 'blocked', kept: ['缺测试账号：要用真实账号登录后才能验证'] },
+      { name: '首句没在要文档的读不懂 blocker：仍按 hard 停', task: replyTask, blockers: ['情况比较复杂，建议先讨论一下', ...docAsks], status: 'blocked', kept: ['情况比较复杂，建议先讨论一下'] },
+      { name: '不是对接答复：原样按 hard 停', task: larkTask({ text: '完善资料部分需要前端接入', intake: { classification: { decision: 'requirement' } } }), blockers: docAsks, status: 'blocked', kept: docAsks },
+    ], ({ name, task, blockers, status, kept }) => {
+      const out = resolveAnalysisGate({ task, analysis: blocked(blockers) })
+      assert.equal(out.analysis.status, status, name)
+      assert.deepEqual(out.analysis.blockers, kept, name)
+      if (status === 'ready') assert.equal(out.assumptions.length, docAsks.length, name)
+    })
   })
 
   it('有 hard 时只带走 hard，soft / decision 不混进群卡（免得人以为要先去催接口）', () => {
