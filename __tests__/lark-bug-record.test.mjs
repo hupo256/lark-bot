@@ -4,17 +4,27 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
-import { extractBugRecordLinks, normalizeBugTable, readBugRecords, screenshotTokensOf, taskReferencesBugRecords } from '../lib/lark-bug-record.mjs'
+import { extractBugRecordLinks, normalizeBugTable, readBugRecords, recordJsonToMarkdown, screenshotTokensOf, taskReferencesBugRecords } from '../lib/lark-bug-record.mjs'
 import { buildTaskPrompt } from '../lib/lark-worker-prompts.mjs'
 
 const TOKEN = 'Q6S5rK3lHeUJ36ccYcul0Yo7gWg'
 const URL = `https://qfglxo2m3dc.sg.larksuite.com/record/${TOKEN}`
 const RECORD_MD = `\`_record_id\` is metadata\n\n- \`_record_id\`: rec4944\n- \`Bug编号\`: Bug-4944\n- \`问题标题\`: 直播間介紹\n- \`问题截图\`: [{"file_token":"f1","name":"a.png"},{"file_token":"f2","name":"b.png"}]\n`
 
+// lark-cli base +record-get --format json 的真实形状（11-03 起默认 ndjson 落文件，只能显式要 json）
+const RECORD_JSON = JSON.stringify({ ok: true, data: { fields: ['Bug编号', '问题标题', '状态', '修复完成时间', '问题截图'], record_id_list: ['rec4944'], data: [['Bug-4944', '直播間介紹', ['待处理'], null, [{ file_token: 'f1', name: 'a.png' }, { file_token: 'f2', name: 'b.png' }]]] } })
+
 describe('bug 表记录分享链接（从 falive 移植 #85：群里贴 …/record/<token>，bot 原来只看得到标题）', () => {
   it('抽链接去重、截图 token、按分享链接反查记录并落盘（缓存命中不再反查）；不是这张表的 / 没配表记 skipped；配置用 fameex 的 bugTable.appToken', () => {
     assert.deepEqual(extractBugRecordLinks(`看下 ${URL}\n再看 ${URL} 和 https://x.larksuite.com/record/short`).map((link) => link.token), [TOKEN])
     assert.deepEqual(screenshotTokensOf(RECORD_MD), ['f1', 'f2'])
+    // JSON → 原 markdown 形状：字符串原样、null 留空、其它 JSON 化；错 id（也回 ok）/ 不是 JSON → ''
+    const md = recordJsonToMarkdown(RECORD_JSON, 'rec4944')
+    assert.equal(md, '`_record_id` is metadata\n\n- `_record_id`: rec4944\n- `Bug编号`: Bug-4944\n- `问题标题`: 直播間介紹\n- `状态`: ["待处理"]\n- `修复完成时间`: \n- `问题截图`: [{"file_token":"f1","name":"a.png"},{"file_token":"f2","name":"b.png"}]\n')
+    assert.deepEqual(screenshotTokensOf(md), ['f1', 'f2'])
+    assert.equal(recordJsonToMarkdown(RECORD_JSON, 'recOther'), '')
+    assert.equal(recordJsonToMarkdown('不是 JSON', 'rec4944'), '')
+    assert.equal(recordJsonToMarkdown(JSON.stringify({ ok: true, data: { record_id_list: ['r'] } }), 'r'), '`_record_id` is metadata\n\n- `_record_id`: r\n')
     assert.deepEqual(screenshotTokensOf('- `问题截图`: '), [])
     assert.deepEqual(screenshotTokensOf(RECORD_MD, 'QA截图'), [], '列名可配，配了别的列名就不读默认列')
     assert.equal(taskReferencesBugRecords(`看 ${URL}`), true)
@@ -29,14 +39,18 @@ describe('bug 表记录分享链接（从 falive 移植 #85：群里贴 …/reco
     const dir = mkdtempSync(join(tmpdir(), 'bug-record-'))
     try {
       const calls = []
-      const run = (args) => {
+      const run = (args, opts) => {
         calls.push(args[1])
         if (args[1] === '+record-list') {
           assert.deepEqual(args.slice(args.indexOf('--field-id'), args.indexOf('--field-id') + 2), ['--field-id', '问题标题'], '列记录按标题列投影')
           return { code: 0, stdout: JSON.stringify({ ok: true, data: { record_id_list: ['rec1', 'rec4944'], has_more: false } }) }
         }
         if (args[1] === '+record-share-link-create') return { code: 0, stdout: JSON.stringify({ ok: true, data: { record_share_links: { rec1: 'https://t.larksuite.com/record/OtherTokenOtherTokenXX', rec4944: URL } } }) }
-        if (args[1] === '+record-get') return { code: 0, stdout: RECORD_MD }
+        if (args[1] === '+record-get') {
+          assert.deepEqual(args.slice(-2), ['--format', 'json'], '显式要 JSON，不让它落 ndjson 文件')
+          assert.equal(opts?.cwd, join(dir, 'out'), '万一还落文件，也只落在任务目录')
+          return { code: 0, stdout: RECORD_JSON }
+        }
         return { code: 0, stdout: '{}' }
       }
       const table = { appToken: 'base', tableId: 'tbl', viewId: 'vew' }
@@ -58,16 +72,18 @@ describe('bug 表记录分享链接（从 falive 移植 #85：群里贴 …/reco
       assert.equal(existsSync(join(dir, 'x')), false)
 
       // 读记录的各种失败：非 0 退出 / 退出 0 但不是记录正文 → skipped，原因取 stderr、再 stdout、再退出码
-      const gets = [{ code: 1, stdout: '', stderr: '' }, { code: 1, stdout: 'nope', stderr: '' }, { code: 0, stdout: '不是记录', stderr: '' }]
+      // 非 0 退出即使 stdout 是记录也不算；错 id 也回 ok（record_id_list 里没有它）→ skipped
+      const wrongId = JSON.stringify({ ok: true, data: { fields: ['Bug编号'], record_id_list: ['recOther'], data: [[null]] } })
+      const gets = [{ code: 1, stdout: '', stderr: '' }, { code: 1, stdout: 'nope', stderr: '' }, { code: 0, stdout: '不是记录', stderr: '' }, { code: 1, stdout: RECORD_JSON, stderr: 'boom' }, { code: 0, stdout: wrongId, stderr: '' }]
       const runGet = (args) => (args[1] === '+record-get' ? gets.shift() : { code: 0, stdout: '{}' })
-      const reasons = [0, 1, 2].map(() => readBugRecords({ text: URL, outDir: join(dir, 'out'), table, run: runGet, cachePath }).skipped[0].reason)
-      assert.deepEqual(reasons, ['读记录失败：1', '读记录失败：nope', '读记录失败：不是记录'])
+      const reasons = [0, 1, 2, 3, 4].map(() => readBugRecords({ text: URL, outDir: join(dir, 'out'), table, run: runGet, cachePath }).skipped[0].reason)
+      assert.deepEqual(reasons, ['读记录失败：1', '读记录失败：nope', '读记录失败：不是记录', '读记录失败：boom', `读记录失败：${wrongId.slice(0, 120)}`])
 
       // 老缓存条目没有 tableId：读记录用表配置里的 tableId
       const legacyCache = join(dir, 'legacy.json')
       writeFileSync(legacyCache, JSON.stringify({ [TOKEN]: { recordId: 'rec4944' } }))
       const seen = []
-      readBugRecords({ text: URL, outDir: join(dir, 'out'), table, run: (args) => { if (args[1] === '+record-get' || args[1] === '+record-download-attachment') seen.push(args[args.indexOf('--table-id') + 1]); return args[1] === '+record-get' ? { code: 0, stdout: RECORD_MD } : { code: 0, stdout: '{}' } }, cachePath: legacyCache })
+      readBugRecords({ text: URL, outDir: join(dir, 'out'), table, run: (args) => { if (args[1] === '+record-get' || args[1] === '+record-download-attachment') seen.push(args[args.indexOf('--table-id') + 1]); return args[1] === '+record-get' ? { code: 0, stdout: RECORD_JSON } : { code: 0, stdout: '{}' } }, cachePath: legacyCache })
       assert.deepEqual(seen, ['tbl', 'tbl'])
 
       // 反查：列记录失败（非 0）就停、不生成分享链接；表里没有记录时也不发空的分享链接请求；翻页最多 10 页
