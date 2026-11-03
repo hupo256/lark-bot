@@ -17,7 +17,7 @@
 | B1 | 离线模拟器：`scripts/sim/{fake-lark-cli,lark-cli,virtual-clock,run-sim,compare-sim}.mjs` | ✅ 跑通（smoke：10-20 08:30–10:00Z 11 条）；业务仓副本改成按基线检出的 worktree |
 | B2 | L2 对话层回放：逐事件按时间推进，比每条 @bot 的下文 / 义务状态 vs falive 当时 | 🔄 `scripts/sim/run-days.sh 2026-10-20 2026-11-03 full` 跑中（同一 sim 跨天续跑，每天重起进程、重钉基线；非触发消息只等 3 秒） |
 | B3 | L3 执行层回放：与 B2 同一次模拟，worker 真跑 claude，baseRef 钉到当天的 falive-react 提交（不抽样，全跑） | 🔄 同上 |
-| C | 差异清单 → 修 → 只重跑受影响层 → 全量测试绿 → 合运行分支 | 🔄 三个修复分支已合到 lark/falive-fix3（943aa55，全量 639 绿；R7 重分类逻辑挪进 lark-intake-retry 过体量线，用例棘轮 619 → 622）；fix3b L1 裁判 28 / 8 / 11；变异 --diff fameex-stable 48 个抓 46、豁免 2、存活 0（066928e）。待：基线模拟跑完后用修复版再跑一轮 L2 / L3 对照。原三个分支并行：lark/falive-fix2（R2 R6 R11 已修 3 commit，各自测试红→绿）、lark/falive-fix（R1 R3 R5 R7 R13 子代理在修）、lark/falive-fix3（分类提示 + continues 交付物兼容；fix3 一轮 L1 裁判 lark-bot 更好 25 / falive 11 / 一样 9，回归集 53/53；再收口径后 fix3b 跑中） |
+| C | 差异清单 → 修 → 只重跑受影响层 → 全量测试绿 → 合运行分支 | 🔄 三个修复分支已合到 lark/falive-fix3（943aa55，全量 639 绿；R7 重分类逻辑挪进 lark-intake-retry 过体量线，用例棘轮 619 → 622）；fix3b L1 裁判 28 / 8 / 11；变异 --diff fameex-stable 48 个抓 46、豁免 2、存活 0（066928e）。修复版三段模拟 fix-a/b/c（端口 3108–3110，代码 lark/falive-fix3 0a9b28b）08:00 与基线并行起跑（aven：资源够、多并行）；对照用 scripts/sim/compare-rounds.mjs（并排）+ judge-sim.mjs（模型裁判，子代理在写）。中置信 R4 R8（前半：重开 / 续跑换回复目标；后半「在跑时并入后结论 @ 其他提单人」另立）R9（别人问 bot 自己也 selfAnswer）R10 R12 已在 lark/falive-fix4（1f22d2d）修完：全量 639 绿，变异 --diff fix3 28 抓 28。fix3 worktree 冻结给 fix-a/b/c 模拟用，集成分支改为 lark/falive-fix4。10-30 L2 裁判后又加一批（9608954）：done 结论不 @ 负责人本人；分类提示补「问打包部署 / 版本是 question」「ignore 的 reply 不承诺后续」；上一版提示 53 条回归集 50/53；再加（44a0e45 / a44bb8a）：群里光一条「@bot」不再被摄入层丢掉（上下文包标「无附言，只 @ 了机器人」）、提示补「只 @ 没正文按本人上一条的事判」；最新版回归集与变异跑中。原三个分支并行：lark/falive-fix2（R2 R6 R11 已修 3 commit，各自测试红→绿）、lark/falive-fix（R1 R3 R5 R7 R13 子代理在修）、lark/falive-fix3（分类提示 + continues 交付物兼容；fix3 一轮 L1 裁判 lark-bot 更好 25 / falive 11 / 一样 9，回归集 53/53；再收口径后 fix3b 跑中） |
 
 ## 1. 数据（都在本机，只读）
 
@@ -53,6 +53,7 @@
 - webhook 群是 falive 的「控制台」（只有 aven 一个人，他在那里说的话 falive 按负责人私聊处理）：映射成 lark-bot 的负责人私信（p2p，chat_id = aven open_id）。
 - 撤回的消息（渲染版「[Invalid text JSON]」/ raw「This message was recalled」）按已删除。
 - 回复了 bot 任何一条消息都算 bot_reply（生产只认登记过的回执；近似）。
+- **运维指令（核对 uat / online 后发部署信、推 MR）不在回放范围**：要真读当时的环境分支、真发邮件 / 推送，回放台不提供（opsActions 不配，任务会 failed「运维配置缺」）。裁判里这类 stuck 不计入 lark-bot 的问题。
 - 分类提示里写死的「只做 fameex-web 前端仓的事」改成 `localConfig.repoLabel`（缺省不变）——这是回放的前提，也是一个真缺陷：提示词与仓绑定。
 
 ## 3b. 回放台自己的坑（已修，记下免得再踩）
@@ -61,6 +62,8 @@
 - 只读答疑原本直接在业务仓主目录跑（HEAD 是最新代码），答案里出现「10-30～11-02 最后一次实测」这种未来信息；已改成按窗口起点检出的 worktree。
 - falive-react 的 commit-msg 钩子（scripts/verify-commit-msg.mjs）要求 `<type>(<scope>)?: 主题`，lark-bot 的 hotfix 提交标题是「lark hotfix: …」→ 全被拒、任务降级 failed（full-b 第一轮 6 次）。falive 当时靠 repo profile 的 commitPrefix；已移植成运行配置 `commitPrefix`（fix3 0a69b79 / conv 53117d4），模拟配置填 feat(bot)。三段基线 07:48 用带它的代码重启。
 - 三个模拟同时 `git worktree add` 撞过一次（failed to read .git/worktrees/…/commondir），启动错开 20 秒。
+- **多个 sim 共用一个 falive-react 会互相撞任务分支**：bot 的临时分支 hotfix/adhoc-<任务 id> 按 id 定死（重试复用），smoke 跑过的任务在 full-a 里再跑时遇到「分支已有提交但不包含本次基线」→ failed；基线与修复两轮跑同一批任务 id 也会互撞。08:30 改成每个 sim 一份 `git clone --shared`（对象共享，分支 / worktree 独立；origin = 主仓，基线分支 sim-base-<日期> 建在主仓供 fetch），六段全部重启。主仓里清掉了 hotfix/adhoc-* 与 remote sim。
+- clone 带着主仓全部分支，worker 看 online 分支 / git log --all 能看到窗口之后的合入（10-31 回放：「Justin 10-31 已合入 online」）；09:05 起副本只留基线分支的引用（从各段的下一天起生效，两轮同时）。
 
 ## 4. 发现（随时追加；最后汇总成差异清单）
 1. **只 @ 负责人的消息 lark-bot 一律不处理（11-02 决定）**：falive 当时分类了 52 条这类消息，46 条 ignore，6 条有动作——4 条入队（3 条是「发对接文档 @aven」→ 文档入库，1 条 Adrian 发任务中心文档）、2 条疑似。影响面小，但「发文档只 @aven」这个入库入口没了。
@@ -97,4 +100,47 @@
 分组修：fix worktree A（lark-bot-fix，分支 lark/falive-fix）：R1 R3 R5 R7 R13；fix worktree B（lark-bot-fix2，分支 lark/falive-fix2）：R2 R6 R11。
 8. **L1 修后对照（fix3b，分类提示 + continues 收窄）**：同一批差异条目裁判从 lark-bot 更好 19 / falive 16 / 一样 9 → **28 / 8 / 11**，reply 质量 good 30 → 37；53 条分类回归集全过；分类器两档互相一致度不变。剩下 falive 更好的 8 条：3 条是 aven 私信「已部署」（约定口令 = 去 pre 复测 + 待推版改已推版，L1 没锚点，看 L2）、2 条是「medium 直接做 vs 先私信确认」的策略差（aven 10-24 定的口径，保留）、「能不能先打包到 uat OL」仍判 ignore、截图短句仍 ignore、一条回复里 HTML 实体没转义（I&#39;m）。
 9. **L2 修后 smoke（fix3，同一 10-20 窗口）**：清单只答一次（不再连发三遍）；William「portal 不用带头」→ api_reply·null 只记一笔、回「收到…清单里这项我改成已确认」；Encone「写脚本造测试帖」→ 独立 requirement 任务开跑，因今天 pre 登录接口「外部服务调用失败」没做成，草稿私信 aven 等放行（falive 当时环境正常、做成了）。
+10. **L2 模型裁判（judge-sim，smoke 窗口 3 条触发消息）**：基线 falive 2 / 一样 1（问题：并入漏做、回错对象）；修复版 lark-bot 2 / falive 1——剩那条是「群里只给概述、清单在文档里」，这是 aven 11-03 定的答疑口径（短回复 + 细节文档），不改。
+11. **L2 裁判 10-30 一天（基线 full-c 6 条差异全是 falive 更好；修复版 fix-c 3 条：一样 1 / falive 2）**，主题：
+   - **回群结论 @ 错人**（3 条，wrong_target）：复测结论 @ 了报告里「找谁」的人（Kai / Encone / aven）而不是提问人；提问人是靠「回复原消息」带到的，@ 别人反而像在催他们。待修：结论只回复原消息，@ 仅限需要对方动手的人，且不 @ 提问人以外的人除非 report 明确要找。
+   - **「能不能先打包到 uat OL」两轮都判 ignore**（missed）：提示要再明确「问部署 / 打包 / 版本状态 → question」。
+   - **ignore 的 reply 承诺了后续**（「对完跟你说」却没人跟进）：ignore 的 reply 不能承诺动作。
+   - **说「锁定 uat」实际测的 pre**：模拟配置只给了 pre 的地址（envSites），bot 只能测 pre——回放台要补 falive 的 uat / online 地址。
+   - **实测只能发只读 GET、不能登录**：aven 私信给了账号，bot 仍「没用给的账号登录」；falive 当时有 pre-probe 脚本能登录。lark-bot 的实测模式没有登录能力（fameex 线 11-02 也遇到），这是能力缺口，要 aven 定：给实测模式开登录（POST）口子，还是继续只读。
+   - aven 私信给账号锚到了「最近一条通知」的任务（member/info）而不是 falive 当时等账号的任务中心单——在 lark-bot 自己的时间线里这个锚是对的（那条刚说没登录态），不算错。
+12. **L2 裁判 10-26 一天（基线 full-b 7 条差异：falive 5 / lark-bot 2；修复版 fix-b 6 条：lark-bot 2 / 一样 1 / falive 3）**。基线独有的：同一条处理两遍先「已修复」又「不用改」（duplicate，continues 老问题）、阻塞清单与结论前后矛盾（三条消息）。两轮共有：
+   - **光一条「@Aven.Bot」（没正文）被摄入层直接丢掉**（2 条 missed）：人在自己上一条话后面单独 @ 一下是常见的催 / 接话方式，lark-ingest 对「没正文、没附件、没引用」的消息直接 return，根本没到分类器。falive 接上了前文。待修：群里直接 @bot 的一律进分类（上下文包会带前文），只有私信空消息才丢。
+   - aven 私信「已部署」→ falive 把 bug 表从待推版改成已推版（bugpoll 流程），lark-bot 回「知道了」；这是 falive 线的约定，fameex 线由 bug-watch 处理，不改。
+   - 结论 @ 了 Eric 而不是提问人（wrong_target，同 10-30 主题）。
+13. 10-31 基线补判 2 条：aven 私信「核对 online / uat 一致后发部署信」→ lark-bot 运维任务因模拟配置没有 opsActions（deployMail 脚本）直接 failed（回放台缺口，fameex 线有）；Arthur 回答 bot 自己提的问题（改资料后调 task/complete）→ lark-bot 判阻塞、反过来要接口文档并在群里发求助文档（wrong_content）——api_reply·change 进实施前的分析把「对方答复」当成缺料，待看修复版同一条。
+14. **裁判时机**：按天跑 judge-sim 时，跨天还在跑的任务会被当成「没回」误判（fix-a 10-21 的昵称答复 40 秒后就发了，裁判先跑了）。已判的条目不重判，所以中途的裁判只当早期信号；六段跑完后删掉 judge.jsonl 整体重判一次再算总账。
+15. **fix-a 10-20**：「pre 更新了，检查下 preload」（api_reply·verification）被 continues 并进了排队中的「写脚本造帖」（requirement·change）——fix3 的兼容规则对「还没开跑」的目标放行了，结果一个任务干两件事、结论混在一起连发两条，aven 的「继续任务 <preload id>」又顺着 supersededBy 指到造帖单重跑一遍。fix4 收紧：只有在等补料（waiting_confirmation / blocked）的目标什么都能并，排队中的也要交付物相同（4 层回放 → 修的例子）。
+16. **基线 full-a 10-20 重跑后裁判（4 条：falive 3 / 一样 1）**：「就这样回」锚到刚私信过的 preload 任务而不是扣着草稿的 lives 卡（回「没有草稿」）；aven「滚到底看看」并进了 preload 旧任务。fix4 f4c4cc0：放行草稿时锚到的任务没草稿 → 改找窗口内最近有草稿的任务。
+17. **c 段（10-30 → 11-02）两轮整体重判**：基线 full-c 8 条差异全是 falive 更好；修复版 fix-c（fix3 代码）5 条：falive 4 / 一样 1。并排：群里回复 27 vs 27，重复回复 2 → 1，私信 aven 23 → 26，任务终态分布基本一致。剩余主题（@ 错人、打包问题判 ignore、运维配置缺、答复被当缺料）大多在 fix4 里才修，要再跑一轮 fix4 验证——第三轮 r3-*（worktree lark-bot-r3，分支 lark/falive-round3 = fix4 95db743 + 回放脚本），c 段 09:20 先起（端口 3111），a / b 等第一二轮跑完再起。报告：runtime/falive-replay/sim/rounds-c.md。
+18. **09:50 再加并行（aven：多启 agent 加速）**：第三轮 r3-a / r3-b 起跑（端口 3112 / 3113），与 full-a/b、fix-a/b、r3-c 共 7 段同跑；回放目录加 .metadata_never_index（Spotlight 索引曾占大半 CPU）。三个子代理：lark-bot-fix5（lark/falive-fix5）修「结论 @ 错人」+ R8 后半（并入的提单人也 @）；lark-bot-fix6（lark/falive-fix6）修「对方答复被分析阶段当缺料判阻塞」；conv 上写 scripts/sim/summarize.mjs 汇总总账。fix4 合入前检查：6 条真实消息分类回放 6/6、53 条回归集 53/53、全量 639、变异 53/53。
+19. **fix5 合进 fix4（b8efa6f，快进）**：代答 / 实测结论第一行 @ 提问人（原来正常回复时从不 @ 他，renderMentions 反而把待跟进的人全补到行首），待跟进只 @ 有事项的；并入消息的提单人在结论末行 @ 上（rerunAfterDone 那轮先不 @，留给带补充的重跑轮；task.mergedNotified 防重复）。全量 639 绿，变异 31/31。
+20. **fix6 合进 fix4（4067170）**：「对方答复被当缺料判阻塞」定位到两步——分析阶段模型把 Arthur 的答复当缺料（4 条 blocker 里有一条自己已写出正确做法），gate 按关键词（token / 登录 / 测试环境）把每条拖成 hard。修：对接答复类任务里首句在「再要文档 / 契约 / 时机 / 再确认」的 blocker 降 soft（要账号 / 权限的仍 hard）；分析提示加「答复正文就是材料，能推就推，前文别的事不并进本条」。规则放分析提示而非系统层（实施提示预算只剩约 87 字；codex 跑分析没有系统层）。提示回放 164 任务 / 242 份规则不丢、系统层 1 种；全量 639；变异 --diff fix3 84/84。
+21. **基线 b 段（10-25 → 10-29）整体重判：falive 11 / lark-bot 6**。主题：
+   - aven 私信「已部署」4 次只回「知道了」：这是有意的设计（单独一句部署通知不是指示，falive 10-28 定的），部署后复测在 falive 由 bugpoll 部署钩子做——**回放范围外**，不计。
+   - 但顺着查出 **lark-bot 的部署信回执承诺「pre 部署后 bot 会自动探测并复测」，实际没有这条链路** → fix4 1d06597 改成「部署好后要复测就私信我「<env> 复测」」。要不要移植部署探测 → 复测，待 aven 定。
+   - **改了别人负责的模块**（2 条，falive 按功能总表转给 henry）：lark-bot 没有归属表（falive 的 ownership.table 没移植，fameex 线暂无对应），模拟里也没配。待 aven 定 fameex 线要不要归属表。
+   - 光 @bot 被丢（3 条）：fix4 已修；「已关闭没推流的直播间」只记一笔没复测：fix3b 提示已改（已配好 / 已关掉的是我们报的 → 复测）。
+22. **第三轮 c 段（fix4 早期 95db743）整体重判：falive 5 / lark-bot 0**，没比第二轮好——它不含 fix5 / fix6。新暴露：William「复测 OL」被并进之前的 uat 实测任务，envTargets 仍是第一条的 uat，收尾环境核对给结论加了「测的不是你说的 uat」。fix4 b2081c2：并入时点名环境跟新消息走（重开 / 续跑取新的，在跑 / 没开跑取并集），都是实测但环境不相交的不算延续；全量 639，变异 93/93。第四轮 c 段用含它的代码（r4 c6c707e）10:06 重起。
+23. **b 段两轮（10-25 → 10-29）**：基线 falive 11 / lark-bot 6，第二轮 falive 10 / lark-bot 7；重复回复 5 → 4；任务 done 12 → 16、superseded 9 → 5（并入收窄）。第二轮仍差的：光 @bot 被丢 3 条（fix4 已修，第二轮代码不含）、「已關閉沒推流的直播間」判 ignore 没复测（fix3b 提示里已有「已配好 → 复测」，仍没判出来，第四轮再看）、配 Google client 后没提醒加授权来源。报告：sim/rounds-b.md。
+24. **10:25 再加并行（aven：资源还多）**：第四轮 a、b 段拆半——r4-a2（10-23→10-24，端口 3117）、r4-b2（10-28→10-29，3118）另起，原 r4-a / r4-b 跑到分界日自动停（/tmp/split-stop.sh；边界处跨天的任务延续会断，可接受）。三个子代理：合入前独立 code review（fix4 相对 fameex-stable 全部 lib 改动）；lark-bot-fix7 修「对方已办好我方请求却只记一笔不复测」；lark-bot-fix8 查「前文截图被当成本条附件」。另外 fix4 代码重跑 L1 全集 + 裁判（l1/fix4-low）。
+25. **fix8 合进 fix4（cb88e3c）**：前文截图被当成本条的——附件清单每条都写了来源，但没说「只有标『本条』的是这条自己带的」，worker 把前文 Kaiser 的报错图说成提问人发的（回放里图其实都没下载成功，是它编的）。修：有非本条附件时，在附件清单后加一句归属说明（分诊 / 分析 / 实施三处）；实测 / 代答单趟不走系统层，所以不放系统层。提示回放规则不丢、系统层 1 种；全量 639；变异 3/3。
+26. **合入前独立 code review（fix4 相对 fameex-stable，11 条）**——多数是这批修复自己带进来的回归，合入前必须修：
+   - 高：私信补料「不对，应该是 508 账号」被当「不做」关任务（R1 正则过宽）；对接答复里金额 / 状态 / 权限类硬阻塞被降 soft（fix6，违背「金额状态无证据就停」，fameex 交易所场景尤其危险）；
+   - 中高：「就这样回」改找草稿可能把别的任务的草稿发进别的群；改码 done 写给 aven 的事项群里不 @ 后私信也没有，事项丢了；
+   - 中：回「收到」可能结掉在跑的锚点（R3）；环境不相交不算延续对改码类也生效；resumed 换回复目标让原提问人收不到；挂起时也说「补充一起处理了」并记已通知；别人低置信也自答；
+   - 低：重开换 messageId 让 retry 重下附件拿错 id；B 的回复义务停在 acked。
+   三个子代理并行修：lark-bot-fix9（私信通道 + 并入兼容：#1 #2 #4 #6）、fix10（阻塞分级 + 结论文案：#3 #5 #8）、fix11（并入目标 + 自答口径 + 义务：#7 #9 #10 #11）。修完合进 fix4 后再出第五轮候选。
+27. **review 修复全部合进 fix4（1e31172）**：fix9（私信补料不误关、寒暄不结锚点、「就这样回」只在 recent 且锚点从没草稿时改找、环境不相交只对实测 / 答疑生效）、fix10（金额 / 状态 / 权限 blocker 不降级、负责人事项进私信、并入人那行只在出结论时加）、fix11（resumed 不换目标、重开不换 messageId、非负责人低置信不自答、重开来源的义务一并记 answered）、fix7（提示已能判对——当时判错是回放缺口，锁进回归集 56 条）、我补的「负责人原话整句寒暄不往群里回 reply」。全量 639 全过（负载 35 时用时 19 秒超 18 秒预算，合入前空闲复测）。
+   回放台：按 id 取消息时供出窗口内 falive bot 的原卡片（人引用回复它时上下文才完整）。
+28. **第五轮 = 最终候选**（worktree lark-bot-r5，分支 lark/falive-round5 267b833）：第三、四轮（中间版本）停掉；第五轮切 6 段并行（r5-a1 10-20→22、a2 10-23→24、b1 10-25→27、b2 10-28→29、c1 10-30→31、c2 11-01→02，端口 3120–3125），段边界处跨天延续会断。zsh 不对未加引号变量分词，第一次 6 段都没起来，改 bash 重起。
+29. **前两轮三段齐了（基线 vs 第二轮 = fameex-stable vs fix3）**：总账 falive 更好 36 → 38、lark-bot 更好 11 → 14；问题类型：missed 16 → 20、duplicate 6 → 2、wrong_target 8 → 5。a 段第二轮反而更差（24 vs 17），拆开看：光 @bot 被丢 5 条（fix4 才修）、「继续任务 <id>」续错对象 4 条（前面 continues 并错的连锁，fix4 收紧并入）、回放台失真 3 条（中途把 uat 一律加进配置 → 10-22 编出当时不存在的 uat；bug 表不在回放里）、答应了没给 2 条。结论：第二轮代码不能代表最终版，判定以第五轮为准。总账：runtime/falive-replay/summary.md。
+30. 回放台：环境地址按时间线首次出现的日子生效（pre 10-08、uat 10-28、online 10-29）；第五轮前四段 10:52 用它重起。集成分支完整变异 --diff fameex-stable：166 个抓 165、豁免 1、存活 0。子代理 lark-bot-fix12 查「答应了却没给」。
+31. **fix12 合进 fix4（4c3e225）「答应了却没给」**：「测试的 tid 发出来」——tid 只在上一单（翻译实测）的结论里，新任务拿不到，worker 回「去翻文档 / 回头再发你」；修：分类落地时按 continues / relatedTaskId 把那一单的结论带成 task.priorConclusion（≤2000 字），代答 / 实测提示里带上它和群里已回的那句。「创建最新的帖子进行测试」——分类器「收到」许诺了实测模式做不了的写操作；修：reply 规则补「发帖 / 造数等写操作未必能做，别说要做」（删一句重复的口吻规则，分类器规则 2600/2600 无余量）；代答 / 实测模式块末加「要事实直接列、要操作能做就做不能做直说找谁、不写回头再…、答应过的要兑现」。提示回放规则不丢、系统层 1 种；6/6；56/56；全量 639；变异 6/6。第五轮不含它，a2 段（10-23→24，含这两条）跑完后用含 fix12 的代码单独重跑对照。
+32. **L1 用集成分支（fix4 1e31172）重跑 210 条 + 裁判**：同批差异 falive 更好 / lark-bot 更好 / 一样 = 6 / 22 / 10（基线 13 / 21 / 9，fix3b 8 / 28 / 11）。
+33. **第六轮 = 最终版**（worktree lark-bot-r6，分支 lark/falive-round6 bfdd1ac = fix4 4c3e225 + 回放脚本）：fix12 改了所有代答 / 实测提示与分类器「收到」，第五轮不再是最终版；11:18 起第六轮 6 段（端口 3140–3145），与第五轮（fix12 之前的对照）同跑，负载 5 时起的。
 

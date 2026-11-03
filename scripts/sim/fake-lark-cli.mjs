@@ -86,6 +86,12 @@ const messages = () => {
   return allMessages
 }
 const byId = (id) => messages().find((m) => m.message_id === id) || null
+// 按 id 点名取（被引用 / 被回复的那条）：窗口内 falive bot 当时发的卡片也给——人回复的正是它，拉不到引用分类器就看不到上文
+//（11-03 fix7 定位：「已關閉沒推流的直播間」回复的是 falive bot 请关房的卡，模拟里引用拉不到判了 ignore）。列消息时仍隐藏。
+const byIdAny = (id) => byId(id) || (() => {
+  const m = readJson('timeline.json', []).find((x) => x.id === id && x.atMs <= nowMs())
+  return m ? toListItem(m) : null
+})()
 
 // 发件：分配 om_sim id，落 sent.json（下次列消息能看到）与 outbox.jsonl（对照）。
 const withLock = (fn) => {
@@ -194,7 +200,7 @@ if (domain === 'event' && command === 'consume') {
   out({ ok: true, data: page(list, { order: opts.order || 'desc', pageSize: Number(opts['page-size'] || 50), pageToken: opts['page-token'] }) })
 } else if (domain === 'im' && command === '+messages-mget') {
   const ids = String(opts['message-ids'] || '').split(',').filter(Boolean)
-  out({ ok: true, data: { messages: ids.map(byId).filter(Boolean) } })
+  out({ ok: true, data: { messages: ids.map(byIdAny).filter(Boolean) } })
 } else if (domain === 'im' && command === '+threads-messages-list') {
   const anchor = byId(opts.thread)
   const threadId = anchor?.thread_id || null
