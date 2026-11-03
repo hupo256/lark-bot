@@ -134,6 +134,11 @@ describe('任务控制通道（真出口 + 假 lark-cli）', () => {
       const done = task(chatId, { status: 'done' })
       assert.deepEqual(await maybeHandleControlChannel({ msg: msg(chatId, '再帮我看下注册页白屏', { replyToDirect: done.id, senderOpenId: 'ou_qe' }), config, store }), { handled: false, anchorTaskId: done.id })
       assert.equal(said(chatId).length, 3)
+      // 11-03 静态 review R13：failed 也是控制活动态，问进度原先回「还在处理中」；说实话：没做成、已告诉 aven
+      const failed = task(chatId, { status: 'failed', summary: '充值页白屏' })
+      assert.deepEqual(await maybeHandleControlChannel({ msg: msg(chatId, '怎么样了', { replyToDirect: failed.id, senderOpenId: 'ou_qf' }), config, store }), { handled: true, anchorTaskId: failed.id })
+      assert.equal(said(chatId)[3], `「充值页白屏」这条上次没做成，已经告诉 aven 了，不是还在处理。要关掉回「取消任务 ${failed.id}」，要重做直接 @我 再发一条。`)
+      assert.equal(store.get(failed.id).status, 'failed', '只回话，不动任务')
       assert.deepEqual(await maybeHandleControlChannel({ msg: msg(chatId, '新话题'), config, store }), { handled: false, anchorTaskId: null })
     })],
     ['回复锚定：结单（含残余请求）、意图不明去确认（弱信号 / 部分范围措辞不同）、暂停', () => quiet(async () => {
