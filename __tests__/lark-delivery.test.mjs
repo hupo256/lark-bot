@@ -101,6 +101,15 @@ describe('任务的人话出口', () => {
       const t2 = task({ id: 'om_2', branch: 'fix/x', outcome: out({ summary: '好了。', changedFiles: ['a'], followUps: [{ owner: 'aven', items: ['定口径'] }, { owner: 'William', items: ['复测'] }] }) })
       await deliverOutcome({ config, store, task: t2, status: 'done', deps })
       assert.ok(!group().at(-1).markdown.includes('ou_aven') && group().at(-1).markdown.includes('<at user_id="ou_w">William</at>：复测'), '不 @ 负责人，照 @ 别人')
+      // 他的事项不能丢：进给他的私信（fix10 review：群里那行去掉后私信也没有，「合并到 online 后部署」丢了）；没映射 open_id 的照旧群里写名字
+      assert.equal(dm().at(-1), `✅ ${H}，看一下（${G}）· 分支 fix/x · 改了 1 个文件\n群里已回「好了」\n你这边：定口径`)
+      const t3 = task({ id: 'om_3', messageId: 'om_3', outcome: out({ summary: '又好了。', followUps: [{ owner: '设计', items: ['切图'] }] }) })
+      await deliverOutcome({ config, store, task: t3, status: 'done', deps })
+      assert.deepEqual([group().at(-1).markdown, dm().at(-1)], ['又好了。\n@设计：切图', `✅ ${H}，看一下（${G}）\n群里已回「又好了」`], '不是负责人的不进私信')
+      // aven 私信发起的：「群」就是他的私信，事项照常列出
+      const mine = task({ id: 'om_4', messageId: 'om_4', chatType: 'p2p', operator: 'ou_aven', outcome: out({ summary: '改好了。', followUps: [{ owner: 'aven', items: ['合并到 online 后部署'] }] }) })
+      await deliverOutcome({ config, store, task: mine, status: 'done', deps })
+      assert.equal(group().at(-1).markdown, '改好了。\n<at user_id="ou_aven">aven</at>：合并到 online 后部署')
     })],
     // 11-03 静态 review R12：docUrl 原先不持久化，回执没送达时 retryPendingReceipts 每 5 分钟重跑 deliverOutcome 都建一份细节文档（上限 12 份同内容）。
     ['细节文档只建一次：同任务同代同状态重发（回执重试）复用第一次建成的 docUrl；换代另建', () => quiet(async () => {
@@ -175,6 +184,13 @@ describe('任务的人话出口', () => {
       const named = task({ id: 'om_5', messageId: 'om_5', operator: 'ou_be', contract: { deliverable: 'answer' }, outcome: out({ report: { answer: '后端问的答案。', items: [] } }) })
       await deliverOutcome({ config, store, task: named, status: 'done', deps })
       assert.deepEqual([group()[4].markdown, dm().at(-1)], ['<at user_id="ou_be">后端</at> 后端问的答案。', `💬 替你答了（${G}）：后端问的答案`], '提问人在 ownerMap 里带名字；私信首行不带 @')
+      // 待跟进里写给负责人的：群里不 @ 他，私信里另起一行（fix10 review）；他自己在群里问的也私信，不然事项没地方看
+      const ownTask = task({ id: 'om_6', messageId: 'om_6', contract: { deliverable: 'answer' }, outcome: out({ report: { answer: '要改配置。', items: [] }, followUps: [{ owner: 'aven', items: ['合并到 online 后部署'] }] }) })
+      await deliverOutcome({ config, store, task: ownTask, status: 'done', deps })
+      assert.deepEqual([group()[5].markdown, dm().at(-1)], ['<at user_id="ou_qa"></at> 要改配置。', `💬 替你答了（${G}）：要改配置\n你这边：合并到 online 后部署`])
+      const ownAsk = task({ id: 'om_7', messageId: 'om_7', operator: 'ou_aven', contract: { deliverable: 'answer' }, outcome: out({ report: { answer: '自己问的。', items: [] }, followUps: [{ owner: 'aven', items: ['定口径'] }] }) })
+      await deliverOutcome({ config, store, task: ownAsk, status: 'done', deps })
+      assert.deepEqual([group()[6].markdown, dm().at(-1)], ['自己问的。', `💬 替你答了（${G}）：自己问的\n你这边：定口径`])
     })],
     // 11-03 静态 review R8 后半：在跑 / 没开跑时并入的别人的消息（appended / rerun_after_done）只记 mergedFrom、结论仍回原消息，并入人只得到一句「收到」。
     ['并入的别人的补充：结论末行 @ 那些提单人（去重；排除负责人 / 本任务提单人 / bot / 已 @ 的 / 已清掉的）；还欠一轮重跑的留给重跑那轮；@ 过的下一轮不再 @', () => quiet(async () => {

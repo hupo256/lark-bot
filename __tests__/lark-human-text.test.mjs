@@ -36,18 +36,20 @@ const CELLS = [
   },
   { name: 'done · change（群）：没有事实 / 文档', got: () => sayDoneChangeGroup({ task: { summary: 'x' }, outcome: { summary: '修好了' } }), want: '修好了' },
   {
-    name: 'done · change（aven）：群里已回 / 没发（扣下）/ 没发（原因）/ 没群结果',
+    name: 'done · change（aven）：群里已回 / 没发（扣下）/ 没发（原因）/ 没群结果 / 待跟进里写给他的事项（群里不 @ 他，fix10 review）',
     got: () => [
       sayDoneChangePrincipal({ task, chatLabel: G, groupOutcome: { ok: true, text: '登录页报错修好了。\n第二行' } }),
       sayDoneChangePrincipal({ task, chatLabel: G, groupOutcome: { ok: false, held: true, reason: '任务没做成（failed），回答先给你看', text: 'x' } }),
       sayDoneChangePrincipal({ task: { ...task, branch: null, changedFiles: [] }, chatLabel: G, groupOutcome: { ok: false, reason: '出口闸拦下：同内容' } }),
       sayDoneChangePrincipal({ task, chatLabel: G, groupOutcome: null }),
+      sayDoneChangePrincipal({ task, chatLabel: G, groupOutcome: { ok: true, text: '修好了' }, ownItems: ['合并到 online 后部署', '通知 QA'] }),
     ],
     want: [
       `✅ ${H}（${G}）· 分支 fix/login · 改了 3 个文件\n群里已回「登录页报错修好了」`,
       `✅ ${H}（${G}）· 分支 fix/login · 改了 3 个文件\n群里没发（任务没做成（failed），回答先给你看）。没问题就回「就这样回」，我按原文发群。`,
       `✅ ${H}（${G}）\n群里没发（出口闸拦下：同内容）。`,
       `✅ ${H}（${G}）· 分支 fix/login · 改了 3 个文件`,
+      `✅ ${H}（${G}）· 分支 fix/login · 改了 3 个文件\n群里已回「修好了」\n你这边：合并到 online 后部署；通知 QA`,
     ],
   },
   {
@@ -76,7 +78,11 @@ const CELLS = [
     got: () => [sayMergedSupplement({ mentions: [{ name: 'A', openId: 'ou_a' }] }), sayMergedSupplement({ mentions: [{ name: 'A', openId: 'ou_a' }, { name: '', openId: 'ou_b' }] }), sayMergedSupplement({ mentions: [] }), sayMergedSupplement({})],
     want: ['@A 你的补充也一起处理了。', '@A <at user_id="ou_b"></at> 你们的补充也一起处理了。', '', ''],
   },
-  { name: 'done · answer（aven）', got: () => sayDoneAnswerPrincipal({ chatLabel: G, firstLine: '不一样，test 比 pre 多 3 个提交' }), want: `💬 替你答了（${G}）：不一样，test 比 pre 多 3 个提交` },
+  {
+    name: 'done · answer（aven）：首行 / 待跟进里写给他的事项另起一行',
+    got: () => [sayDoneAnswerPrincipal({ chatLabel: G, firstLine: '不一样，test 比 pre 多 3 个提交' }), sayDoneAnswerPrincipal({ chatLabel: G, firstLine: '查过了', ownItems: ['定口径'] })],
+    want: [`💬 替你答了（${G}）：不一样，test 比 pre 多 3 个提交`, `💬 替你答了（${G}）：查过了\n你这边：定口径`],
+  },
   {
     name: 'done · verification（群）：通了 a 项没通 b 项 + 条目符号 / 都通了',
     got: () => [sayDoneAnswerGroup({ outcome: { report: verifyReport } }), sayDoneAnswerGroup({ outcome: { report: allOkReport } })],
