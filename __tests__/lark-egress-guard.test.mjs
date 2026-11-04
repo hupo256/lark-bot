@@ -1,0 +1,172 @@
+import assert from 'node:assert/strict'
+import { spawn, spawnSync } from 'node:child_process'
+import { EventEmitter } from 'node:events'
+import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { createServer } from 'node:http'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { PassThrough } from 'node:stream'
+import { describe, it } from 'node:test'
+
+import { buildAiExecutorCommand, execAiExecutor } from '../lib/lark-ai-executor.mjs'
+import {
+  EGRESS_DENY_RULES, EGRESS_GUARD_ENV, checkCurlInvocation, checkEgressRequest, egressGuardEnv, egressPolicyFor, egressScopeOf, parseCurlArgs, parseEgressPolicy, withoutEgressGuard,
+} from '../lib/lark-egress-policy.mjs'
+import { EGRESS_GUARD_BIN_DIR, EGRESS_GUARD_PRELOAD } from '../lib/lark-paths.mjs'
+import { eachCase, runSteps } from './support/steps.mjs'
+
+// 代答 / 实测的出网范围命令层核对（aven 11-04 design-v2 §7；b2 ep-1031-f8065f 代答 curl 了 accounts.google.com/gsi/…）。
+const envSites = { pre: 'https://falivepre.fdsser.com', uat: 'https://faliveuat.fdsser.com', online: 'https://www.falive.com' }
+const answer = egressPolicyFor({ scope: 'answer', envSites })
+const verification = egressPolicyFor({ scope: 'verification', envSites })
+const guardEnv = (policy, extra = {}) => egressGuardEnv({ policy, env: { PATH: process.env.PATH, ...extra }, binDir: EGRESS_GUARD_BIN_DIR, preloadPath: EGRESS_GUARD_PRELOAD })
+// 本机起一个 302 到 accounts.google.com 的服务：-L / fetch 跟跳转时在建连处拦，测试不出本机。
+const withRedirectServer = async (fn) => {
+  const server = createServer((req, res) => res.writeHead(302, { Location: 'https://accounts.google.com/gsi/client' }).end())
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  try {
+    return await fn(`http://127.0.0.1:${server.address().port}/`)
+  } finally {
+    server.close()
+  }
+}
+const runAsync = (cmd, args, env) => new Promise((resolve) => {
+  const child = spawn(cmd, args, { env })
+  let out = ''
+  child.stdout.on('data', (d) => { out += d })
+  child.stderr.on('data', (d) => { out += d })
+  child.on('close', (status) => resolve({ status, out }))
+})
+
+describe('代答 / 实测出网范围（命令层）', () => {
+  it('范围口径 / curl 参数解析 / 子进程环境 / 命令行 deny / curl 壳与 node 预载真拦', () => runSteps([
+    ['范围档：只有代答 / 实测；主机按 envSites 同主域', () => {
+      assert.equal(egressPolicyFor({ scope: 'regular', envSites }), null)
+      assert.deepEqual(answer, { scope: 'answer', domains: ['fdsser.com', 'falive.com'] })
+      assert.deepEqual(egressPolicyFor({ scope: 'answer' }).domains, [], '没配环境地址：除本机外一律不打')
+      assert.deepEqual(parseEgressPolicy(JSON.stringify(answer)), answer)
+      for (const text of ['{"scope":"answer"}', '{"scope":"regular","domains":[]}', 'not json']) assert.equal(parseEgressPolicy(text), null, text)
+      assert.equal(egressScopeOf({ contract: { deliverable: 'answer' } }), 'answer')
+      assert.equal(egressScopeOf({ contract: { deliverable: 'verification' } }), 'verification')
+      assert.equal(egressScopeOf({ contract: { deliverable: 'change' } }), null)
+      assert.equal(egressScopeOf({}), null)
+    }],
+    ['一次请求放不放', () => eachCase([
+      { name: '第三方（b2 原样）', policy: answer, url: 'https://accounts.google.com/gsi/client', ok: false, re: /accounts\.google\.com 不在范围/ },
+      { name: '上游 hichat', policy: verification, url: 'https://pre-hailiao.hai-liao-pre.com/api', ok: false },
+      { name: '配置环境的同主域子站', policy: answer, url: 'https://cmsadmin.falive.com/x', ok: true },
+      { name: '不带协议', policy: answer, url: 'falivepre.fdsser.com/api/a', ok: true },
+      { name: '后缀相同不算同主域', policy: answer, url: 'https://evilfalive.com/', ok: false },
+      { name: '本机任意方法', policy: answer, url: 'http://127.0.0.1:3017/api', method: 'POST', ok: true },
+      { name: '代答不发登录 POST', policy: answer, url: 'https://falivepre.fdsser.com/api/user/NewMailLogin', method: 'POST', ok: false, re: /代答只许 GET/ },
+      { name: '实测可发登录 POST', policy: verification, url: 'https://falivepre.fdsser.com/api/user/NewMailLogin', method: 'POST', ok: true },
+      { name: '实测不发注册', policy: verification, url: 'https://falivepre.fdsser.com/api/user/NewRegisteredByMail', method: 'POST', ok: false, re: /注册/ },
+      { name: '实测不发路径含 login 的验证码', policy: verification, url: 'https://www.falive.com/login/sendVerificationCode', method: 'POST', ok: false },
+      { name: '实测不发 PUT', policy: verification, url: 'https://www.falive.com/api/login', method: 'PUT', ok: false },
+      { name: 'WebSocket 握手', policy: answer, url: 'wss://www.falive.com/hc-ws', ok: true },
+      { name: '别的协议', policy: answer, url: 'ftp://www.falive.com/a', ok: false },
+      { name: '本地文件', policy: answer, url: 'file:///tmp/a.html', ok: true },
+      { name: 'URL 通配', policy: answer, url: 'https://{accounts.google,www.falive}.com/', ok: false },
+    ], ({ policy, url, method, ok, re }) => {
+      const check = checkEgressRequest(policy, { method, url })
+      assert.equal(check.ok, ok, check.reason)
+      if (re) assert.match(check.reason, re)
+    })],
+    ['curl 参数：方法 / 地址 / 绕开核对的选项', () => eachCase([
+      { name: '选项在前', argv: ['-sS', '-m', '20', '-o', '/dev/null', '-w', '%{http_code}', 'https://www.falive.com/hc'], method: 'GET', urls: ['https://www.falive.com/hc'] },
+      { name: '合写短选项带值', argv: ['-sXPOST', '-oout.html', 'https://a.falive.com/login'], method: 'POST', urls: ['https://a.falive.com/login'] },
+      { name: '-d 是 POST', argv: ['-d', 'a=1', 'u.falive.com'], method: 'POST', urls: ['u.falive.com'] },
+      { name: '-G -d 是 GET', argv: ['-G', '-d', 'a=1', 'u.falive.com'], method: 'GET' },
+      { name: '-I 是 HEAD', argv: ['-sI', 'u'], method: 'HEAD' },
+      { name: '-T 是 PUT', argv: ['-T', 'f', 'u'], method: 'PUT' },
+      { name: '--json 是 POST、--url 取地址', argv: ['--json', '{}', '--url', 'https://x/y'], method: 'POST', urls: ['https://x/y'] },
+      { name: '头和 cookie 的值不当地址', argv: ['-H', 'Upgrade: websocket', '-b', 'a=b', '-L', 'https://www.falive.com/'], method: 'GET', urls: ['https://www.falive.com/'] },
+      { name: '--get 长写法', argv: ['--get', '--data', 'a', 'u'], method: 'GET', urls: ['u'] },
+      { name: '单个 - 不是选项、--url 缺值不算地址', argv: ['-', '--url'], urls: ['-'] },
+      { name: '代理 / 配置文件 / 分段 / 换路径', argv: ['-x', 'http://e:1', '-K', 'cfg', '--next', '--request-target', '/r', '--noproxy', '*', 'u'], banned: ['-x', '-K', '--next', '--request-target', '--noproxy'] },
+    ], ({ argv, method, urls, banned = [] }) => {
+      const parsed = parseCurlArgs(argv)
+      if (method) assert.equal(parsed.method, method)
+      if (urls) assert.deepEqual(parsed.urls, urls)
+      assert.deepEqual(parsed.banned, banned)
+    })],
+    ['curl 整条判定', () => {
+      assert.equal(checkCurlInvocation(answer, ['--version']).ok, true)
+      assert.equal(checkCurlInvocation(answer, ['-sS', 'https://www.falive.com/', 'https://accounts.google.com/gsi/button']).ok, false, '多个地址有一个出范围就拦')
+      assert.match(checkCurlInvocation(answer, ['-x', 'http://e:1', 'https://www.falive.com/']).reason, /-x 会绕开出网核对/)
+      assert.equal(checkCurlInvocation(verification, ['-s', '-X', 'POST', '-d', 'a', 'https://falivepre.fdsser.com/api/user/NewMailLogin']).ok, true)
+    }],
+    ['子进程环境：壳在 PATH 最前、预载追加在原 NODE_OPTIONS 后；页面工具起 dev 时整个摘掉', () => {
+      const env = guardEnv(answer, { NODE_OPTIONS: '--import /sim/egress-hook.mjs', PATH: '/sim/egress:/usr/bin' })
+      assert.equal(env.PATH, `${EGRESS_GUARD_BIN_DIR}:/sim/egress:/usr/bin`)
+      assert.equal(env.NODE_OPTIONS, `--import /sim/egress-hook.mjs --import ${EGRESS_GUARD_PRELOAD}`)
+      assert.deepEqual(JSON.parse(env[EGRESS_GUARD_ENV]), answer)
+      const back = withoutEgressGuard(env)
+      assert.deepEqual([back.PATH, back.NODE_OPTIONS, back[EGRESS_GUARD_ENV]], ['/sim/egress:/usr/bin', '--import /sim/egress-hook.mjs', undefined])
+      assert.equal('NODE_OPTIONS' in withoutEgressGuard(guardEnv(answer)), false)
+      assert.equal(egressGuardEnv({ policy: null, env: { A: '1' } }).A, '1')
+    }],
+    ['claude 命令行：开核对才摘 WebFetch / WebSearch、拦绝对路径 curl', () => {
+      const disallowed = (cmd) => cmd.args.slice(cmd.args.indexOf('--disallowedTools') + 1, cmd.args.indexOf('--output-format'))
+      const base = { executor: 'claude', promptText: 'p', cwd: '/tmp', resultPath: '/tmp/r.json', readOnly: true }
+      const on = disallowed(buildAiExecutorCommand({ ...base, egressGuard: true }))
+      for (const rule of EGRESS_DENY_RULES) assert.ok(on.includes(rule), rule)
+      assert.ok(EGRESS_DENY_RULES.includes('Bash(*/curl *)') && EGRESS_DENY_RULES.includes('WebFetch'))
+      assert.equal(disallowed(buildAiExecutorCommand(base)).includes('WebFetch'), false)
+      const allowed = (cmd) => cmd.args[cmd.args.indexOf('--allowedTools') + 1]
+      assert.match(allowed(buildAiExecutorCommand({ ...base, egressGuard: true })), /,Bash\(curl:\*\)$/, '核对开着：只读白名单放 curl（走壳）')
+      assert.doesNotMatch(allowed(buildAiExecutorCommand(base)), /curl/)
+    }],
+    ['execAiExecutor：代答 / 实测把环境交给子进程，其它任务不动环境', async () => {
+      const calls = []
+      const spawnImpl = (cmd, args, options) => {
+        calls.push({ args, options })
+        const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), stdin: new PassThrough(), kill: () => {}, pid: 4242 })
+        const resultPath = args.join(' ').match(/(\/\S+result\.json)/)?.[1]
+        setImmediate(() => {
+          if (resultPath) writeFileSync(resultPath, JSON.stringify({ status: 'done', summary: 's', checks: [], changedFiles: [], warnings: [] }))
+          child.stdout.end()
+          child.stderr.end()
+          setImmediate(() => child.emit('exit', 0))
+        })
+        return child
+      }
+      await execAiExecutor({ executor: 'claude', promptText: 'p', cwd: tmpdir(), readOnly: true, localConfig: { envSites }, egressScope: 'answer', spawnImpl })
+      await execAiExecutor({ executor: 'claude', promptText: 'p', cwd: tmpdir(), readOnly: true, localConfig: { envSites }, spawnImpl })
+      assert.deepEqual(JSON.parse(calls[0].options.env[EGRESS_GUARD_ENV]), answer)
+      assert.ok(calls[0].options.env.PATH.startsWith(`${EGRESS_GUARD_BIN_DIR}:`))
+      assert.ok(calls[0].args.includes('WebFetch'))
+      assert.equal(calls[1].options.env, undefined)
+    }],
+    ['curl 壳：范围外不起真 curl；范围内带 -q --proxy 交给 PATH 后面的真 curl；没开核对原样透传', () => {
+      const fakeDir = mkdtempSync(join(tmpdir(), 'lark-egress-fake-'))
+      const log = join(fakeDir, 'args.log')
+      writeFileSync(join(fakeDir, 'curl'), `#!/bin/sh\nprintf '%s\\n' "$*" >> ${log}\n`)
+      chmodSync(join(fakeDir, 'curl'), 0o755)
+      const env = { ...guardEnv(answer), PATH: `${EGRESS_GUARD_BIN_DIR}:${fakeDir}:${process.env.PATH}` }
+      const blocked = spawnSync('curl', ['-sS', 'https://accounts.google.com/gsi/client'], { env, encoding: 'utf8' })
+      assert.equal(blocked.status, 2)
+      assert.match(blocked.stderr, /\[lark-egress\] 已拦截 curl：代答只许打配置的环境/)
+      const allowed = spawnSync('curl', ['-sS', 'https://www.falive.com/hc'], { env, encoding: 'utf8' })
+      assert.equal(allowed.status, 0, allowed.stderr)
+      const plain = spawnSync(join(EGRESS_GUARD_BIN_DIR, 'curl'), ['-s', 'https://accounts.google.com/'], { env: { PATH: `${fakeDir}:${process.env.PATH}` }, encoding: 'utf8' })
+      assert.equal(plain.status, 0)
+      const lines = readFileSync(log, 'utf8').trim().split('\n')
+      assert.match(lines[0], /^-q --proxy http:\/\/127\.0\.0\.1:\d+ -sS https:\/\/www\.falive\.com\/hc$/)
+      assert.equal(lines[1], '-s https://accounts.google.com/')
+      assert.equal(lines.length, 2, '范围外那次没起真 curl')
+      const wget = spawnSync(join(EGRESS_GUARD_BIN_DIR, 'wget'), ['https://www.falive.com/'], { env, encoding: 'utf8' })
+      assert.equal(wget.status, 2)
+    }],
+    ['真 curl 经壳 -L 跳出范围 / node fetch 跟跳转 / https.get 第三方：建连处拦，不出本机', () => withRedirectServer(async (url) => {
+      const env = guardEnv(verification)
+      const curl = await runAsync(join(EGRESS_GUARD_BIN_DIR, 'curl'), ['-sSL', '-m', '5', '-o', '/dev/null', url], env)
+      assert.notEqual(curl.status, 0)
+      assert.match(curl.out, /已拦截 连接 accounts\.google\.com/)
+      const node = await runAsync(process.execPath, ['-e', `Promise.all([fetch(${JSON.stringify(url)}).then(() => 'ok', (e) => e.cause?.code), new Promise((r) => require('https').get('https://accounts.google.com/x', () => r('ok')).on('error', (e) => r(e.code)))]).then((v) => console.log(v.join(',')))`], env)
+      assert.match(node.out, /ELARKEGRESS,ELARKEGRESS/)
+      const register = await runAsync(process.execPath, ['-e', "fetch('https://falivepre.fdsser.com/api/user/NewRegisteredByMail', { method: 'POST' }).catch((e) => console.log(e.cause?.code))"], env)
+      assert.match(register.out, /实测只许 GET[\s\S]*ELARKEGRESS/)
+    })],
+  ]))
+})

@@ -1,0 +1,10 @@
+#!/bin/sh
+# 代答 / 实测里不给用 wget（默认跟跳转、-r 会爬到别的主机，核对不过来）：一律用 curl。没开出网核对时原样交给真 wget。
+here=$(cd "$(dirname "$0")" && pwd)
+if [ -n "$LARK_EGRESS_GUARD" ]; then
+  echo "[lark-egress] 已拦截 wget：代答 / 实测里用 curl（同样只许打配置的环境地址）。" >&2
+  exit 2
+fi
+PATH=$(printf '%s' "$PATH" | tr ':' '\n' | grep -vx "$here" | paste -sd: -)
+export PATH
+exec wget "$@"

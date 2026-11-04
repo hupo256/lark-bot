@@ -1,0 +1,3 @@
+#!/bin/sh
+# 代答 / 实测的 curl 壳（lib/lark-egress-policy.mjs）：Worker 只在这两种模式把本目录放进 claude 子进程 PATH 最前。
+exec node "$(dirname "$0")/../curl-guard.mjs" "$@"

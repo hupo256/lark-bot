@@ -1,0 +1,91 @@
+/**
+ * 代答 / 实测会话里 node 进程的出网核对（NODE_OPTIONS=--import 预载，口径见 lib/lark-egress-policy.mjs）。
+ * 只在环境里有 LARK_EGRESS_GUARD 时生效：
+ * - fetch / http(s).request / get：按方法 + 地址核对（代答只许读，实测另许登录 POST）；
+ * - net.connect / createConnection、tls.connect：按主机核对——fetch 跟跳转、WebSocket、第三方 http 库最后都走这里。
+ * 拦下时 stderr 打一行「[lark-egress] 已拦截 …」（脚本自己吞了错误，会话也看得到），请求以普通网络错误失败，不让进程崩。
+ */
+import http from 'node:http'
+import https from 'node:https'
+import { syncBuiltinESMExports } from 'node:module'
+import net from 'node:net'
+import tls from 'node:tls'
+
+import { EGRESS_GUARD_ENV, checkEgressRequest, hostInScope, blockedHostReason, parseEgressPolicy } from '../../lib/lark-egress-policy.mjs'
+
+const policy = process.env[EGRESS_GUARD_ENV] ? parseEgressPolicy(process.env[EGRESS_GUARD_ENV]) : null
+
+if (policy) {
+  const said = new Set()
+  const blockError = (what, reason) => {
+    const line = `[lark-egress] 已拦截 ${what}：${reason}`
+    if (!said.has(line)) {
+      said.add(line)
+      try { process.stderr.write(`${line}\n`) } catch { /* 写不了 stderr 也照拦 */ }
+    }
+    return Object.assign(new Error(line), { code: 'ELARKEGRESS' })
+  }
+  // 建连：拦下时给一个马上报错的空 socket（同步抛会让 http.get 这类调用直接崩进程）。
+  const deadSocket = (error) => {
+    const socket = new net.Socket()
+    process.nextTick(() => socket.destroy(error))
+    return socket
+  }
+  const connectHost = (args) => {
+    const [first, second] = args
+    if (first && typeof first === 'object') return first.path ? null : (first.host ?? first.hostname ?? first.servername ?? 'localhost')
+    if (typeof first === 'string' && !/^\d+$/.test(first)) return null // unix socket 路径
+    return typeof second === 'string' ? second : 'localhost'
+  }
+  for (const [mod, name] of [[net, 'connect'], [net, 'createConnection'], [tls, 'connect']]) {
+    const orig = mod[name]
+    mod[name] = function guardedConnect(...args) {
+      const host = connectHost(args)
+      if (host != null && !hostInScope(policy, host)) return deadSocket(blockError(`连接 ${host}`, blockedHostReason(policy, host)))
+      return orig.apply(this, args)
+    }
+  }
+
+  const origFetch = globalThis.fetch
+  if (typeof origFetch === 'function') {
+    globalThis.fetch = function fetch(input, init) {
+      let url = null
+      try { url = typeof input === 'string' ? input : input instanceof URL ? input.href : input?.url } catch { url = null }
+      const method = String(init?.method || (typeof input === 'object' && input?.method) || 'GET').toUpperCase()
+      if (url) {
+        const check = checkEgressRequest(policy, { method, url })
+        if (!check.ok) return Promise.reject(new TypeError('fetch failed', { cause: blockError(`${method} ${url}`, check.reason) }))
+      }
+      return origFetch.apply(this, arguments)
+    }
+  }
+
+  // http(s).request(url?, options?, cb?)：拼出方法与地址；不在范围就建好请求立刻 destroy（头还没写出去），以 error 事件失败。
+  const requestTarget = (proto, args) => {
+    const [a, b] = args
+    const opts = { ...(a && typeof a === 'object' && !(a instanceof URL) ? a : {}), ...(b && typeof b === 'object' ? b : {}) }
+    const base = typeof a === 'string' || a instanceof URL ? new URL(String(a)) : null
+    const method = String(opts.method || 'GET').toUpperCase()
+    if (base) return { method, url: base.href }
+    const host = opts.hostname || opts.host || 'localhost'
+    return { method, url: `${opts.protocol || proto}//${String(host).includes(':') && !String(host).startsWith('[') ? `[${host}]` : host}${opts.port ? `:${opts.port}` : ''}${opts.path || '/'}` }
+  }
+  for (const [mod, proto] of [[http, 'http:'], [https, 'https:']]) {
+    const origRequest = mod.request
+    const guarded = function request(...args) {
+      let target = null
+      try { target = requestTarget(proto, args) } catch { target = null }
+      const check = target ? checkEgressRequest(policy, target) : { ok: true }
+      const req = origRequest.apply(this, args)
+      if (!check.ok) req.destroy(blockError(`${target.method} ${target.url}`, check.reason))
+      return req
+    }
+    mod.request = guarded
+    mod.get = function get(...args) {
+      const req = guarded.apply(this, args)
+      req.end()
+      return req
+    }
+  }
+  syncBuiltinESMExports()
+}
