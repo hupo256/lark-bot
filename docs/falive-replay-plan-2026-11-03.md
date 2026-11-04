@@ -225,3 +225,7 @@
    - **冒烟结果**（ep-1023-98f8fa 话题 / ep-1102-0f579b 截图 / ep-1029-f09207 话题 + 回复 bot，3 组 4 条 case 并发跑）：`check-context.mjs` 逐条核 bot 看到的上下文与原始群聊（被引用、本条、话题回复、群里之前的消息、附件）——修后 p0d-smoke2 四条全部对上（修前 p0d-smoke 有 1 条没接住）。出网：只有 Claude 接口（lsof 160.79.104.10）和 falivepre 的 GET，违规 0、待核 0；飞书 send / reply 全部落 outbox（3 / 4 / 4 条），没有裸调 lark-cli。裁判（judge-v2）：lark-bot 更好 1、一样 1、falive 更好 2（ep-1029 没复测照搬 10-28 的旧结论；「cc」那条多余插话）。
    - **录放（P0-f 验收）**：smoke2 冷跑录（独立缓存目录 ai-cache-p0d），p0d-replay 带 `SIM_AI_CACHE_HIT_DELAY=orig` 重放：三组只读调用命中 100%（7/7），群回复与任务终态逐条一致（`rounds/p0d-replay/cache-check.md`）。
    - **内存（P0-e）**：3 组并发，单组进程树（run-sim + 网关 + worker + claude-q + claude + 子进程）RSS 峰值冷跑 680–730MB（node ~400–460、claude ~230–300），录放 420–460MB。这三组都是答疑，没有改代码 / 起 vite / 浏览器的组，那类按 2–2.5G 估（未实测）。16G 留 3G 余量 → 默认 `--max-parallel 4`，另加内存闸（可用 < 3G + 2.5G 就不起下一组）兜住大组；机器上别的东西多时闸会自动降并发。
+50. **11-04 P0 收尾 → P1 校准起跑**：P0-d（按事件组跑）、P0-f（录放）、P0-g（裁判链路）、P0-h（falive 代码进模拟器）都已合进 latest，全量 642 绿。
+   合并时假 CLI 两边口径合并：按组藏 falive 对本组说的话（p0d）+ 校准用的 hiddenIds / keepOwnBotIds（p0h）；列群消息一律不带话题回复（真 CLI 口径）；--start/--end 认 ISO。
+   **p0h 查出的业务仓基线分支偏差已修**：run-sim 原来一律钉 feature/phase-6-ol，falive 当时按时间用的是 origin/feature/phase-4-page（10-21 12:33Z 前）→ phase-4-api → phase-5-test（10-26 06:40Z 起）→ phase-6-ol（10-30 19:35Z 起），取自 falive 网关启动日志；dry 核过四个日子的基线。
+   P1：`scripts/sim/calibrate.mjs` 选 20 组（10-23 12:00Z 之后为主、不跨本地 23:59、2–8 条按类型轮转，不够补 1 条的），并发 3，结果进 `replay/falive/calibration/`，汇总 summary.md。
