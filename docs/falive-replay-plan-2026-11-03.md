@@ -231,3 +231,7 @@
    P1：`scripts/sim/calibrate.mjs` 选 20 组（10-23 12:00Z 之后为主、不跨本地 23:59、2–8 条按类型轮转，不够补 1 条的），并发 3，结果进 `replay/falive/calibration/`，汇总 summary.md。
 51. **11-04 13:54 校准出网事故（已止住）**：P1 校准 ep-1024 里 falive 的 claude 会话在 Bash 里直接敲 `lark-cli`，run-sim-falive 漏了 run-sim 有的 PATH 壳，调到了真 lark-cli，用 aven 身份**只读**了真实 bug 表 4 次（record-list ×3、record-get ×1；无写、无发消息）。出网审计当场记下，我停掉了校准。
    修：run-sim-falive 补 PATH 壳 + egress-hook；**两个跑法都把 LARKSUITE_CLI_CONFIG_DIR 指到空目录**（实测真 lark-cli user / bot 都 not configured，绕过壳也读写不了）；run-sim-falive 出网命中即停。ep-1024 的结果作废，校准重跑。
+52. **11-04 并行：基线 b1 起跑 + 两个修复子代理 + 校准换工作区**
+   - b1：`node scripts/sim/run-episodes.mjs --round b1 --max-parallel 4 --ai-cache --port-base 3400`（指纹 d68f7c9957f5），最长先跑。**b1 跑完之前 latest 的 lib / 入口 / 模拟器文件都不能改**（一轮只许一版代码；只提交 docs）。
+   - p4a（lark/falive-p4a）修分类：L1 分歧里 high 错 / 都错的、冒烟里的多余插话、「请马上修掉」边界题；p4b（lark/falive-p4b）修实测照搬旧结论不复测。两者都等 b1 跑完再合，再只重跑受影响的组。
+   - 校准查出合并交互 bug：p0d 把 webhook 群（aven 控制台）在假 CLI 里归成「aven 的私信」，falive 按原群号轮询一条都拉不到（ep-1028-03cd66 两条「已部署」没接）。修在新 worktree `~/github/lark-bot-cal`（lark/falive-cal）：按群号来拉时按私信取、还原群号，模拟里 falive 自己发进群的也照列；校准改从这个 worktree 跑，结果在它的 `replay/falive/calibration/`，完了合回 latest（b1 之后）。受影响的两组作废重跑。
