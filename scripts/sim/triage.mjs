@@ -29,11 +29,12 @@ for (const ep of readdirSync(root).filter((d) => d.startsWith('ep-'))) {
     tally.judged += 1
     tally.better[j.better] = (tally.better[j.better] || 0) + 1
     if (!['falive', 'both_wrong'].includes(j.better)) continue
+    const simLimit = (rules.get(j.id)?.flags || []).includes('sim_limit_ref')
     const tp = join(dir, 'runtime', 'lark-tasks', `${j.id}.json`)
     const t = existsSync(tp) ? JSON.parse(readFileSync(tp, 'utf8')) : null
     const r = rules.get(j.id) || {}
     const cls = t?.intake?.classification
-    rows.push({ ep, id: j.id, better: j.better, issue: j.larkIssue || '-', risk: (tags.get(j.id)?.risk || []).join('/'), kind: tags.get(j.id)?.kind || '-',
+    rows.push({ ep, id: j.id, better: j.better, issue: simLimit ? '模拟局限（点名的是 falive 的任务）' : j.larkIssue || '-', risk: (tags.get(j.id)?.risk || []).join('/'), kind: tags.get(j.id)?.kind || '-',
       text: one(cases.get(j.id)?.text, 70), lark: `${cls?.decision || '-'}·${cls?.deliverable || '-'} → ${t?.status || (t ? '?' : '无任务')}${t?.supersededBy ? `（并入 ${t.supersededBy.slice(-6)}）` : ''}`,
       latency: r.lark?.firstReplyMs != null ? Math.round(r.lark.firstReplyMs / 1000) : null, replies: r.lark?.replyCount ?? null, reason: one(j.reason, 160), ideal: one(j.idealBehavior, 90) })
   }

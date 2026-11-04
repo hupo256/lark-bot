@@ -25,6 +25,7 @@ const LARK_HOST_RE = /(?:^|\.)(?:larksuite\.com|feishu\.cn|larkoffice\.com|feish
 const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 const REGISTER_PATH_RE = /regist|sendVerificationCode|verif(?:y|ication)_?code/i
 const LOGIN_PATH_RE = /login/i
+const FIGMA_HOST_RE = /^(?:api\.)?figma\.com$|^(?:[\w-]+\.)*figma\.com$|^figma-alpha-api\.s3\.[\w-]+\.amazonaws\.com$/i
 // Anthropic 自有地址段（api.anthropic.com 解析在这里）
 const inAnthropicRange = (ip) => /^160\.79\.10[4-7]\.\d+$/.test(ip) || /^2607:6bc0:/i.test(ip)
 
@@ -39,6 +40,8 @@ export const classifyLine = (x, dns = {}) => {
   }
   if (LARK_HOST_RE.test(x.host)) return { kind: 'violation', reason: '直连飞书 / Lark（应全部走假 lark-cli）' }
   if (CLAUDE_HOST_RE.test(x.host)) return { kind: 'allowed', reason: 'Claude 接口' }
+  // Figma 设计稿只读预取（lark-bot 自带：消息里的 Figma 链接读节点 / 变量 / 导出图，LARK_FIGMA_PREFETCH）= 读上下文，同云文档，不是去测别的环境（11-04 b2 ep-1021-193c03）
+  if (FIGMA_HOST_RE.test(x.host) && READ_METHODS.has(x.method)) return { kind: 'allowed', reason: 'Figma 设计稿只读（上下文）' }
   if (FALIVE_HOST_RE.test(x.host)) {
     if (READ_METHODS.has(x.method)) return { kind: 'allowed', reason: 'falive 环境只读' }
     if (REGISTER_PATH_RE.test(x.path || '')) return { kind: 'violation', reason: `falive 环境注册 / 发验证码（${x.method} ${x.path}）：只允许登录` }
