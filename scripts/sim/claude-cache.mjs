@@ -59,7 +59,7 @@ export const WRITE_KINDS = new Set(['task-rw', 'resume-rw'])
 const BOOL_FLAGS = new Set([
   '-p', '--print', '--strict-mcp-config', '--exclude-dynamic-system-prompt-sections', '--no-session-persistence', '--verbose',
   '--include-partial-messages', '--dangerously-skip-permissions', '--allow-dangerously-skip-permissions', '--continue', '-c', '--fork-session',
-  '--version', '-v', '-h', '--help',
+  '--version', '-v', '-h', '--help', '--safe-mode',
 ])
 const VALUE_FLAGS = new Set([
   '--permission-mode', '--tools', '--allowedTools', '--allowed-tools', '--model', '--effort', '--setting-sources', '--append-system-prompt',

@@ -172,12 +172,14 @@ describe('任务控制通道（真出口 + 假 lark-cli）', () => {
       assert.deepEqual([store.get(mine.id).status, store.get(mine.id).text], ['queued', '原文二\n\n【补料】\n按方案 B'])
       assert.equal(said(chatId)[1], '好，收到补充，接着做「登录页报错」。')
     })],
-    ['隐式续跑门槛（11-04 falive 回放）：回挂起卡没 @ bot——@ 了别人 / 旁人搭话 → 放行带锚点不续跑、抄送寒暄 → 静默；@ bot / 附件 / 链接 / 提单人 / 负责人 / bot @ 过的人 → 续跑', () => quiet(async () => {
+    ['隐式续跑门槛（11-04 falive 回放）：回挂起卡没 @ bot——@ 了负责人 / 旁人搭话 → 放行带锚点不续跑、抄送寒暄 / 只 @ 别的同事 → 静默；@ bot / 附件 / 链接 / 提单人 / 负责人 / bot @ 过的人 → 续跑', () => quiet(async () => {
       const chatId = 'oc_g1'
       const cfg = { ...config, botOpenId: 'ou_bot', botAppId: 'cli_bot' }
       const arthur = { id: 'ou_arthur', key: '@_user_2', name: 'Arthur' }
       const cases = [
-        { name: 'aven @Arthur 让他补', text: '麻烦在这里补信息吧', extra: { senderOpenId: 'ou_aven', mentions: [arthur] }, out: 'pass' },
+        { name: 'aven @Arthur 让他补（只 @ 了别的同事，11-04 起静默）', text: '麻烦在这里补信息吧', extra: { senderOpenId: 'ou_aven', mentions: [arthur] }, out: 'ignore' },
+        { name: '同事 @ 负责人', text: 'web 也换一下新接口吧', extra: { senderOpenId: 'ou_qz', mentions: [{ id: 'ou_aven', name: 'aven' }] }, out: 'pass' },
+        { name: '同事 @所有人', text: '都看下新接口', extra: { senderOpenId: 'ou_qz', mentions: [{ id: 'all', key: '@_all', name: '所有人' }] }, out: 'pass' },
         { name: 'cc @同事', text: 'cc', extra: { senderOpenId: 'ou_aven', mentions: [{ id: 'ou_enc', name: 'Encone' }] }, out: 'ignore' },
         { name: '旁人没 @ 谁的搭话', text: '用邮件注册会更流畅些', extra: { senderOpenId: 'ou_qz' }, out: 'pass' },
         { name: '旁人发表情', text: '[赞]', extra: { senderOpenId: 'ou_qz' }, out: 'ignore' },

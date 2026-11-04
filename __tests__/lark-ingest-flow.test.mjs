@@ -208,6 +208,38 @@ describe('摄入链路 / 上下文包 / 入群事件（真 store + 假 lark-cli�
       await ingestLarkEvent({ raw: ping, config, store })
       assert.deepEqual([store.has(ping.message_id), cliCalls('+messages-reply')], [false, outboxBefore + 1], '只问进度：回一句、不建任务')
     })],
+    ['回 bot 消息却不是对机器人说的（11-04 省钱，notForBotReason）：抄送 / 只 @ 别的同事 → 不建任务、不并单、不回话；@ 负责人 / 带链接 / 没 @ 谁 → 照旧进分类', () => quiet(async () => {
+      const KAISER = { id: 'ou_k', key: '@_user_3', name: 'Kaiser' }
+      // 每条回一张不同的卡：同话题后一条会并进前一条还没分类的（去抖），不是本段要测的
+      let card = 0
+      const replyCard = (text, extra = {}) => {
+        card += 1
+        store.upsert({ id: `om_done9${card}`, source: 'lark', chatId: 'oc_g', messageId: `om_done9${card}`, operator: 'ou_qa', status: 'done', epoch: 0, summary: '完善资料', text: '完善资料', createdAt: '2026-11-01T00:00:00Z' })
+        store.recordReceipt(`om_done9${card}`, { messageId: `om_card9${card}`, kind: 'done', epoch: 0, chatId: 'oc_g' })
+        return raw({ text, reply_to: `om_card9${card}`, sender: 'ou_qn', ...extra })
+      }
+      const before = { replies: cliCalls('+messages-reply'), tasks: store.list().length }
+      const dropped = [
+        replyCard('cc @Kaiser', { mentions: [KAISER] }),
+        replyCard('@Kaiser 麻烦在这里补信息吧', { mentions: [KAISER] }),
+        replyCard('[赞]'),
+      ]
+      for (const event of dropped) await ingestLarkEvent({ raw: event, config, store })
+      assert.deepEqual([dropped.map((event) => store.has(event.message_id)), store.list().length, cliCalls('+messages-reply')], [[false, false, false], before.tasks + 3, before.replies], '一条都没建（只多了 3 张卡的原任务）、没回话')
+      const kept = [
+        replyCard('@aven web 也换一下新接口吧', { mentions: [AVEN] }),
+        replyCard('@Kaiser 文档 https://x.feishu.cn/docx/abc', { mentions: [KAISER], sender: 'ou_qo' }),
+        replyCard('账号是 508', { sender: 'ou_qp' }),
+      ]
+      for (const event of kept) await ingestLarkEvent({ raw: event, config, store })
+      assert.deepEqual(kept.map((event) => store.get(event.message_id)?.intake?.trigger), ['bot_reply', 'bot_reply', 'bot_reply'], '照旧进分类')
+      // 原任务还没分类（回了它的「收到」）：抄送不并进去（并进去分类中会作废重分类一次）
+      store.upsert({ id: 'om_fresh2', source: 'lark', chatId: 'oc_g', messageId: 'om_fresh2', operator: 'ou_qf', status: 'received', epoch: 0, addressedToBot: true, summary: '支付页', text: '支付页', intake: { required: true, trigger: 'bot_mention', lane: 'fast', receivedAt: '2026-11-01T00:00:00Z' }, createdAt: '2026-11-01T00:00:00Z' })
+      store.recordReceipt('om_fresh2', { messageId: 'om_ack_fresh2', kind: 'ack', epoch: 0, chatId: 'oc_g' })
+      const cc = raw({ text: 'cc @Kaiser', mentions: [KAISER], reply_to: 'om_ack_fresh2', root_id: 'om_fresh2', sender: 'ou_qg' })
+      await ingestLarkEvent({ raw: cc, config, store })
+      assert.deepEqual([store.has(cc.message_id), store.get('om_fresh2').text], [false, '支付页'])
+    })],
     ['话题：thread_id 才回话题流（inThread）、话题键优先 thread_id；只有 root_id 的普通回复不进话题流', () => quiet(async () => {
       const inThread = atBot('话题里 @ 的', { thread_id: 'omt_1', root_id: 'om_root1' })
       await ingestLarkEvent({ raw: inThread, config, store })
@@ -267,14 +299,17 @@ describe('摄入链路 / 上下文包 / 入群事件（真 store + 假 lark-cli�
       assert.equal(store.has(sibling.message_id), false)
       assert.deepEqual([store.get('om_p3').status, store.get('om_p3').text], ['queued', '等截图\n\n【补料】\n补充：接口字段是 avatar'])
       // 11-04 falive 回放：回 bot 卡片（终态那条）但没 @ bot，同话题唯一挂起的那条不再被同事之间的话续跑——
-      // @ 了别人 → 交给分类（建 received 带锚点）；抄送 / 寒暄 → 静默丢；提单人没 @ 谁说的 → 照旧续跑
+      // @ 了负责人 → 交给分类（建 received 带锚点）；只 @ 别的同事 / 抄送 / 寒暄 → 静默丢；提单人没 @ 谁说的 → 照旧续跑
       store.upsert({ id: 'om_p4', source: 'lark', chatId: 'oc_g', messageId: 'om_p4', operator: 'ou_qa', status: 'waiting_confirmation', threadRootId: 'omt_q', summary: '等账号', text: '等账号', epoch: 0, createdAt: '2026-11-01T00:00:00Z' })
       store.upsert({ id: 'om_done4', source: 'lark', chatId: 'oc_g', messageId: 'om_done4', operator: 'ou_qa', status: 'done', threadRootId: 'omt_q', summary: '做完的', text: '做完的', epoch: 0, createdAt: '2026-11-01T00:00:00Z' })
       store.recordReceipt('om_done4', { messageId: 'om_card4', kind: 'done', epoch: 0, chatId: 'oc_g' })
       const repliesBefore = cliCalls('+messages-reply')
       const toArthur = raw({ text: '@Arthur 麻烦在这里补信息吧', mentions: [{ id: 'ou_arthur', key: '@_user_3', name: 'Arthur' }], sender: 'ou_aven', reply_to: 'om_card4', thread_id: 'omt_q' })
       await ingestLarkEvent({ raw: toArthur, config, store })
-      assert.deepEqual([store.get(toArthur.message_id)?.status, store.get(toArthur.message_id)?.intake.anchorTaskId, store.get('om_p4').status], ['received', 'om_done4', 'waiting_confirmation'], '@ 了别人：不续跑，交给分类')
+      assert.deepEqual([store.has(toArthur.message_id), store.get('om_p4').status, cliCalls('+messages-reply')], [false, 'waiting_confirmation', repliesBefore], '只 @ 了别的同事：不续跑、不分类（11-04 省钱）')
+      const toAven = raw({ text: '@aven web 也换一下新接口吧', mentions: [AVEN], sender: 'ou_qz', reply_to: 'om_card4', thread_id: 'omt_q' })
+      await ingestLarkEvent({ raw: toAven, config, store })
+      assert.deepEqual([store.get(toAven.message_id)?.status, store.get(toAven.message_id)?.intake.anchorTaskId, store.get('om_p4').status], ['received', 'om_done4', 'waiting_confirmation'], '@ 了负责人：不续跑，交给分类')
       const cc = raw({ text: 'cc @Encone', mentions: [{ id: 'ou_enc', key: '@_user_4', name: 'Encone' }], sender: 'ou_qz', reply_to: 'om_card4', thread_id: 'omt_q' })
       await ingestLarkEvent({ raw: cc, config, store })
       assert.deepEqual([store.has(cc.message_id), store.get('om_p4').status, cliCalls('+messages-reply')], [false, 'waiting_confirmation', repliesBefore], '抄送：静默，不建任务、不说话')
