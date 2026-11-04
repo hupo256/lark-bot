@@ -91,7 +91,7 @@ const main = async () => {
   mkdirSync(outDir, { recursive: true })
   // 防睡眠（前置 8）：本进程活着期间系统、磁盘、显示都不睡
   spawn('caffeinate', ['-dims', '-w', String(process.pid)], { stdio: 'ignore', detached: true }).unref()
-  const pre = spawnSync('node', [join(here, 'preflight.mjs'), '--round', round, '--md', join(outDir, 'preflight.md')], { cwd: repo, stdio: 'inherit' })
+  const pre = spawnSync('node', [join(here, 'preflight.mjs'), '--round', round, '--md', join(outDir, 'preflight.md'), ...(existsSync(join(roundDir, 'round.json')) ? ['--resume'] : [])], { cwd: repo, stdio: 'inherit' })
   if (pre.status !== 0) { log(`PREFLIGHT-FAIL ${round}（见 replay/falive/rounds/${round}/preflight.md）`); process.exit(1) }
   const fingerprint = codeFingerprint()
   const head = spawnSync('git', ['-C', repo, 'log', '-1', '--format=%h %s'], { encoding: 'utf8' }).stdout.trim().slice(0, 60)

@@ -77,7 +77,8 @@ const branch = git('rev-parse', '--abbrev-ref', 'HEAD').stdout.trim()
 const dirty = git('status', '--porcelain', '--', 'lib', 'lark-gateway.mjs', 'lark-worker.mjs', 'runtime/lark-worker.mjs', 'tools', 'scripts/sim', 'replay/falive/dataset', 'replay/falive/raw', 'replay/falive/episodes.json').stdout.trim()
 if (dirty) fails.push(`代码：工作区有没提交的改动（这一轮跑的不是任何一个提交）：${dirty.split('\n').slice(0, 5).join('；')}`)
 const behind = git('rev-list', '--count', 'HEAD..fameex-stable').stdout.trim()
-if (behind !== '0') fails.push(`代码：比运行分支 fameex-stable 少 ${behind} 个提交（不是最新）：${git('log', '--oneline', 'HEAD..fameex-stable').stdout.trim().split('\n').slice(0, 5).join('；')}`)
+// 续跑同一轮（run-episodes 传 --resume：round.json 已钉代码指纹）：运行分支之后又进的提交下一轮再带，本轮不中途换代码（一轮只许一版代码）
+if (behind !== '0' && !args.includes('--resume')) fails.push(`代码：比运行分支 fameex-stable 少 ${behind} 个提交（不是最新）：${git('log', '--oneline', 'HEAD..fameex-stable').stdout.trim().split('\n').slice(0, 5).join('；')}`)
 lines.push(`## 代码：${branch} @ ${head}${behind === '0' ? '，含 fameex-stable 全部提交' : ''}`)
 
 // —— 环境 ——
