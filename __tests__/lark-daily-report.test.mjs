@@ -145,6 +145,7 @@ const harness = ({ state = {}, now = at(2, 19, 5), sendResult = { ok: true, mess
     runCli: cli.run,
     chatName: async (chatId) => CHAT_NAMES[chatId] || '',
     send: async (args) => (sends.push(args), sendResult),
+    sendGroup: async (args) => (sends.push({ ...args, group: true }), sendResult),
     readState: () => state,
     saveState: (next) => saves.push(next),
     now: () => now,
@@ -194,6 +195,7 @@ describe('fameex 日报', () => {
       const run = (extra) => ({ commandType: 'daily', daily: { date: DATE, mode: 'scheduled' }, status: 'failed', updatedAt: iso(2, 19, 1), ...extra })
       return eachCase([
         { name: '关了', config: { dailyReport: { enabled: false } }, want: null },
+        { name: '暂停了', paused: true, want: null },
         { name: '没到点', now: at(2, 18), want: null },
         { name: '那天已发', state: { sent: { [DATE]: { at: iso(2, 19) } } }, want: null },
         { name: '第一次', want: { date: DATE, attempt: 1 } },
@@ -204,7 +206,7 @@ describe('fameex 日报', () => {
         { name: '失败 2 次、隔了 10 分钟整', tasks: [run(), run({ updatedAt: iso(2, 19, 20) })], want: { date: DATE, attempt: 3 } },
         { name: '上次失败才 9 分钟', tasks: [run({ updatedAt: iso(2, 19, 21) })], want: null },
         { name: '失败满 3 次', tasks: [run(), run(), run()], want: null },
-      ], ({ config = CONFIG, state = {}, tasks = [], want, ...item }) => assert.deepEqual(decideDailyRun({ config, state, tasks, now: item.now || now }), want))
+      ], ({ config = CONFIG, state = {}, tasks = [], want, paused = false, ...item }) => assert.deepEqual(decideDailyRun({ config, state, tasks, now: item.now || now, paused }), want))
     }],
     ['buildDailyTask：定时 / 私信触发两种形状', () => {
       assert.deepEqual(buildDailyTask({ config: CONFIG, date: DATE, mode: 'scheduled', attempt: 2, now: at(2, 19) }), {
@@ -218,22 +220,54 @@ describe('fameex 日报', () => {
     ['parseDailyDirective：只认整句', () => eachCase([
       ['发日报', { mode: 'manual' }], [' 发日报。', { mode: 'manual' }], ['补发日报!', { mode: 'manual' }], ['重发日报', { mode: 'force' }], ['再发日报～', { mode: 'force' }],
       ['日报怎么没发', null], ['发日报给我看看', null], ['帮我发日报', null], ['', null], [null, null],
+      // 11-05 b3：群里 @bot「今天日报发一下」（@ 名字已剥）、「项目已经上线。暂停日报生成、发送，啥时候开再通知你」
+      ['今天日报发一下', { mode: 'manual' }], ['日报发下', { mode: 'manual' }], ['发一下今天的日报', { mode: 'manual' }], ['今天的日报补发', { mode: 'manual' }],
+      ['<p>项目已经上线。暂停日报生成、发送，啥时候开再通知你 </p>', { mode: 'pause' }], ['日报先别发了', { mode: 'pause' }], ['停掉日报', { mode: 'pause' }], ['关闭日报', { mode: 'pause' }],
+      ['恢复日报', { mode: 'resume' }], ['日报重新开吧', { mode: 'resume' }], ['继续发日报', { mode: 'resume' }],
+      ['能不能暂停日报？', null], ['日报要恢复吗', null], ['今天日报发了没', null], ['暂停', null],
     ].map(([text, want]) => ({ name: String(text), text, want })), ({ text, want }) => assert.deepEqual(parseDailyDirective(text), want))],
-    ['maybeHandleDailyDirective：只认负责人本人私信，排今天的日报任务', () => quiet(() => eachCase([
-      { name: '负责人私信', msg: { chatType: 'p2p', senderOpenId: ME, text: '重发日报', messageId: 'om_r', chatId: 'oc_dm' }, want: true },
-      { name: '负责人在群里说', msg: { chatType: 'group', senderOpenId: ME, text: '发日报', messageId: 'om_g', chatId: 'oc_a' }, want: false },
-      { name: '别人私信', msg: { chatType: 'p2p', senderOpenId: 'ou_x', text: '发日报', messageId: 'om_x', chatId: 'oc_x' }, want: false },
-      { name: '负责人私信问话', msg: { chatType: 'p2p', senderOpenId: ME, text: '日报发了吗', messageId: 'om_q', chatId: 'oc_dm' }, want: false },
+    ['maybeHandleDailyDirective：只认负责人本人（私信，或群里 @ 了机器人），排今天的日报任务；群里要的记 postTo 回群；暂停 / 恢复改暂停文件并回一句', () => quiet(() => eachCase([
+      { name: '负责人私信', msg: { chatType: 'p2p', senderOpenId: ME, text: '重发日报', messageId: 'om_r', chatId: 'oc_dm' }, want: [['om_r', { date: DATE, mode: 'force', attempt: null }]] },
+      { name: '负责人在群里没 @ 机器人', msg: { chatType: 'group', senderOpenId: ME, text: '发日报', messageId: 'om_g', chatId: 'oc_a' }, want: null },
+      { name: '负责人在群里 @ 机器人', msg: { chatType: 'group', senderOpenId: ME, text: '今天日报发一下', messageId: 'om_g', chatId: 'oc_a', threadId: 'omt_1', mentions: [{ id: 'ou_bot' }] }, want: [['om_g', { date: DATE, mode: 'manual', attempt: null, postTo: { chatId: 'oc_a', messageId: 'om_g', inThread: true } }]] },
+      { name: '别人在群里 @ 机器人', msg: { chatType: 'group', senderOpenId: 'ou_x', text: '发日报', messageId: 'om_g2', chatId: 'oc_a', mentions: [{ id: 'ou_bot' }] }, want: null },
+      { name: '别人私信', msg: { chatType: 'p2p', senderOpenId: 'ou_x', text: '发日报', messageId: 'om_x', chatId: 'oc_x' }, want: null },
+      { name: '负责人私信问话', msg: { chatType: 'p2p', senderOpenId: ME, text: '日报发了吗', messageId: 'om_q', chatId: 'oc_dm' }, want: null },
     ], async ({ msg, want }) => {
       const upserts = []
-      const handled = await maybeHandleDailyDirective({ msg, config: CONFIG, store: { upsert: (task) => (upserts.push(task), task) }, now: at(2, 15) })
-      assert.equal(handled, want)
-      assert.deepEqual(upserts.map((task) => [task.id, task.daily]), want ? [['om_r', { date: DATE, mode: 'force', attempt: null }]] : [])
+      const handled = await maybeHandleDailyDirective({ msg, config: { ...CONFIG, botOpenId: 'ou_bot' }, store: { upsert: (task) => (upserts.push(task), task) }, now: at(2, 15) })
+      assert.equal(handled, Boolean(want))
+      assert.deepEqual(upserts.map((task) => [task.id, task.daily]), want || [])
+    }).then(async () => {
+      const pausePath = join(dir, 'pause.json')
+      const said = []
+      const deps = { pausePath, sendReply: async (args) => (said.push(['group', args.task.chatId, args.task.replyTarget, args.phase, args.text, args.idempotencyKey]), { ok: true }), sendPrincipalNote: async (args) => (said.push(['dm', args.text, args.idempotencyKey]), { ok: true }) }
+      const upserts = []
+      const store = { upsert: (task) => (upserts.push(task), task) }
+      const cfg = { ...CONFIG, botOpenId: 'ou_bot', dailyReport: { at: '18:30' } }
+      assert.equal(await maybeHandleDailyDirective({ msg: { chatType: 'group', senderOpenId: ME, text: '项目已经上线。暂停日报生成、发送，啥时候开再通知你', messageId: 'om_p', chatId: 'oc_a', mentions: [{ id: 'ou_bot' }] }, config: cfg, store, now: at(2, 15), deps }), true)
+      assert.equal(schedule.readDailyPause(pausePath), true)
+      assert.deepEqual(readDailyState(pausePath), { paused: true, at: iso(2, 15), by: ME })
+      assert.equal(await maybeHandleDailyDirective({ msg: { chatType: 'p2p', senderOpenId: ME, text: '恢复日报', messageId: 'om_u', chatId: 'oc_dm' }, config: cfg, store, now: at(3, 9), deps }), true)
+      assert.equal(schedule.readDailyPause(pausePath), false)
+      assert.equal(await maybeHandleDailyDirective({ msg: { chatType: 'p2p', senderOpenId: ME, text: '恢复日报', messageId: 'om_u2', chatId: 'oc_dm' }, config: cfg, store, now: at(3, 9), deps }), true, '没暂停也能说恢复')
+      assert.deepEqual(said, [
+        ['group', 'oc_a', { messageId: 'om_p', inThread: false }, 'notice', '好，日报停了：定时的不再生成、不再发。要恢复跟我说「恢复日报」；临时要一份就说「发日报」。', 'om_p-daily-pause'],
+        ['dm', '好，日报恢复了，照常 18:30 发。', 'om_u-daily-resume'],
+        ['dm', '好，日报恢复了，照常 18:30 发。', 'om_u2-daily-resume'],
+      ])
+      assert.deepEqual(upserts, [], '暂停 / 恢复不建任务')
     }))],
     ['startDailyReport：到点建一次定时任务，排着的时候不再建；状态文件读不到当空', () => quiet(() => {
       const tasks = []
       const store = { list: () => tasks, upsert: (task) => (tasks.push({ ...task, updatedAt: iso(2, 19) }), task) }
-      const ticker = startDailyReport({ config: CONFIG, store, readState: () => ({}), clock: () => at(2, 19) })
+      const pausedTicker = startDailyReport({ config: CONFIG, store, readState: () => ({}), readPause: () => true, clock: () => at(2, 19) })
+      try {
+        assert.equal(pausedTicker.tick(), null, '暂停了不建')
+      } finally {
+        pausedTicker.stop()
+      }
+      const ticker = startDailyReport({ config: CONFIG, store, readState: () => ({}), readPause: () => false, clock: () => at(2, 19) })
       try {
         assert.equal(ticker.tick().id, 'daily-20261102-a1')
         assert.equal(ticker.tick(), null)
@@ -372,6 +406,16 @@ describe('fameex 日报', () => {
       await force.run({ date: DATE, mode: 'force' }, 'om_0123456789abcdefghijklmnopqrstuvwxyz')
       assert.deepEqual(force.sends.map(({ text, idempotencyKey }) => [text, idempotencyKey]), [[REPORT, 'daily-20261102-cdefghijklmnopqrstuvwxyz']])
       assert.deepEqual(force.saves[0].sent[DATE].messageId, 'om_daily')
+    }],
+    ['runDailyReportTask 群里要的（postTo）：回那条群消息、只带这个群的任务、不带「等你决定的」；那天发过也照发；不记已发', async () => {
+      const state = { sent: { [DATE]: { at: iso(2, 19, 1), messageId: 'om_old' } } }
+      const h = harness({ state })
+      assert.deepEqual(await h.run({ date: DATE, mode: 'manual', postTo: { chatId: 'oc_b', messageId: 'om_ask', inThread: true } }, 'om_ask'), { status: 'done' })
+      const [sent] = h.sends
+      assert.deepEqual([sent.group, sent.phase, sent.task.chatId, sent.task.replyTarget, sent.idempotencyKey], [true, 'done', 'oc_b', { messageId: 'om_ask', inThread: true }, 'daily-20261102-om_ask'])
+      assert.match(sent.text, /^fameex 日报 · 11-02 周一\n\n今天经手 2 件[^\n]*\n- 活动页群：/)
+      assert.doesNotMatch(sent.text, /PR-02306|等你决定的/)
+      assert.deepEqual([h.saves[0].sent, h.statuses[0][1]], [state.sent, '日报已回群'])
     }],
     ['runDailyReportTask 手动：到点前只是预览不记已发（快照照记）；到点那一刻起算当天的日报', async () => {
       const prior = { sent: { '2026-10-30': { at: 'x' } } }

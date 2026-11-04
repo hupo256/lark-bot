@@ -122,7 +122,7 @@ const deterministicRoute = (msg) => {
   const principalDm = msg.chatType === 'p2p' && msg.senderOpenId === AVEN_OPEN_ID
   const text = textForParse(msg)
   if (parseControlDirective(msg.text)) return 'control_directive'
-  if (principalDm && parseDailyDirective(msg.text)) return 'daily_directive'
+  if (msg.senderOpenId === AVEN_OPEN_ID && (principalDm || mentionsBot({ msg, config })) && parseDailyDirective(msg.text)) return 'daily_directive' // 群里 @bot 的也认（11-05）
   if (principalDm && parseRetentionDirective(msg.text)) return 'retention_directive'
   if (resolveOpsCommandType({ config, msg, classified: { type: parseCommandType(text), source: 'explicit' } }).type === OPS_COMMAND_TYPE) return 'ops'
   if (principalDm && isDeployNotice(text)) return 'deploy_notice'
