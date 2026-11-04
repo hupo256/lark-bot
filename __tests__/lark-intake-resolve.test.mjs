@@ -10,7 +10,7 @@ import { join } from 'node:path'
 import { describe, it, mock } from 'node:test'
 
 import { CONTRACT_VERSION, deriveContract, isReadOnlyAsk, isRecordOnly, refreshContract, taskContract } from '../lib/lark-task-contract.mjs'
-import { PRIOR_CONCLUSION_MAX, applyIntakeClassification, intakeActionable, priorConclusionOf, sameIntentClassification } from '../lib/lark-intake-resolve.mjs'
+import { PRIOR_CONCLUSION_MAX, PROBE_RECORD_HEAD, applyIntakeClassification, intakeActionable, priorConclusionOf, sameIntentClassification } from '../lib/lark-intake-resolve.mjs'
 import { mergeTaskObjects } from '../lib/lark-task-merge.mjs'
 import { judgeIntakeCase, regressionTaskOf } from '../lib/lark-intake-replay.mjs'
 import { buildIntentClassificationPrompt } from '../lib/lark-classify-prompt.mjs'
@@ -304,6 +304,30 @@ describe('对话层：契约、入队门槛、分类落态、归并', () => {
       assert.deepEqual(priorConclusionOf(prior), want)
       assert.equal(priorConclusionOf({ id: 'p', outcome: { detailDoc: 'x'.repeat(PRIOR_CONCLUSION_MAX * 2) } }).text.length, PRIOR_CONCLUSION_MAX)
     })],
+    // 11-04 回放 ep-1014-d74f19：引用 bot 实测卡片问「几点调的哪个接口 / 请求头参数 url」，结论里只有摘要，答成估个范围
+    ['priorConclusionOf 带那单真发过的请求（单独一段、不被长 detailDoc 截掉）；只有请求记录也算有结论', () => {
+      const probes = [{ at: '2026-10-14T11:08:23.000Z', command: "curl -s https://p/hc-api/api/member/profile/my -H 'Authorization: hiAppeyJ…（打码）'", output: '{"code":401}' }]
+      const got = priorConclusionOf({ id: 'p', outcome: { summary: 'S', detailDoc: 'x'.repeat(PRIOR_CONCLUSION_MAX * 2), probes } })
+      assert.ok(got.text.startsWith(`S\n详细：\n${'x'.repeat(10)}`))
+      assert.match(got.text, new RegExp(`\\n${PROBE_RECORD_HEAD}：\\n- 2026-10-14 \\d{2}:08:23（UTC[+-]\\d+(:\\d{2})?） · curl -s https://p/hc-api/api/member/profile/my -H 'Authorization: hiAppeyJ…（打码）' → \\{"code":401\\}$`))
+      assert.match(PROBE_RECORD_HEAD, /时间到秒并写明时区.*不估范围/)
+      assert.equal(priorConclusionOf({ id: 'p', outcome: { probes } }).text.startsWith(PROBE_RECORD_HEAD), true)
+      assert.equal(priorConclusionOf({ id: 'p', outcome: { probes: [] } }), null)
+    }],
+    ['引用 bot 消息出自另一单（quotedTaskId）：开跑时带那单的结论 quotedConclusion；就是 continues 那单 / 本单自己不重复带；不开跑不带；重新分类先清', () => {
+      const known = { q: { id: 'q', summary: '复测 /go-api', outcome: { summary: '反代通了', probes: [{ at: null, command: 'curl https://p/go-api/health', output: 'UP' }] } }, c: { id: 'c', outcome: { summary: 'C' } } }
+      const run = (extra, classification = cls('question', 'high', { deliverable: 'answer' })) => {
+        const target = { id: 't', addressedToBot: true, text: '针对这条消息，几点调的', quotedTaskId: 'q', quotedConclusion: { stale: true }, intake: { required: true }, ...extra }
+        applyIntakeClassification(target, { classification, now: NOW, lookup: (id) => known[id] })
+        return target
+      }
+      const fresh = run({})
+      assert.equal(fresh.quotedConclusion.taskId, 'q')
+      assert.match(fresh.quotedConclusion.text, /^反代通了\n那单真发过的请求.*\n- 时刻未知 · curl https:\/\/p\/go-api\/health → UP$/s)
+      assert.equal(run({}, cls('question', 'high', { deliverable: 'answer', continues: 'q' })).quotedConclusion, undefined, '就是 continues 那单：priorConclusion 已带')
+      assert.equal(run({ quotedTaskId: 't' }).quotedConclusion, undefined, '引用的是本单自己的消息')
+      assert.equal(run({}, cls('ignore', 'high')).quotedConclusion, undefined, '不开跑不带')
+    }],
     ['sameIntentClassification：只比 decision / confidence / summary / reason', () => {
       const a = cls('bug', 'high', { reply: 'x' })
       assert.equal(sameIntentClassification(a, { ...a, reply: 'y', topic: 't' }), true)

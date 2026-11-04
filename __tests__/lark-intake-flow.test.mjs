@@ -852,7 +852,7 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       const msg = (extra = {}) => ({ messageId: 'om_m', chatId: 'oc_g', senderOpenId: 'ou_qa', text: '登录页报错', mentions: [], attachments: [], ...extra })
       const bundle = (extra, project = null) => buildConversationBundle({ msg: msg(extra), config, store, project, deps })
       const bare = await bundle()
-      assert.deepEqual(bare, { text: '登录页报错', attachments: [], threadSpeakers: [], conversation: { anchor: null, activity: { outbox: [], tasks: [] }, candidates: [] }, refText: null, quotedOwnCard: false })
+      assert.deepEqual(bare, { text: '登录页报错', attachments: [], threadSpeakers: [], conversation: { anchor: null, activity: { outbox: [], tasks: [] }, candidates: [] }, refText: null, quotedOwnCard: false, quotedTaskId: null })
       assert.deepEqual(calls, [['download', { project: 'PR-01947', messageId: 'om_m', attachments: [] }]])
       store.upsert({ id: 'om_bot', status: 'done', chatId: 'oc_g', epoch: 1, createdAt: iso(Date.now()) })
       store.recordReceipt('om_bot', { messageId: 'om_rcpt', kind: 'done', epoch: 0, chatId: 'oc_g' }) // 换代前的回执：只有忽略代次的反查能命中
@@ -898,6 +898,19 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       ref = { text: '原话', sender: '', attachments: [] }
       const noNote = await bundle({ messageId: 'om_m8', replyTo: 'om_rcpt', text: '' })
       assert.deepEqual([noNote.text, noNote.quotedOwnCard], ['【被引用消息】\n原话\n\n【本条 @】（无附言）', true])
+      // 引用 bot 的卡出自哪单（quotedTaskId，11-04 回放 ep-1014-d74f19）：回执在被归并的那条名下 → 顺着 supersededBy 找到出结论的那单（最多 5 跳）；
+      // 没归并就是它自己；引用的不是 bot 的卡 → null
+      assert.deepEqual([noNote.quotedTaskId, plainReply.quotedTaskId], ['om_bot', null])
+      store.upsert({ id: 'om_merged', status: 'superseded', supersededBy: 'om_bot', chatId: 'oc_g', createdAt: iso(Date.now()) })
+      store.recordReceipt('om_merged', { messageId: 'om_ack_m', kind: 'ack', epoch: 0, chatId: 'oc_g' })
+      assert.equal((await bundle({ messageId: 'om_m8b', replyTo: 'om_ack_m', text: '' })).quotedTaskId, 'om_bot')
+      const chain = Array.from({ length: 7 }, (_, i) => `om_c${i}`)
+      chain.forEach((id, i) => store.upsert({ id, status: i < 6 ? 'superseded' : 'done', supersededBy: chain[i + 1] || null, chatId: 'oc_g', createdAt: iso(Date.now()) }))
+      store.recordReceipt('om_c0', { messageId: 'om_ack_c', kind: 'ack', epoch: 0, chatId: 'oc_g' })
+      assert.equal((await bundle({ messageId: 'om_m8c', replyTo: 'om_ack_c', text: '' })).quotedTaskId, 'om_c5', '最多追 5 跳')
+      store.upsert({ id: 'om_lost', status: 'superseded', supersededBy: 'om_gone', chatId: 'oc_g', createdAt: iso(Date.now()) })
+      store.recordReceipt('om_lost', { messageId: 'om_ack_l', kind: 'ack', epoch: 0, chatId: 'oc_g' })
+      assert.equal((await bundle({ messageId: 'om_m8d', replyTo: 'om_ack_l', text: '' })).quotedTaskId, 'om_lost', '承接的那单已清：退回回执所在那条')
       // 11-04 falive 回放：正文里的「@名字」归一时剥掉了，「@Arthur 麻烦在这里补信息吧」「cc @Encone」只剩正文——本条 @ 了别人要标给分类器；只 @ bot 不标
       const arthur = { id: 'ou_a', key: '@_user_1', name: 'Arthur' }
       const at = async (extra) => (await bundle({ messageId: 'om_m9', ...extra })).text

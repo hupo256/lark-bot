@@ -10,7 +10,7 @@ import {
   sayHeldDraft, sayHeldFailed, sayHeldReleased, sayHeldStale, sayIgnoredAfterAck, sayIntakeFailed, sayMergedSupplement, sayNoChangeGroup, sayNoted, sayOps, sayOverdue, sayOwnItemsPrincipal,
   sayReminderGroup, sayReminderPrincipal, sayStart, saySuspected, saySuspectedExpired, trimPunct,
 } from '../lib/lark-human-text.mjs'
-import { applyRunEvidence, collectRunEvidence, normalizeOutcome, normalizeReport, renderReport, unverifiedClaims } from '../lib/lark-report-render.mjs'
+import { PROBE_LOG_MAX, applyRunEvidence, collectProbeLog, collectRunEvidence, normalizeOutcome, normalizeReport, redactSecrets, renderProbeLog, renderReport, unverifiedClaims } from '../lib/lark-report-render.mjs'
 import { eachCase, runSteps } from './support/steps.mjs'
 
 // 结构化群回复（falive 10-21 P6 的用例搬来）：第一行数字由条目算，不会再出现「都通了」又列问题；实测声明按会话记录核实。
@@ -35,6 +35,15 @@ const CELLS = [
     want: '登录页报错修好了。\n分支 fix/login · 改了 3 个文件\n@后端：补接口；改字段\n<at user_id="ou_x"></at>：看一眼\n详细见：https://d/1',
   },
   { name: 'done · change（群）：没有事实 / 文档', got: () => sayDoneChangeGroup({ task: { summary: 'x' }, outcome: { summary: '修好了' } }), want: '修好了' },
+  // 11-04 回放 ep-1031-35935b：改码单兑现「收到」里答应的复测，条目写进 report，接在事实后面（不带 answer，摘要首句已是结论）；空 report 不加行
+  {
+    name: 'done · change（群）：顺带复测的 report 条目接在事实后；空 report 不加行',
+    got: () => [
+      sayDoneChangeGroup({ task, outcome: { summary: '完善资料接好了。', report: normalizeReport({ subject: 'pre 复测评论积分', answer: '不该出现', items: [{ mark: 'not_done', name: '评论后 DISCUZ 到账', note: '要发评论，只读做不了' }] }) } }),
+      sayDoneChangeGroup({ task: { summary: 'x' }, outcome: { summary: '修好了', report: normalizeReport({ subject: 's', items: [] }) } }),
+    ],
+    want: ['完善资料接好了。\n分支 fix/login · 改了 3 个文件\npre 复测评论积分\n- ❌ 评论后 DISCUZ 到账：要发评论，只读做不了', '修好了'],
+  },
   {
     name: 'done · change（aven）：群里已回 / 没发（扣下）/ 没发（原因）/ 没群结果 / 待跟进里写给他的事项（群里不 @ 他，fix10 review）',
     got: () => [
@@ -290,13 +299,47 @@ describe('对话层出口文案（§4.1）', () => {
         writeFileSync(join(dir, 'e.jsonl'), JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'u1', name: 'mcp__playwright__browser_navigate', input: { url: 'https://www.Fameex.com/login' } }] } }))
         assert.deepEqual(collectRunEvidence({ sessionFiles: [join(dir, 'e.jsonl')] }), { probeCalls: 0, browserCalls: 1, hosts: ['www.fameex.com'] })
         assert.deepEqual(collectRunEvidence({ sessionFiles: [join(dir, 'd.jsonl')] }), { probeCalls: 2, browserCalls: 0, hosts: ['www.falive.com', 'x.test'] }, '只记真发了请求的主机，grep 里的网址不算')
+        // 请求记录（11-04 回放 ep-1014-d74f19）：只记真发了请求的命令，带发出时刻和返回开头（tool_result 按 tool_use_id 对上）；密钥打码；超上限留最近的
+        const at = (ts, line) => JSON.stringify({ ...JSON.parse(line), timestamp: ts })
+        const result = (id, content) => JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: id, content }] } })
+        writeFileSync(join(dir, 'f.jsonl'), [
+          at('2026-10-14T11:08:23.000Z', use('r1', "curl -s https://p.test/hc-api/api/member/profile/my -H 'Authorization: hiAppeyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.abcdefgh'")),
+          result('r1', [{ type: 'text', text: '{"code":401,\n "msg":"Full authentication"}' }]),
+          use('r2', 'grep -n "https://p.test" src/a.ts'), result('r2', 'src/a.ts:1'),
+          at('2026-10-14T11:08:30.000Z', use('r3', `curl -s -X POST https://p.test/go-api/api/auth/login -d '{"email":"a@b.c","password":"Secret123"}' -H "token: abcdef1234567890xyz"`)),
+          result('r3', '{"code":0,"data":{"token":"zzzzzz9999999999aaaa"}}'),
+        ].join('\n'))
+        const log = collectProbeLog({ sessionFiles: [join(dir, 'f.jsonl')] })
+        assert.deepEqual(log, [
+          { at: '2026-10-14T11:08:23.000Z', command: "curl -s https://p.test/hc-api/api/member/profile/my -H 'Authorization: hiAppeyJ…（打码）'", output: '{"code":401, "msg":"Full authentication"}' },
+          { at: '2026-10-14T11:08:30.000Z', command: `curl -s -X POST https://p.test/go-api/api/auth/login -d '{"email":"a@b.c","password":"***"}' -H "token: abcdef…"`, output: '{"code":0,"data":{"token":"zzzzzz…"}}' },
+        ])
+        assert.match(renderProbeLog(log), /^- 2026-10-14 \d{2}:08:23（UTC[+-]\d+(:\d{2})?） · curl -s https:\/\/p\.test\/hc-api.* → \{"code":401/)
+        assert.equal(renderProbeLog([]), '')
+        assert.equal(renderProbeLog(null), '')
+        assert.equal(renderProbeLog({ length: 1 }), '', '不是数组不渲染')
+        // 时区偏移：东区 +、西区 -（本机时区随环境，这里按当前偏移算期望）
+        const offset = -new Date('2026-10-14T11:08:23.000Z').getTimezoneOffset()
+        assert.match(renderProbeLog([{ at: '2026-10-14T11:08:23.000Z', command: 'c' }]), new RegExp(`UTC${offset >= 0 ? '\\+' : '-'}${Math.floor(Math.abs(offset) / 60)}`))
+        // 页面工具 / 别的执行器把命令放在 input.script 里也认
+        writeFileSync(join(dir, 'h.jsonl'), JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 's1', name: 'Bash', input: { script: 'curl https://p.test/s' } }] } }))
+        assert.deepEqual(collectProbeLog({ sessionFiles: [join(dir, 'h.jsonl')] }).map((item) => item.command), ['curl https://p.test/s'])
+        assert.equal(collectProbeLog({ sessionFiles: [join(dir, 'b.jsonl')] }).length, 0, 'git diff 不是请求')
+        writeFileSync(join(dir, 'g.jsonl'), Array.from({ length: PROBE_LOG_MAX + 3 }, (_, i) => use(`m${i}`, `curl https://p.test/${i}`)).join('\n'))
+        const capped = collectProbeLog({ sessionFiles: [join(dir, 'g.jsonl')] })
+        assert.equal(capped.length, PROBE_LOG_MAX)
+        assert.equal(capped.at(-1).command, `curl https://p.test/${PROBE_LOG_MAX + 2}`, '留最近的')
+        assert.equal(redactSecrets('Authorization: Bearer abcdefghijklmnop'), 'Authorization: Bearer abcdef…')
+        // 网关再规整：probes 保留、命令为空的丢、全空落 null
+        assert.deepEqual(normalizeOutcome({ probes: [{ at: 'a', command: 'curl x', output: 'o' }, { command: ' ' }, null] }).probes, [{ at: 'a', command: 'curl x', output: 'o' }])
+        assert.equal(normalizeOutcome({ probes: [{ command: '' }] }).probes, null)
       } finally {
         rmSync(dir, { recursive: true, force: true })
       }
     }],
     ['normalizeOutcome：非对象 → null；kind 只认 ai / ops / worker；字符串截 2000、数组截 40、followUps 10 人各 10 条、change 三字段；类型不对落 null', () => {
       for (const bad of [null, undefined, 'x', 3]) assert.equal(normalizeOutcome(bad), null)
-      assert.deepEqual(normalizeOutcome({}), { kind: 'ai', summary: null, nextStep: null, failureKind: null, owner: null, warnings: [], blockers: [], noChangeReason: null, taskState: null, rootCauseLayer: null, report: null, groupReply: null, detailDoc: null, followUps: null, changedFiles: null, change: null, groupSilent: false, text: null })
+      assert.deepEqual(normalizeOutcome({}), { kind: 'ai', summary: null, nextStep: null, failureKind: null, owner: null, warnings: [], blockers: [], noChangeReason: null, taskState: null, rootCauseLayer: null, report: null, groupReply: null, detailDoc: null, followUps: null, probes: null, changedFiles: null, change: null, groupSilent: false, text: null })
       assert.deepEqual([normalizeOutcome({ kind: 'ops' }).kind, normalizeOutcome({ kind: 'worker' }).kind, normalizeOutcome({ kind: 'bogus' }).kind], ['ops', 'worker', 'ai'])
       const long = normalizeOutcome({ summary: ` ${'s'.repeat(2001)} `, nextStep: 'n'.repeat(2001), failureKind: 'f'.repeat(41), owner: 'o'.repeat(81), noChangeReason: 'r'.repeat(41), taskState: 't'.repeat(41), rootCauseLayer: 'l'.repeat(41), groupReply: 'g'.repeat(2001), detailDoc: 'd'.repeat(20001), text: 'x'.repeat(4001), warnings: Array.from({ length: 41 }, (_, i) => ` w${i} `), blockers: [1, '', ' b '], changedFiles: Array.from({ length: 101 }, (_, i) => `f${i}`) })
       assert.deepEqual([long.summary.length, long.nextStep.length, long.failureKind.length, long.owner.length, long.noChangeReason.length, long.taskState.length, long.rootCauseLayer.length, long.groupReply.length, long.detailDoc.length, long.text.length], [2000, 2000, 40, 80, 40, 40, 40, 2000, 20000, 4000])
