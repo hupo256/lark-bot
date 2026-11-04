@@ -43,6 +43,10 @@ const stop = (why) => {
   spawnSync('pkill', ['-f', `sim/${round}/.*lark-bot.local.json`])
   process.exit(2)
 }
+// lsof 兜底记的是「TCP <IP>:443」+ 进程名（extra）。claude CLI 自己连接口（走代理时是 claude.env 的 ANTHROPIC_BASE_URL，11-04 起 www.uniaix.com，
+// IP 轮换、认不出是 Claude）不算写请求：claude 的可执行文件按版本号命名（lsof 进程名「2.1.289」）或就叫 claude。它起的 curl / python 进程名不同，照样拦。
+// 11-04 fixmerge-check2 两组都被这条误停。
+const isClaudeSock = (x) => x.method === 'TCP' && /^(?:\d+\.\d+\.\d+|claude)$/i.test(String(x.extra || ''))
 const once = args.includes('--once') // 只检查一次、只打印不停（验证规则用）
 for (;;) {
   if (!once) await new Promise((r) => setTimeout(r, 5 * 60_000))

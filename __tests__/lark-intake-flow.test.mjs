@@ -638,6 +638,51 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
         { name: '目标没契约：照旧', task: me('change'), target: target('done', null), want: true },
       ], ({ task, target: into, want }) => assert.equal(compatibleContinuation({ task, target: into }), want))
     }],
+    ['routes-intake：锚点只并没了结的、交付物兼容的；continues 被拒不退到锚点；别人的只读活在跑不排队（11-04 falive 回放 b2 ep-1031-35935b）', async () => {
+      const c = (deliverable) => (deliverable ? { deliverable } : null)
+      const tasks = new Map([
+        // 答疑那条（已答完）、要密码那条（判 ignore 回了一句，已了结、没契约）、在跑的改码单 / 答疑 / 实测、挂起等补料的
+        ['om_qa', { id: 'om_qa', status: 'done', operator: 'ou_arthur', contract: c('answer'), envTargets: ['uat'] }],
+        ['om_pwd', { id: 'om_pwd', status: 'done', operator: 'ou_arthur', contract: null }],
+        ['om_fix', { id: 'om_fix', status: 'running', operator: 'ou_qa', contract: c('change') }],
+        ['om_ans', { id: 'om_ans', status: 'running', operator: 'ou_a', contract: c('answer') }],
+        ['om_ver', { id: 'om_ver', status: 'queued', operator: 'ou_a', contract: c('verification'), envTargets: ['uat'] }],
+        ['om_park', { id: 'om_park', status: 'waiting_confirmation', operator: 'ou_a', contract: c('change') }],
+        ['om_failed', { id: 'om_failed', status: 'failed', operator: 'ou_a', contract: c('change') }],
+      ])
+      const store = { get: (id) => tasks.get(id) || null }
+      const me = ({ deliverable, decision = 'api_reply', continues = null, anchor = null, operator = 'ou_arthur', envTargets = [] }) => ({ id: 'om_me', operator, envTargets, contract: c(deliverable), intake: { anchorTaskId: anchor, classification: { decision, continues } } })
+      const quiet = console.log
+      console.log = () => {}
+      try {
+        await eachCase([
+          // b2 63f5e917：continues 指向答疑那条但要实测（被拒），锚点是已了结的要密码那条 → 另起，原先凭锚点重开了要密码那条
+          { name: 'continues 交付物不同被拒：不退到锚点', task: me({ deliverable: 'verification', continues: 'om_qa', anchor: 'om_pwd', envTargets: ['uat'] }), want: null },
+          // b2 36bcf1d9：continues=null、relatedTaskId=锚点（同主题另一件事），锚点已了结 → 另起
+          { name: '没判延续、锚点已了结：另起（不重开）', task: me({ deliverable: 'verification', anchor: 'om_pwd', envTargets: ['online'] }), want: null },
+          { name: '没判延续、锚点已失败：另起', task: me({ deliverable: 'change', decision: 'bug', anchor: 'om_failed' }), want: null },
+          { name: '没判延续、锚点是在跑的改码单、本条补料：并入（跑完带补充再跑）', task: me({ deliverable: 'change', decision: 'bug', anchor: 'om_fix', operator: 'ou_other' }), want: 'om_fix' },
+          { name: '没判延续、锚点在等补料：什么都并', task: me({ deliverable: 'answer', anchor: 'om_park' }), want: 'om_park' },
+          { name: '没判延续、锚点在跑的改码单、本条要实测：另起', task: me({ deliverable: 'verification', anchor: 'om_fix' }), want: null },
+          { name: '没判延续、锚点排队中的实测、点名环境不相交：另起', task: me({ deliverable: 'verification', anchor: 'om_ver', envTargets: ['online'], operator: 'ou_a' }), want: null },
+          { name: '没判延续、锚点排队中的实测、同环境：并入', task: me({ deliverable: 'verification', anchor: 'om_ver', envTargets: ['uat'], operator: 'ou_b' }), want: 'om_ver' },
+          { name: '判了 continues 但 id 找不到、锚点已了结：照判延续重开', task: me({ deliverable: 'answer', continues: 'om_nope', anchor: 'om_qa' }), want: 'om_qa' },
+          { name: '判了 continues、同交付物、已了结：重开（追问 → 原答疑）', task: me({ deliverable: 'answer', decision: 'question', continues: 'om_qa', operator: 'ou_b' }), want: 'om_qa' },
+          { name: '别人在跑的答疑、另一个人追问：另起并行答，不排在后面', task: me({ deliverable: 'answer', decision: 'question', continues: 'om_ans', operator: 'ou_b' }), want: null },
+          { name: '同一个人在跑时改口：并入（下一轮按改过的问题答）', task: me({ deliverable: 'answer', decision: 'question', continues: 'om_ans', operator: 'ou_a' }), want: 'om_ans' },
+          { name: '别人在跑的改码单、另一个人报同一问题：照交付物并入', task: me({ deliverable: 'change', decision: 'bug', continues: 'om_fix', operator: 'ou_b' }), want: 'om_fix' },
+          // b2 ep-1014-d74f19 c9dd67b1：直接回复 R6 卡（锚点 = 卡的任务），分类器 continues 指同话题别人的复测单 → 不并过去
+          { name: '回复某张卡、continues 指别的任务、卡已了结：另起', task: { ...me({ deliverable: 'verification', continues: 'om_ver', anchor: 'om_qa', operator: 'ou_b', envTargets: ['uat'] }), quotedOwnCard: true }, want: null },
+          { name: '回复某张卡、continues 指别的任务、卡在跑的改码单收补料：并进卡的任务', task: { ...me({ deliverable: 'change', decision: 'bug', continues: 'om_park', anchor: 'om_fix' }), quotedOwnCard: true }, want: 'om_fix' },
+          { name: '回复某张卡、continues 指别的任务、卡在跑但本条是提问：另起（提问不凭锚点并）', task: { ...me({ deliverable: 'change', decision: 'question', continues: 'om_park', anchor: 'om_fix' }), quotedOwnCard: true }, want: null },
+          { name: '回复某张卡、continues 指别的任务、卡在跑的改码单但本条要实测：另起', task: { ...me({ deliverable: 'verification', decision: 'bug', continues: 'om_park', anchor: 'om_fix' }), quotedOwnCard: true }, want: null },
+          { name: '回复某张卡、continues 就是卡的任务：照常', task: { ...me({ deliverable: 'answer', decision: 'question', continues: 'om_qa', anchor: 'om_qa', operator: 'ou_b' }), quotedOwnCard: true }, want: 'om_qa' },
+          { name: '没回复卡（只在话题里）、continues 指别的任务：照 continues', task: me({ deliverable: 'verification', continues: 'om_ver', anchor: 'om_qa', operator: 'ou_b', envTargets: ['uat'] }), want: 'om_ver' },
+        ], ({ task, want }) => assert.equal(resolveMergeTarget({ task, store })?.id ?? null, want))
+      } finally {
+        console.log = quiet
+      }
+    }],
     ['routes-intake：handleIntakeResolution 每条出口', async () => {
       let outcome = null
       let mergeResult = null
