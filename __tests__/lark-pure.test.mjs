@@ -112,6 +112,17 @@ describe('normalizeMessage', () => {
     assert.equal(msg.senderOpenId, ME)
     assert.equal(msg.mentions[0].id, BOT) // 字符串形态直接取
     assert.equal(msg.text, '修复登录页') // @小助手 已剥除
+    // 句中的 @ 留成 @名字，开头 / 结尾那串剥掉（11-05 b3 ep-1014-c631b0「分给 @Aven.tong 做」原先剥成「分给 做」）；官方信封的占位符先换成名字
+    const people = [{ id: BOT, key: '@_user_1', name: '小助手' }, { id: 'ou_a', key: '@_user_2', name: 'Aven.tong' }, { id: 'ou_e', key: '@_user_3', name: 'Encone' }]
+    const flatText = (content) => normalizeMessage({ message_id: 'om_t', chat_id: 'oc_1', message_type: 'text', content, mentions: people }).text
+    assert.deepEqual([
+      flatText('@Encone 部署完后发下域名 @小助手 注册、登录分给 @Aven.tong 做。顺手更新负责人'),
+      flatText('@Encone @小助手  web 也换一下 @Aven.tong'),
+      flatText('web也换一下新接口吧@Aven.tong'),
+      flatText('@小助手'),
+      normalizeMessage({ event: { message: { message_id: 'om_t2', chat_id: 'oc_1', message_type: 'text', content: JSON.stringify({ text: '@_user_1 请 @_user_2 看下 @_user_3' }), mentions: people.map((m) => ({ ...m, id: { open_id: m.id } })) } } }).text,
+      normalizeMessage({ message_id: 'om_t3', chat_id: 'oc_1', message_type: 'text', content: '@_user_9 看下', mentions: [{ id: 'ou_x', key: '@_user_9' }] }).text,
+    ], ['部署完后发下域名 @小助手 注册、登录分给 @Aven.tong 做。顺手更新负责人', 'web 也换一下', 'web也换一下新接口吧', '', '请 @Aven.tong 看下', '看下'])
     assert.equal(msg.replyTo, 'om_parent')
     assert.deepEqual([msg.threadId, msg.threadRootId, msg.createTimeMs], ['omt_1', 'omt_1', 1_700_000_000_000])
     const bare = normalizeMessage({ message_id: 'om_1b', chat_id: 'oc_1', message_type: 'text', content: 'x', mentions: [], root_id: 'om_parent' })
@@ -802,15 +813,13 @@ describe('parseCommandType', () => {
     assert.equal(classifyClosureIntent('还没解决').intent, null)
   })
 
-  it('结单疑问句不自动关闭；暂停是独立控制动作', () => {
+  it('结单疑问句不自动关闭；暂停是独立控制动作；在问问题', () => {
     for (const text of ['是不是已经解决了？', '这个不用做了吗？', '修复了没', '完成没', '已上线了吗', '还没有取消']) {
       assert.equal(classifyClosureIntent(text).intent, 'unclear', text)
     }
     assert.equal(classifyPauseIntent('先暂停一下'), true)
     assert.equal(classifyPauseIntent('不用继续做了'), false)
-  })
-
-  it('在问问题（asksQuestion，11-05 b3：挂起任务话题里的提问先过分类）', () => {
+    // 在问问题（asksQuestion，11-05 b3：挂起任务话题里的提问先过分类）
     const asks = ['这里涉及到的是哪个功能模块，是谁负责对接的', '这个账号能用吗', '能用吗。', '好了呢', '为啥 404', '为什么没生效', '怎么配', '如何复测', '能不能先打包', '可不可以跳过', '是不是后端的', '有没有接口', '要传多少', '用哪些字段', '哪里配置', '那边哪位跟', '字段叫啥？', 'ready?', '1. x9 有没有这个功能 2. api 是不是 ready 了', '这是什么']
     const says = ['字段叫 avatar', '账号是 508', '按方案 B', '加好了', '吗啡', '呢子大衣到了', '']
     assert.deepEqual([asks.map(asksQuestion), says.map(asksQuestion)], [asks.map(() => true), says.map(() => false)])

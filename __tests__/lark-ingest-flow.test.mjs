@@ -281,7 +281,7 @@ describe('摄入链路 / 上下文包 / 入群事件（真 store + 假 lark-cli�
       await ingestLarkEvent({ raw: rest, config, store })
       const merged = store.get(half.message_id)
       assert.equal(store.has(rest.message_id), false, '后半句不另建（也没被当成跟同事说话丢掉）')
-      assert.match(merged.text, /【话题补充 \d\d:\d\d】如果不方便补信息，请给 打个电话（@ 的是 Adrian，没 @ 机器人）$/, '剥掉的 @ 补成说明')
+      assert.match(merged.text, /【话题补充 \d\d:\d\d】如果不方便补信息，请给 @Adrian 打个电话（@ 的是 Adrian，没 @ 机器人）$/, '句中的 @ 留着（11-05），另补说明')
       assert.deepEqual([merged.intake.awaitingRest, Date.parse(merged.intake.notBefore) - Date.now() < 5_000, merged.intake.mentionedBot], [false, true, false], '说完了马上分类；没 @ bot 不改')
       // 后半句 @ 了 bot：标上 mentionedBot（分类按直接 @ 说的判）。换张卡：同话题里还没分类的单会把后来的话都并进去（去抖），不是本段要测的
       store.upsert({ id: 'om_donei', source: 'lark', chatId: 'oc_g', messageId: 'om_donei', operator: 'ou_qa', status: 'done', epoch: 0, summary: '页脚', text: '页脚', createdAt: '2026-11-01T00:00:00Z' })
