@@ -657,7 +657,7 @@ describe('parseCommandType', () => {
   })
 
   // 11-03 静态 review R5：指令词后跟任意 ≥4 位 ASCII 单词就当 taskId（「继续 debug 一下」→ 回「没找到任务 debug」，需求丢了）。
-  it('续跑指令只认本仓真实 id 形状（om_ / rec / daily- / sf-），英文单词不是 id → 整句按普通消息走', () => {
+  it('续跑指令只认本仓真实 id 形状（om_ / rec / daily- / sf-），英文单词不是 id → 整句按普通消息走；id 抄错一两位的判定（withinEdits）', async () => {
     assert.deepEqual(parseResumeDirective('继续任务 om_x1 用 508 号试'), { taskId: 'om_x1', supplementText: '用 508 号试' })
     assert.deepEqual(parseResumeDirective('resume daily-20261103-a1'), { taskId: 'daily-20261103-a1', supplementText: '' })
     assert.deepEqual(parseResumeDirective('继续 sf-20261103-ab12'), { taskId: 'sf-20261103-ab12', supplementText: '' })
@@ -666,6 +666,89 @@ describe('parseCommandType', () => {
     assert.equal(parseResumeDirective('继续 recheck 一遍'), null, 'rec 开头的英文单词不是记录 id')
     assert.deepEqual(['om_abcd', 'recABC_123', 'reczzAb12', 'daily-20261103-a1', 'sf-20261103-x', 'om_'].map(isTaskIdShape), [true, true, true, true, true, false])
     assert.deepEqual(['Google', 'debug', 'recheck', 'records', 'daily', 'omg_1234', '', null].map(isTaskIdShape), [false, false, false, false, false, false, false, false])
+    // lib/lark-directive-target：替换 / 增删 / 相邻对调各算一步，≤ 2 才算；完全相同、长度差 > 2 不算
+    const { withinEdits } = await import('../lib/lark-directive-target.mjs')
+    const id = 'om_x100b62aec0488ca4ffbbaf6bfcc5e77'
+    assert.deepEqual([
+      withinEdits(id, 'om_x100b62aec0488ca4ffbbaf6fbcc5e77'),
+      withinEdits(id, 'om_x100b62aec0488ca4ffbbaf6bfcc5e7'),
+      withinEdits(id, 'om_x100b62aec0488ca4ffbbaf6bfcc5e7799'),
+      withinEdits(id, 'om_x100b62aec0488ca4ffbbaf6bfcc5zzz'),
+      withinEdits(id, id),
+      withinEdits(id, 'om_x100b62b2b9d39ca0eed63b94d5ce277'),
+      withinEdits('', id),
+    ], [true, true, true, false, false, false, false])
+    assert.deepEqual([withinEdits('ab', 'ba', 1), withinEdits('abc', 'bac', 1), withinEdits('abcd', 'abdc', 1), withinEdits('abc', 'xyz', 2), withinEdits('abcdef', 'abcxyz', 2), withinEdits('a', 'abcd'), withinEdits('x', 'yz', 1)], [true, true, true, false, false, false, false])
+    // 点名的 id 不在库里怎么认（resolveDirectiveTarget / directiveCandidates / linkMessageToTask，11-04 ep-1021-193c03）
+    const { askBackText, directiveCandidates, linkMessageToTask, mappedLead, resolveDirectiveTarget } = await import('../lib/lark-directive-target.mjs')
+    const now = Date.parse('2026-11-04T12:00:00Z')
+    const ago = (h) => new Date(now - h * 3600_000).toISOString()
+    const fakeStore = (list, receipts = {}) => {
+      const upserts = []
+      return { list: () => list, get: (id) => list.find((t) => t.id === id) || null, findTaskByAnyReceipt: (id) => list.find((t) => t.id === receipts[id]) || null, upsert: (t) => upserts.push(t.id), upserts }
+    }
+    const cfg = { notifyOpenId: 'ou_aven' }
+    const aven = { senderOpenId: 'ou_aven', chatId: 'oc_dm' }
+    {
+      const t = { id: 'om_t1', linkedMessageIds: ['om_a'] }
+      const st = fakeStore([t])
+      linkMessageToTask({ store: st, taskId: 'om_t1', messageId: null })
+      linkMessageToTask({ store: st, taskId: 'om_none', messageId: 'om_b' })
+      linkMessageToTask({ store: st, taskId: 'om_t1', messageId: 'om_a' })
+      assert.deepEqual(st.upserts, [], '没消息 id / 没任务 / 已记过：不写')
+      linkMessageToTask({ store: st, taskId: 'om_t1', messageId: 'om_b' })
+      assert.deepEqual([t.linkedMessageIds, st.upserts], [['om_a', 'om_b'], ['om_t1']])
+      const fresh = { id: 'om_t2' }
+      linkMessageToTask({ store: fakeStore([fresh]), taskId: 'om_t2', messageId: 'om_c' })
+      assert.deepEqual(fresh.linkedMessageIds, ['om_c'])
+    }
+    {
+      const P = (id, extra = {}) => ({ id, status: 'waiting_confirmation', operator: 'ou_x', chatId: 'oc_x', updatedAt: ago(1), summary: id, ...extra })
+      const tasks = [
+        P('om_p1', { updatedAt: ago(5), receipts: [{ createdAt: ago(0.5) }] }), P('om_p2', { status: 'blocked', updatedAt: ago(2) }), P('om_p3', { updatedAt: ago(3) }), P('om_p4', { updatedAt: ago(4) }),
+        P('om_old', { updatedAt: ago(48.01) }), P('om_edge', { status: 'blocked', updatedAt: ago(48) }), P('om_f', { status: 'failed', updatedAt: ago(1.5) }),
+        P('om_closed', { status: 'superseded', externalResolution: { by: 'x' }, updatedAt: ago(1) }), P('om_merged', { status: 'superseded', updatedAt: ago(1) }), P('om_done', { status: 'done' }),
+        P('om_mine', { operator: 'ou_qa', chatId: 'oc_y', updatedAt: ago(6) }), P('om_chat', { chatId: 'oc_g', operator: 'ou_y', status: 'failed', updatedAt: ago(7) }),
+      ]
+      const st = fakeStore(tasks)
+      const ids = (list) => list.map((t) => t.id)
+      assert.deepEqual(ids(directiveCandidates({ msg: aven, store: st, config: cfg, action: 'resume', now })), ['om_p1', 'om_f', 'om_p2'], '负责人看全部、最近动过（含回执时间）在前、最多 3 条、failed 他能续')
+      assert.deepEqual(ids(directiveCandidates({ msg: aven, store: fakeStore(tasks.filter((t) => ['om_old', 'om_edge'].includes(t.id))), config: cfg, action: 'resume', now })), ['om_edge'], '48 小时整还算，过了不算')
+      assert.deepEqual(ids(directiveCandidates({ msg: aven, store: st, config: cfg, action: 'reopen', now })), ['om_closed'], '重开只列人工结掉的')
+      assert.deepEqual(ids(directiveCandidates({ msg: { senderOpenId: 'ou_qa', chatId: 'oc_g' }, store: st, config: cfg, action: 'resume', now })), ['om_mine'], '别人：只看自己提的 / 本群的；failed 只有负责人能续')
+      assert.deepEqual(ids(directiveCandidates({ msg: { senderOpenId: 'ou_qa', chatId: 'oc_g' }, store: st, config: cfg, action: 'close', now })), ['om_mine', 'om_chat'], '结单可以结 failed')
+      // resolveDirectiveTarget
+      const into = P('om_into', { mergedFrom: ['om_merged'], linkedMessageIds: ['om_said'] })
+      const other = P('om_other', { linkedMessageIds: ['om_both'] })
+      const into2 = P('om_into2', { linkedMessageIds: ['om_both'] })
+      const scoped = P('om_scope', { scopeRequest: { paths: ['a.json'] } })
+      const all = [...tasks, into, other, into2]
+      const r = (taskId, extra = {}) => resolveDirectiveTarget({ msg: { ...aven, ...(extra.msg || {}) }, store: extra.store || fakeStore(all, { om_card: 'om_p3', om_bot_reply: 'om_p4' }), config: cfg, taskId, action: extra.action || 'resume', supplementText: extra.text || '', now })
+      const pick = (out) => out.task ? [out.task.id, out.via] : ids(out.candidates)
+      assert.deepEqual(pick(r('om_p2')), ['om_p2', 'exact'])
+      assert.deepEqual(pick(r('om_closed')), ['om_closed', 'exact'], '人工结掉的 superseded 没被并：还是它自己')
+      assert.deepEqual(pick(r('om_merged')), ['om_into', 'merged'])
+      assert.deepEqual(pick(r('om_said')), ['om_into', 'linked'])
+      assert.deepEqual(pick(r('om_bot_reply')), ['om_p4', 'linked'], 'bot 回执的 id')
+      assert.deepEqual(pick(r('om_both')), ['om_other', 'om_into2'], '关联到两条：不猜，列这两条')
+      assert.deepEqual(pick(r('om_said', { msg: { replyToDirect: 'om_card' } })), ['om_into', 'om_p3'], 'id 认出的和回复的不是同一条：列两条')
+      assert.deepEqual(pick(r('om_said', { msg: { replyToDirect: 'om_into' } })), ['om_into', 'linked'], '回复的就是它：照认')
+      assert.deepEqual(pick(r('om_sadi')), ['om_p1', 'om_into', 'om_other'], '短 id（< 16 位）不按抄错认')
+      assert.deepEqual(pick(r('om_0123456789adc', { store: fakeStore([P('om_16', { linkedMessageIds: ['om_0123456789acd'] })]) })), ['om_16', 'typo'], '16 位起按抄错认')
+      assert.deepEqual(pick(r('om_x100b62aec0488ca4ffbbaf6fbcc5e77', { store: fakeStore([P('om_long', { linkedMessageIds: ['om_x100b62aec0488ca4ffbbaf6bfcc5e77'] })]) })), ['om_long', 'typo'])
+      assert.deepEqual(pick(r('om_unknown_000000000', { msg: { replyTo: 'om_card' } })), ['om_p3', 'reply'], '话题根也算回复链')
+      assert.deepEqual(pick(r('om_unknown_000000000', { msg: { replyTo: 'om_p2' } })), ['om_p2', 'reply'], '回复的是原任务消息')
+      const scopeStore = fakeStore([...tasks, scoped])
+      assert.deepEqual(pick(r('om_unknown_000000000', { store: scopeStore, text: '确认扩大范围' })), ['om_scope', 'scope'])
+      assert.deepEqual(pick(r('om_unknown_000000000', { store: scopeStore, text: '做' })).length, 3, '不是确认扩大范围：列候选')
+      assert.deepEqual(pick(r('om_unknown_000000000', { store: scopeStore, text: '确认扩大范围', action: 'close' })).length, 3, '结单不按扩大范围认')
+      assert.deepEqual(pick(r('om_unknown_000000000', { store: scopeStore, text: '确认扩大范围', msg: { senderOpenId: 'ou_x', chatId: 'oc_z' } })), ['om_p1', 'om_scope', 'om_p2'], '别人说确认扩大范围不算')
+      assert.deepEqual(pick(r('om_unknown_000000000', { store: fakeStore([...tasks, scoped, P('om_scope2', { status: 'blocked', scopeRequest: { paths: ['b'] } })]), text: '确认扩大范围' })).length, 3, '两条在等扩大范围：不猜')
+      assert.deepEqual(pick(r('om_unknown_000000000', { store: fakeStore([...tasks, P('om_s3', { status: 'failed', scopeRequest: { paths: ['b'] } })]), text: '确认扩大范围' })).length, 3, 'failed 的不算在等确认')
+      assert.equal(mappedLead({ taskId: 'om_q', task: P('om_p1', { summary: null, text: null }), via: 'reply' }), '你给的 om_q 我这边没有，你回复的是它的消息，按「om_p1」（om_p1）处理。', '没标题回 id')
+      assert.equal(askBackText({ taskId: 'om_q', action: 'reopen', candidates: [P('om_c1')] }), '没找到任务 om_q（可能是别的 bot 的 id 或抄错了），这句先没动。你说的是不是这条：\n- 「om_c1」：回「重开任务 om_c1」')
+      assert.match(askBackText({ taskId: 'om_q', action: 'close', candidates: [P('om_c1'), P('om_c2')] }), /是不是这几条：\n- 「om_c1」：回「取消任务 om_c1」\n- /)
+    }
   })
 
   it('只把明确的人工完成确认识别为直接结单', () => {
@@ -687,6 +770,22 @@ describe('parseCommandType', () => {
     assert.equal(classifyClosureIntent('已经有人在改了').intent, 'close')
     assert.equal(classifyClosureIntent('走线下处理了').intent, 'close')
     assert.equal(classifyClosureIntent('不用继续做了').intent, 'close') // 否定+继续=停，不算 partial
+    // 11-04 falive 回放 ep-1021-193c03：Mateo「@Aven.Bot 关闭直播间内的礼物入口，由服务端控制…」是需求补充，原先「关闭」命中 cancelled，
+    // 挂起的礼物任务被取消、群里宣布不做。结单动词带产品宾语 / 前面是具体功能名词 → 不是结单（null，按补料 / 新消息走）。
+    for (const text of [
+      '@Aven.Bot  关闭直播间内的礼物入口，由服务端控制，方便后续兼容低版本。',
+      '取消那个弹窗，直接跳转', '不用管验证码', '把礼物入口关闭', '礼物入口先关闭', '取消掉礼物入口', '停止推送礼物消息',
+      '忽略这个报错', '礼物入口关闭了吗？', '关闭 Google 登录入口',
+    ]) assert.equal(classifyClosureIntent(text).intent, null, text)
+    // 说的是这条任务本身：照旧结单
+    for (const text of ['关闭这个任务', '@Aven.Bot 关闭', '关闭', '取消任务', '把它取消', '这个需求取消', '这个功能取消了吧', '关闭任务 om_abc', '不用继续做了', 'PM 那边取消了']) {
+      assert.equal(classifyClosureIntent(text).intent, 'close', text)
+    }
+    // 一句里先带宾语、后面又说任务不用做：认后面那处
+    assert.equal(classifyClosureIntent('先关闭礼物入口吧，这个任务不用做了').closureReason, 'no_longer_needed')
+    // 否决门 / 时间状语照旧
+    assert.equal(classifyClosureIntent('结束后再通知我').intent, 'unclear')
+    assert.equal(classifyClosureIntent('还没有取消').intent, 'unclear')
   })
 
   it('classifyClosureIntent：否定/暂停/条件未来时/转述 → unclear(不自动结单)', () => {
@@ -2473,3 +2572,4 @@ describe('isTransientLarkError（仅网络层/本地 spawn 超时可重试）', 
     assert.equal(isTransientLarkError({ code: 0, stdout: '{}' }), false)
   })
 })
+

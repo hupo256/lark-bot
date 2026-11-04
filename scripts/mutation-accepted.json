@@ -239,5 +239,11 @@
     "code": "const sign = offset >= 0 ? '+' : '-'",
     "op": ">= → >",
     "reason": "只在本机正好是 UTC±0 时有区别（显示成 UTC+0 还是 UTC-0），单测跑在本机时区上测不到；纯展示，时刻本身不变"
+  },
+  {
+    "file": "lib/lark-control-channel.mjs",
+    "code": "if (explicit && !lead) {",
+    "op": "&& → ||",
+    "reason": "非显式续跑的 task 总在库里（锚定来的），resolveDirectiveTarget 回 exact 原样往下走；带 lead 的递归里点名的已是认出来的那条，同样回 exact——两种都只多算一遍、行为不变（等价变异）"
   }
 ]
