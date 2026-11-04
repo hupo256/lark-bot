@@ -344,16 +344,29 @@ const isIdle = async () => {
 const byIdAll = new Map(timeline.map((m) => [m.id, m]))
 // 触发 bot 的（@bot / 私信 / 回复 bot 的消息）喂完等网关接住；其余只进上下文（读历史时按时钟从时间线取），网关直接丢，不用等。
 const triggersBot = (m) => m.atBot || m.chatKey === 'webhook-group' || Boolean(m.parentId && byIdAll.get(m.parentId)?.ownBot)
+// 空闲要稳住 3 秒、期间没有新发件（seq.json 不动）才跳表（11-04 b2 ep-1031-35935b：worker 把任务写成 done 后网关还在建细节文档、
+// 发结论，这一刻任务列表已经「空闲」，时钟跳到 4 小时后的下一条，结论被盖上跳表后的时刻，裁判判「晚了 4 小时」；实际 2.5 分钟就答了）。
+const sentSeq = () => { try { return JSON.parse(readFileSync(join(simDir, 'seq.json'), 'utf8')).n || 0 } catch { return 0 } }
+const IDLE_STABLE_MS = 3000
 const advanceTo = async (targetMs, label, settleMs = 1500) => {
   let started = Date.now()
+  let idleSince = null
+  let idleSeq = null
   await sleep(settleMs) // 刚喂的消息先让网关接住（建任务 / 挂「收到」），再判空闲
   for (;;) {
-    if (pausedUntil()) { await sleep(2000); started += 2000; continue }
+    if (pausedUntil()) { await sleep(2000); started += 2000; idleSince = null; continue }
     if (clockNow() >= targetMs) return
     if (await isIdle()) {
-      setClock(targetMs)
-      return
+      const seq = sentSeq()
+      if (idleSince == null || seq !== idleSeq) { idleSince = Date.now(); idleSeq = seq }
+      else if (Date.now() - idleSince >= IDLE_STABLE_MS || Date.now() - started > maxWaitMs) {
+        setClock(targetMs)
+        return
+      }
+      await sleep(1000)
+      continue
     }
+    idleSince = null
     if (Date.now() - started > maxWaitMs) {
       log(`${label}：忙了 ${Math.round((Date.now() - started) / 60000)} 分钟还没到下一条的时刻，直接跳过去`)
       setClock(targetMs)
