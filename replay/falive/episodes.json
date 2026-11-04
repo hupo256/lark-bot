@@ -1,0 +1,2973 @@
+{
+ "generatedBy": "node scripts/sim/episodes.mjs",
+ "rules": {
+  "gapMinutes": 30,
+  "windowLeadMinutes": 30,
+  "day": "UTC（与 run-days 切天一致）",
+  "codeOverlap": "改动文件交集，不含 docs/ 与 .md"
+ },
+ "stats": {
+  "cases": 285,
+  "groups": 61,
+  "maxSize": 45,
+  "crossDayGroups": 5,
+  "stages": [
+   {
+    "name": "规则 1 同话题 / 回复链 / 引用 id",
+    "groups": 156
+   },
+   {
+    "name": "规则 2 同群相邻 < 30 分钟",
+    "groups": 75
+   },
+   {
+    "name": "规则 3 falive 真实归并 / 续跑",
+    "groups": 62
+   },
+   {
+    "name": "规则 4 同天改同一批代码文件",
+    "groups": 61
+   }
+  ],
+  "effectiveUnions": {
+   "r1-reply-chain": 76,
+   "r1-bot-card": 33,
+   "r1-text-ref": 18,
+   "r1-draft-reply": 2,
+   "r2-adjacent": 81,
+   "r3-falive": 13,
+   "r4-same-code": 1
+  },
+  "faliveEdges": 255,
+  "faliveCheck": {
+   "bothCases": 174,
+   "alreadySame": 161,
+   "merged": 13
+  },
+  "faliveLogLinesWithoutCase": [
+   "负责人私聊（explicit）→ 续跑 om_x100b629558c848a0ed58744eb40e078：继续任务 om_x100b629558c848a0ed58744eb40e078 做 回复 Bug-4927 的责任人是",
+   "resumed task om_x100b629558c848a0ed58744eb40e078 with supplement（第 1 次续跑）: 继续任务 om_x100b629558c848a0ed58744eb40e078 做 回复",
+   "负责人私聊（recent）→ 续跑 om_x100b61af3bfabca8ffef78b6a263998：CLAUDE.md / AGENTS.md 的「按负责人改代码」整条取消，改成交接后的新做法（Sky / Kai 全面接",
+   "resumed task om_x100b61af3bfabca8ffef78b6a263998 with supplement（第 1 次续跑）: CLAUDE.md / AGENTS.md 的「按负责人改代码」整条取消，改成交接后的新做",
+   "负责人私聊（recent）→ 放行 om_x100b61af3bfabca8ffef78b6a263998 扣下的群回复：已发"
+  ],
+  "draftReplies": [
+   {
+    "caseId": "om_x100b62422a4c6ca0ffe1dd808530d43",
+    "text": "就这样回，哪里拿不准了",
+    "draft": "om_x100b62422e77f0acff64501a7075837",
+    "task": "om_x100b62421f3448a4ed6cff416b29fc7"
+   },
+   {
+    "caseId": "om_x100b613e807e28a4ffc72f3f46fba92",
+    "text": "就这样回",
+    "draft": "om_x100b613edc5e10a0ff92961c55780c2",
+    "task": "om_x100b613e317a7ca8ed433e4cdf4c0a9"
+   }
+  ],
+  "botCardsLinked": 313,
+  "codeTasks": 8,
+  "codePairs": 11,
+  "histogram": [
+   {
+    "bin": "1",
+    "groups": 30
+   },
+   {
+    "bin": "2",
+    "groups": 11
+   },
+   {
+    "bin": "3–5",
+    "groups": 7
+   },
+   {
+    "bin": "6–10",
+    "groups": 6
+   },
+   {
+    "bin": "11–20",
+    "groups": 3
+   },
+   {
+    "bin": "21–40",
+    "groups": 3
+   },
+   {
+    "bin": "41+",
+    "groups": 1
+   }
+  ],
+  "kindMix": {
+   "at_bot": 37,
+   "at_bot+reply_to_bot": 5,
+   "principal_dm": 6,
+   "at_bot+principal_dm": 8,
+   "at_bot+principal_dm+reply_to_bot": 4,
+   "reply_to_bot": 1
+  }
+ },
+ "groups": [
+  {
+   "id": "ep-1014-c631b0",
+   "size": 2,
+   "firstAt": "2026-10-14T08:15:52.399Z",
+   "lastAt": "2026-10-14T10:08:05.171Z",
+   "windowStart": "2026-10-14T07:45:52.399Z",
+   "days": [
+    "2026-10-14"
+   ],
+   "chats": [
+    "Falive PHP后端群"
+   ],
+   "kinds": {
+    "at_bot": 2
+   },
+   "caseIds": [
+    "om_x100b63c7ed480d34ed3cf1c73c631b0",
+    "om_x100b63c1069d4d38eed37a703b333e0"
+   ],
+   "unions": [
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b63c1069d4d38eed37a703b333e0",
+     "b": "om_x100b63c7ed480d34ed3cf1c73c631b0",
+     "detail": "回复链根 om_x100b63c7ed480d34ed3cf1c73c631b0"
+    }
+   ]
+  },
+  {
+   "id": "ep-1014-f3a009",
+   "size": 4,
+   "firstAt": "2026-10-14T13:09:50.620Z",
+   "lastAt": "2026-10-14T13:22:58.648Z",
+   "windowStart": "2026-10-14T12:39:50.620Z",
+   "days": [
+    "2026-10-14"
+   ],
+   "chats": [
+    "Falive PHP后端群"
+   ],
+   "kinds": {
+    "at_bot": 4
+   },
+   "caseIds": [
+    "om_x100b63c3bf2a40a4eed9ba88ff3a009",
+    "om_x100b63cc5c39e0a0ed31980b0ddb87b",
+    "om_x100b63cc51db8ca0ed5dce4e2f1baef",
+    "om_x100b63cc6de408a0ed31aa98199476e"
+   ],
+   "unions": [
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b63c3bf2a40a4eed9ba88ff3a009",
+     "b": "om_x100b63cc5c39e0a0ed31980b0ddb87b",
+     "detail": "同群相隔 9 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b63cc5c39e0a0ed31980b0ddb87b",
+     "b": "om_x100b63cc51db8ca0ed5dce4e2f1baef",
+     "detail": "同群相隔 3 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b63cc51db8ca0ed5dce4e2f1baef",
+     "b": "om_x100b63cc6de408a0ed31aa98199476e",
+     "detail": "同群相隔 1 分钟"
+    }
+   ]
+  },
+  {
+   "id": "ep-1014-d74f19",
+   "size": 17,
+   "firstAt": "2026-10-14T14:08:01.506Z",
+   "lastAt": "2026-10-16T11:02:08.103Z",
+   "windowStart": "2026-10-14T13:38:01.506Z",
+   "days": [
+    "2026-10-14",
+    "2026-10-15",
+    "2026-10-16"
+   ],
+   "chats": [
+    "Falive PHP后端群"
+   ],
+   "kinds": {
+    "at_bot": 17
+   },
+   "caseIds": [
+    "om_x100b63cc82dab8a0ed3267626d74f19",
+    "om_x100b63cdd475cd34ed595c19ea63bdc",
+    "om_x100b63ce4212e8a0ed61e8de30f766f",
+    "om_x100b63ce3f15b0a0ed58c61f363a595",
+    "om_x100b623d2d4944a4ed585d3ecf68877",
+    "om_x100b623dff9100a0ed5b406740b02a2",
+    "om_x100b623d8ec2f0a8ed31cea27893f85",
+    "om_x100b623e4981b8aced3d91ddb15b8a9",
+    "om_x100b623e546b64a0ed4bec43a64bbe2",
+    "om_x100b623e0e9fc0a4ed50c7a4e19c97e",
+    "om_x100b623e1cd0f130eed7897c2972153",
+    "om_x100b6229ccb80b80ed47a5dbf1fddf4",
+    "om_x100b6229ca901ec8ed30ab7772d9673",
+    "om_x100b62299880a0b0ed64863c9dd67b1",
+    "om_x100b6229924f98a4ed3a2bc4e5d8f14",
+    "om_x100b6229ace0b4a8ed4ac105b1275cc",
+    "om_x100b62140dcc88a0ed4a56c3803251f"
+   ],
+   "unions": [
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b623d2d4944a4ed585d3ecf68877",
+     "b": "m:om_x100b63cd59bd80a0ed4cd6324515a63",
+     "detail": "回复链根 om_x100b63cd59bd80a0ed4cd6324515a63"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b62299880a0b0ed64863c9dd67b1",
+     "b": "m:om_x100b623aad8c18a0ed416f6034c871e",
+     "detail": "回复链根 om_x100b623aad8c18a0ed416f6034c871e"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b62140dcc88a0ed4a56c3803251f",
+     "b": "m:om_x100b622991b64938ed359b70ad3ed3e",
+     "detail": "回复链根 om_x100b622991b64938ed359b70ad3ed3e"
+    },
+    {
+     "rule": "r1-bot-card",
+     "a": "m:om_x100b63cd59bd80a0ed4cd6324515a63",
+     "b": "om_x100b63cc82dab8a0ed3267626d74f19",
+     "detail": "bot 卡 om_x100b63cd59bd80a0ed4cd6324515a63 答的是 om_x100b63cc82dab8a0ed3267626d74f19（卡里 @ 了发话人）"
+    },
+    {
+     "rule": "r1-bot-card",
+     "a": "m:om_x100b63cd8dd5c0a0ed586621512ef56",
+     "b": "om_x100b63cdd475cd34ed595c19ea63bdc",
+     "detail": "bot 卡 om_x100b63cd8dd5c0a0ed586621512ef56 答的是 om_x100b63cdd475cd34ed595c19ea63bdc（卡里 @ 了发话人）"
+    },
+    {
+     "rule": "r1-bot-card",
+     "a": "m:om_x100b623db375c4aced48fdfa8f90179",
+     "b": "om_x100b623d2d4944a4ed585d3ecf68877",
+     "detail": "bot 卡 om_x100b623db375c4aced48fdfa8f90179 答的是 om_x100b623d2d4944a4ed585d3ecf68877（卡里 @ 了发话人）"
+    },
+    {
+     "rule": "r1-bot-card",
+     "a": "m:om_x100b623e583120a4ed492649915014b",
+     "b": "om_x100b623e4981b8aced3d91ddb15b8a9",
+     "detail": "bot 卡 om_x100b623e583120a4ed492649915014b 答的是 om_x100b623e4981b8aced3d91ddb15b8a9（卡里 @ 了发话人）"
+    },
+    {
+     "rule": "r1-bot-card",
+     "a": "m:om_x100b623e032858a4ed3e60929cbffea",
+     "b": "om_x100b623e0e9fc0a4ed50c7a4e19c97e",
+     "detail": "bot 卡 om_x100b623e032858a4ed3e60929cbffea 答的是 om_x100b623e0e9fc0a4ed50c7a4e19c97e（卡里 @ 了发话人）"
+    },
+    {
+     "rule": "r1-bot-card",
+     "a": "m:om_x100b623aad8c18a0ed416f6034c871e",
+     "b": "om_x100b623d8ec2f0a8ed31cea27893f85",
+     "detail": "bot 卡 om_x100b623aad8c18a0ed416f6034c871e 答的是 om_x100b623d8ec2f0a8ed31cea27893f85（卡里 @ 了发话人）"
+    },
+    {
+     "rule": "r1-bot-card",
+     "a": "m:om_x100b622991b64938ed359b70ad3ed3e",
+     "b": "om_x100b6229924f98a4ed3a2bc4e5d8f14",
+     "detail": "bot 卡 om_x100b622991b64938ed359b70ad3ed3e 答的是 om_x100b6229924f98a4ed3a2bc4e5d8f14（卡里 @ 了发话人）"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b63ce4212e8a0ed61e8de30f766f",
+     "b": "om_x100b63ce3f15b0a0ed58c61f363a595",
+     "detail": "同群相隔 27 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b623d2d4944a4ed585d3ecf68877",
+     "b": "om_x100b623dff9100a0ed5b406740b02a2",
+     "detail": "同群相隔 21 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b623dff9100a0ed5b406740b02a2",
+     "b": "om_x100b623d8ec2f0a8ed31cea27893f85",
+     "detail": "同群相隔 4 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b623e4981b8aced3d91ddb15b8a9",
+     "b": "om_x100b623e546b64a0ed4bec43a64bbe2",
+     "detail": "同群相隔 5 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b6229ccb80b80ed47a5dbf1fddf4",
+     "b": "om_x100b6229ca901ec8ed30ab7772d9673",
+     "detail": "同群相隔 1 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b62299880a0b0ed64863c9dd67b1",
+     "b": "om_x100b6229924f98a4ed3a2bc4e5d8f14",
+     "detail": "同群相隔 2 分钟"
+    }
+   ]
+  },
+  {
+   "id": "ep-1015-a1af28",
+   "size": 2,
+   "firstAt": "2026-10-15T12:20:24.667Z",
+   "lastAt": "2026-10-15T12:34:17.238Z",
+   "windowStart": "2026-10-15T11:50:24.667Z",
+   "days": [
+    "2026-10-15"
+   ],
+   "chats": [
+    "Falive PHP后端群"
+   ],
+   "kinds": {
+    "at_bot": 2
+   },
+   "caseIds": [
+    "om_x100b62381e451ca0eed282b1ba1af28",
+    "om_x100b6238ca5c6ca0ed605c2972530f1"
+   ],
+   "unions": [
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b6238ca5c6ca0ed605c2972530f1",
+     "b": "m:om_x100b623803e7d8a4eed6cbd11a2beaf",
+     "detail": "回复链根 om_x100b623803e7d8a4eed6cbd11a2beaf"
+    }
+   ]
+  },
+  {
+   "id": "ep-1015-78c768",
+   "size": 1,
+   "firstAt": "2026-10-15T13:27:04.767Z",
+   "lastAt": "2026-10-15T13:27:04.767Z",
+   "windowStart": "2026-10-15T12:57:04.767Z",
+   "days": [
+    "2026-10-15"
+   ],
+   "chats": [
+    "Falive PHP后端群"
+   ],
+   "kinds": {
+    "at_bot": 1
+   },
+   "caseIds": [
+    "om_x100b6239044a5ca4ed558fb7378c768"
+   ],
+   "unions": []
+  },
+  {
+   "id": "ep-1015-2c9c2f",
+   "size": 1,
+   "firstAt": "2026-10-15T15:07:26.846Z",
+   "lastAt": "2026-10-15T15:07:26.846Z",
+   "windowStart": "2026-10-15T14:37:26.846Z",
+   "days": [
+    "2026-10-15"
+   ],
+   "chats": [
+    "Falive PHP后端群"
+   ],
+   "kinds": {
+    "at_bot": 1
+   },
+   "caseIds": [
+    "om_x100b623a8c26b0a4eedf7e62c2c9c2f"
+   ],
+   "unions": []
+  },
+  {
+   "id": "ep-1015-9cb0e5",
+   "size": 1,
+   "firstAt": "2026-10-15T17:04:17.178Z",
+   "lastAt": "2026-10-15T17:04:17.178Z",
+   "windowStart": "2026-10-15T16:34:17.178Z",
+   "days": [
+    "2026-10-15"
+   ],
+   "chats": [
+    "Falive PHP后端群"
+   ],
+   "kinds": {
+    "at_bot": 1
+   },
+   "caseIds": [
+    "om_x100b622437dc8ca0ed504d5fb9cb0e5"
+   ],
+   "unions": []
+  },
+  {
+   "id": "ep-1016-ec6464",
+   "size": 2,
+   "firstAt": "2026-10-16T14:55:06.800Z",
+   "lastAt": "2026-10-16T15:00:31.583Z",
+   "windowStart": "2026-10-16T14:25:06.800Z",
+   "days": [
+    "2026-10-16"
+   ],
+   "chats": [
+    "Falive PHP后端群"
+   ],
+   "kinds": {
+    "at_bot": 2
+   },
+   "caseIds": [
+    "om_x100b6217e26710a0ed5f989efec6464",
+    "om_x100b62178e3ad8a0ed483161cc92d35"
+   ],
+   "unions": [
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b6217e26710a0ed5f989efec6464",
+     "b": "om_x100b62178e3ad8a0ed483161cc92d35",
+     "detail": "同群相隔 5 分钟"
+    }
+   ]
+  },
+  {
+   "id": "ep-1017-cbbda8",
+   "size": 1,
+   "firstAt": "2026-10-17T13:52:05.584Z",
+   "lastAt": "2026-10-17T13:52:05.584Z",
+   "windowStart": "2026-10-17T13:22:05.584Z",
+   "days": [
+    "2026-10-17"
+   ],
+   "chats": [
+    "Falive PHP后端群"
+   ],
+   "kinds": {
+    "at_bot": 1
+   },
+   "caseIds": [
+    "om_x100b6203969ad4a8ed45109b8cbbda8"
+   ],
+   "unions": []
+  },
+  {
+   "id": "ep-1019-57332a",
+   "size": 13,
+   "firstAt": "2026-10-19T10:21:50.404Z",
+   "lastAt": "2026-10-19T15:17:50.976Z",
+   "windowStart": "2026-10-19T09:51:50.404Z",
+   "days": [
+    "2026-10-19"
+   ],
+   "chats": [
+    "Falive PHP后端群"
+   ],
+   "kinds": {
+    "at_bot": 11,
+    "reply_to_bot": 2
+   },
+   "caseIds": [
+    "om_x100b626abd29e0a0ed33cb23a57332a",
+    "om_x100b626ab34880a0eedf4014fa8af7e",
+    "om_x100b626b67ca28a0eed121de07a8513",
+    "om_x100b626b32e1e138ed5761b85a77a16",
+    "om_x100b62544e019930ed50b034149c2d6",
+    "om_x100b62542db740a8ed5f7f295e6dfdc",
+    "om_x100b6254315ef0aced628b6280519b4",
+    "om_x100b62549e9854a4ed4b78b63111390",
+    "om_x100b62549c854ca4ed361762594f0a1",
+    "om_x100b6254b826c0a0ed6ba2920a3e126",
+    "om_x100b625549bc68a0eed1a78a4878c39",
+    "om_x100b62555602d4a4ed5c638b525c958",
+    "om_x100b62570720f0a0ed338a1fc7c1687"
+   ],
+   "unions": [
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b626ab34880a0eedf4014fa8af7e",
+     "b": "m:om_x100b626aab36fca0ed6b09f20035c7e",
+     "detail": "回复链根 om_x100b626aab36fca0ed6b09f20035c7e"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b626b67ca28a0eed121de07a8513",
+     "b": "m:om_x100b626aab36fca0ed6b09f20035c7e",
+     "detail": "回复链根 om_x100b626aab36fca0ed6b09f20035c7e"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b62542db740a8ed5f7f295e6dfdc",
+     "b": "m:om_x100b626aab36fca0ed6b09f20035c7e",
+     "detail": "回复链根 om_x100b626aab36fca0ed6b09f20035c7e"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b62549e9854a4ed4b78b63111390",
+     "b": "m:om_x100b62543b33a500ed5c141ea177b1e",
+     "detail": "回复链根 om_x100b62543b33a500ed5c141ea177b1e"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b62549c854ca4ed361762594f0a1",
+     "b": "m:om_x100b62543b33a500ed5c141ea177b1e",
+     "detail": "回复链根 om_x100b62543b33a500ed5c141ea177b1e"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b62570720f0a0ed338a1fc7c1687",
+     "b": "m:om_x100b6206ecca54a0ed649ca6685095d",
+     "detail": "回复链根 om_x100b6206ecca54a0ed649ca6685095d"
+    },
+    {
+     "rule": "r1-bot-card",
+     "a": "m:om_x100b62543b33a500ed5c141ea177b1e",
+     "b": "om_x100b62542db740a8ed5f7f295e6dfdc",
+     "detail": "bot 卡 om_x100b62543b33a500ed5c141ea177b1e 答的是 om_x100b62542db740a8ed5f7f295e6dfdc（卡里 @ 了发话人）"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b626b67ca28a0eed121de07a8513",
+     "b": "om_x100b626b32e1e138ed5761b85a77a16",
+     "detail": "同群相隔 22 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b62544e019930ed50b034149c2d6",
+     "b": "om_x100b62542db740a8ed5f7f295e6dfdc",
+     "detail": "同群相隔 26 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b62549c854ca4ed361762594f0a1",
+     "b": "om_x100b6254b826c0a0ed6ba2920a3e126",
+     "detail": "同群相隔 10 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b6254b826c0a0ed6ba2920a3e126",
+     "b": "om_x100b625549bc68a0eed1a78a4878c39",
+     "detail": "同群相隔 4 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b625549bc68a0eed1a78a4878c39",
+     "b": "om_x100b62555602d4a4ed5c638b525c958",
+     "detail": "同群相隔 5 分钟"
+    }
+   ]
+  },
+  {
+   "id": "ep-1020-437502",
+   "size": 1,
+   "firstAt": "2026-10-20T04:09:31.195Z",
+   "lastAt": "2026-10-20T04:09:31.195Z",
+   "windowStart": "2026-10-20T03:39:31.195Z",
+   "days": [
+    "2026-10-20"
+   ],
+   "chats": [
+    "Falive产研技术沟通群"
+   ],
+   "kinds": {
+    "at_bot": 1
+   },
+   "caseIds": [
+    "om_x100b625ad97feca4ff931080a437502"
+   ],
+   "unions": []
+  },
+  {
+   "id": "ep-1020-404fe6",
+   "size": 1,
+   "firstAt": "2026-10-20T06:53:14.462Z",
+   "lastAt": "2026-10-20T06:53:14.462Z",
+   "windowStart": "2026-10-20T06:23:14.462Z",
+   "days": [
+    "2026-10-20"
+   ],
+   "chats": [
+    "webhook bot"
+   ],
+   "kinds": {
+    "principal_dm": 1
+   },
+   "caseIds": [
+    "om_x100b6244b36b58a4ff9b85f8c404fe6"
+   ],
+   "unions": []
+  },
+  {
+   "id": "ep-1020-17dd90",
+   "size": 7,
+   "firstAt": "2026-10-20T08:39:35.816Z",
+   "lastAt": "2026-10-20T11:30:32.750Z",
+   "windowStart": "2026-10-20T08:09:35.816Z",
+   "days": [
+    "2026-10-20"
+   ],
+   "chats": [
+    "Falive PHP后端群",
+    "webhook bot"
+   ],
+   "kinds": {
+    "at_bot": 4,
+    "principal_dm": 3
+   },
+   "caseIds": [
+    "om_x100b6246c2b198a4ed65ae1a717dd90",
+    "om_x100b6246d44a48a8ed4b2711c9ab83e",
+    "om_x100b6246ece5f8a0ed5fc6d0c91bdcd",
+    "om_x100b6240e8fec4a0ffd9912000a0da1",
+    "om_x100b624085f970a4ffbea0d4a51a1b2",
+    "om_x100b6241474ca8a0ed4c160651afca0",
+    "om_x100b62414346c0a8ff5d3c81421b3a8"
+   ],
+   "unions": [
+    {
+     "rule": "r1-text-ref",
+     "a": "om_x100b624085f970a4ffbea0d4a51a1b2",
+     "b": "om_x100b6246ece5f8a0ed5fc6d0c91bdcd",
+     "detail": "正文引用 om_x100b6246ece5f8a0ed5fc6d0c91bdcd"
+    },
+    {
+     "rule": "r1-text-ref",
+     "a": "om_x100b62414346c0a8ff5d3c81421b3a8",
+     "b": "om_x100b6241474ca8a0ed4c160651afca0",
+     "detail": "正文引用 om_x100b6241474ca8a0ed4c160651afca0"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b6246c2b198a4ed65ae1a717dd90",
+     "b": "om_x100b6246d44a48a8ed4b2711c9ab83e",
+     "detail": "同群相隔 4 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b6246d44a48a8ed4b2711c9ab83e",
+     "b": "om_x100b6246ece5f8a0ed5fc6d0c91bdcd",
+     "detail": "同群相隔 2 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b6240e8fec4a0ffd9912000a0da1",
+     "b": "om_x100b624085f970a4ffbea0d4a51a1b2",
+     "detail": "同群相隔 10 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b624085f970a4ffbea0d4a51a1b2",
+     "b": "om_x100b62414346c0a8ff5d3c81421b3a8",
+     "detail": "同群相隔 18 分钟"
+    }
+   ]
+  },
+  {
+   "id": "ep-1020-5e48f5",
+   "size": 6,
+   "firstAt": "2026-10-20T12:33:49.231Z",
+   "lastAt": "2026-10-20T14:30:18.318Z",
+   "windowStart": "2026-10-20T12:03:49.231Z",
+   "days": [
+    "2026-10-20"
+   ],
+   "chats": [
+    "Falive PHP后端群",
+    "webhook bot"
+   ],
+   "kinds": {
+    "at_bot": 3,
+    "reply_to_bot": 2,
+    "principal_dm": 1
+   },
+   "caseIds": [
+    "om_x100b6241b41c58a4ed610feaf5e48f5",
+    "om_x100b62424685bca0ed461916fb21df1",
+    "om_x100b62421f3448a4ed6cff416b29fc7",
+    "om_x100b62422a4c6ca0ffe1dd808530d43",
+    "om_x100b6242df874ca0ed4b5a1e05b783d",
+    "om_x100b6243e16e9ca0ed47cc721fc4adf"
+   ],
+   "unions": [
+    {
+     "rule": "r1-bot-card",
+     "a": "m:om_x100b62424a80e4a0ed5ca78df845a0c",
+     "b": "om_x100b6241b41c58a4ed610feaf5e48f5",
+     "detail": "bot 卡 om_x100b62424a80e4a0ed5ca78df845a0c 答的是 om_x100b6241b41c58a4ed610feaf5e48f5（卡里 @ 了发话人）"
+    },
+    {
+     "rule": "r1-bot-card",
+     "a": "m:om_x100b6242c5ac88a4ed3442879dce7a9",
+     "b": "om_x100b62421f3448a4ed6cff416b29fc7",
+     "detail": "bot 卡 om_x100b6242c5ac88a4ed3442879dce7a9 答的是 om_x100b62421f3448a4ed6cff416b29fc7（卡里 @ 了发话人）"
+    },
+    {
+     "rule": "r1-bot-card",
+     "a": "m:om_x100b6243e515bca0ed4ceacf6d0f3e2",
+     "b": "om_x100b6242df874ca0ed4b5a1e05b783d",
+     "detail": "bot 卡 om_x100b6243e515bca0ed4ceacf6d0f3e2 答的是 om_x100b6242df874ca0ed4b5a1e05b783d（卡里 @ 了发话人）"
+    },
+    {
+     "rule": "r1-draft-reply",
+     "a": "om_x100b62422a4c6ca0ffe1dd808530d43",
+     "b": "om_x100b62421f3448a4ed6cff416b29fc7",
+     "detail": "「就这样回，哪里拿不准了」回 10-20T13:00 的私信草稿（任务 om_x100b62421f3448a4ed6cff416b29fc7）"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b62424685bca0ed461916fb21df1",
+     "b": "om_x100b62421f3448a4ed6cff416b29fc7",
+     "detail": "同群相隔 20 分钟"
+    }
+   ]
+  },
+  {
+   "id": "ep-1021-8cca5c",
+   "size": 8,
+   "firstAt": "2026-10-21T06:23:34.016Z",
+   "lastAt": "2026-10-21T13:13:57.878Z",
+   "windowStart": "2026-10-21T05:53:34.016Z",
+   "days": [
+    "2026-10-21"
+   ],
+   "chats": [
+    "Falive PHP后端群",
+    "webhook bot"
+   ],
+   "kinds": {
+    "at_bot": 7,
+    "principal_dm": 1
+   },
+   "caseIds": [
+    "om_x100b62b1e892b8a8ed51cf17d8cca5c",
+    "om_x100b62bf64a154a0ed565d704d2cded",
+    "om_x100b62bf076ed8a4eeda2824304bbb6",
+    "om_x100b62bf122eeca4ed568b18a333b7f",
+    "om_x100b62bf2e3008a4eed0d68c40299b7",
+    "om_x100b62bf2792c534ffc8b1360a68564",
+    "om_x100b62bf23668ca4ed3c5070c637171",
+    "om_x100b62bfe791b938ed33a677fa977f9"
+   ],
+   "unions": [
+    {
+     "rule": "r1-text-ref",
+     "a": "om_x100b62bf2792c534ffc8b1360a68564",
+     "b": "om_x100b62bf2e3008a4eed0d68c40299b7",
+     "detail": "正文引用 om_x100b62bf2e3008a4eed0d68c40299b7"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b62bf64a154a0ed565d704d2cded",
+     "b": "om_x100b62bf076ed8a4eeda2824304bbb6",
+     "detail": "同群相隔 8 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b62bf076ed8a4eeda2824304bbb6",
+     "b": "om_x100b62bf122eeca4ed568b18a333b7f",
+     "detail": "同群相隔 5 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b62bf122eeca4ed568b18a333b7f",
+     "b": "om_x100b62bf2e3008a4eed0d68c40299b7",
+     "detail": "同群相隔 1 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b62bf2e3008a4eed0d68c40299b7",
+     "b": "om_x100b62bf23668ca4ed3c5070c637171",
+     "detail": "同群相隔 3 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b62bf23668ca4ed3c5070c637171",
+     "b": "om_x100b62bfe791b938ed33a677fa977f9",
+     "detail": "同群相隔 16 分钟"
+    },
+    {
+     "rule": "r3-falive",
+     "a": "om_x100b62bf64a154a0ed565d704d2cded",
+     "b": "m:om_x100b62bdf9defca8ed556bebb6a5d9c",
+     "detail": "falive 锚定：锚定：om_x100b62bf64a154a0ed565d704d2cded 接着 om_x100b62bdf9defca8ed556bebb6a5d9c（主题 对接-一期全项目问题-2026-10-20#H1）"
+    }
+   ]
+  },
+  {
+   "id": "ep-1021-2a6dec",
+   "size": 1,
+   "firstAt": "2026-10-21T06:55:18.217Z",
+   "lastAt": "2026-10-21T06:55:18.217Z",
+   "windowStart": "2026-10-21T06:25:18.217Z",
+   "days": [
+    "2026-10-21"
+   ],
+   "chats": [
+    "Falive PHP后端群"
+   ],
+   "kinds": {
+    "at_bot": 1
+   },
+   "caseIds": [
+    "om_x100b62b253af08a4ed34e93a02a6dec"
+   ],
+   "unions": []
+  },
+  {
+   "id": "ep-1021-193c03",
+   "size": 22,
+   "firstAt": "2026-10-21T07:45:55.412Z",
+   "lastAt": "2026-10-22T12:35:46.256Z",
+   "windowStart": "2026-10-21T07:15:55.412Z",
+   "days": [
+    "2026-10-21",
+    "2026-10-22"
+   ],
+   "chats": [
+    "Falive PHP后端群",
+    "webhook bot",
+    "Falive产研技术沟通群"
+   ],
+   "kinds": {
+    "at_bot": 10,
+    "principal_dm": 12
+   },
+   "caseIds": [
+    "om_x100b62b295f820aced5912a0b193c03",
+    "om_x100b62b2b9a09934ed4340aa2a74bb7",
+    "om_x100b62b34bff54a4ed5a4c972ceeda3",
+    "om_x100b62be24d868a4fff9be4a61ea1c0",
+    "om_x100b62be33d94ca0fe19acdcb475c79",
+    "om_x100b62beed7120a0ffa20c14f7de629",
+    "om_x100b62be98207d34ffa172593d62945",
+    "om_x100b62be953e90a0ffe8dfd49014f38",
+    "om_x100b62ae1294cca0fe08427680cd575",
+    "om_x100b62aec0488ca4ffbbaf6bfcc5e77",
+    "om_x100b62aebd09d938fe2ca710c1c7ab2",
+    "om_x100b62af064f40a4ffdce77cb95226c",
+    "om_x100b62afb784c0a0ff7d09433f0f00c",
+    "om_x100b62a86e5908a4fe100f6cacad3d4",
+    "om_x100b62a8040fbca0ff5678cd5dbb4c4",
+    "om_x100b62a926a56ca0ff5adf53e45f9b1",
+    "om_x100b62aa56abd8a0ffcbec0164fae4d",
+    "om_x100b62abe7d478a4eedeab72b0063a6",
+    "om_x100b62abaa1ed4a0fe2a589860e9d0d",
+    "om_x100b62abab0f7ca4ffc6302fc230c1b",
+    "om_x100b6294662c00a0ed398da108fd4fd",
+    "om_x100b62947cee14a8ffe0dd0cb660733"
+   ],
+   "unions": [
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b62aec0488ca4ffbbaf6bfcc5e77",
+     "b": "m:om_x100b62b1254360a0ff701ac95be5574",
+     "detail": "回复链根 om_x100b62b1254360a0ff701ac95be5574"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b62aebd09d938fe2ca710c1c7ab2",
+     "b": "m:om_x100b6259904c8538fe2afa336b9f518",
+     "detail": "回复链根 om_x100b6259904c8538fe2afa336b9f518"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b62afb784c0a0ff7d09433f0f00c",
+     "b": "m:om_x100b62aee4a2ecb0fff57996860b429",
+     "detail": "回复链根 om_x100b62aee4a2ecb0fff57996860b429"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b62a8040fbca0ff5678cd5dbb4c4",
+     "b": "m:om_x100b6259904c8538fe2afa336b9f518",
+     "detail": "回复链根 om_x100b6259904c8538fe2afa336b9f518"
+    },
+    {
+     "rule": "r1-text-ref",
+     "a": "om_x100b62beed7120a0ffa20c14f7de629",
+     "b": "m:om_x100b62b2b9d39ca0eed63b94d5ce277",
+     "detail": "正文引用 om_x100b62b2b9d39ca0eed63b94d5ce277"
+    },
+    {
+     "rule": "r1-text-ref",
+     "a": "om_x100b62be953e90a0ffe8dfd49014f38",
+     "b": "om_x100b62be98207d34ffa172593d62945",
+     "detail": "正文引用 om_x100b62be98207d34ffa172593d62945"
+    },
+    {
+     "rule": "r1-text-ref",
+     "a": "om_x100b62afb784c0a0ff7d09433f0f00c",
+     "b": "om_x100b62aec0488ca4ffbbaf6bfcc5e77",
+     "detail": "正文引用 om_x100b62aec0488ca4ffbbaf6bfcc5e77"
+    },
+    {
+     "rule": "r1-text-ref",
+     "a": "om_x100b62abaa1ed4a0fe2a589860e9d0d",
+     "b": "om_x100b62aec0488ca4ffbbaf6bfcc5e77",
+     "detail": "正文引用 om_x100b62aec0488ca4ffbbaf6bfcc5e77"
+    },
+    {
+     "rule": "r1-text-ref",
+     "a": "om_x100b62abab0f7ca4ffc6302fc230c1b",
+     "b": "om_x100b62abe7d478a4eedeab72b0063a6",
+     "detail": "正文引用 om_x100b62abe7d478a4eedeab72b0063a6"
+    },
+    {
+     "rule": "r1-text-ref",
+     "a": "om_x100b62947cee14a8ffe0dd0cb660733",
+     "b": "om_x100b6294662c00a0ed398da108fd4fd",
+     "detail": "正文引用 om_x100b6294662c00a0ed398da108fd4fd"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b62b295f820aced5912a0b193c03",
+     "b": "om_x100b62b2b9a09934ed4340aa2a74bb7",
+     "detail": "同群相隔 8 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b62b2b9a09934ed4340aa2a74bb7",
+     "b": "om_x100b62b34bff54a4ed5a4c972ceeda3",
+     "detail": "同群相隔 4 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b62ae1294cca0fe08427680cd575",
+     "b": "om_x100b62aec0488ca4ffbbaf6bfcc5e77",
+     "detail": "同群相隔 13 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b62beed7120a0ffa20c14f7de629",
+     "b": "om_x100b62be98207d34ffa172593d62945",
+     "detail": "同群相隔 14 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b62afb784c0a0ff7d09433f0f00c",
+     "b": "om_x100b62a86e5908a4fe100f6cacad3d4",
+     "detail": "同群相隔 10 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b62abaa1ed4a0fe2a589860e9d0d",
+     "b": "om_x100b62abab0f7ca4ffc6302fc230c1b",
+     "detail": "同群相隔 0 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b62abab0f7ca4ffc6302fc230c1b",
+     "b": "om_x100b62947cee14a8ffe0dd0cb660733",
+     "detail": "同群相隔 20 分钟"
+    },
+    {
+     "rule": "r3-falive",
+     "a": "om_x100b62b2b9a09934ed4340aa2a74bb7",
+     "b": "m:om_x100b62b2b9d39ca0eed63b94d5ce277",
+     "detail": "falive 话题补充：话题补充：om_x100b62b2b9a09934ed4340aa2a74bb7 并入任务 om_x100b62b2b9d39ca0eed63b94d5ce277（received）：@Aven.Bot"
+    },
+    {
+     "rule": "r3-falive",
+     "a": "om_x100b62be98207d34ffa172593d62945",
+     "b": "om_x100b62be33d94ca0fe19acdcb475c79",
+     "detail": "falive 私聊指示：负责人私聊（recent）→ 指示任务 om_x100b62be98207d34ffa172593d62945，针对 om_x100b62be33d94ca0fe19acdcb475c79（running）：结束这个任务"
+    },
+    {
+     "rule": "r3-falive",
+     "a": "om_x100b62a926a56ca0ff5adf53e45f9b1",
+     "b": "om_x100b62a8040fbca0ff5678cd5dbb4c4",
+     "detail": "falive 私聊指示：负责人私聊（recent）→ 指示任务 om_x100b62a926a56ca0ff5adf53e45f9b1，针对 om_x100b62a8040fbca0ff5678cd5dbb4c4（done）：范围契约声明纳入的 3 处兄弟位置实测"
+    },
+    {
+     "rule": "r3-falive",
+     "a": "om_x100b62aa56abd8a0ffcbec0164fae4d",
+     "b": "om_x100b62a926a56ca0ff5adf53e45f9b1",
+     "detail": "falive 私聊指示：负责人私聊（recent）→ 指示任务 om_x100b62aa56abd8a0ffcbec0164fae4d，针对 om_x100b62a926a56ca0ff5adf53e45f9b1（done）：<forwarded_messages"
+    }
+   ]
+  },
+  {
+   "id": "ep-1021-48bdf5",
+   "size": 1,
+   "firstAt": "2026-10-21T09:55:55.549Z",
+   "lastAt": "2026-10-21T09:55:55.549Z",
+   "windowStart": "2026-10-21T09:25:55.549Z",
+   "days": [
+    "2026-10-21"
+   ],
+   "chats": [
+    "Falive PHP后端群"
+   ],
+   "kinds": {
+    "at_bot": 1
+   },
+   "caseIds": [
+    "om_x100b62bc8c7b38a8ed6276a3b48bdf5"
+   ],
+   "unions": []
+  },
+  {
+   "id": "ep-1021-d4e64d",
+   "size": 22,
+   "firstAt": "2026-10-21T16:24:24.018Z",
+   "lastAt": "2026-10-22T16:40:42.544Z",
+   "windowStart": "2026-10-21T15:54:24.018Z",
+   "days": [
+    "2026-10-21",
+    "2026-10-22"
+   ],
+   "chats": [
+    "Falive PHP后端群",
+    "webhook bot",
+    "Falive产研技术沟通群"
+   ],
+   "kinds": {
+    "at_bot": 11,
+    "principal_dm": 7,
+    "reply_to_bot": 4
+   },
+   "caseIds": [
+    "om_x100b62ba3db2c4a0eed359868d4e64d",
+    "om_x100b62ba34067ca0fe1835bd9e10a02",
+    "om_x100b6296715848a8eedf3480308f79a",
+    "om_x100b62960b3a28a4fe079e0742acdf9",
+    "om_x100b62962d598ca0ed670076360a71e",
+    "om_x100b629629fde934eed5dcbe32c8388",
+    "om_x100b6296c06434a4ed52d4f73a4c676",
+    "om_x100b6296de3198a0ed3353bc1955d62",
+    "om_x100b6296dc3414a8ed35470097fd06f",
+    "om_x100b6296d61baca0ed5bab602953573",
+    "om_x100b6296eeb4a0a4ed66570b3e1b1b9",
+    "om_x100b6296897fe8a4ffb760099cadc79",
+    "om_x100b629683845ca0eed43bf0bf876b7",
+    "om_x100b6297496514a0eedb2d40802ce55",
+    "om_x100b62975d6504a4eed050088a10b7c",
+    "om_x100b629759a0d0a8fe208a1497f5662",
+    "om_x100b6297692120a0ed33a4f2a165bd8",
+    "om_x100b62977f14b0a0ed61ecb9b818aa4",
+    "om_x100b62971fb870a0ff9a2628d689a4e",
+    "om_x100b62971596e4a0fe071c4fa621942",
+    "om_x100b629727687ca0fe1740186e72d15",
+    "om_x100b6297866590a4ffc153d48c4499b"
+   ],
+   "unions": [
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b629629fde934eed5dcbe32c8388",
+     "b": "m:om_x100b62960339acaced5ac83b29ab006",
+     "detail": "回复链根 om_x100b62960339acaced5ac83b29ab006"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b6296de3198a0ed3353bc1955d62",
+     "b": "m:om_x100b62960339acaced5ac83b29ab006",
+     "detail": "回复链根 om_x100b62960339acaced5ac83b29ab006"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b6296dc3414a8ed35470097fd06f",
+     "b": "m:om_x100b62960339acaced5ac83b29ab006",
+     "detail": "回复链根 om_x100b62960339acaced5ac83b29ab006"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b62975d6504a4eed050088a10b7c",
+     "b": "m:om_x100b62960339acaced5ac83b29ab006",
+     "detail": "回复链根 om_x100b62960339acaced5ac83b29ab006"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b6297692120a0ed33a4f2a165bd8",
+     "b": "m:om_x100b62960339acaced5ac83b29ab006",
+     "detail": "回复链根 om_x100b62960339acaced5ac83b29ab006"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b62977f14b0a0ed61ecb9b818aa4",
+     "b": "m:om_x100b62960339acaced5ac83b29ab006",
+     "detail": "回复链根 om_x100b62960339acaced5ac83b29ab006"
+    },
+    {
+     "rule": "r1-text-ref",
+     "a": "om_x100b62ba34067ca0fe1835bd9e10a02",
+     "b": "om_x100b62ba3db2c4a0eed359868d4e64d",
+     "detail": "正文引用 om_x100b62ba3db2c4a0eed359868d4e64d"
+    },
+    {
+     "rule": "r1-text-ref",
+     "a": "om_x100b62960b3a28a4fe079e0742acdf9",
+     "b": "om_x100b6296715848a8eedf3480308f79a",
+     "detail": "正文引用 om_x100b6296715848a8eedf3480308f79a"
+    },
+    {
+     "rule": "r1-text-ref",
+     "a": "om_x100b6296897fe8a4ffb760099cadc79",
+     "b": "om_x100b6296c06434a4ed52d4f73a4c676",
+     "detail": "正文引用 om_x100b6296c06434a4ed52d4f73a4c676"
+    },
+    {
+     "rule": "r1-text-ref",
+     "a": "om_x100b62971596e4a0fe071c4fa621942",
+     "b": "m:om_x100b629701a040a4ffa98759b9fff15",
+     "detail": "正文引用 om_x100b629701a040a4ffa98759b9fff15"
+    },
+    {
+     "rule": "r1-text-ref",
+     "a": "om_x100b629727687ca0fe1740186e72d15",
+     "b": "om_x100b6296de3198a0ed3353bc1955d62",
+     "detail": "正文引用 om_x100b6296de3198a0ed3353bc1955d62"
+    },
+    {
+     "rule": "r1-text-ref",
+     "a": "om_x100b6297866590a4ffc153d48c4499b",
+     "b": "om_x100b62ba3db2c4a0eed359868d4e64d",
+     "detail": "正文引用 om_x100b62ba3db2c4a0eed359868d4e64d"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b6296715848a8eedf3480308f79a",
+     "b": "om_x100b62962d598ca0ed670076360a71e",
+     "detail": "同群相隔 10 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b629629fde934eed5dcbe32c8388",
+     "b": "om_x100b6296c06434a4ed52d4f73a4c676",
+     "detail": "同群相隔 11 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b6296dc3414a8ed35470097fd06f",
+     "b": "om_x100b6296d61baca0ed5bab602953573",
+     "detail": "同群相隔 2 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b6296d61baca0ed5bab602953573",
+     "b": "om_x100b6296eeb4a0a4ed66570b3e1b1b9",
+     "detail": "同群相隔 2 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b6296eeb4a0a4ed66570b3e1b1b9",
+     "b": "om_x100b629683845ca0eed43bf0bf876b7",
+     "detail": "同群相隔 12 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b629683845ca0eed43bf0bf876b7",
+     "b": "om_x100b6297496514a0eedb2d40802ce55",
+     "detail": "同群相隔 16 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b6296897fe8a4ffb760099cadc79",
+     "b": "om_x100b629759a0d0a8fe208a1497f5662",
+     "detail": "同群相隔 21 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b629759a0d0a8fe208a1497f5662",
+     "b": "om_x100b62971596e4a0fe071c4fa621942",
+     "detail": "同群相隔 18 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b629727687ca0fe1740186e72d15",
+     "b": "om_x100b6297866590a4ffc153d48c4499b",
+     "detail": "同群相隔 25 分钟"
+    }
+   ]
+  },
+  {
+   "id": "ep-1022-aec9b0",
+   "size": 1,
+   "firstAt": "2026-10-22T07:19:09.960Z",
+   "lastAt": "2026-10-22T07:19:09.960Z",
+   "windowStart": "2026-10-22T06:49:09.960Z",
+   "days": [
+    "2026-10-22"
+   ],
+   "chats": [
+    "Falive PHP后端群"
+   ],
+   "kinds": {
+    "at_bot": 1
+   },
+   "caseIds": [
+    "om_x100b62afc01140a8eedfe4b5faec9b0"
+   ],
+   "unions": []
+  },
+  {
+   "id": "ep-1022-0f9c78",
+   "size": 3,
+   "firstAt": "2026-10-22T13:33:21.718Z",
+   "lastAt": "2026-10-28T10:23:35.415Z",
+   "windowStart": "2026-10-22T13:03:21.718Z",
+   "days": [
+    "2026-10-22",
+    "2026-10-28"
+   ],
+   "chats": [
+    "Falive产研技术沟通群"
+   ],
+   "kinds": {
+    "at_bot": 3
+   },
+   "caseIds": [
+    "om_x100b629544d4f8a0ffa4107950f9c78",
+    "om_x100b61282147e8a0fe1645ba2896f5c",
+    "om_x100b61289cb918a0ff614ef5b1baefa"
+   ],
+   "unions": [
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b61282147e8a0fe1645ba2896f5c",
+     "b": "m:om_x100b62b2888d80a0ffd24cbc5d48ec7",
+     "detail": "回复链根 om_x100b62b2888d80a0ffd24cbc5d48ec7"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b61289cb918a0ff614ef5b1baefa",
+     "b": "m:om_x100b62b2888d80a0ffd24cbc5d48ec7",
+     "detail": "回复链根 om_x100b62b2888d80a0ffd24cbc5d48ec7"
+    }
+   ]
+  },
+  {
+   "id": "ep-1022-40e078",
+   "size": 2,
+   "firstAt": "2026-10-22T13:36:32.418Z",
+   "lastAt": "2026-10-22T13:41:34.791Z",
+   "windowStart": "2026-10-22T13:06:32.418Z",
+   "days": [
+    "2026-10-22"
+   ],
+   "chats": [
+    "Falive PHP后端群",
+    "webhook bot"
+   ],
+   "kinds": {
+    "at_bot": 1,
+    "principal_dm": 1
+   },
+   "caseIds": [
+    "om_x100b629558c848a0ed58744eb40e078",
+    "om_x100b6295662664b4ffdafa10a063d79"
+   ],
+   "unions": [
+    {
+     "rule": "r1-text-ref",
+     "a": "om_x100b6295662664b4ffdafa10a063d79",
+     "b": "om_x100b629558c848a0ed58744eb40e078",
+     "detail": "正文引用 om_x100b629558c848a0ed58744eb40e078"
+    }
+   ]
+  },
+  {
+   "id": "ep-1022-4794fb",
+   "size": 1,
+   "firstAt": "2026-10-22T17:04:44.094Z",
+   "lastAt": "2026-10-22T17:04:44.094Z",
+   "windowStart": "2026-10-22T16:34:44.094Z",
+   "days": [
+    "2026-10-22"
+   ],
+   "chats": [
+    "Falive PHP后端群"
+   ],
+   "kinds": {
+    "at_bot": 1
+   },
+   "caseIds": [
+    "om_x100b62906c0d78a0ed578dd434794fb"
+   ],
+   "unions": []
+  },
+  {
+   "id": "ep-1023-50decc",
+   "size": 2,
+   "firstAt": "2026-10-23T06:36:29.656Z",
+   "lastAt": "2026-10-23T06:36:46.112Z",
+   "windowStart": "2026-10-23T06:06:29.656Z",
+   "days": [
+    "2026-10-23"
+   ],
+   "chats": [
+    "Falive PHP后端群"
+   ],
+   "kinds": {
+    "at_bot": 2
+   },
+   "caseIds": [
+    "om_x100b6284481404aced6d3734650decc",
+    "om_x100b6284492c8534ed43097d036cd87"
+   ],
+   "unions": [
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b6284481404aced6d3734650decc",
+     "b": "om_x100b6284492c8534ed43097d036cd87",
+     "detail": "同群相隔 0 分钟"
+    }
+   ]
+  },
+  {
+   "id": "ep-1023-0b66c5",
+   "size": 1,
+   "firstAt": "2026-10-23T07:12:47.481Z",
+   "lastAt": "2026-10-23T07:12:47.481Z",
+   "windowStart": "2026-10-23T06:42:47.481Z",
+   "days": [
+    "2026-10-23"
+   ],
+   "chats": [
+    "Falive PHP后端群"
+   ],
+   "kinds": {
+    "at_bot": 1
+   },
+   "caseIds": [
+    "om_x100b6284c03b3ca8ed4944bad0b66c5"
+   ],
+   "unions": []
+  },
+  {
+   "id": "ep-1023-7de965",
+   "size": 2,
+   "firstAt": "2026-10-23T07:45:25.282Z",
+   "lastAt": "2026-10-23T07:56:48.757Z",
+   "windowStart": "2026-10-23T07:15:25.282Z",
+   "days": [
+    "2026-10-23"
+   ],
+   "chats": [
+    "Falive产研技术沟通群"
+   ],
+   "kinds": {
+    "at_bot": 2
+   },
+   "caseIds": [
+    "om_x100b6285479f04a0ffe0160347de965",
+    "om_x100b62857ac6a4a4fe12fda92d313e9"
+   ],
+   "unions": [
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b62857ac6a4a4fe12fda92d313e9",
+     "b": "m:om_x100b62854d2ae4b8fff971100bd40fb",
+     "detail": "回复链根 om_x100b62854d2ae4b8fff971100bd40fb"
+    }
+   ]
+  },
+  {
+   "id": "ep-1023-9f0fd7",
+   "size": 27,
+   "firstAt": "2026-10-23T09:08:49.852Z",
+   "lastAt": "2026-10-26T12:28:05.608Z",
+   "windowStart": "2026-10-23T08:38:49.852Z",
+   "days": [
+    "2026-10-23",
+    "2026-10-26"
+   ],
+   "chats": [
+    "Falive PHP后端群",
+    "webhook bot"
+   ],
+   "kinds": {
+    "at_bot": 14,
+    "reply_to_bot": 12,
+    "principal_dm": 1
+   },
+   "caseIds": [
+    "om_x100b62860cd6d4b4ed5a4249b9f0fd7",
+    "om_x100b62db3fbded30ed373bf1a606e43",
+    "om_x100b62db3bbb04a0ed69b84a9ab46d8",
+    "om_x100b62db36249130ed4b169e5c8eaa0",
+    "om_x100b62db3152c8a0ed37073f09ac193",
+    "om_x100b62dbcb730ca0ed653e2cfafed2f",
+    "om_x100b62dbc28b94bceed70d5e345b030",
+    "om_x100b62dbc1c2c0a0ffb48844b3bb166",
+    "om_x100b62dbc11060d8eede7ac6ed961e2",
+    "om_x100b62dbde9300a0ed4bce2d8ac2dfa",
+    "om_x100b62dbda4348b0ed4c4abb604e67d",
+    "om_x100b62c4314b9ca8eeda32f4dbbbffd",
+    "om_x100b62c4ee34a8a4ed508c6ba997d95",
+    "om_x100b62c49d8574a4eed405d3c6a3b2f",
+    "om_x100b62c5538774a4ed567924b67b34c",
+    "om_x100b62c568e290a0ed4048931e27fa4",
+    "om_x100b62c6d4aad4a0ed3d2b27cc325da",
+    "om_x100b62c6e207a8a0eed0d0117df3ac3",
+    "om_x100b62c6e32628a8ed4683279553ea1",
+    "om_x100b62c6e1ece8a4ed47787a9c28669",
+    "om_x100b62c6fe08e4a0ed6cbbb32f08e18",
+    "om_x100b62c6abb6a4a8ed45115b72959e2",
+    "om_x100b62c6b7ab18a0ed6691de39f13a4",
+    "om_x100b62c0710caca0ed305267bd4c0ad",
+    "om_x100b62c0252014a4ff6d753a2e9ec89",
+    "om_x100b62c03aa350a0ed37e263c480cd1",
+    "om_x100b62c03b9a34aced5babdbb308158"
+   ],
+   "unions": [
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b62db3fbded30ed373bf1a606e43",
+     "b": "m:om_x100b6285c93afca4ed48bb9dd5c3c38",
+     "detail": "回复链根 om_x100b6285c93afca4ed48bb9dd5c3c38"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b62db3bbb04a0ed69b84a9ab46d8",
+     "b": "m:om_x100b6285c93afca4ed48bb9dd5c3c38",
+     "detail": "回复链根 om_x100b6285c93afca4ed48bb9dd5c3c38"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b62dbc28b94bceed70d5e345b030",
+     "b": "m:om_x100b62db311a98a4ed603e6a1f4108c",
+     "detail": "回复链根 om_x100b62db311a98a4ed603e6a1f4108c"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b62dbc1c2c0a0ffb48844b3bb166",
+     "b": "m:om_x100b62db311a98a4ed603e6a1f4108c",
+     "detail": "回复链根 om_x100b62db311a98a4ed603e6a1f4108c"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b62dbc11060d8eede7ac6ed961e2",
+     "b": "m:om_x100b62db311a98a4ed603e6a1f4108c",
+     "detail": "回复链根 om_x100b62db311a98a4ed603e6a1f4108c"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b62dbde9300a0ed4bce2d8ac2dfa",
+     "b": "m:om_x100b62db311a98a4ed603e6a1f4108c",
+     "detail": "回复链根 om_x100b62db311a98a4ed603e6a1f4108c"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b62dbda4348b0ed4c4abb604e67d",
+     "b": "m:om_x100b62db311a98a4ed603e6a1f4108c",
+     "detail": "回复链根 om_x100b62db311a98a4ed603e6a1f4108c"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b62c4314b9ca8eeda32f4dbbbffd",
+     "b": "m:om_x100b6285c93afca4ed48bb9dd5c3c38",
+     "detail": "回复链根 om_x100b6285c93afca4ed48bb9dd5c3c38"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b62c6d4aad4a0ed3d2b27cc325da",
+     "b": "m:om_x100b62db311a98a4ed603e6a1f4108c",
+     "detail": "回复链根 om_x100b62db311a98a4ed603e6a1f4108c"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b62c6e32628a8ed4683279553ea1",
+     "b": "m:om_x100b62c4dda6e4a0ed624207d18c35c",
+     "detail": "回复链根 om_x100b62c4dda6e4a0ed624207d18c35c"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b62c6e1ece8a4ed47787a9c28669",
+     "b": "m:om_x100b62c4dda6e4a0ed624207d18c35c",
+     "detail": "回复链根 om_x100b62c4dda6e4a0ed624207d18c35c"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b62c6fe08e4a0ed6cbbb32f08e18",
+     "b": "m:om_x100b62c4dda6e4a0ed624207d18c35c",
+     "detail": "回复链根 om_x100b62c4dda6e4a0ed624207d18c35c"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b62c03b9a34aced5babdbb308158",
+     "b": "m:om_x100b62c021f3b0a0ed6fd9ab51dd0bf",
+     "detail": "回复链根 om_x100b62c021f3b0a0ed6fd9ab51dd0bf"
+    },
+    {
+     "rule": "r1-bot-card",
+     "a": "m:om_x100b62db311a98a4ed603e6a1f4108c",
+     "b": "om_x100b62db3bbb04a0ed69b84a9ab46d8",
+     "detail": "bot 卡 om_x100b62db311a98a4ed603e6a1f4108c 答的是 om_x100b62db3bbb04a0ed69b84a9ab46d8（卡里 @ 了发话人）"
+    },
+    {
+     "rule": "r1-bot-card",
+     "a": "m:om_x100b62c4dda6e4a0ed624207d18c35c",
+     "b": "om_x100b62c4314b9ca8eeda32f4dbbbffd",
+     "detail": "bot 卡 om_x100b62c4dda6e4a0ed624207d18c35c 答的是 om_x100b62c4314b9ca8eeda32f4dbbbffd（卡里 @ 了发话人）"
+    },
+    {
+     "rule": "r1-bot-card",
+     "a": "m:om_x100b62c684b76ca0ed5356331a11cb0",
+     "b": "om_x100b62c6e1ece8a4ed47787a9c28669",
+     "detail": "bot 卡 om_x100b62c684b76ca0ed5356331a11cb0 答的是 om_x100b62c6e1ece8a4ed47787a9c28669（卡里 @ 了发话人）"
+    },
+    {
+     "rule": "r1-bot-card",
+     "a": "m:om_x100b62c021f3b0a0ed6fd9ab51dd0bf",
+     "b": "om_x100b62c6b7ab18a0ed6691de39f13a4",
+     "detail": "bot 卡 om_x100b62c021f3b0a0ed6fd9ab51dd0bf 答的是 om_x100b62c6b7ab18a0ed6691de39f13a4（卡里 @ 了发话人）"
+    },
+    {
+     "rule": "r1-text-ref",
+     "a": "om_x100b62c0252014a4ff6d753a2e9ec89",
+     "b": "om_x100b62c49d8574a4eed405d3c6a3b2f",
+     "detail": "正文引用 om_x100b62c49d8574a4eed405d3c6a3b2f"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b62db3bbb04a0ed69b84a9ab46d8",
+     "b": "om_x100b62db36249130ed4b169e5c8eaa0",
+     "detail": "同群相隔 1 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b62db36249130ed4b169e5c8eaa0",
+     "b": "om_x100b62db3152c8a0ed37073f09ac193",
+     "detail": "同群相隔 2 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b62c4314b9ca8eeda32f4dbbbffd",
+     "b": "om_x100b62c4ee34a8a4ed508c6ba997d95",
+     "detail": "同群相隔 9 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b62c4ee34a8a4ed508c6ba997d95",
+     "b": "om_x100b62c49d8574a4eed405d3c6a3b2f",
+     "detail": "同群相隔 13 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b62c49d8574a4eed405d3c6a3b2f",
+     "b": "om_x100b62c5538774a4ed567924b67b34c",
+     "detail": "同群相隔 20 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b62c5538774a4ed567924b67b34c",
+     "b": "om_x100b62c568e290a0ed4048931e27fa4",
+     "detail": "同群相隔 2 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b62c6abb6a4a8ed45115b72959e2",
+     "b": "om_x100b62c6b7ab18a0ed6691de39f13a4",
+     "detail": "同群相隔 5 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b62c0710caca0ed305267bd4c0ad",
+     "b": "om_x100b62c03aa350a0ed37e263c480cd1",
+     "detail": "同群相隔 14 分钟"
+    }
+   ]
+  },
+  {
+   "id": "ep-1023-f6c6cc",
+   "size": 1,
+   "firstAt": "2026-10-23T10:06:43.535Z",
+   "lastAt": "2026-10-23T10:06:43.535Z",
+   "windowStart": "2026-10-23T09:36:43.535Z",
+   "days": [
+    "2026-10-23"
+   ],
+   "chats": [
+    "Falive PHP后端群"
+   ],
+   "kinds": {
+    "at_bot": 1
+   },
+   "caseIds": [
+    "om_x100b628755fb14a4ed5b0e078f6c6cc"
+   ],
+   "unions": []
+  },
+  {
+   "id": "ep-1023-9a8f8d",
+   "size": 1,
+   "firstAt": "2026-10-23T11:18:41.767Z",
+   "lastAt": "2026-10-23T11:18:41.767Z",
+   "windowStart": "2026-10-23T10:48:41.767Z",
+   "days": [
+    "2026-10-23"
+   ],
+   "chats": [
+    "Falive PHP后端群"
+   ],
+   "kinds": {
+    "at_bot": 1
+   },
+   "caseIds": [
+    "om_x100b628067d6fca0ed56131249a8f8d"
+   ],
+   "unions": []
+  },
+  {
+   "id": "ep-1023-08e243",
+   "size": 1,
+   "firstAt": "2026-10-23T13:52:09.782Z",
+   "lastAt": "2026-10-23T13:52:09.782Z",
+   "windowStart": "2026-10-23T13:22:09.782Z",
+   "days": [
+    "2026-10-23"
+   ],
+   "chats": [
+    "webhook bot"
+   ],
+   "kinds": {
+    "principal_dm": 1
+   },
+   "caseIds": [
+    "om_x100b6282265658a0fe17f790908e243"
+   ],
+   "unions": []
+  },
+  {
+   "id": "ep-1023-98f8fa",
+   "size": 1,
+   "firstAt": "2026-10-23T15:19:21.928Z",
+   "lastAt": "2026-10-23T15:19:21.928Z",
+   "windowStart": "2026-10-23T14:49:21.928Z",
+   "days": [
+    "2026-10-23"
+   ],
+   "chats": [
+    "Falive PHP后端群"
+   ],
+   "kinds": {
+    "at_bot": 1
+   },
+   "caseIds": [
+    "om_x100b6283e1512ca0eed52b48098f8fa"
+   ],
+   "unions": []
+  },
+  {
+   "id": "ep-1024-f34b24",
+   "size": 1,
+   "firstAt": "2026-10-24T06:01:33.100Z",
+   "lastAt": "2026-10-24T06:01:33.100Z",
+   "windowStart": "2026-10-24T05:31:33.100Z",
+   "days": [
+    "2026-10-24"
+   ],
+   "chats": [
+    "webhook bot"
+   ],
+   "kinds": {
+    "principal_dm": 1
+   },
+   "caseIds": [
+    "om_x100b62f0d51c94a0ffc88e81df34b24"
+   ],
+   "unions": []
+  },
+  {
+   "id": "ep-1024-b22368",
+   "size": 1,
+   "firstAt": "2026-10-24T08:49:23.676Z",
+   "lastAt": "2026-10-24T08:49:23.676Z",
+   "windowStart": "2026-10-24T08:19:23.676Z",
+   "days": [
+    "2026-10-24"
+   ],
+   "chats": [
+    "Falive PHP后端群"
+   ],
+   "kinds": {
+    "at_bot": 1
+   },
+   "caseIds": [
+    "om_x100b62f35ff42ca4ed3f669c7b22368"
+   ],
+   "unions": []
+  },
+  {
+   "id": "ep-1024-9ebe13",
+   "size": 8,
+   "firstAt": "2026-10-24T10:07:10.941Z",
+   "lastAt": "2026-10-24T15:44:18.707Z",
+   "windowStart": "2026-10-24T09:37:10.941Z",
+   "days": [
+    "2026-10-24"
+   ],
+   "chats": [
+    "Falive PHP后端群",
+    "webhook bot"
+   ],
+   "kinds": {
+    "at_bot": 7,
+    "principal_dm": 1
+   },
+   "caseIds": [
+    "om_x100b62fc7a2060a4eed44f2ab9ebe13",
+    "om_x100b62fc0eab18a8ff566b8f9ce427c",
+    "om_x100b62fc1a1084a0ed416521b0dee2d",
+    "om_x100b62f88b4ba4a0ed62c6f7002bd76",
+    "om_x100b62f883ab54a0eedc53d11baac66",
+    "om_x100b62f94d494ca0ed461fca3e5b201",
+    "om_x100b62f9593808a0ed42e0a526186a4",
+    "om_x100b62f96be7f8a4ed44dbc6f75d5a1"
+   ],
+   "unions": [
+    {
+     "rule": "r1-bot-card",
+     "a": "m:om_x100b62fc2c9218a0ed478ac27230924",
+     "b": "om_x100b62fc1a1084a0ed416521b0dee2d",
+     "detail": "bot 卡 om_x100b62fc2c9218a0ed478ac27230924 答的是 om_x100b62fc1a1084a0ed416521b0dee2d（卡里 @ 了发话人）"
+    },
+    {
+     "rule": "r1-bot-card",
+     "a": "m:om_x100b62f96c3be0a0ed48d24e4c52316",
+     "b": "om_x100b62f9593808a0ed42e0a526186a4",
+     "detail": "bot 卡 om_x100b62f96c3be0a0ed48d24e4c52316 答的是 om_x100b62f9593808a0ed42e0a526186a4（卡里 @ 了发话人）"
+    },
+    {
+     "rule": "r1-text-ref",
+     "a": "om_x100b62fc0eab18a8ff566b8f9ce427c",
+     "b": "om_x100b62fc7a2060a4eed44f2ab9ebe13",
+     "detail": "正文引用 om_x100b62fc7a2060a4eed44f2ab9ebe13"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b62fc7a2060a4eed44f2ab9ebe13",
+     "b": "om_x100b62fc1a1084a0ed416521b0dee2d",
+     "detail": "同群相隔 9 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b62f88b4ba4a0ed62c6f7002bd76",
+     "b": "om_x100b62f883ab54a0eedc53d11baac66",
+     "detail": "同群相隔 2 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b62f883ab54a0eedc53d11baac66",
+     "b": "om_x100b62f94d494ca0ed461fca3e5b201",
+     "detail": "同群相隔 14 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b62f94d494ca0ed461fca3e5b201",
+     "b": "om_x100b62f9593808a0ed42e0a526186a4",
+     "detail": "同群相隔 5 分钟"
+    }
+   ]
+  },
+  {
+   "id": "ep-1026-350ff1",
+   "size": 3,
+   "firstAt": "2026-10-26T09:17:16.841Z",
+   "lastAt": "2026-10-26T09:39:40.114Z",
+   "windowStart": "2026-10-26T08:47:16.841Z",
+   "days": [
+    "2026-10-26"
+   ],
+   "chats": [
+    "Falive PHP后端群"
+   ],
+   "kinds": {
+    "at_bot": 3
+   },
+   "caseIds": [
+    "om_x100b62c5e706f0a0ed6d18be6350ff1",
+    "om_x100b62c5fe29d0a0ed6ce9393d15b6e",
+    "om_x100b62c5b37208a4ed4f70429e7ed15"
+   ],
+   "unions": [
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b62c5e706f0a0ed6d18be6350ff1",
+     "b": "om_x100b62c5fe29d0a0ed6ce9393d15b6e",
+     "detail": "同群相隔 2 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b62c5fe29d0a0ed6ce9393d15b6e",
+     "b": "om_x100b62c5b37208a4ed4f70429e7ed15",
+     "detail": "同群相隔 20 分钟"
+    }
+   ]
+  },
+  {
+   "id": "ep-1026-4f9abc",
+   "size": 1,
+   "firstAt": "2026-10-26T11:42:47.646Z",
+   "lastAt": "2026-10-26T11:42:47.646Z",
+   "windowStart": "2026-10-26T11:12:47.646Z",
+   "days": [
+    "2026-10-26"
+   ],
+   "chats": [
+    "webhook bot"
+   ],
+   "kinds": {
+    "principal_dm": 1
+   },
+   "caseIds": [
+    "om_x100b62c785b43ca4fe0ac414c4f9abc"
+   ],
+   "unions": []
+  },
+  {
+   "id": "ep-1026-9769e5",
+   "size": 2,
+   "firstAt": "2026-10-26T13:31:18.628Z",
+   "lastAt": "2026-10-26T13:48:25.255Z",
+   "windowStart": "2026-10-26T13:01:18.628Z",
+   "days": [
+    "2026-10-26"
+   ],
+   "chats": [
+    "Falive PHP后端群"
+   ],
+   "kinds": {
+    "at_bot": 2
+   },
+   "caseIds": [
+    "om_x100b62c12ca584a0ed60b40549769e5",
+    "om_x100b62c1ec5ee0a4ed6ade7eaab85db"
+   ],
+   "unions": [
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b62c12ca584a0ed60b40549769e5",
+     "b": "om_x100b62c1ec5ee0a4ed6ade7eaab85db",
+     "detail": "同群相隔 17 分钟"
+    }
+   ]
+  },
+  {
+   "id": "ep-1027-63a6f3",
+   "size": 5,
+   "firstAt": "2026-10-27T07:29:05.231Z",
+   "lastAt": "2026-10-27T13:53:47.265Z",
+   "windowStart": "2026-10-27T06:59:05.231Z",
+   "days": [
+    "2026-10-27"
+   ],
+   "chats": [
+    "webhook bot",
+    "Falive PHP后端群"
+   ],
+   "kinds": {
+    "principal_dm": 3,
+    "at_bot": 2
+   },
+   "caseIds": [
+    "om_x100b613162deaca4ffca709b163a6f3",
+    "om_x100b61317d91a8a8ffaf85949d657d4",
+    "om_x100b613ddef190b0ed4f8d2a408e026",
+    "om_x100b613e317a7ca8ed433e4cdf4c0a9",
+    "om_x100b613e807e28a4ffc72f3f46fba92"
+   ],
+   "unions": [
+    {
+     "rule": "r1-bot-card",
+     "a": "m:om_x100b613dfed430a4ed4a752ea4a64b4",
+     "b": "om_x100b613ddef190b0ed4f8d2a408e026",
+     "detail": "bot 卡 om_x100b613dfed430a4ed4a752ea4a64b4 答的是 om_x100b613ddef190b0ed4f8d2a408e026（审计完成时间）"
+    },
+    {
+     "rule": "r1-draft-reply",
+     "a": "om_x100b613e807e28a4ffc72f3f46fba92",
+     "b": "om_x100b613e317a7ca8ed433e4cdf4c0a9",
+     "detail": "「就这样回」回 10-27T13:37 的私信草稿（任务 om_x100b613e317a7ca8ed433e4cdf4c0a9）"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b613162deaca4ffca709b163a6f3",
+     "b": "om_x100b61317d91a8a8ffaf85949d657d4",
+     "detail": "同群相隔 2 分钟"
+    },
+    {
+     "rule": "r3-falive",
+     "a": "om_x100b613162deaca4ffca709b163a6f3",
+     "b": "om_x100b613e317a7ca8ed433e4cdf4c0a9",
+     "detail": "falive 私聊续跑：负责人私聊（recent）→ 放行 om_x100b613e317a7ca8ed433e4cdf4c0a9 扣下的群回复：已发"
+    }
+   ]
+  },
+  {
+   "id": "ep-1027-c4346b",
+   "size": 1,
+   "firstAt": "2026-10-27T09:47:54.649Z",
+   "lastAt": "2026-10-27T09:47:54.649Z",
+   "windowStart": "2026-10-27T09:17:54.649Z",
+   "days": [
+    "2026-10-27"
+   ],
+   "chats": [
+    "Falive产研技术沟通群"
+   ],
+   "kinds": {
+    "at_bot": 1
+   },
+   "caseIds": [
+    "om_x100b61337a64f8a0ff5f5a718c4346b"
+   ],
+   "unions": []
+  },
+  {
+   "id": "ep-1027-d756ea",
+   "size": 2,
+   "firstAt": "2026-10-27T10:27:33.919Z",
+   "lastAt": "2026-10-27T10:33:12.561Z",
+   "windowStart": "2026-10-27T09:57:33.919Z",
+   "days": [
+    "2026-10-27"
+   ],
+   "chats": [
+    "Falive PHP后端群"
+   ],
+   "kinds": {
+    "at_bot": 2
+   },
+   "caseIds": [
+    "om_x100b61338791e0a8ed3719e16d756ea",
+    "om_x100b6133904a8ca0eedb2ac2b7bcc4c"
+   ],
+   "unions": [
+    {
+     "rule": "r1-bot-card",
+     "a": "m:om_x100b613392fac4a0ed5e2c0ac3539bc",
+     "b": "om_x100b61338791e0a8ed3719e16d756ea",
+     "detail": "bot 卡 om_x100b613392fac4a0ed5e2c0ac3539bc 答的是 om_x100b61338791e0a8ed3719e16d756ea（卡里 @ 了发话人）"
+    }
+   ]
+  },
+  {
+   "id": "ep-1027-5e6172",
+   "size": 1,
+   "firstAt": "2026-10-27T11:00:00.152Z",
+   "lastAt": "2026-10-27T11:00:00.152Z",
+   "windowStart": "2026-10-27T10:30:00.152Z",
+   "days": [
+    "2026-10-27"
+   ],
+   "chats": [
+    "Falive产研技术沟通群"
+   ],
+   "kinds": {
+    "at_bot": 1
+   },
+   "caseIds": [
+    "om_x100b613c0dcc3538fe17a86835e6172"
+   ],
+   "unions": []
+  },
+  {
+   "id": "ep-1027-6e06d2",
+   "size": 4,
+   "firstAt": "2026-10-27T12:23:25.924Z",
+   "lastAt": "2026-10-27T12:28:19.990Z",
+   "windowStart": "2026-10-27T11:53:25.924Z",
+   "days": [
+    "2026-10-27"
+   ],
+   "chats": [
+    "Falive产研技术沟通群"
+   ],
+   "kinds": {
+    "at_bot": 4
+   },
+   "caseIds": [
+    "om_x100b613d351128a0ff6f5e3c76e06d2",
+    "om_x100b613dceea2cacff9a53996da700f",
+    "om_x100b613dc6a61ca0fe2e062023c63ab",
+    "om_x100b613dc0f008a0ffd4010dda62627"
+   ],
+   "unions": [
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b613d351128a0ff6f5e3c76e06d2",
+     "b": "om_x100b613dceea2cacff9a53996da700f",
+     "detail": "同群相隔 1 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b613dceea2cacff9a53996da700f",
+     "b": "om_x100b613dc6a61ca0fe2e062023c63ab",
+     "detail": "同群相隔 2 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b613dc6a61ca0fe2e062023c63ab",
+     "b": "om_x100b613dc0f008a0ffd4010dda62627",
+     "detail": "同群相隔 2 分钟"
+    }
+   ]
+  },
+  {
+   "id": "ep-1028-a784cd",
+   "size": 1,
+   "firstAt": "2026-10-28T06:43:38.596Z",
+   "lastAt": "2026-10-28T06:43:38.596Z",
+   "windowStart": "2026-10-28T06:13:38.596Z",
+   "days": [
+    "2026-10-28"
+   ],
+   "chats": [
+    "Falive产研技术沟通群"
+   ],
+   "kinds": {
+    "at_bot": 1
+   },
+   "caseIds": [
+    "om_x100b612dd76528a4fe0d54613a784cd"
+   ],
+   "unions": []
+  },
+  {
+   "id": "ep-1028-70632a",
+   "size": 1,
+   "firstAt": "2026-10-28T06:44:45.397Z",
+   "lastAt": "2026-10-28T06:44:45.397Z",
+   "windowStart": "2026-10-28T06:14:45.397Z",
+   "days": [
+    "2026-10-28"
+   ],
+   "chats": [
+    "Falive PHP后端群"
+   ],
+   "kinds": {
+    "at_bot": 1
+   },
+   "caseIds": [
+    "om_x100b612dd319d0a0ed650450a70632a"
+   ],
+   "unions": []
+  },
+  {
+   "id": "ep-1028-03cd66",
+   "size": 2,
+   "firstAt": "2026-10-28T09:14:52.955Z",
+   "lastAt": "2026-10-28T10:13:28.883Z",
+   "windowStart": "2026-10-28T08:44:52.955Z",
+   "days": [
+    "2026-10-28"
+   ],
+   "chats": [
+    "webhook bot"
+   ],
+   "kinds": {
+    "principal_dm": 2
+   },
+   "caseIds": [
+    "om_x100b612f9e03f8a0fe2bf3f6e03cd66",
+    "om_x100b6128e240eca0ffd8360fc5e55ec"
+   ],
+   "unions": [
+    {
+     "rule": "r3-falive",
+     "a": "om_x100b6128e240eca0ffd8360fc5e55ec",
+     "b": "om_x100b612f9e03f8a0fe2bf3f6e03cd66",
+     "detail": "falive 私聊指示：负责人私聊（recent）→ 指示任务 om_x100b6128e240eca0ffd8360fc5e55ec，针对 om_x100b612f9e03f8a0fe2bf3f6e03cd66（done）：已部署"
+    }
+   ]
+  },
+  {
+   "id": "ep-1028-ee9885",
+   "size": 2,
+   "firstAt": "2026-10-28T10:59:20.044Z",
+   "lastAt": "2026-10-28T11:02:21.105Z",
+   "windowStart": "2026-10-28T10:29:20.044Z",
+   "days": [
+    "2026-10-28"
+   ],
+   "chats": [
+    "Falive PHP后端群",
+    "webhook bot"
+   ],
+   "kinds": {
+    "at_bot": 1,
+    "principal_dm": 1
+   },
+   "caseIds": [
+    "om_x100b612916b3c8a0ed3b215e1ee9885",
+    "om_x100b61292d1cb0a0fe10cefbcde0e47"
+   ],
+   "unions": [
+    {
+     "rule": "r3-falive",
+     "a": "om_x100b61292d1cb0a0fe10cefbcde0e47",
+     "b": "om_x100b612916b3c8a0ed3b215e1ee9885",
+     "detail": "falive 私聊指示：负责人私聊（recent）→ 指示任务 om_x100b61292d1cb0a0fe10cefbcde0e47，针对 om_x100b612916b3c8a0ed3b215e1ee9885（done）：已部署"
+    }
+   ]
+  },
+  {
+   "id": "ep-1028-ce8964",
+   "size": 1,
+   "firstAt": "2026-10-28T11:09:00.834Z",
+   "lastAt": "2026-10-28T11:09:00.834Z",
+   "windowStart": "2026-10-28T10:39:00.834Z",
+   "days": [
+    "2026-10-28"
+   ],
+   "chats": [
+    "Falive产研技术沟通群"
+   ],
+   "kinds": {
+    "at_bot": 1
+   },
+   "caseIds": [
+    "om_x100b61293201e138fff95d20ace8964"
+   ],
+   "unions": []
+  },
+  {
+   "id": "ep-1029-8aca6e",
+   "size": 45,
+   "firstAt": "2026-10-29T04:23:27.075Z",
+   "lastAt": "2026-10-29T16:13:23.596Z",
+   "windowStart": "2026-10-29T03:53:27.075Z",
+   "days": [
+    "2026-10-29"
+   ],
+   "chats": [
+    "Falive产研技术沟通群",
+    "Falive PHP后端群"
+   ],
+   "kinds": {
+    "at_bot": 20,
+    "reply_to_bot": 25
+   },
+   "caseIds": [
+    "om_x100b6118ed3d00a0ffd18b9eb8aca6e",
+    "om_x100b6118e4bf50a0fe2b51ac2536e7d",
+    "om_x100b611a54a5a0a4ffd705496c948a3",
+    "om_x100b611a6e8c04a0ff5684b98c56364",
+    "om_x100b611a6fdb94a0ff5c2ea0ff2d468",
+    "om_x100b611a6ceed8a8ffbb015601b6700",
+    "om_x100b611a6a330934fff811834dd0cef",
+    "om_x100b611a695494a4ff9e2b5cfc5cfd8",
+    "om_x100b611bef3ef13cffe06f1976200ab",
+    "om_x100b610597c584a0ed9a085c0b02070",
+    "om_x100b61059212b4a0ed0ae3d4168702a",
+    "om_x100b6106d6a944a4ed8e9ef8fa5fdd3",
+    "om_x100b6106d0ec84a4ed8b98727d62b5b",
+    "om_x100b6106d02e00a0eda8bbdc737319c",
+    "om_x100b6106826fa930edaab4fef79e798",
+    "om_x100b61069ac3a4a4ed0ae1fe204b421",
+    "om_x100b610691d304a4ed95864a91d2327",
+    "om_x100b6106aec7b4a4eee2c43a46a1719",
+    "om_x100b610761429caced08f8652f7b0e2",
+    "om_x100b61070eeae4a8edab9343306731d",
+    "om_x100b61070fb0c8a4ed03a9ead703ed4",
+    "om_x100b61070cdea4a8eee938196845649",
+    "om_x100b61072ccaa8a0eeed27d3860e6d6",
+    "om_x100b6107c4a7e8a0eda2415781b1b74",
+    "om_x100b6107c46f88a4eda1bb42ed77784",
+    "om_x100b6107df9208a4eda9afe8588b4d1",
+    "om_x100b6107d49ce8a0ed8555c36bf051a",
+    "om_x100b6107eb2048a0ed0bb4926531c41",
+    "om_x100b610046815ca0ed9d957481dd30c",
+    "om_x100b61004626ccb8ed05e4428317895",
+    "om_x100b6100d5fcb0a4ed81b29ea358b2d",
+    "om_x100b6100d304b0a8eeea95385d24939",
+    "om_x100b6100ecd75ca4ed8b97e70c2f1f4",
+    "om_x100b6100e093b8a4eeefb1d94527e7a",
+    "om_x100b6100febfd0a0ed9d20cbe79294d",
+    "om_x100b6100fe7488a0eda2e493b11bfc6",
+    "om_x100b6100fd7040a0ed0d68b26c9c800",
+    "om_x100b6100fa96b8a0ed9f239e1a5022b",
+    "om_x100b6100f2e1a4a0ed8ec0df0d7c792",
+    "om_x100b6102276478a0eee7b4b8465c62b",
+    "om_x100b6102c12ad0a0ed89b6e4abde287",
+    "om_x100b6102eca214a0ed9f5fdfca61464",
+    "om_x100b6102e415dca0ed9cc434d72df9f",
+    "om_x100b61029a506380edade28e6a3b130",
+    "om_x100b610344fa30a8eda7d625d08e8f6"
+   ],
+   "unions": [
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b6118e4bf50a0fe2b51ac2536e7d",
+     "b": "m:om_x100b611831ced8a4ffc5c9a346221a3",
+     "detail": "回复链根 om_x100b611831ced8a4ffc5c9a346221a3"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b611a6e8c04a0ff5684b98c56364",
+     "b": "m:om_x100b611896887ca0ffb5f8bd063d815",
+     "detail": "回复链根 om_x100b611896887ca0ffb5f8bd063d815"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b611a6fdb94a0ff5c2ea0ff2d468",
+     "b": "m:om_x100b611896887ca0ffb5f8bd063d815",
+     "detail": "回复链根 om_x100b611896887ca0ffb5f8bd063d815"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b611a6ceed8a8ffbb015601b6700",
+     "b": "m:om_x100b611896887ca0ffb5f8bd063d815",
+     "detail": "回复链根 om_x100b611896887ca0ffb5f8bd063d815"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b611a6a330934fff811834dd0cef",
+     "b": "m:om_x100b611896887ca0ffb5f8bd063d815",
+     "detail": "回复链根 om_x100b611896887ca0ffb5f8bd063d815"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b611a695494a4ff9e2b5cfc5cfd8",
+     "b": "m:om_x100b611896887ca0ffb5f8bd063d815",
+     "detail": "回复链根 om_x100b611896887ca0ffb5f8bd063d815"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b611bef3ef13cffe06f1976200ab",
+     "b": "m:om_x100b611896887ca0ffb5f8bd063d815",
+     "detail": "回复链根 om_x100b611896887ca0ffb5f8bd063d815"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b61059212b4a0ed0ae3d4168702a",
+     "b": "m:om_x100b6105d85cb0a0ed91f9c4c228710",
+     "detail": "回复链根 om_x100b6105d85cb0a0ed91f9c4c228710"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b6106d6a944a4ed8e9ef8fa5fdd3",
+     "b": "m:om_x100b6105d85cb0a0ed91f9c4c228710",
+     "detail": "回复链根 om_x100b6105d85cb0a0ed91f9c4c228710"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b6106d0ec84a4ed8b98727d62b5b",
+     "b": "m:om_x100b6105d85cb0a0ed91f9c4c228710",
+     "detail": "回复链根 om_x100b6105d85cb0a0ed91f9c4c228710"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b6106d02e00a0eda8bbdc737319c",
+     "b": "m:om_x100b6105d85cb0a0ed91f9c4c228710",
+     "detail": "回复链根 om_x100b6105d85cb0a0ed91f9c4c228710"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b6106826fa930edaab4fef79e798",
+     "b": "m:om_x100b6105d85cb0a0ed91f9c4c228710",
+     "detail": "回复链根 om_x100b6105d85cb0a0ed91f9c4c228710"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b61069ac3a4a4ed0ae1fe204b421",
+     "b": "m:om_x100b6105d85cb0a0ed91f9c4c228710",
+     "detail": "回复链根 om_x100b6105d85cb0a0ed91f9c4c228710"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b610691d304a4ed95864a91d2327",
+     "b": "m:om_x100b6105d85cb0a0ed91f9c4c228710",
+     "detail": "回复链根 om_x100b6105d85cb0a0ed91f9c4c228710"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b6106aec7b4a4eee2c43a46a1719",
+     "b": "m:om_x100b6105d85cb0a0ed91f9c4c228710",
+     "detail": "回复链根 om_x100b6105d85cb0a0ed91f9c4c228710"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b61070fb0c8a4ed03a9ead703ed4",
+     "b": "m:om_x100b6107749a00a8eee15ccf8b1a146",
+     "detail": "回复链根 om_x100b6107749a00a8eee15ccf8b1a146"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b61070cdea4a8eee938196845649",
+     "b": "m:om_x100b6107749a00a8eee15ccf8b1a146",
+     "detail": "回复链根 om_x100b6107749a00a8eee15ccf8b1a146"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b61004626ccb8ed05e4428317895",
+     "b": "m:om_x100b6105d85cb0a0ed91f9c4c228710",
+     "detail": "回复链根 om_x100b6105d85cb0a0ed91f9c4c228710"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b6100d5fcb0a4ed81b29ea358b2d",
+     "b": "m:om_x100b6105d85cb0a0ed91f9c4c228710",
+     "detail": "回复链根 om_x100b6105d85cb0a0ed91f9c4c228710"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b6100d304b0a8eeea95385d24939",
+     "b": "m:om_x100b6105d85cb0a0ed91f9c4c228710",
+     "detail": "回复链根 om_x100b6105d85cb0a0ed91f9c4c228710"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b6100ecd75ca4ed8b97e70c2f1f4",
+     "b": "m:om_x100b6105d85cb0a0ed91f9c4c228710",
+     "detail": "回复链根 om_x100b6105d85cb0a0ed91f9c4c228710"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b6100e093b8a4eeefb1d94527e7a",
+     "b": "m:om_x100b6105d85cb0a0ed91f9c4c228710",
+     "detail": "回复链根 om_x100b6105d85cb0a0ed91f9c4c228710"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b6100febfd0a0ed9d20cbe79294d",
+     "b": "m:om_x100b6105d85cb0a0ed91f9c4c228710",
+     "detail": "回复链根 om_x100b6105d85cb0a0ed91f9c4c228710"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b6100fe7488a0eda2e493b11bfc6",
+     "b": "m:om_x100b6105d85cb0a0ed91f9c4c228710",
+     "detail": "回复链根 om_x100b6105d85cb0a0ed91f9c4c228710"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b6100fa96b8a0ed9f239e1a5022b",
+     "b": "m:om_x100b6105d85cb0a0ed91f9c4c228710",
+     "detail": "回复链根 om_x100b6105d85cb0a0ed91f9c4c228710"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b6102e415dca0ed9cc434d72df9f",
+     "b": "om_x100b6102eca214a0ed9f5fdfca61464",
+     "detail": "回复链根 om_x100b6102eca214a0ed9f5fdfca61464"
+    },
+    {
+     "rule": "r1-bot-card",
+     "a": "m:om_x100b611896887ca0ffb5f8bd063d815",
+     "b": "om_x100b6118ed3d00a0ffd18b9eb8aca6e",
+     "detail": "bot 卡 om_x100b611896887ca0ffb5f8bd063d815 答的是 om_x100b6118ed3d00a0ffd18b9eb8aca6e（审计完成时间）"
+    },
+    {
+     "rule": "r1-bot-card",
+     "a": "m:om_x100b6107749a00a8eee15ccf8b1a146",
+     "b": "om_x100b610761429caced08f8652f7b0e2",
+     "detail": "bot 卡 om_x100b6107749a00a8eee15ccf8b1a146 答的是 om_x100b610761429caced08f8652f7b0e2（审计完成时间）"
+    },
+    {
+     "rule": "r1-bot-card",
+     "a": "m:om_x100b6102d3b1a4a4ed9013fe43cd76c",
+     "b": "om_x100b6102c12ad0a0ed89b6e4abde287",
+     "detail": "bot 卡 om_x100b6102d3b1a4a4ed9013fe43cd76c 答的是 om_x100b6102c12ad0a0ed89b6e4abde287（审计完成时间）"
+    },
+    {
+     "rule": "r1-bot-card",
+     "a": "m:om_x100b61029feb70a4ed0cd532e3867de",
+     "b": "om_x100b6102e415dca0ed9cc434d72df9f",
+     "detail": "bot 卡 om_x100b61029feb70a4ed0cd532e3867de 答的是 om_x100b6102e415dca0ed9cc434d72df9f（审计完成时间）"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b6106aec7b4a4eee2c43a46a1719",
+     "b": "om_x100b610761429caced08f8652f7b0e2",
+     "detail": "同群相隔 21 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b61070cdea4a8eee938196845649",
+     "b": "om_x100b61072ccaa8a0eeed27d3860e6d6",
+     "detail": "同群相隔 9 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b61072ccaa8a0eeed27d3860e6d6",
+     "b": "om_x100b6107c4a7e8a0eda2415781b1b74",
+     "detail": "同群相隔 11 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b6107c4a7e8a0eda2415781b1b74",
+     "b": "om_x100b6107c46f88a4eda1bb42ed77784",
+     "detail": "同群相隔 0 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b6107c46f88a4eda1bb42ed77784",
+     "b": "om_x100b6107df9208a4eda9afe8588b4d1",
+     "detail": "同群相隔 2 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b6107df9208a4eda9afe8588b4d1",
+     "b": "om_x100b6107d49ce8a0ed8555c36bf051a",
+     "detail": "同群相隔 2 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b6107d49ce8a0ed8555c36bf051a",
+     "b": "om_x100b6107eb2048a0ed0bb4926531c41",
+     "detail": "同群相隔 3 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b6107eb2048a0ed0bb4926531c41",
+     "b": "om_x100b610046815ca0ed9d957481dd30c",
+     "detail": "同群相隔 26 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b6100fe7488a0eda2e493b11bfc6",
+     "b": "om_x100b6100fd7040a0ed0d68b26c9c800",
+     "detail": "同群相隔 1 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b6100fa96b8a0ed9f239e1a5022b",
+     "b": "om_x100b6100f2e1a4a0ed8ec0df0d7c792",
+     "detail": "同群相隔 2 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b6102276478a0eee7b4b8465c62b",
+     "b": "om_x100b6102c12ad0a0ed89b6e4abde287",
+     "detail": "同群相隔 10 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b61029a506380edade28e6a3b130",
+     "b": "om_x100b610344fa30a8eda7d625d08e8f6",
+     "detail": "同群相隔 14 分钟"
+    },
+    {
+     "rule": "r3-falive",
+     "a": "om_x100b610344fa30a8eda7d625d08e8f6",
+     "b": "om_x100b6100f2e1a4a0ed8ec0df0d7c792",
+     "detail": "falive 锚定：锚定：om_x100b610344fa30a8eda7d625d08e8f6 接着 om_x100b6100f2e1a4a0ed8ec0df0d7c792（主题 new#60e6d6）"
+    },
+    {
+     "rule": "r4-same-code",
+     "a": "om_x100b61070eeae4a8edab9343306731d",
+     "b": "om_x100b6118ed3d00a0ffd18b9eb8aca6e",
+     "detail": "2026-10-29 都改代码，同改 build/service-gateway.test.ts"
+    }
+   ]
+  },
+  {
+   "id": "ep-1029-f09207",
+   "size": 2,
+   "firstAt": "2026-10-29T06:58:58.915Z",
+   "lastAt": "2026-10-29T07:04:39.770Z",
+   "windowStart": "2026-10-29T06:28:58.915Z",
+   "days": [
+    "2026-10-29"
+   ],
+   "chats": [
+    "Falive产研技术沟通群"
+   ],
+   "kinds": {
+    "at_bot": 1,
+    "reply_to_bot": 1
+   },
+   "caseIds": [
+    "om_x100b611aa5e028b4ffb1a3e4ef09207",
+    "om_x100b611b4eb6d0a0fe1607007fb4451"
+   ],
+   "unions": [
+    {
+     "rule": "r1-bot-card",
+     "a": "m:om_x100b611ab68798a0ffc82943b3198b8",
+     "b": "om_x100b611aa5e028b4ffb1a3e4ef09207",
+     "detail": "bot 卡 om_x100b611ab68798a0ffc82943b3198b8 答的是 om_x100b611aa5e028b4ffb1a3e4ef09207（审计完成时间）"
+    }
+   ]
+  },
+  {
+   "id": "ep-1030-b864a1",
+   "size": 6,
+   "firstAt": "2026-10-30T06:29:58.933Z",
+   "lastAt": "2026-10-30T07:53:47.325Z",
+   "windowStart": "2026-10-30T05:59:58.933Z",
+   "days": [
+    "2026-10-30"
+   ],
+   "chats": [
+    "Falive产研技术沟通群"
+   ],
+   "kinds": {
+    "at_bot": 6
+   },
+   "caseIds": [
+    "om_x100b6177d8a13cacff5fc67ecb864a1",
+    "om_x100b617786100ca0ff6b1db92350c34",
+    "om_x100b617784d30ca0ffcef5a90e4c409",
+    "om_x100b61701eb704a4fe09213dfc12889",
+    "om_x100b6170168a64a8ff72d6226351f74",
+    "om_x100b61709e7ea8a0fff406216b67dde"
+   ],
+   "unions": [
+    {
+     "rule": "r1-bot-card",
+     "a": "m:om_x100b617793610cb0ffe789b6bba2a1a",
+     "b": "om_x100b617784d30ca0ffcef5a90e4c409",
+     "detail": "bot 卡 om_x100b617793610cb0ffe789b6bba2a1a 答的是 om_x100b617784d30ca0ffcef5a90e4c409（审计完成时间）"
+    },
+    {
+     "rule": "r1-bot-card",
+     "a": "m:om_x100b6170263468b4ffa6ba3d6debbd1",
+     "b": "om_x100b61701eb704a4fe09213dfc12889",
+     "detail": "bot 卡 om_x100b6170263468b4ffa6ba3d6debbd1 答的是 om_x100b61701eb704a4fe09213dfc12889（审计完成时间）"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b6177d8a13cacff5fc67ecb864a1",
+     "b": "om_x100b617786100ca0ff6b1db92350c34",
+     "detail": "同群相隔 13 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b617786100ca0ff6b1db92350c34",
+     "b": "om_x100b617784d30ca0ffcef5a90e4c409",
+     "detail": "同群相隔 0 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b61701eb704a4fe09213dfc12889",
+     "b": "om_x100b6170168a64a8ff72d6226351f74",
+     "detail": "同群相隔 2 分钟"
+    }
+   ]
+  },
+  {
+   "id": "ep-1030-83e8e3",
+   "size": 1,
+   "firstAt": "2026-10-30T06:51:00.088Z",
+   "lastAt": "2026-10-30T06:51:00.088Z",
+   "windowStart": "2026-10-30T06:21:00.088Z",
+   "days": [
+    "2026-10-30"
+   ],
+   "chats": [
+    "webhook bot"
+   ],
+   "kinds": {
+    "principal_dm": 1
+   },
+   "caseIds": [
+    "om_x100b6177ab8c8ca8fffa5c17283e8e3"
+   ],
+   "unions": []
+  },
+  {
+   "id": "ep-1030-04e660",
+   "size": 1,
+   "firstAt": "2026-10-30T10:12:39.914Z",
+   "lastAt": "2026-10-30T10:12:39.914Z",
+   "windowStart": "2026-10-30T09:42:39.914Z",
+   "days": [
+    "2026-10-30"
+   ],
+   "chats": [
+    "Falive PHP后端群"
+   ],
+   "kinds": {
+    "at_bot": 1
+   },
+   "caseIds": [
+    "om_x100b617297b1f8a8ed91ec58d04e660"
+   ],
+   "unions": []
+  },
+  {
+   "id": "ep-1030-337e3d",
+   "size": 5,
+   "firstAt": "2026-10-30T14:32:16.200Z",
+   "lastAt": "2026-10-30T15:09:16.868Z",
+   "windowStart": "2026-10-30T14:02:16.200Z",
+   "days": [
+    "2026-10-30"
+   ],
+   "chats": [
+    "Falive PHP后端群"
+   ],
+   "kinds": {
+    "at_bot": 2,
+    "reply_to_bot": 3
+   },
+   "caseIds": [
+    "om_x100b617ee9cc04a4eeef84e99337e3d",
+    "om_x100b617eff5ea4a4ed04600bc21fcd8",
+    "om_x100b617ef5885ca0ed87e0a531e4598",
+    "om_x100b617f63ee0ca0ff60005c7683910",
+    "om_x100b617f7f0644a0eda2a9a8d16c959"
+   ],
+   "unions": [
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b617f7f0644a0eda2a9a8d16c959",
+     "b": "m:om_x100b617f691308b0eda8ae19afcf0a8",
+     "detail": "回复链根 om_x100b617f691308b0eda8ae19afcf0a8"
+    },
+    {
+     "rule": "r1-bot-card",
+     "a": "m:om_x100b617ee26f9ca0ed09abb8bac648f",
+     "b": "om_x100b617ee9cc04a4eeef84e99337e3d",
+     "detail": "bot 卡 om_x100b617ee26f9ca0ed09abb8bac648f 答的是 om_x100b617ee9cc04a4eeef84e99337e3d（审计完成时间）"
+    },
+    {
+     "rule": "r1-bot-card",
+     "a": "m:om_x100b617f691308b0eda8ae19afcf0a8",
+     "b": "om_x100b617ef5885ca0ed87e0a531e4598",
+     "detail": "bot 卡 om_x100b617f691308b0eda8ae19afcf0a8 答的是 om_x100b617ef5885ca0ed87e0a531e4598（卡里 @ 了发话人）"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b617eff5ea4a4ed04600bc21fcd8",
+     "b": "om_x100b617ef5885ca0ed87e0a531e4598",
+     "detail": "同群相隔 3 分钟"
+    }
+   ]
+  },
+  {
+   "id": "ep-1030-167d28",
+   "size": 5,
+   "firstAt": "2026-10-30T17:30:34.011Z",
+   "lastAt": "2026-10-30T18:30:27.660Z",
+   "windowStart": "2026-10-30T17:00:34.011Z",
+   "days": [
+    "2026-10-30"
+   ],
+   "chats": [
+    "Falive产研技术沟通群",
+    "webhook bot"
+   ],
+   "kinds": {
+    "at_bot": 3,
+    "principal_dm": 1,
+    "reply_to_bot": 1
+   },
+   "caseIds": [
+    "om_x100b61790d52a4a0ff5fecf60167d28",
+    "om_x100b6179153170a0fff1b7b426297ed",
+    "om_x100b61793eec0ca0ffb1ef2c13d396a",
+    "om_x100b6179e91a04a0fe0fbe736d1a652",
+    "om_x100b617a6af430a4ffdcddda4e9e86e"
+   ],
+   "unions": [
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b6179153170a0fff1b7b426297ed",
+     "b": "m:om_x100b6179684664a0ff948314e3e3531",
+     "detail": "回复链根 om_x100b6179684664a0ff948314e3e3531"
+    },
+    {
+     "rule": "r1-bot-card",
+     "a": "m:om_x100b6179d767dca4ff644572fefec52",
+     "b": "om_x100b61790d52a4a0ff5fecf60167d28",
+     "detail": "bot 卡 om_x100b6179d767dca4ff644572fefec52 答的是 om_x100b61790d52a4a0ff5fecf60167d28（审计完成时间）"
+    },
+    {
+     "rule": "r3-falive",
+     "a": "om_x100b61793eec0ca0ffb1ef2c13d396a",
+     "b": "om_x100b61790d52a4a0ff5fecf60167d28",
+     "detail": "falive 私聊续跑：负责人私聊（recent）→ 续跑 om_x100b61790d52a4a0ff5fecf60167d28：自己登录进去看看，这个是账号："
+    },
+    {
+     "rule": "r3-falive",
+     "a": "om_x100b617a6af430a4ffdcddda4e9e86e",
+     "b": "om_x100b6179153170a0fff1b7b426297ed",
+     "detail": "falive 锚定：锚定：om_x100b617a6af430a4ffdcddda4e9e86e 接着 om_x100b6179153170a0fff1b7b426297ed（主题 new#167d28）"
+    }
+   ]
+  },
+  {
+   "id": "ep-1031-f8065f",
+   "size": 14,
+   "firstAt": "2026-10-31T08:51:42.877Z",
+   "lastAt": "2026-10-31T09:05:52.338Z",
+   "windowStart": "2026-10-31T08:21:42.877Z",
+   "days": [
+    "2026-10-31"
+   ],
+   "chats": [
+    "Falive产研技术沟通群"
+   ],
+   "kinds": {
+    "at_bot": 4,
+    "reply_to_bot": 10
+   },
+   "caseIds": [
+    "om_x100b616e8f20a0a8ff785f8bff8065f",
+    "om_x100b616e823424a0fe2395cf3fe4f73",
+    "om_x100b616e9d6170a8fe1f7fa18a5f09d",
+    "om_x100b616e961fc8a8ffe88c4e6f6a4b8",
+    "om_x100b616e925610a4ffbb7d386182f72",
+    "om_x100b616e90ca7ca0ffc339b5f998b23",
+    "om_x100b616e9106eca0fe1fb4f074bdc08",
+    "om_x100b616eaece7ca0ff7dfb82fd7b6fb",
+    "om_x100b616eae17cca0ffae11afca46628",
+    "om_x100b616eacec1ca4ff72fccddf22ca8",
+    "om_x100b616ebe4e00a8ff6ddc83b1b0427",
+    "om_x100b616ebcd6fca0ff791afc31a1f8e",
+    "om_x100b616ebdfe24a0fe2070c0b9f71be",
+    "om_x100b616eb9c940a0ff7bbb06ed50b88"
+   ],
+   "unions": [
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b616e961fc8a8ffe88c4e6f6a4b8",
+     "b": "m:om_x100b616e845a3cacffa4176073f60a5",
+     "detail": "回复链根 om_x100b616e845a3cacffa4176073f60a5"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b616e90ca7ca0ffc339b5f998b23",
+     "b": "m:om_x100b616e991500a0fe02230142f00cb",
+     "detail": "回复链根 om_x100b616e991500a0fe02230142f00cb"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b616e9106eca0fe1fb4f074bdc08",
+     "b": "m:om_x100b616e991500a0fe02230142f00cb",
+     "detail": "回复链根 om_x100b616e991500a0fe02230142f00cb"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b616eaece7ca0ff7dfb82fd7b6fb",
+     "b": "m:om_x100b616e991500a0fe02230142f00cb",
+     "detail": "回复链根 om_x100b616e991500a0fe02230142f00cb"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b616eae17cca0ffae11afca46628",
+     "b": "m:om_x100b616e991500a0fe02230142f00cb",
+     "detail": "回复链根 om_x100b616e991500a0fe02230142f00cb"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b616eacec1ca4ff72fccddf22ca8",
+     "b": "m:om_x100b616e991500a0fe02230142f00cb",
+     "detail": "回复链根 om_x100b616e991500a0fe02230142f00cb"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b616ebe4e00a8ff6ddc83b1b0427",
+     "b": "m:om_x100b616e991500a0fe02230142f00cb",
+     "detail": "回复链根 om_x100b616e991500a0fe02230142f00cb"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b616ebcd6fca0ff791afc31a1f8e",
+     "b": "m:om_x100b616e991500a0fe02230142f00cb",
+     "detail": "回复链根 om_x100b616e991500a0fe02230142f00cb"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b616ebdfe24a0fe2070c0b9f71be",
+     "b": "m:om_x100b616e991500a0fe02230142f00cb",
+     "detail": "回复链根 om_x100b616e991500a0fe02230142f00cb"
+    },
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b616eb9c940a0ff7bbb06ed50b88",
+     "b": "m:om_x100b616e991500a0fe02230142f00cb",
+     "detail": "回复链根 om_x100b616e991500a0fe02230142f00cb"
+    },
+    {
+     "rule": "r1-bot-card",
+     "a": "m:om_x100b616e9f6730a0ffc1f655a316ffd",
+     "b": "om_x100b616e823424a0fe2395cf3fe4f73",
+     "detail": "bot 卡 om_x100b616e9f6730a0ffc1f655a316ffd 答的是 om_x100b616e823424a0fe2395cf3fe4f73（审计完成时间）"
+    },
+    {
+     "rule": "r1-bot-card",
+     "a": "m:om_x100b616e991500a0fe02230142f00cb",
+     "b": "om_x100b616e823424a0fe2395cf3fe4f73",
+     "detail": "bot 卡 om_x100b616e991500a0fe02230142f00cb 答的是 om_x100b616e823424a0fe2395cf3fe4f73（审计完成时间）"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b616e8f20a0a8ff785f8bff8065f",
+     "b": "om_x100b616e823424a0fe2395cf3fe4f73",
+     "detail": "同群相隔 3 分钟"
+    }
+   ]
+  },
+  {
+   "id": "ep-1031-35935b",
+   "size": 9,
+   "firstAt": "2026-10-31T09:11:18.415Z",
+   "lastAt": "2026-10-31T15:42:33.298Z",
+   "windowStart": "2026-10-31T08:41:18.415Z",
+   "days": [
+    "2026-10-31"
+   ],
+   "chats": [
+    "Falive PHP后端群",
+    "webhook bot"
+   ],
+   "kinds": {
+    "at_bot": 5,
+    "principal_dm": 4
+   },
+   "caseIds": [
+    "om_x100b616f45a93ca4ed948dfbf35935b",
+    "om_x100b616f84f74ca0eee30d95ed4c87f",
+    "om_x100b616b132e9ca0ed8872eec5b73f2",
+    "om_x100b616bff6088a0eda274a63f5e917",
+    "om_x100b6154619dcca4fe1bc93461061e6",
+    "om_x100b61543053d8a4ff5156d6feda8fc",
+    "om_x100b6154d2778938ffcb84cf086171d",
+    "om_x100b6154e914e4a4ffbf75be6e461b7",
+    "om_x100b6154885f40a0ed09cb636bcf1d9"
+   ],
+   "unions": [
+    {
+     "rule": "r1-reply-chain",
+     "a": "om_x100b616bff6088a0eda274a63f5e917",
+     "b": "m:om_x100b616b51f7cca4ed0dd79cc072e51",
+     "detail": "回复链根 om_x100b616b51f7cca4ed0dd79cc072e51"
+    },
+    {
+     "rule": "r1-bot-card",
+     "a": "m:om_x100b616b51f7cca4ed0dd79cc072e51",
+     "b": "om_x100b616f84f74ca0eee30d95ed4c87f",
+     "detail": "bot 卡 om_x100b616b51f7cca4ed0dd79cc072e51 答的是 om_x100b616f84f74ca0eee30d95ed4c87f（卡里 @ 了发话人）"
+    },
+    {
+     "rule": "r1-bot-card",
+     "a": "m:om_x100b61540f38c8a4eda05bd2f5dfafa",
+     "b": "om_x100b6154619dcca4fe1bc93461061e6",
+     "detail": "bot 卡 om_x100b61540f38c8a4eda05bd2f5dfafa 答的是 om_x100b6154619dcca4fe1bc93461061e6（审计完成时间）"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b6154619dcca4fe1bc93461061e6",
+     "b": "om_x100b61543053d8a4ff5156d6feda8fc",
+     "detail": "同群相隔 21 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b61543053d8a4ff5156d6feda8fc",
+     "b": "om_x100b6154d2778938ffcb84cf086171d",
+     "detail": "同群相隔 8 分钟"
+    },
+    {
+     "rule": "r2-adjacent",
+     "a": "om_x100b6154d2778938ffcb84cf086171d",
+     "b": "om_x100b6154e914e4a4ffbf75be6e461b7",
+     "detail": "同群相隔 3 分钟"
+    },
+    {
+     "rule": "r3-falive",
+     "a": "om_x100b616f84f74ca0eee30d95ed4c87f",
+     "b": "om_x100b616f45a93ca4ed948dfbf35935b",
+     "detail": "falive 锚定：锚定：om_x100b616f84f74ca0eee30d95ed4c87f 接着 om_x100b616f45a93ca4ed948dfbf35935b（主题 new#0aec26+new#167d28）"
+    },
+    {
+     "rule": "r3-falive",
+     "a": "om_x100b6154619dcca4fe1bc93461061e6",
+     "b": "om_x100b616bff6088a0eda274a63f5e917",
+     "detail": "falive 私聊指示：负责人私聊（recent）→ 指示任务 om_x100b6154619dcca4fe1bc93461061e6，针对 om_x100b616bff6088a0eda274a63f5e917（done）：uat 环境通过了，确认一下相同的改动"
+    }
+   ]
+  },
+  {
+   "id": "ep-1031-c9eab7",
+   "size": 1,
+   "firstAt": "2026-10-31T10:38:04.806Z",
+   "lastAt": "2026-10-31T10:38:04.806Z",
+   "windowStart": "2026-10-31T10:08:04.806Z",
+   "days": [
+    "2026-10-31"
+   ],
+   "chats": [
+    "Falive PHP后端群"
+   ],
+   "kinds": {
+    "at_bot": 1
+   },
+   "caseIds": [
+    "om_x100b61681e074cb4eda05c6e7c9eab7"
+   ],
+   "unions": []
+  },
+  {
+   "id": "ep-1102-c63787",
+   "size": 1,
+   "firstAt": "2026-11-02T06:22:45.166Z",
+   "lastAt": "2026-11-02T06:22:45.166Z",
+   "windowStart": "2026-11-02T05:52:45.166Z",
+   "days": [
+    "2026-11-02"
+   ],
+   "chats": [
+    "Falive PHP后端群"
+   ],
+   "kinds": {
+    "reply_to_bot": 1
+   },
+   "caseIds": [
+    "om_x100b61b68d9d18a4edaadea92c63787"
+   ],
+   "unions": []
+  },
+  {
+   "id": "ep-1102-0f579b",
+   "size": 1,
+   "firstAt": "2026-11-02T08:26:36.179Z",
+   "lastAt": "2026-11-02T08:26:36.179Z",
+   "windowStart": "2026-11-02T07:56:36.179Z",
+   "days": [
+    "2026-11-02"
+   ],
+   "chats": [
+    "Falive产研技术沟通群"
+   ],
+   "kinds": {
+    "at_bot": 1
+   },
+   "caseIds": [
+    "om_x100b61b0dd0d78a8ffe3fa1fc0f579b"
+   ],
+   "unions": []
+  },
+  {
+   "id": "ep-1102-9319b3",
+   "size": 1,
+   "firstAt": "2026-11-02T11:30:19.338Z",
+   "lastAt": "2026-11-02T11:30:19.338Z",
+   "windowStart": "2026-11-02T11:00:19.338Z",
+   "days": [
+    "2026-11-02"
+   ],
+   "chats": [
+    "Falive PHP后端群"
+   ],
+   "kinds": {
+    "at_bot": 1
+   },
+   "caseIds": [
+    "om_x100b61b30a7938a4ed9bd39aa9319b3"
+   ],
+   "unions": []
+  },
+  {
+   "id": "ep-1102-326837",
+   "size": 1,
+   "firstAt": "2026-11-02T16:04:04.741Z",
+   "lastAt": "2026-11-02T16:04:04.741Z",
+   "windowStart": "2026-11-02T15:34:04.741Z",
+   "days": [
+    "2026-11-02"
+   ],
+   "chats": [
+    "Falive PHP后端群"
+   ],
+   "kinds": {
+    "at_bot": 1
+   },
+   "caseIds": [
+    "om_x100b61bf09846ca4ed00ed593326837"
+   ],
+   "unions": []
+  }
+ ]
+}
