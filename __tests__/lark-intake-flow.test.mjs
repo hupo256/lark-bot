@@ -21,8 +21,8 @@ process.env.LARK_CLI_BIN = cliBin
 process.env.LARK_RUNTIME_DIR = runtime
 
 const { ACK_SWEEP_EVERY_MS, DEFAULT_ACK_TIMEOUT_MS, appendSuspectedSupplement, deliverFollowUpReply, flushPendingAck, holdsSuspectedForPrincipal, intakeTiming, isCompleteMessage, markAckPending, mergeThreadSupplement, pickSupplementTarget, resolveIntakeLane, resolveIntakeNotBefore, sweepPendingAcks } = await import('../lib/lark-intake-ack.mjs')
-const { DEFAULT_PRINCIPAL_REPLY_WINDOW_MS, anchorHead, buildPrincipalInstructionTask, classifyPrincipalReply, decidePrincipalAction, findHeldDraftTask, isDeployNotice, isReleaseHeldReply, isShortDeictic, latestDmReceipt, maybeHandlePrincipalChannel, resolvePrincipalAnchor } = await import('../lib/lark-principal-channel.mjs')
-const { RERUN_ACK_REPLY, compatibleContinuation, handleIntakeResolution, mergeableTarget, resolveMergeTarget } = await import('../lib/lark-routes-intake.mjs')
+const { DEFAULT_PRINCIPAL_REPLY_WINDOW_MS, anchorHead, buildPrincipalInstructionTask, classifyPrincipalReply, decidePrincipalAction, findHeldDraftTask, isBareGoAhead, isDeployNotice, isFreshInFlight, isReleaseHeldReply, isShortDeictic, latestDmReceipt, maybeHandlePrincipalChannel, resolvePrincipalAnchor } = await import('../lib/lark-principal-channel.mjs')
+const { ANSWERED_BEFORE_ACK_REPLY, NUDGE_RUNNING_ACK_REPLY, RERUN_ACK_REPLY, compatibleContinuation, handleIntakeResolution, mergeableTarget, resolveMergeTarget } = await import('../lib/lark-routes-intake.mjs')
 const { buildConversationBundle } = await import('../lib/lark-conversation-bundle.mjs')
 const { ingestLarkEvent } = await import('../lib/lark-ingest.mjs')
 const { handleBotAddedEvent, parseBotAddedEvent } = await import('../lib/lark-project-chat-sync.mjs')
@@ -527,6 +527,46 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       anchor = { task: { ...doneTask, id: 'om_d2', project: null }, via: 'recent' }
       assert.equal(await run('没附件', { messageId: 'om_p2', attachments: undefined }), true)
       assert.deepEqual([downloads.at(-1), store.get('om_p2').commandType], [{ project: 'PR-01947', messageId: 'om_p2', attachments: [] }, null])
+      // falive 回放 b2 ep-1021-193c03：对正在跑的任务单发「继续任务 X 做」原先建指示任务 → 并进在跑的 X（rerun_after_done）→ 跑完又重跑一轮，
+      // 群里 3 分钟后再发一遍几乎一样的结论。在飞 + 只是放行 → 回一句「正在做」，不建任务、不下载附件
+      const live = store.upsert({ id: 'om_live', status: 'running', chatId: 'oc_g', messageId: 'om_live', operator: 'ou_qa', summary: '核对 pre 部署版本', text: '核对 pre 部署版本', claimedAt: iso(now - 60_000), createdAt: iso(now - 120_000) })
+      const downloadsBefore = downloads.length
+      for (const [id, text, via, supplement] of [['om_g1', '继续任务 om_live 做', 'explicit', '做'], ['om_g2', '继续任务 om_live', 'explicit', ''], ['om_g3', '继续', 'reply'], ['om_g4', '好的。', 'recent']]) {
+        anchor = { task: live, via, ...(via === 'explicit' ? { directive: { taskId: 'om_live', supplementText: supplement } } : {}) }
+        assert.equal(await run(text, { messageId: id }), true)
+        assert.deepEqual([store.get(id) ?? null, notes.pop()], [null, { config, store, text: '「核对 pre 部署版本」正在做，跑完就发结论，不用再说一次；要改要求直接说具体内容。', taskId: 'om_live', kind: 'private', idempotencyKey: `${id}-pn` }], `${via}「${text}」`)
+      }
+      assert.deepEqual([downloads.length, store.get('om_live').status, store.get('om_live').rerunAfterDone, resumes.length], [downloadsBefore, 'running', undefined, 0])
+      anchor = { task: store.upsert({ ...live, id: 'om_live_q', status: 'queued', claimedAt: null, updatedAt: iso(now - 60_000) }), via: 'explicit', directive: { taskId: 'om_live_q', supplementText: '' } }
+      assert.equal(await run('继续任务 om_live_q', { messageId: 'om_g5' }), true)
+      assert.deepEqual([store.get('om_g5') ?? null, notes.pop().text], [null, '「核对 pre 部署版本」已经排上了，跑完就发结论，不用再说一次；要改要求直接说具体内容。'])
+      // 带了要求 / 附件的照旧建指示任务（跑完带补充再跑一轮是对的）；跑了 4 小时以上的（可能跑丢了，sayOverdue 叫回「继续任务 id」重跑）不挡
+      anchor = { task: live, via: 'explicit', directive: { taskId: 'om_live', supplementText: '用 508 号再测' } }
+      assert.equal(await run('继续任务 om_live 用 508 号再测', { messageId: 'om_g6' }), true)
+      assert.deepEqual([store.get('om_g6')?.privateOrigin?.anchorId, notes.pop().kind], ['om_live', 'ack'], '带补充 → 指示任务')
+      anchor = { task: live, via: 'reply' }
+      assert.equal(await run('', { messageId: 'om_g7', attachments: [{ type: 'image', imageKey: 'p' }] }), true)
+      assert.equal(store.get('om_g7')?.privateOrigin?.anchorId, 'om_live', '只发了张图 → 指示任务')
+      notes.pop()
+      anchor = { task: store.upsert({ ...live, id: 'om_stale', claimedAt: iso(now - 5 * H) }), via: 'explicit', directive: { taskId: 'om_stale', supplementText: '做' } }
+      assert.equal(await run('继续任务 om_stale 做', { messageId: 'om_g8' }), true)
+      assert.equal(store.get('om_g8')?.privateOrigin?.anchorId, 'om_stale', '认领超过 4 小时 → 照旧建指示任务')
+      notes.pop()
+      await eachCase([
+        { name: '空', text: '', want: true }, { name: '做', text: '做', want: true }, { name: '做吧。', text: '做吧。', want: true },
+        { name: 'OK', text: 'OK', want: true }, { name: '带 @', text: '@Aven.Bot 继续', want: true },
+        { name: '重跑（是要求）', text: '重跑', want: false }, { name: '用 508 号', text: '用 508 号', want: false }, { name: '继续 用508', text: '继续 用508', want: false },
+      ], ({ text, want }) => assert.equal(isBareGoAhead(text), want))
+      const t0 = Date.parse('2026-11-01T12:00:00.000Z')
+      await eachCase([
+        { name: 'running 刚认领', task: { status: 'running', claimedAt: iso(t0 - 60_000) }, want: true },
+        { name: 'verifying', task: { status: 'verifying', claimedAt: iso(t0 - 60_000) }, want: true },
+        { name: 'received 按 createdAt', task: { status: 'received', createdAt: iso(t0 - 60_000) }, want: true },
+        { name: '恰好 4 小时算旧', task: { status: 'running', claimedAt: iso(t0 - 4 * H) }, want: false },
+        { name: '没时间戳不挡', task: { status: 'running' }, want: false },
+        { name: 'done 不算在飞', task: { status: 'done', claimedAt: iso(t0 - 60_000) }, want: false },
+        { name: 'waiting_confirmation 不算在飞', task: { status: 'waiting_confirmation', updatedAt: iso(t0 - 60_000) }, want: false },
+      ], ({ task, want }) => assert.equal(isFreshInFlight(task, t0), want))
     }],
     ['routes-intake：resolveMergeTarget（continues > 锚点，只对改码 / 对接类）；superseded 不当目标，顺 supersededBy 找承接的那条', () => {
       const tasks = [
@@ -725,6 +765,20 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       mergeResult = { mode: 'rerun_after_done', into: { ...target, status: 'running' } }
       assert.deepEqual(await run({ ok: true, actionable: true, task: cont }), body({ actionable: true, mergedInto: 'om_target', mode: 'rerun_after_done' }))
       assert.deepEqual([said.slice(1), delivered, RERUN_ACK_REPLY], [[['flushPendingAck', { config: cfg, store: st, task: cont, reply: '收到，这条等上一轮跑完一起处理', send: true, reason: 'merged:rerun_after_done' }]], [], '收到，这条等上一轮跑完一起处理'])
+      // 只是催（falive 回放 b2 ep-1014-d74f19）：在跑 → 「在做了」，不重发开跑；结论刚发在它之前 → 指过去，义务记 answered
+      mergeResult = { mode: 'nudge_running', into: { ...target, status: 'running' } }
+      const nudgeRun = task({ id: 'om_nu1' }, cls({ decision: 'bug', continues: 'om_target' }))
+      assert.deepEqual(await run({ ok: true, actionable: true, task: nudgeRun }), body({ actionable: true, mergedInto: 'om_target', mode: 'nudge_running' }))
+      assert.deepEqual([said.slice(1), delivered, getObligation(nudgeRun), NUDGE_RUNNING_ACK_REPLY], [[['flushPendingAck', { config: cfg, store: st, task: nudgeRun, reply: '在做了，有结果一起回你', send: true, reason: 'merged:nudge_running' }]], [], null, '在做了，有结果一起回你'])
+      mergeResult = { mode: 'answered_before', into: { ...target, status: 'done' } }
+      const nudgeDone = task({ id: 'om_nu2' }, cls({ decision: 'bug', continues: 'om_target' }))
+      assert.deepEqual(await run({ ok: true, actionable: true, task: nudgeDone }), body({ actionable: true, mergedInto: 'om_target', mode: 'answered_before' }))
+      assert.deepEqual([said.slice(1), delivered, getObligation(nudgeDone)?.state, getObligation(nudgeDone)?.answerText], [[['flushPendingAck', { config: cfg, store: st, task: nudgeDone, reply: ANSWERED_BEFORE_ACK_REPLY, send: true, reason: 'merged:answered_before' }]], [], 'answered', '结论刚发在上面了，有问题再叫我'])
+      ackLive = false
+      const nudgeLate = task({ id: 'om_nu3' }, cls({ decision: 'bug', continues: 'om_target' }))
+      await run({ ok: true, actionable: true, task: nudgeLate })
+      assert.equal(getObligation(nudgeLate), null, '「收到」没用上这句（已发固定句）→ 不记 answered')
+      ackLive = true
       mergeResult = null
       // 开跑
       const go = task()
