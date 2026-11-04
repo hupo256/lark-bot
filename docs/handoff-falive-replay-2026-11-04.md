@@ -97,7 +97,7 @@ v2 已定（design-v2 §5），依次做：
 - 仓库有 GitHub 远端；`replay/falive/` 是公司内部群聊数据，**不要 push**（任何 push 都要 aven 当次明确授权）。
 - 不执行 `lark-bot restart|start|stop|poll-on`、`launchctl`，不改 `~/Library/LaunchAgents/*`、`~/.config/fameex-lark/*`。
 
-## 7. 待 aven 拍板的事（11-03 之前遗留，回放里会碰到）
+## 7. 遗留决策（aven 11-04 已定，详见 design-v2 §6.4；以下是原题）
 
 1. 「已部署」→ 复测链路（falive 有，lark-bot 没移植）要不要搬。
 2. fameex 模块归属表：bot 改过别人负责的模块。
