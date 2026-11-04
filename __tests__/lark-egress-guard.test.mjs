@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
 import { EventEmitter } from 'node:events'
-import { chmodSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -12,10 +13,11 @@ import { buildAiExecutorCommand, execAiExecutor } from '../lib/lark-ai-executor.
 import {
   EGRESS_DENY_RULES, EGRESS_GUARD_ENV, SOURCE_HOSTS, checkCurlInvocation, checkEgressRequest, createBlockedPath, egressGuardEnv, egressPolicyFor, egressScopeOf, egressTestDataEnvsOf, gitRemoteHost, hostInScope, parseCurlArgs, parseEgressPolicy, withoutEgressGuard,
 } from '../lib/lark-egress-policy.mjs'
-import { buildLoginRequest, freshLogin, maskToken, readTestPassword, redactSecrets, resolveTestAccount, validateTestAccess } from '../lib/lark-env-login.mjs'
+import { buildLoginRequest, freshLogin, maskToken, namedTokensOf, pickSessionToken, readTestPassword, redactSecrets, resolveTestAccount, validateTestAccess } from '../lib/lark-env-login.mjs'
 import { EGRESS_GUARD_BIN_DIR, EGRESS_GUARD_PRELOAD, ENV_LOGIN_TOOL } from '../lib/lark-paths.mjs'
 import { deriveContract, requestsTestData } from '../lib/lark-task-contract.mjs'
 import { classifyLine } from '../scripts/sim/egress-audit.mjs'
+import { portalLogin, portalSignHeaders } from '../scripts/sim/falive-env-login.mjs'
 import { BLOCK_NOTE, TESTDATA_BLOCK_NOTE, blockedWrite, noteEgress, simBlockNote } from '../scripts/sim/egress-log.mjs'
 import { eachCase, runSteps } from './support/steps.mjs'
 
@@ -348,6 +350,37 @@ describe('代答 / 实测出网范围（命令层）', () => {
       assert.equal(freshLogin(saved, { env: 'pre', mail: 'm', now: 1_000_000 + 20 * 60_000 }), null)
       assert.equal(freshLogin(saved, { env: 'uat', mail: 'm', now: 1_000_000 }), null)
     }],
+    ['具名凭证（b4 ep-1014-d74f19 hichat_token）：模块的 tokens 只收标识符名 + 非空串；--token <名> 取，没有就列出有哪些、不换号', () => {
+      assert.deepEqual(namedTokensOf({ tokens: { hichat_token: 'h', portal_token: '', 'bad name': 'x', '1a': 'y', n: 3 } }), { hichat_token: 'h' })
+      assert.deepEqual(namedTokensOf({ tokens: ['a'] }), {})
+      assert.deepEqual(namedTokensOf(null), {})
+      const session = { token: 'live', tokens: { hichat_token: 'hc' } }
+      assert.deepEqual(pickSessionToken(session), { token: 'live' })
+      assert.deepEqual(pickSessionToken(session, 'hichat_token'), { token: 'hc' })
+      assert.match(pickSessionToken(session, 'portal_token').error, /没有 portal_token（有：hichat_token）[\s\S]*不注册/)
+      assert.match(pickSessionToken({ token: 'live' }, 'x').error, /只有主 token/)
+      assert.match(pickSessionToken({ tokens: {} }).error, /没有 token/)
+    }],
+    ['falive portal 登录（回放登录模块）：签名串同前端（参数排序 + key / 路径末字母倒序 / 时间 / 空访客 / oaid / 版本），只发登录、拿不到凭证只记 note', async () => {
+      const headers = portalSignHeaders({ path: '/api/auth/login', body: { username: 'u', password: 'p' }, signKey: 'K', version: 'flutter-1', channel: 'hc', oaid: 'o', time: '100' })
+      assert.equal(headers['b2b-sign'], createHash('md5').update('password=p&username=u&key=K/nhi/100//o/flutter-1').digest('hex'))
+      assert.equal(headers['X-Site-Platform'], 'hc')
+      const root = mkdtempSync(join(tmpdir(), 'falive-portal-'))
+      mkdirSync(join(root, 'src', 'lib', 'x9'), { recursive: true })
+      mkdirSync(join(root, 'scripts', 'lib'), { recursive: true })
+      writeFileSync(join(root, 'src', 'lib', 'x9', 'config.ts'), 'export const SIGN_KEY = "K";\nexport const CLIENT_VERSION = "flutter-1";\n')
+      writeFileSync(join(root, 'scripts', 'lib', 'pre-client.mjs'), 'const CH = "hc";\n')
+      const calls = []
+      const reply = (json) => async (url, init) => { calls.push({ url, method: init.method, body: JSON.parse(init.body) }); return { status: 200, json: async () => json } }
+      const ok = await portalLogin({ base: 'https://pre.x', mail: 'm@x', pwd: 'pw', consumerRoot: root, fetchImpl: reply({ code: 0, data: { token: 'P', live_token: 'L', hichat_token: 'H' } }) })
+      assert.deepEqual(ok, { tokens: { hichat_token: 'H', portal_token: 'P', live_token: 'L' }, note: null })
+      assert.deepEqual(calls[0], { url: 'https://pre.x/go-api/api/auth/login', method: 'POST', body: { username: 'm@x', password: 'pw', platform_code: 'LIVE_WEB', device_type: 'pc' } })
+      const miss = await portalLogin({ base: 'https://pre.x', mail: 'm@x', pwd: 'pw', consumerRoot: root, fetchImpl: reply({ code: -1, msg: '用户不存在', data: [] }) })
+      assert.deepEqual(miss.tokens, {})
+      assert.match(miss.note, /没拿到凭证：HTTP 200 code -1 用户不存在/)
+      assert.equal(calls.length, 2, '登不上不注册、不重试别的路径')
+      assert.match((await portalLogin({ base: 'b', mail: 'm', pwd: 'p', consumerRoot: join(root, 'none') })).note, /找不到签名常量/)
+    }],
     ['env-login 真跑：代答出网核对下登上、token 存 0600 文件只打码打印、密码不出现；会话自己写的脚本发同样的登录照拦；注册路径工具也拦', async () => {
       const bodies = []
       const server = createServer((req, res) => { let body = ''; req.on('data', (d) => { body += d }); req.on('end', () => { bodies.push(`${req.url} ${body}`); res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ code: 0, data: { token: 'tok-0123456789abcdef', uid: 508 } })) }) })
@@ -380,6 +413,16 @@ describe('代答 / 实测出网范围（命令层）', () => {
         assert.equal(bodies.length, 1, '注册请求一个字节都没发出去')
         const missing = await runAsync(process.execPath, [ENV_LOGIN_TOOL, '--env', 'online'], env)
         assert.match(missing.out, /online 没有配测试号/)
+        // 登录模块带回具名凭证：摘要只打码列名，--token <名> 取原文（名字不当环境认）
+        const mod = join(runtime, 'login-module.mjs')
+        writeFileSync(mod, "export const login = async () => ({ token: 'live-0123456789', tokens: { hichat_token: 'hc-0123456789abcdef' } })\n")
+        writeFileSync(join(runtime, 'lark-bot.local.json'), JSON.stringify({ envSites: { pre: base }, testAccounts: { pre: { mail: 'qa@x.test', loginModule: mod } } }))
+        const named = await runAsync(process.execPath, [ENV_LOGIN_TOOL, '--env', 'pre', '--fresh'], env)
+        assert.match(named.out, /token live…89（15 位）；另有凭证 hichat_token hc-0…ef（19 位）[\s\S]*--token \[hichat_token\]/)
+        assert.doesNotMatch(named.out, /hc-0123456789abcdef/)
+        assert.equal((await runAsync(process.execPath, [ENV_LOGIN_TOOL, '--token', 'hichat_token', '--env', 'pre'], env)).out, 'hc-0123456789abcdef\n')
+        assert.equal((await runAsync(process.execPath, [ENV_LOGIN_TOOL, 'pre', '--token', 'hichat_token'], env)).out, 'hc-0123456789abcdef\n')
+        assert.match((await runAsync(process.execPath, [ENV_LOGIN_TOOL, '--env', 'pre', '--token', 'portal_token'], env)).out, /没有 portal_token（有：hichat_token）/)
       } finally {
         server.close()
       }

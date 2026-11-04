@@ -450,7 +450,7 @@ describe('worker 侧对话层：outcome / 契约映射 / 群回复补写 / 模�
     ['测试号登录 / 造测试数据：配了测试号才有登录句（固定工具、不设写开关、被拦也用它）；放开了环境才有造数据句；进代答 / 实测 / 改码块', () => {
       const accounts = { pre: { mail: 'qa@x' } }
       const login = buildEnvLoginRule(accounts)
-      assert.match(login, /^要登录态只用 `node \/\S+\/tools\/env-login\.mjs --env <环境>`（配了测试号的：pre；只登录不注册，token 用 `\$\(… --token\)` 取、不打印）；不自己写登录脚本、不设 PROBE_ALLOW_WRITE 之类写开关，被权限拦下也改用它。$/)
+      assert.match(login, /^要登录态只用 `node \/\S+\/tools\/env-login\.mjs --env <环境>`（配了测试号的：pre；只登录不注册，token 用 `\$\(… --token\)` 取，摘要里列了别的凭证（如 hichat_token）用 `--token <名>` 取，都不打印）；不自己写登录脚本、不设 PROBE_ALLOW_WRITE 之类写开关，被权限拦下也改用它。$/)
       for (const none of [null, {}]) assert.equal(buildEnvLoginRule(none), '')
       const testData = buildTestDataRule(['pre'])
       assert.match(testData, /^本单对方明确要造测试数据（发帖不允许的口径本单例外）：只在 pre 用测试号.*不删、不改、不碰别人的数据、不注册；建了什么把 id（如 tid）列进 report；命令层拦了就照实写拦在哪。$/)
