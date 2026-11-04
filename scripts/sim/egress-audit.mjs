@@ -20,7 +20,7 @@ import { realpathSync } from 'node:fs'
 import { LOCAL_HOST_RE, claudeGatewayHost } from './egress-log.mjs'
 
 const CLAUDE_HOST_RE = /^(?:[\w-]+\.)*anthropic\.com$|^claude\.ai$/i
-const isClaudeHost = (host) => CLAUDE_HOST_RE.test(host) || (Boolean(host) && String(host).toLowerCase() === claudeGatewayHost())
+export const isClaudeHost = (host) => CLAUDE_HOST_RE.test(host) || (Boolean(host) && String(host).toLowerCase() === claudeGatewayHost())
 const FALIVE_HOST_RE = /^(?:[\w-]+\.)*falive\.com$|^(?:falive|stream)[\w-]*\.fdsser\.com$/i
 const LARK_HOST_RE = /(?:^|\.)(?:larksuite\.com|feishu\.cn|larkoffice\.com|feishucdn\.com|larksuitecdn\.com|larksuite-boe\.com)$/i
 const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
