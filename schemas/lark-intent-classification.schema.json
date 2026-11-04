@@ -3,42 +3,95 @@
   "title": "Lark message intent classification",
   "type": "object",
   "additionalProperties": false,
-  "required": ["decision", "confidence", "deliverable", "forMe", "selfAnswer", "reply", "continues", "relatedTaskId", "topic", "waitsFor", "summary", "reason"],
+  "required": [
+    "decision",
+    "confidence",
+    "deliverable",
+    "forMe",
+    "selfAnswer",
+    "botSelf",
+    "reply",
+    "continues",
+    "relatedTaskId",
+    "topic",
+    "waitsFor",
+    "summary",
+    "reason"
+  ],
   "properties": {
     "decision": {
       "type": "string",
-      "enum": ["bug", "requirement", "api_reply", "question", "ignore"]
+      "enum": [
+        "bug",
+        "requirement",
+        "api_reply",
+        "question",
+        "ignore"
+      ]
     },
     "confidence": {
       "type": "string",
-      "enum": ["high", "medium", "low"]
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ]
     },
     "deliverable": {
-      "type": ["string", "null"],
-      "enum": ["change", "verification", "answer", null]
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "change",
+        "verification",
+        "answer",
+        null
+      ]
     },
     "forMe": {
-      "type": ["boolean", "null"]
+      "type": [
+        "boolean",
+        "null"
+      ]
     },
     "selfAnswer": {
       "type": "boolean"
     },
+    "botSelf": {
+      "type": "boolean"
+    },
     "reply": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "maxLength": 200
     },
     "continues": {
-      "type": ["string", "null"]
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "relatedTaskId": {
-      "type": ["string", "null"]
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "topic": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "maxLength": 40
     },
     "waitsFor": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "maxLength": 120
     },
     "summary": {
