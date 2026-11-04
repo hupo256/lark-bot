@@ -21,7 +21,7 @@ const { buildLateMessagesPrompt, fetchLateMessages, pickLateMessages, resultAsks
 const { buildCosmeticFixPrompt, cosmeticDiff, runCosmeticFixPass } = await import('../lib/lark-cosmetic-diff.mjs')
 const { ANSWER_MODE_BLOCK, CLAIM_EVIDENCE_RULE, DELIVER_NOW_RULE, VERIFICATION_MODE_BLOCK, buildAckPromiseBlock, buildAnswerEnvRule, buildApiReplyRetestBlock, buildCarryOverBlock, buildDocAskBlock, buildEnvLoginRule, buildEnvProbeRule, buildTestDataRule } = await import('../lib/lark-worker-modes.mjs')
 const { buildTaskPromptParts } = await import('../lib/lark-worker-prompts.mjs')
-const { applyEnvCheck, checkEnvTarget, envTargetLine, hostOf, resolveEnvTargets, touchedEnvs } = await import('../lib/lark-env-target.mjs')
+const { applyEnvCheck, checkEnvTarget, envTargetLine, hostOf, resolveEnvTargets, resolveTaskEnvTargets, touchedEnvs } = await import('../lib/lark-env-target.mjs')
 const { buildIntentClassificationPrompt, describeSender, formatTaskAttachments, readPersona } = await import('../lib/lark-classify-prompt.mjs')
 const { classifyTaskIntent, runAI } = await import('../lib/lark-worker-run.mjs')
 
@@ -314,6 +314,16 @@ describe('worker 侧对话层：outcome / 契约映射 / 群回复补写 / 模�
         { name: '开头就是域名', texts: ['azmgb.com 打不开'], want: ['pre'] },
       ], ({ texts, want }) => assert.deepEqual(resolveEnvTargets({ texts, envSites: sites }), want))
       assert.deepEqual(resolveEnvTargets({ texts: ['www.azmgb.com'] }), [], '没配地址就只认名字')
+      // OL 只认大写简称（b4 ep-1030-b864a1「OL 再复测下」）；old / role / Ol 不算
+      assert.deepEqual(resolveEnvTargets({ texts: ['OL 再复测下'] }), ['online'])
+      assert.deepEqual(resolveEnvTargets({ texts: ['在OL上复测，uat 之前测过'] }), ['online', 'uat'])
+      assert.deepEqual(resolveEnvTargets({ texts: ['old role Ol ol 的接口'] }), [])
+      assert.deepEqual(resolveEnvTargets({ texts: ['OLD 版本 / LOL'] }), [])
+      // 原话点名了就只认原话，转述里带进来的引用环境不算；原话没点名再看转述
+      assert.deepEqual(resolveTaskEnvTargets({ ownText: 'OL 再复测下', texts: ['William 引用 uat 的复测结论，让在 OL 上复测'] }), ['online'])
+      assert.deepEqual(resolveTaskEnvTargets({ ownText: '再复测下', texts: ['引用 uat 的复测结论，再测一遍'] }), ['uat'])
+      assert.deepEqual(resolveTaskEnvTargets({ ownText: null, texts: [] }), [])
+      assert.deepEqual(resolveTaskEnvTargets(), [])
       assert.deepEqual(resolveEnvTargets(), [])
       assert.equal(hostOf('www.Fameex.com/x'), 'www.fameex.com')
       assert.equal(hostOf('http://['), null)
