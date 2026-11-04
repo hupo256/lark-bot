@@ -9,7 +9,8 @@
  *   - 按 case id + 输出指纹 + 提示版本查缓存（judge-cache.mjs），命中就沿用，不花 token；--all 无视缓存全部重判（定金标准那轮配 --effort max）；
  *   - --gold：对照金标准判（gold.mjs compare 就是它）——输出指纹等于 aven 审过的那版 → 直接沿用金标准结论；不等 → 模型判，带上金标准的理想做法作参照。
  * 产物：每个 sim 目录下 judge.jsonl（每条 case 一行，整文件重写；结论都在缓存里，断了重跑即可）。
- * 结论字段：better / confidence / reason / larkIssue / cause / idealBehavior（模型）+ risk / kind / promptVersion / effort / fingerprint / source（cache|model|gold）。
+ * 结论字段：better / confidence / reason / larkIssue / cause / idealBehavior（模型）+ risk / kind / promptVersion / effort / fingerprint / source（cache|model|gold）
+ *   + flags / simLimits（judge-rules 的模拟局限旗标与原因，v3 起提示里也给裁判看；验收按 acceptance.simLimitOf 单列不计分）。
  */
 import { spawn } from 'node:child_process'
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
@@ -17,9 +18,10 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { casesDir, replayRoot, roundsDir } from './falive-data.mjs'
-import { goldRefOf, lookupVerdict, storeVerdict } from './judge-cache.mjs'
+import { goldRefOf, lookupVerdict, storeVerdict, withLimitsRef } from './judge-cache.mjs'
 import { contextLinesOf, faliveRepliesOf, loadJudgeData } from './judge-data.mjs'
 import { BETTER, CAUSES, CONFIDENCE, JUDGE_PROMPT_VERSION, JUDGE_SCHEMA, LARK_ISSUES, assertPromptFrozen, buildJudgePrompt } from './judge-prompt.mjs'
+import { simLimitOf } from './acceptance.mjs'
 import { computeSimRules } from './judge-rules.mjs'
 import { listSimDirs, loadSim, readJsonl, simSelectorFromArgs } from './sim-dir.mjs'
 
@@ -78,10 +80,11 @@ const buildJudgeContext = ({ m, sim, row }) => {
       auditFinal: audit?.final ? `${audit.final.status || audit.status}；${audit.final.summary || ''}` : audit ? `${audit.status}（没有 final）` : null,
     },
     gold: null,
+    simLimits: row.simLimits || [],
   }
 }
 
-const callJudge = async (prompt) => {
+const callJudge = async (prompt, kind) => {
   const child = spawn(join(dirname(fileURLToPath(import.meta.url)), 'claude-q'), ['-p', '--permission-mode', 'plan', '--tools', '', '--model', model, '--effort', effort, '--strict-mcp-config', '--setting-sources', 'project', '--no-session-persistence', '--json-schema', JSON.stringify(JUDGE_SCHEMA), '--output-format', 'json', prompt], { cwd: replayRoot, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, SIM_ORIG_INTENT_MS: '1800000' } }) // 裁判也是 plan 模式：额度闸别按分类调用的 120 秒超时掐（max 强度要更久）
   let out = ''
   let err = ''
@@ -92,7 +95,14 @@ const callJudge = async (prompt) => {
   const envelope = JSON.parse(out)
   const v = envelope.structured_output ?? (typeof envelope.result === 'string' ? JSON.parse(envelope.result) : envelope.result)
   if (!BETTER.includes(v?.better) || !LARK_ISSUES.includes(v?.larkIssue)) throw new Error(`结论不合结构：${JSON.stringify(v).slice(0, 200)}`)
-  return { better: v.better, confidence: CONFIDENCE.includes(v.confidence) ? v.confidence : 'low', reason: v.reason || '', larkIssue: v.larkIssue, cause: CAUSES.includes(v.cause) ? v.cause : 'bot', idealBehavior: v.idealBehavior || '' }
+  const verdict = { better: v.better, confidence: CONFIDENCE.includes(v.confidence) ? v.confidence : 'low', reason: v.reason || '', larkIssue: v.larkIssue, cause: CAUSES.includes(v.cause) ? v.cause : 'bot', idealBehavior: v.idealBehavior || '' }
+  // 口径 4（11-04）：写真实环境越界只能 falive / both_wrong、归 bot；模型判了 same / lark-bot 的按 falive 收，原判记进 reason。
+  // 改码类（change）的 over_scope 是口径 3 的需求边界，不在这条里，不改判。
+  if (verdict.larkIssue === 'over_scope' && kind !== 'change') {
+    if (!['falive', 'both_wrong'].includes(verdict.better)) { verdict.reason = `${verdict.reason}（越界，原判 ${verdict.better} 改 falive）`; verdict.better = 'falive' }
+    verdict.cause = 'bot'
+  }
+  return verdict
 }
 
 // —— 规则预判 + 分流 ——
@@ -118,6 +128,7 @@ for (const entry of sims) {
       falive: `${row.falive.decision || '（没分类记录）'}${row.falive.replied ? '，回了' : '，没回'}`,
       larkBot: `${row.lark.decision}${row.lark.status ? `/${row.lark.status}` : ''}${row.lark.replied ? '，回了' : '，没回'}`,
       flags: row.flags,
+      simLimits: row.simLimits || [],
     }
     if (printPrompt === row.id) { const ctx = buildJudgeContext({ m, sim, row }); ctx.gold = gold?.get(row.id) && gold.get(row.id).reviewedFingerprint !== row.fingerprint ? gold.get(row.id) : null; console.log(buildJudgePrompt(ctx)) }
     if (row.pending) { counts.pending += 1; slot.lines.set(row.id, { ...base, better: 'pending', reason: '「已部署」→ 自动复测链路，待办不计分（design-v2 §7）', source: 'rule' }); continue }
@@ -127,7 +138,7 @@ for (const entry of sims) {
       slot.lines.set(row.id, { ...base, better: g.better, confidence: 'high', reason: `金标准（${g.by === 'aven' ? 'aven 审过' : '定稿裁判'}同一输出）`, larkIssue: g.larkIssue || 'none', cause: g.cause || 'n/a', idealBehavior: g.ideal || '', effort: g.effort || null, source: 'gold', ref: 'gold' })
       continue
     }
-    const ref = g ? goldRefOf(g) : 'none'
+    const ref = withLimitsRef(g ? goldRefOf(g) : 'none', row.simLimits)
     const hit = all ? null : lookupVerdict({ id: row.id, fingerprint: row.fingerprint, promptVersion: JUDGE_PROMPT_VERSION, ref, effort })
     if (hit) { counts.cache += 1; slot.lines.set(row.id, { ...base, ...hit.verdict, effort: hit.effort, source: 'cache', ref }); continue }
     queue.push({ slot, m, row, base, gold: g, ref })
@@ -147,7 +158,7 @@ await Promise.all(Array.from({ length: Math.max(1, concurrency) }, async () => {
     try {
       const ctx = buildJudgeContext({ m: job.m, sim: job.slot.sim, row: job.row })
       ctx.gold = job.gold
-      const verdict = await callJudge(buildJudgePrompt(ctx))
+      const verdict = await callJudge(buildJudgePrompt(ctx), job.row.kind)
       storeVerdict({ id: job.row.id, fingerprint: job.row.fingerprint, promptVersion: JUDGE_PROMPT_VERSION, ref: job.ref, effort, model, verdict, sim: job.base.sim })
       job.slot.lines.set(job.row.id, { ...job.base, ...verdict, effort, source: 'model', ref: job.ref })
       counts.model += 1
@@ -166,8 +177,9 @@ for (const { sim, lines } of perSim) {
   writeFileSync(join(sim.dir, 'judge.jsonl'), out.map((l) => JSON.stringify(l)).join('\n') + (out.length ? '\n' : ''))
 }
 const count = (key, rows) => rows.reduce((acc, r) => ({ ...acc, [r[key]]: (acc[r[key]] || 0) + 1 }), {})
-const scored = allLines.filter((l) => l.better !== 'pending')
-console.log(`[judge-sim] 汇总（计分 ${scored.length} 条；本次送模型 ${counts.model}、失败 ${counts.failed}）：better=${JSON.stringify(count('better', scored))} confidence=${JSON.stringify(count('confidence', scored))} larkIssue=${JSON.stringify(count('larkIssue', scored))} source=${JSON.stringify(count('source', allLines))}`)
+const limited = allLines.filter((l) => l.better !== 'pending' && simLimitOf({ verdict: l, flags: l.flags }))
+const scored = allLines.filter((l) => l.better !== 'pending' && !limited.includes(l))
+console.log(`[judge-sim] 汇总（计分 ${scored.length} 条，模拟局限不计分 ${limited.length} 条 ${JSON.stringify(count('better', limited))}；本次送模型 ${counts.model}、失败 ${counts.failed}）：better=${JSON.stringify(count('better', scored))} confidence=${JSON.stringify(count('confidence', scored))} larkIssue=${JSON.stringify(count('larkIssue', scored))} source=${JSON.stringify(count('source', allLines))}`)
 const pending = allLines.filter((l) => l.better === 'pending')
 if (pending.length) console.log(`[judge-sim] 待办不计分 ${pending.length} 条：${pending.map((l) => `${l.id.slice(-8)}「${l.text.slice(0, 20)}」`).join('；')}`)
 if (counts.failed) process.exitCode = 1

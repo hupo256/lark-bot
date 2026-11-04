@@ -11,6 +11,9 @@
  *   不回退  上一轮判「一样 / lark-bot 更好」的，这一轮不能变成「falive 更好 / 都不对」（给了 --prev 才查）
  *   覆盖    规则预判里每条计分 case 都要有结论（有 rules.jsonl 才查）
  * 待办不计分（pending）单列，不进任何一项。同一 case 出现多次（旧布局热身重叠）取最差的结论。
+ * 模拟局限不计分（simLimitOf，单列，同待办）：裁判判 cause=sim_limit；或 judge-rules 打了「硬」局限旗标（SIM_LIMIT_HARD：点名 / 锚定的任务模拟里没有、
+ *   触发消息被编辑过、falive 当时发送失败 / 在排空——falive 那一侧不能当基线）。看过旗标的裁判（v3 起）仍判 cause=bot 且 falive 更好 / 都不对的照常计分；
+ *   「软」旗标（实测类、时序敏感、依赖记忆 / bug 表）只交给裁判判过程，裁判判 sim_limit 才不计分——实测越界、报告不如实这类过程问题不能被局限盖掉。
  * --metrics <json>（round-metrics.mjs 出的 metrics.json，§11「更好」三项里的快 / 省）再加三项，在双方都有值的配对 case 上比：
  *   快 1  首句时延中位数与 P90 都不慢于 falive     快 2  结论时延中位数与 P90 都不慢于 falive
  *   省    等价花费中位数与合计都不高于 falive（没有配对数据算不过）
@@ -27,6 +30,18 @@ export const FALIVE_SHARE = 0.05
 const BAD = new Set(['falive', 'both_wrong'])
 const GOOD = new Set(['same', 'lark-bot'])
 const HARD_ISSUES = new Set(['duplicate', 'missed', 'wrong_target'])
+export const SIM_LIMIT_HARD = new Set(['sim_limit_ref', 'sim_limit_anchor', 'sim_limit_edited', 'sim_limit_falive_down'])
+/** 裁判是否看过模拟局限旗标（judge-v3 起）；没看过的结论只能按旗标一刀切。 */
+export const sawSimLimits = (verdict) => Number(String(verdict?.promptVersion || '').match(/^judge-v(\d+)/)?.[1] || 0) >= 3
+
+/** 模拟局限不计分的原因（null = 照常计分）。verdict：裁判行；flags：judge-rules 这条的旗标。 */
+export const simLimitOf = ({ verdict, flags = [] }) => {
+  if (verdict?.cause === 'sim_limit') return '裁判：差异来自模拟局限'
+  const hard = flags.filter((f) => SIM_LIMIT_HARD.has(f))
+  if (!hard.length) return null
+  if (sawSimLimits(verdict) && verdict.cause === 'bot' && BAD.has(verdict.better)) return null
+  return `旗标 ${hard.join(' / ')}`
+}
 
 /** 同一 case 多行取最差；pending 只在没有计分结论时保留。 */
 export const collapseVerdicts = (lines) => {
@@ -41,15 +56,17 @@ export const collapseVerdicts = (lines) => {
 export const evaluateAcceptance = ({ current, rules = null, prev = null, explained = new Map(), riskOf = () => [], pendingOf = () => false, total }) => {
   const rows = [...current.values()]
   // 待办不计分：裁判行标了 pending，或 case-tags 里 pending=true（旧裁判结论没有这一栏，照样排除）
-  // 模拟局限（judge-rules 旗标 sim_limit_ref：点名的任务是 falive 当时自己的，模拟里不存在）同待办：单列、不计分
-  const simLimit = (r) => Boolean(rules?.get?.(r.id)?.flags?.includes('sim_limit_ref'))
-  const isPending = (r) => r.better === 'pending' || pendingOf(r.id) || simLimit(r)
-  const pending = rows.filter(isPending)
-  const scored = rows.filter((r) => !isPending(r))
+  // 模拟局限（simLimitOf：裁判判 sim_limit，或硬局限旗标）同待办：单列、不计分
+  const isTodo = (r) => r.better === 'pending' || pendingOf(r.id)
+  const limitOf = (r) => (isTodo(r) ? null : simLimitOf({ verdict: r, flags: rules?.get?.(r.id)?.flags || r.flags || [] }))
+  const pending = rows.filter(isTodo)
+  const simLimited = rows.filter((r) => limitOf(r)).map((r) => ({ ...r, why: limitOf(r) }))
+  const limitedIds = new Set(simLimited.map((r) => r.id))
+  const scored = rows.filter((r) => !isTodo(r) && !limitedIds.has(r.id))
   const risk = (r) => (r.risk?.length ? r.risk : riskOf(r.id))
   const limit = Math.floor(total * FALIVE_SHARE)
   const faliveBetter = scored.filter((r) => r.better === 'falive')
-  const ruleDup = rules ? [...rules.values()].filter((r) => !r.pending && !pendingOf(r.id) && r.lark?.duplicates > 0) : []
+  const ruleDup = rules ? [...rules.values()].filter((r) => !r.pending && !pendingOf(r.id) && !limitedIds.has(r.id) && r.lark?.duplicates > 0) : []
   const hard2 = new Map()
   for (const r of scored) if (HARD_ISSUES.has(r.larkIssue) && BAD.has(r.better)) hard2.set(r.id, { ...r, why: `裁判 ${r.better} / ${r.larkIssue}` })
   for (const r of ruleDup) if (!hard2.has(r.id)) hard2.set(r.id, { ...(current.get(r.id) || { id: r.id, at: r.at }), why: `规则：完全重复的发件 ${r.lark.duplicates} 条` })
@@ -64,7 +81,7 @@ export const evaluateAcceptance = ({ current, rules = null, prev = null, explain
   for (const c of checks) c.pass = c.offending.length === 0
   const warnings = scored.filter((r) => risk(r).length && r.better === 'both_wrong').map((r) => ({ ...r, why: '风险 case 判都不对' }))
   const lowConfidence = scored.filter((r) => r.confidence === 'low')
-  return { pass: checks.every((c) => c.pass), checks, pending, warnings, lowConfidence, scoredCount: scored.length, limit }
+  return { pass: checks.every((c) => c.pass), checks, pending, simLimited, warnings, lowConfidence, scoredCount: scored.length, limit }
 }
 
 const fmtMs = (ms) => (ms == null ? '-' : Math.abs(ms) < 60_000 ? `${Math.round(ms / 1000)}s` : Math.abs(ms) < 3600_000 ? `${(ms / 60_000).toFixed(1)}min` : `${(ms / 3600_000).toFixed(1)}h`)
@@ -116,11 +133,12 @@ const main = () => {
     result.pass = result.checks.every((c) => c.pass)
   }
   const row = (r) => `  - \`${String(r.id).slice(-8)}\` ${String(r.at || '').slice(5, 16)} ${r.sender || ''}：${String(r.text || '').replace(/\s+/g, ' ').slice(0, 50)}${r.why ? ` —— ${r.why}` : ''}${r.reason ? `（${String(r.reason).slice(0, 60)}）` : ''}${r.risk?.length ? ` [${r.risk.join('/')}]` : ''}`
-  const out = [`# 验收（design-v2 §6）：${result.pass ? '通过' : '不通过'}`, '', `计分 ${result.scoredCount} 条（待办不计分 ${result.pending.length}），总数 ${total}；falive 更好上限 ${result.limit}`, '']
+  const out = [`# 验收（design-v2 §6）：${result.pass ? '通过' : '不通过'}`, '', `计分 ${result.scoredCount} 条（待办不计分 ${result.pending.length}，模拟局限不计分 ${result.simLimited.length}），总数 ${total}；falive 更好上限 ${result.limit}`, '']
   for (const c of result.checks) { out.push(`- ${c.pass ? '过' : '**不过**'} ${c.name}${c.pass || !c.offending.length ? '' : `（${c.offending.length} 条）`}`); if (!c.pass) out.push(...c.offending.slice(0, 40).map(row)) }
   if (result.warnings.length) out.push('', `警告：风险 case 判都不对 ${result.warnings.length} 条`, ...result.warnings.map(row))
   if (result.lowConfidence.length) out.push('', `裁判拿不准（confidence=low）${result.lowConfidence.length} 条：应已进金标准评审`, ...result.lowConfidence.slice(0, 20).map(row))
   if (result.pending.length) out.push('', `待办不计分 ${result.pending.length} 条：${result.pending.map((r) => `\`${r.id.slice(-8)}\``).join(' ')}`)
+  if (result.simLimited.length) out.push('', `模拟局限不计分 ${result.simLimited.length} 条（裁判结论照列，供人看）：`, ...result.simLimited.map((r) => `${row(r)} [${r.better}]`))
   const text = out.join('\n')
   console.log(text)
   if (value('--md', null)) writeFileSync(value('--md', null), `${text}\n`)
