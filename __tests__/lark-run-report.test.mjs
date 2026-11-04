@@ -241,6 +241,8 @@ describe('worker 侧对话层：outcome / 契约映射 / 群回复补写 / 模�
         { name: '原话空 @（只引用）：带分类器读出的要做的事，在最前', task: { text: '【被引用消息】（Eric 10-27 14:02）\n分享链接为空\n\n【本条 @】（无附言）\n\n【话题其它回复】\nHTStone：先用 room/271 验證', ackReply: '收到', intake: { classification: { summary: '去 pre 打开 room/271 看能不能播' } } }, want: '本条原话没写要做什么，按上下文读出的是：「去 pre 打开 room/271 看能不能播」——就做这件，引用的旧消息和前文只是背景。\n群里已先回了一句：「收到」' },
         { name: '原话只 @ 了机器人：同上', task: { text: '【本条 @】（无附言，只 @ 了机器人）\n\n【群里这条之前的消息】\nEncone：为啥 404', intake: { classification: { summary: '答 Encone 为啥项目里 404' } } }, want: '本条原话没写要做什么，按上下文读出的是：「答 Encone 为啥项目里 404」——就做这件，引用的旧消息和前文只是背景。' },
         { name: '原话有内容：不带', task: { text: '【本条 @】测一下 room/271', intake: { classification: { summary: '测 271' } } }, want: '' },
+        { name: '原话只剩两个字（「看下」）：算没写，带', task: { text: '【本条 @】@Aven.Bot 看下', intake: { classification: { summary: '复测 271' } } }, want: '本条原话没写要做什么，按上下文读出的是：「复测 271」——就做这件，引用的旧消息和前文只是背景。' },
+        { name: '原话三个字：不带', task: { text: '【本条 @】测一下', intake: { classification: { summary: '复测 271' } } }, want: '' },
         // 11-05 b3 ep-1029-8aca6e 4abde287：William 问的，结论叫成 Encone
         { name: '记了提问人：最前一行', task: { operatorName: 'William', ackReply: '好' }, want: '本条是 William 说的，回话称呼对他。\n群里已先回了一句：「好」' },
         { name: '原话空但分类没摘要：不带', task: { text: '【本条 @】（无附言）', intake: { classification: { summary: null } } }, want: '' },
