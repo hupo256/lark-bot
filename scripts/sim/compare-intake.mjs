@@ -36,7 +36,7 @@ export const baselineOutcome = (episode) => {
 // lark-bot 这次的落地（applyIntakeClassification 的返回）。
 export const replayOutcome = (row) => {
   if (!row) return 'missing'
-  if (row.skipped) return 'no_trigger'
+  if (row.skipped) return row.route ? `route:${row.route}` : 'no_trigger' // route：ingest 按原话确定处理、不过分类（replay-intake deterministicRoute）
   if (row.error) return 'error'
   const o = row.outcome || {}
   if (o.selfAnswer) return 'selfAnswer'
@@ -59,7 +59,7 @@ for (const [id, row] of rows) {
   const base = e.baseline.classified
   const got = row.classification || null
   if (row.skipped || !base) {
-    bump(base?.decision || 'unlogged', row.skipped ? 'no_trigger' : got?.decision || 'error')
+    bump(base?.decision || 'unlogged', row.skipped ? replayOutcome(row) : got?.decision || 'error')
     continue
   }
   compared += 1
