@@ -59,6 +59,10 @@ for (;;) {
     if (errs.length) why.push(`${seg} 进程报错：${errs[0]}`)
     const missing = read('missing.log').split('\n').filter(Boolean)
     if (missing.length) why.push(`${seg} 读取缺口 ${missing.length} 处：${missing[0].slice(0, 160)}`)
+    // 真发出去的写请求（没被壳 / 预载拦下的——如 python 直连，只有 lsof 兜底看得到）：一条就停（11-04 b2 在真实 pre 上发帖 / 传图）
+    const writes = read('egress.log').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l) } catch { return null } })
+      .filter((x) => x && !['GET', 'HEAD', 'OPTIONS', 'CLI'].includes(x.method) && x.extra !== 'blocked' && x.host && !/^(?:127\.|localhost|::1)/.test(x.host) && !/login/i.test(x.path || '') && !/anthropic|claude\.ai/i.test(x.host))
+    if (writes.length) why.push(`${seg} 有写请求发到了真实环境：${writes[0].method} ${writes[0].host}${writes[0].path}`)
     const failedIntake = (read('gateway.log').match(/分类失败/g) || []).length
     if (failedIntake >= 3 && !paused) why.push(`${seg} 分类失败 ${failedIntake} 次`)
     if (episode) {

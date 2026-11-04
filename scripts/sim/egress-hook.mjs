@@ -8,7 +8,7 @@ import http from 'node:http'
 import https from 'node:https'
 import { syncBuiltinESMExports } from 'node:module'
 
-import { LOCAL_HOST_RE, noteEgress } from './egress-log.mjs'
+import { BLOCK_NOTE, LOCAL_HOST_RE, blockedWrite, noteEgress } from './egress-log.mjs'
 
 if (process.env.SIM_DIR) {
   const seenLocal = new Set()
@@ -31,7 +31,10 @@ if (process.env.SIM_DIR) {
     globalThis.fetch = function fetch(input, init) {
       try {
         const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input?.url
-        note('fetch', init?.method || input?.method || 'GET', url)
+        const method = init?.method || input?.method || 'GET'
+        note('fetch', method, url)
+        const why = blockedWrite({ method, url })
+        if (why) return Promise.resolve(new Response(JSON.stringify({ code: 403, msg: `${BLOCK_NOTE}（${why}）`, sim_blocked: true }), { status: 403, headers: { 'content-type': 'application/json' } }))
       } catch { /* 记不下也放行 */ }
       return origFetch.apply(this, arguments)
     }
@@ -50,8 +53,11 @@ if (process.env.SIM_DIR) {
           const host = opts.hostname || opts.host || url?.hostname || 'localhost'
           const port = opts.port || url?.port || ''
           const href = url && !opts.hostname && !opts.host ? url.href : `${opts.protocol || url?.protocol || proto}//${host}${port ? `:${port}` : ''}${opts.path || url?.pathname || '/'}`
-          note(proto.slice(0, -1), fn === 'get' ? 'GET' : opts.method || 'GET', href)
-        } catch { /* 记不下也放行 */ }
+          const method = fn === 'get' ? 'GET' : opts.method || 'GET'
+          note(proto.slice(0, -1), method, href)
+          const why = blockedWrite({ method, url: href })
+          if (why) throw Object.assign(new Error(`${BLOCK_NOTE}（${why}）`), { code: 'SIM_BLOCKED_WRITE' })
+        } catch (error) { if (error?.code === 'SIM_BLOCKED_WRITE') throw error /* 写拦截要抛出去；别的记不下也放行 */ }
         return orig.apply(this, a)
       }
     }
