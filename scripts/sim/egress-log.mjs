@@ -128,3 +128,9 @@ const main = () => {
 // 判是不是被直接执行：argv[1] 不一定是存在的文件（预载进每个 node 子进程，`node -e '…' 参数` 的 argv[1] 就是那个参数），realpath 失败按「不是」算——绝不能让预载把 bot 的子进程弄崩
 const isMain = (() => { try { return Boolean(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)) } catch { return false } })()
 if (isMain) main()
+
+// claude 走的 API 网关（ANTHROPIC_BASE_URL，11-04 aven 切 apikey 线路后是 www.uniaix.com）：等同 Claude 接口放行；
+// 采样器解析它的 IP，出网审计把这些 IP 的连接归 Claude 接口（否则 IP 级连接未归类、守卫当成打到真实环境停轮）。
+export const claudeGatewayHost = (env = process.env) => {
+  try { return env.ANTHROPIC_BASE_URL ? new URL(env.ANTHROPIC_BASE_URL).hostname.toLowerCase() : null } catch { return null }
+}

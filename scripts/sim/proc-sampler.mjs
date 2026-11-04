@@ -11,7 +11,7 @@ import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs
 import { lookup } from 'node:dns/promises'
 import { join } from 'node:path'
 
-import { LOCAL_HOST_RE, noteEgress } from './egress-log.mjs'
+import { LOCAL_HOST_RE, claudeGatewayHost, noteEgress } from './egress-log.mjs'
 
 // 放行主机里能解析的那几个（通配的子域名靠 egress-audit 的 IP 段 / 反查兜）
 export const RESOLVE_HOSTS = ['api.anthropic.com', 'statsig.anthropic.com', 'claude.ai', 'console.anthropic.com', 'falivepre.fdsser.com', 'faliveuat.fdsser.com', 'streampre.fdsser.com', 'falivego.fdsser.com', 'www.falive.com', 'falive.com']
@@ -41,7 +41,7 @@ const psRows = () => {
 
 export const startSampler = ({ simDir, rootPid = process.pid, intervalMs = 5000, sockEvery = 2 } = {}) => {
   lookup('localhost').catch(() => {})
-  Promise.all(RESOLVE_HOSTS.map((h) => lookup(h, { all: true }).then((list) => list.map((x) => [x.address, h])).catch(() => [])))
+  Promise.all([...RESOLVE_HOSTS, ...(claudeGatewayHost() ? [claudeGatewayHost()] : [])].map((h) => lookup(h, { all: true }).then((list) => list.map((x) => [x.address, h])).catch(() => [])))
     .then((pairs) => {
       const path = join(simDir, 'egress-dns.json')
       const prev = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : {}
