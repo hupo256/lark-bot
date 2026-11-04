@@ -1,0 +1,934 @@
+{
+  "episode": "ep-1024-9ebe13",
+  "faliveCode": {
+    "sha": "8f48bd8bc5a98bedc1b996b4ebaf4b6d01a76545",
+    "dir": "/Users/aven/github/lark-bot-falive-sim/code-8f48bd8",
+    "codeHash": "65ba5be36378",
+    "startedAt": "2026-10-23T15:18:12.432Z",
+    "verified": false,
+    "tried": [
+      {
+        "sha": "8f48bd8",
+        "hashes": [
+          "6139b5b8f50a",
+          "5119374962b7"
+        ]
+      },
+      {
+        "sha": "0281143",
+        "hashes": [
+          "c6742b20a968",
+          "c6742b20a968"
+        ]
+      },
+      {
+        "sha": "f746d9c",
+        "hashes": [
+          "bc94efc25076",
+          "44ffce60ed49"
+        ]
+      },
+      {
+        "sha": "c9fc8f5",
+        "hashes": [
+          "1c10472c289a",
+          "44ffce60ed49"
+        ]
+      },
+      {
+        "sha": "00eff82",
+        "hashes": [
+          "a0777c8fffb3",
+          "152df47b0de2"
+        ]
+      },
+      {
+        "sha": "38b8966",
+        "hashes": [
+          "d344e7ac403b",
+          "7bbe3686c115"
+        ]
+      }
+    ]
+  },
+  "faliveConfig": "/Users/aven/github/lark-bot-falive/runtime/lark-bot.bak-20261027.local.json",
+  "cases": [
+    {
+      "label": "C1",
+      "id": "om_x100b62fc7a2060a4eed44f2ab9ebe13",
+      "at": "2026-10-24T10:07:10.941Z",
+      "chat": "php-group",
+      "text": "@Aven.Bot Bug-4942 再复测下 ！",
+      "classified": {
+        "falive": {
+          "decision": "api_reply",
+          "confidence": "medium"
+        },
+        "sim": {
+          "decision": "bug",
+          "confidence": "medium"
+        }
+      },
+      "status": {
+        "falive": null,
+        "sim": "blocked"
+      },
+      "seen": {
+        "falive": 0,
+        "sim": 44,
+        "onlyFalive": [],
+        "onlySim": [
+          "@Aven.Bot Bug-4942 再复测下 ！",
+          "【群里这条之前的消息】",
+          "HTStone.z（10-23 13:28）：@Arthur.a",
+          "正常進直播間要打這個 [https://pre-hailiao.hai-liao-pre.com/api/video/statistics/1286](https://pre-hailiao.hai-liao-pre.com/api/video/statistics/1286)",
+          "目前FALIVE沒有打 （发了 1 张图）",
+          "Arthur.a（10-23 13:28）：好",
+          "HTStone.z（10-23 13:28）：@Arthur.a 這是原本嗨聊的接口~不知道整併後應該打哪個~你再確認一下",
+          "HQUCEncone（10-23 14:06）：[https://falivepre.fdsser.com/api/live/createRoom](https://falivepre.fdsser.com/api/live/createRoom)",
+          "@Aven.Bot 我测试API 开播正常，但是界面web 开播 500 （发了 2 张图）",
+          "Aven.Bot（bot，我们自己）（10-23 14:08）：@HQUCEncone 收到截图，我对比下 web 发出的 createRoom 和你直接调的参数差在哪，查完回你。",
+          "Aven.Bot（bot，我们自己）（10-23 14:28）：@HQUCEncone 查到了：pre 上的 web 还是旧版本，开播提交时把 tag_ids 也算进了签名，后端验签不过（407），所以弹「请求失败」，跟 lang / intro 无关。修复已经在开发分支上，合进 pre 部署后就好，部署完我再测一遍告诉你。",
+          "Arthur.a（10-23 14:40）：@HTStone.z 确认了，go的API已经搞好了，前端接入一下应该就可以了",
+          "Aven.Bot（bot，我们自己）（10-23 15:04）：@HQUCEncone pre 部署后复测了：web 开播提交已经正常，不再「请求失败」，修改场次时介绍、语言、标签都能写进去。新建时后端回「请先结束当前直播，再创建新的直播间」，因为 508 名下还有个没结束的场次 1268，这是规则不是报错。顺带问一下：createRoom 回这个 -1 之后，1268 的主副标题好像变成了这次新建时填的内容，是不是在校验前已经写进去一部分了？",
+          "HQUCEncone（10-23 15:18）：已有直播间在播，无法获取推拉流地址，无法创建直播间，不会改到直播间介绍",
+          "HQUCEncone（10-23 15:18）：@Aven.Bot",
+          "Aven.Bot（bot，我们自己）（10-23 15:20）：@HQUCEncone 在的～web 开播复测已正常，1268 标题被改那个你方便时帮看下。",
+          "Arthur.a（10-23 17:36）：1. **直播间关注改 Go 这条要撤**：今天和 Encone 确认过，现在关注只走 live（php），php 还没同步到 Go，Go 也还没有关注接口，下个月才统一改 Go。所以关注主播任务暂时完不成是预期内的。",
+          "2. **广场读帖是前端的**：读帖门槛还在等产品口径。",
+          "3. **播放器观看时长**要先和 henry 对，现在有冲突；**HiChat 进房会话**和 broker 那份重复了。",
+          "Arthur.a（10-23 17:37）：这部分bug的话，暂时不能改哈，涉及到直播观看五分钟，关注主播以及广场发帖的积分任务完成",
+          "Arthur.a（10-23 17:38）：@Adrian @HQUCEncone @Broker @HTStone.z @Eric.ea @World@Aven.tong",
+          "Broker（10-23 18:46）：@Arthur.a 播放器观看时长有冲突是join哪个接口重复了么？",
+          "Arthur.a（10-23 18:47）：这个具体咨询一下Aven吧，我不太清楚@Broker",
+          "Aven.Bot（bot，我们自己）（10-23 19:06）：# Falive Web 日报 2026-10-23",
+          "总体进度 **96.3%**，已接通 **52 / 54**，今日 +1。",
+          "## 今天",
+          "- **aven**：接通读帖、分享直播间两个任务；修好开播失败并加开播语言；修关注状态同步、新闻排版、客服图片",
+          "- **adrian**：任务中心能查关注和看直播的任务是否到账；登录恢复期间显示加载态；修删除请求丢参数## 测试 Bug",
+          "- 共 88 个，今天新增 26：待处理 37、修复中 1、已推版 8、Pre测试通过 32、产品后续优化 2、非BUG，已关闭 2、验退 3、测试中 1、bug已关闭 1、（没填状态） 1",
+          "- 待处理 / 修复中按负责人：Ache.l 13、HQUCEncone 11、Henry 9、Arthur.a 5、Mateo 2、Adrian 2、HQUCWilliam.m 2、Arthur.a （亚瑟） 1完整版（云文档）：[https://qfglxo2m3dc.sg.larksuite.com/docx/DipAdlrMuoIjEdxHdohl4KTygDh](https://qfglxo2m3dc.sg.larksuite.com/docx/DipAdlrMuoIjEdxHdohl4KTygDh)",
+          "Aven.Bot（bot，我们自己）（10-23 19:22）：@Aven.tong 第 2 条已经定了：10-23 定的口径是「打开一篇广场帖子、详情显示出来、页面在前台，就算读完一次」，不设停留时长，和嗨聊 App 进帖子即上报一致，不用再等产品。前端已经按这个接上任务中心并合进 pre，这条 bug 不用再挂在等口径上。",
+          "- ⚠️ 接了但还不能用 pre 上读帖任务是否到账：这次探针没能带登录态打 Go 任务接口，pre 上积分到账没测通，需要用测试号在页面上点一次确认",
+          "HQUCEncone（10-24 12:49）：https://qfglxo2m3dc.sg.larksuite.com/record/H6oZrTxWMeZZGbcj31SlyGregNf",
+          "@Aven.Bot",
+          "bbsv2/member/otherInfo?uid=19675&channel_code=hc",
+          "数据已经正常返回， 页面显示还是不正常 ，请协助查看",
+          "Aven.Bot（bot，我们自己）（10-24 14:05）：@HQUCEncone 抱歉回晚了。看过了：后端 otherInfo 返回正常，页面还是「资料加载失败」是前端的问题——他人主页资料头还依赖 Go 的 `b2b/influencers` 接口，游客访问时 Go 回 -700「未授权」，整页跟着失败（登录后正常）。这块前端是 henry 负责的，需要他那边改成游客也能显示，后端不用动。",
+          "【William（live php 后端） 正在进行的事（任务 / bot 的话 2 小时内，台账条目不限；新的在前）】",
+          "- 台账 new#40e078（answered）William 让复测 Bug-4927：嗨聊已有账号登录 FALIVE 失败（#2 用户账号状态-…｜最近：William 给了嗨聊老账号（手机号登录），用来在 pre 复测 Bug-4927",
+          "- 台账 new#17dd90（applied）Encone 要 aven 当前 API 对接待处理问题清单（从台账里状态是 open / aske…｜最近：工单 om_x100b6246d44a48a8ed4b2711c9ab83e 已做，分支 lark/falive-int…"
+        ]
+      },
+      "group": {
+        "falive": [],
+        "sim": [
+          {
+            "at": "2026-10-24T10:07:40.635Z",
+            "afterSec": 30,
+            "phase": "ack",
+            "gated": null,
+            "text": "@ou_d24c070cfea7570478d3d61ced55de0c 收到，我先看下 Bug-4942 的记录，再去 pre 复测，测完回你。"
+          },
+          {
+            "at": "2026-10-24T10:11:41.253Z",
+            "afterSec": 270,
+            "phase": "blocked_ask",
+            "gated": null,
+            "text": "@William 「William（live php 后端）@bot 让再复测一次 Bug-4942，看样子他那边已经处理过，等前端在 pre 上复测给结论」这边卡住了，需要你们帮忙：\n- 拿不到 Bug-4942 的内容：本地台账、lark-chat-poller-state、lark-followup-docs、仓库 docs 都没有这个编号的标题和现象，台账自己也记着「先读 bug 记录确认是哪个功能、谁负责」。不知道测什么，就没法复测。需要读到 bug 表记录，或请 William 说明这条 bug 是什么、改了什么。"
+          }
+        ]
+      }
+    },
+    {
+      "label": "C2",
+      "id": "om_x100b62fc0eab18a8ff566b8f9ce427c",
+      "at": "2026-10-24T10:10:14.445Z",
+      "chat": "webhook-group",
+      "text": "继续任务 om_x100b62fc7a2060a4eed44f2ab9ebe13 做",
+      "classified": {
+        "falive": null,
+        "sim": null
+      },
+      "status": {
+        "falive": null,
+        "sim": null
+      },
+      "seen": {
+        "falive": 0,
+        "sim": 0,
+        "onlyFalive": [],
+        "onlySim": []
+      },
+      "group": {
+        "falive": [],
+        "sim": []
+      }
+    },
+    {
+      "label": "C3",
+      "id": "om_x100b62fc1a1084a0ed416521b0dee2d",
+      "at": "2026-10-24T10:15:41.878Z",
+      "chat": "php-group",
+      "text": "存「I'm QA.」读回来还是「I'm QA.」  有什么问题 ？  @Aven.Bot",
+      "classified": {
+        "falive": {
+          "decision": "api_reply",
+          "confidence": "medium"
+        },
+        "sim": {
+          "decision": "api_reply",
+          "confidence": "medium"
+        }
+      },
+      "status": {
+        "falive": null,
+        "sim": "waiting_confirmation"
+      },
+      "seen": {
+        "falive": 0,
+        "sim": 0,
+        "onlyFalive": [],
+        "onlySim": []
+      },
+      "group": {
+        "falive": [],
+        "sim": [
+          {
+            "at": "2026-10-24T10:16:28.072Z",
+            "afterSec": 46,
+            "phase": "ack",
+            "gated": null,
+            "text": "@ou_d24c070cfea7570478d3d61ced55de0c 好的感谢，我去 pre 看下前端显示「I'm QA.」这块，测完回你。"
+          }
+        ]
+      }
+    },
+    {
+      "label": "C4",
+      "id": "om_x100b62f88b4ba4a0ed62c6f7002bd76",
+      "at": "2026-10-24T15:18:48.434Z",
+      "chat": "php-group",
+      "text": "@Aven.Bot 测试 帖子多语言翻译 以及 AI识图 功能 ！",
+      "classified": {
+        "falive": {
+          "decision": "api_reply",
+          "confidence": "medium"
+        },
+        "sim": {
+          "decision": "api_reply",
+          "confidence": "low"
+        }
+      },
+      "status": {
+        "falive": null,
+        "sim": "waiting_confirmation"
+      },
+      "seen": {
+        "falive": 0,
+        "sim": 0,
+        "onlyFalive": [],
+        "onlySim": []
+      },
+      "group": {
+        "falive": [],
+        "sim": [
+          {
+            "at": "2026-10-24T15:19:15.785Z",
+            "afterSec": 27,
+            "phase": "ack",
+            "gated": null,
+            "text": "@ou_d24c070cfea7570478d3d61ced55de0c 收到，我先看下帖子翻译和 AI 识图前端这边接没接，到 pre 上测完回你。"
+          }
+        ]
+      }
+    },
+    {
+      "label": "C5",
+      "id": "om_x100b62f883ab54a0eedc53d11baac66",
+      "at": "2026-10-24T15:20:54.479Z",
+      "chat": "php-group",
+      "text": "@Aven.Bot 所以不是Bug ?",
+      "classified": {
+        "falive": {
+          "decision": "question",
+          "confidence": "medium"
+        },
+        "sim": {
+          "decision": "question",
+          "confidence": "medium"
+        }
+      },
+      "status": {
+        "falive": null,
+        "sim": "done"
+      },
+      "seen": {
+        "falive": 0,
+        "sim": 51,
+        "onlyFalive": [],
+        "onlySim": [
+          "【被引用消息】（Aven.Bot 10-24 14:19）",
+          "<card>",
+          "@HQUCWilliam.m Bug-4942 简介转义：通了 0 项，没通 2 项",
+          "- ⚠️ 接了但还不能用 后端存简介（Member/info）：刚在 pre 重抓了一次，signature 原文是 I&#039;m QA.，单引号还是被转义了。Lark 会把这个实体显示成 '，所以看起来两句一样；Network 面板里看原始响应就能看到。需要改成存原文，或者和产品确认保留转义",
+          "- ⚠️ 待验证 Web 个人主页简介显示：登录测试号打开个人主页，简介显示「I'm QA.」，前端在显示前已经还原；这次没实测",
+          "详细见：[https://qfglxo2m3dc.sg.larksuite.com/docx/F3U5d7edro6JuNx4YbVlafp0gUf](https://qfglxo2m3dc.sg.larksuite.com/docx/F3U5d7edro6JuNx4YbVlafp0gUf)",
+          "📝 由 aven 的助手整理",
+          "</card>",
+          "【本条 @】@Aven.Bot 所以不是Bug ?",
+          "【群里这条之前的消息】",
+          "Aven.Bot（bot，我们自己）（10-23 15:04）：@HQUCEncone pre 部署后复测了：web 开播提交已经正常，不再「请求失败」，修改场次时介绍、语言、标签都能写进去。新建时后端回「请先结束当前直播，再创建新的直播间」，因为 508 名下还有个没结束的场次 1268，这是规则不是报错。顺带问一下：createRoom 回这个 -1 之后，1268 的主副标题好像变成了这次新建时填的内容，是不是在校验前已经写进去一部分了？",
+          "HQUCEncone（10-23 15:18）：已有直播间在播，无法获取推拉流地址，无法创建直播间，不会改到直播间介绍",
+          "HQUCEncone（10-23 15:18）：@Aven.Bot",
+          "Aven.Bot（bot，我们自己）（10-23 15:20）：@HQUCEncone 在的～web 开播复测已正常，1268 标题被改那个你方便时帮看下。",
+          "Arthur.a（10-23 17:36）：1. **直播间关注改 Go 这条要撤**：今天和 Encone 确认过，现在关注只走 live（php），php 还没同步到 Go，Go 也还没有关注接口，下个月才统一改 Go。所以关注主播任务暂时完不成是预期内的。",
+          "2. **广场读帖是前端的**：读帖门槛还在等产品口径。",
+          "3. **播放器观看时长**要先和 henry 对，现在有冲突；**HiChat 进房会话**和 broker 那份重复了。",
+          "Arthur.a（10-23 17:37）：这部分bug的话，暂时不能改哈，涉及到直播观看五分钟，关注主播以及广场发帖的积分任务完成",
+          "Arthur.a（10-23 17:38）：@Adrian @HQUCEncone @Broker @HTStone.z @Eric.ea @World@Aven.tong",
+          "Broker（10-23 18:46）：@Arthur.a 播放器观看时长有冲突是join哪个接口重复了么？",
+          "Arthur.a（10-23 18:47）：这个具体咨询一下Aven吧，我不太清楚@Broker",
+          "Aven.Bot（bot，我们自己）（10-23 19:06）：# Falive Web 日报 2026-10-23",
+          "总体进度 **96.3%**，已接通 **52 / 54**，今日 +1。",
+          "## 今天",
+          "- **aven**：接通读帖、分享直播间两个任务；修好开播失败并加开播语言；修关注状态同步、新闻排版、客服图片",
+          "- **adrian**：任务中心能查关注和看直播的任务是否到账；登录恢复期间显示加载态；修删除请求丢参数## 测试 Bug",
+          "- 共 88 个，今天新增 26：待处理 37、修复中 1、已推版 8、Pre测试通过 32、产品后续优化 2、非BUG，已关闭 2、验退 3、测试中 1、bug已关闭 1、（没填状态） 1",
+          "- 待处理 / 修复中按负责人：Ache.l 13、HQUCEncone 11、Henry 9、Arthur.a 5、Mateo 2、Adrian 2、HQUCWilliam.m 2、Arthur.a （亚瑟） 1完整版（云文档）：[https://qfglxo2m3dc.sg.larksuite.com/docx/DipAdlrMuoIjEdxHdohl4KTygDh](https://qfglxo2m3dc.sg.larksuite.com/docx/DipAdlrMuoIjEdxHdohl4KTygDh)",
+          "Aven.Bot（bot，我们自己）（10-23 19:22）：@Aven.tong 第 2 条已经定了：10-23 定的口径是「打开一篇广场帖子、详情显示出来、页面在前台，就算读完一次」，不设停留时长，和嗨聊 App 进帖子即上报一致，不用再等产品。前端已经按这个接上任务中心并合进 pre，这条 bug 不用再挂在等口径上。",
+          "- ⚠️ 接了但还不能用 pre 上读帖任务是否到账：这次探针没能带登录态打 Go 任务接口，pre 上积分到账没测通，需要用测试号在页面上点一次确认",
+          "HQUCEncone（10-24 12:49）：https://qfglxo2m3dc.sg.larksuite.com/record/H6oZrTxWMeZZGbcj31SlyGregNf",
+          "@Aven.Bot",
+          "bbsv2/member/otherInfo?uid=19675&channel_code=hc",
+          "数据已经正常返回， 页面显示还是不正常 ，请协助查看",
+          "Aven.Bot（bot，我们自己）（10-24 14:05）：@HQUCEncone 抱歉回晚了。看过了：后端 otherInfo 返回正常，页面还是「资料加载失败」是前端的问题——他人主页资料头还依赖 Go 的 `b2b/influencers` 接口，游客访问时 Go 回 -700「未授权」，整页跟着失败（登录后正常）。这块前端是 henry 负责的，需要他那边改成游客也能显示，后端不用动。",
+          "HQUCWilliam.m（10-24 14:07）：@Aven.Bot Bug-4942 再复测下 ！",
+          "Aven.Bot（bot，我们自己）（10-24 14:07）：@HQUCWilliam.m 收到，我先看下 Bug-4942 的记录，再去 pre 复测，测完回你。",
+          "Aven.Bot（bot，我们自己）（10-24 14:11）：@HQUCWilliam.m 「William（live php 后端）@bot 让再复测一次 Bug-4942，看样子他那边已经处理过，等前端在 pre 上复测给结论」这边卡住了，需要你们帮忙：",
+          "- 拿不到 Bug-4942 的内容：本地台账、lark-chat-poller-state、lark-followup-docs、仓库 docs 都没有这个编号的标题和现象，台账自己也记着「先读 bug 记录确认是哪个功能、谁负责」。不知道测什么，就没法复测。需要读到 bug 表记录，或请 William 说明这条 bug 是什么、改了什么。",
+          "HQUCWilliam.m（10-24 14:15）：存「I'm QA.」读回来还是「I'm QA.」 有什么问题 ？ @Aven.Bot"
+        ]
+      },
+      "group": {
+        "falive": [],
+        "sim": [
+          {
+            "at": "2026-10-24T15:21:16.076Z",
+            "afterSec": 22,
+            "phase": "ack",
+            "gated": null,
+            "text": "@ou_d24c070cfea7570478d3d61ced55de0c 收到，我对一下原始响应和页面上的实际显示，给你个明确结论。"
+          },
+          {
+            "at": "2026-10-24T15:22:44.034Z",
+            "afterSec": 110,
+            "phase": "done",
+            "gated": null,
+            "text": "@ou_d24c070cfea7570478d3d61ced55de0c 对 Web 来说不是 bug：前端显示前已经把 &#039; 还原成单引号，页面上显示的是「I'm QA.」。不过后端接口原始返回的确实是「I&#039;m QA.」（Lark 消息会把这个实体显示成单引号，所以群里看起来两句一样），存进去和读出来不是同一串。App 等端如果直接显示这个字段，就会看到 &#039;。要不要当 bug 关掉，得请后端和产品定一下：改成存原文，或者保留转义、各端自己还原。\n- ⚠️ 接了但还不能用 后端存简介（Member/info）：原始响应里 signature 是 I&#039;m QA.，单引号被转义了。需要后端改成存原文，或者和产品确认保留转义、各端自己还原。本轮测试号登录失败，没能重新抓，引用的是 10-24 在 pre 上抓到的值。"
+          }
+        ]
+      }
+    },
+    {
+      "label": "C6",
+      "id": "om_x100b62f94d494ca0ed461fca3e5b201",
+      "at": "2026-10-24T15:35:20.340Z",
+      "chat": "php-group",
+      "text": "<p>测试的tid  发出来 @Aven.Bot</p>",
+      "classified": {
+        "falive": null,
+        "sim": {
+          "decision": "question",
+          "confidence": "medium"
+        }
+      },
+      "status": {
+        "falive": null,
+        "sim": "superseded"
+      },
+      "seen": {
+        "falive": 0,
+        "sim": 47,
+        "onlyFalive": [],
+        "onlySim": [
+          "测试的tid 发出来 @Aven.Bot",
+          "【群里这条之前的消息】",
+          "Aven.Bot（bot，我们自己）（10-23 15:20）：@HQUCEncone 在的～web 开播复测已正常，1268 标题被改那个你方便时帮看下。",
+          "Arthur.a（10-23 17:36）：1. **直播间关注改 Go 这条要撤**：今天和 Encone 确认过，现在关注只走 live（php），php 还没同步到 Go，Go 也还没有关注接口，下个月才统一改 Go。所以关注主播任务暂时完不成是预期内的。",
+          "2. **广场读帖是前端的**：读帖门槛还在等产品口径。",
+          "3. **播放器观看时长**要先和 henry 对，现在有冲突；**HiChat 进房会话**和 broker 那份重复了。",
+          "Arthur.a（10-23 17:37）：这部分bug的话，暂时不能改哈，涉及到直播观看五分钟，关注主播以及广场发帖的积分任务完成",
+          "Arthur.a（10-23 17:38）：@Adrian @HQUCEncone @Broker @HTStone.z @Eric.ea @World@Aven.tong",
+          "Broker（10-23 18:46）：@Arthur.a 播放器观看时长有冲突是join哪个接口重复了么？",
+          "Arthur.a（10-23 18:47）：这个具体咨询一下Aven吧，我不太清楚@Broker",
+          "Aven.Bot（bot，我们自己）（10-23 19:06）：# Falive Web 日报 2026-10-23",
+          "总体进度 **96.3%**，已接通 **52 / 54**，今日 +1。",
+          "## 今天",
+          "- **aven**：接通读帖、分享直播间两个任务；修好开播失败并加开播语言；修关注状态同步、新闻排版、客服图片",
+          "- **adrian**：任务中心能查关注和看直播的任务是否到账；登录恢复期间显示加载态；修删除请求丢参数## 测试 Bug",
+          "- 共 88 个，今天新增 26：待处理 37、修复中 1、已推版 8、Pre测试通过 32、产品后续优化 2、非BUG，已关闭 2、验退 3、测试中 1、bug已关闭 1、（没填状态） 1",
+          "- 待处理 / 修复中按负责人：Ache.l 13、HQUCEncone 11、Henry 9、Arthur.a 5、Mateo 2、Adrian 2、HQUCWilliam.m 2、Arthur.a （亚瑟） 1完整版（云文档）：[https://qfglxo2m3dc.sg.larksuite.com/docx/DipAdlrMuoIjEdxHdohl4KTygDh](https://qfglxo2m3dc.sg.larksuite.com/docx/DipAdlrMuoIjEdxHdohl4KTygDh)",
+          "Aven.Bot（bot，我们自己）（10-23 19:22）：@Aven.tong 第 2 条已经定了：10-23 定的口径是「打开一篇广场帖子、详情显示出来、页面在前台，就算读完一次」，不设停留时长，和嗨聊 App 进帖子即上报一致，不用再等产品。前端已经按这个接上任务中心并合进 pre，这条 bug 不用再挂在等口径上。",
+          "- ⚠️ 接了但还不能用 pre 上读帖任务是否到账：这次探针没能带登录态打 Go 任务接口，pre 上积分到账没测通，需要用测试号在页面上点一次确认",
+          "HQUCEncone（10-24 12:49）：https://qfglxo2m3dc.sg.larksuite.com/record/H6oZrTxWMeZZGbcj31SlyGregNf",
+          "@Aven.Bot",
+          "bbsv2/member/otherInfo?uid=19675&channel_code=hc",
+          "数据已经正常返回， 页面显示还是不正常 ，请协助查看",
+          "Aven.Bot（bot，我们自己）（10-24 14:05）：@HQUCEncone 抱歉回晚了。看过了：后端 otherInfo 返回正常，页面还是「资料加载失败」是前端的问题——他人主页资料头还依赖 Go 的 `b2b/influencers` 接口，游客访问时 Go 回 -700「未授权」，整页跟着失败（登录后正常）。这块前端是 henry 负责的，需要他那边改成游客也能显示，后端不用动。",
+          "HQUCWilliam.m（10-24 14:07）：@Aven.Bot Bug-4942 再复测下 ！",
+          "Aven.Bot（bot，我们自己）（10-24 14:07）：@HQUCWilliam.m 收到，我先看下 Bug-4942 的记录，再去 pre 复测，测完回你。",
+          "Aven.Bot（bot，我们自己）（10-24 14:11）：@HQUCWilliam.m 「William（live php 后端）@bot 让再复测一次 Bug-4942，看样子他那边已经处理过，等前端在 pre 上复测给结论」这边卡住了，需要你们帮忙：",
+          "- 拿不到 Bug-4942 的内容：本地台账、lark-chat-poller-state、lark-followup-docs、仓库 docs 都没有这个编号的标题和现象，台账自己也记着「先读 bug 记录确认是哪个功能、谁负责」。不知道测什么，就没法复测。需要读到 bug 表记录，或请 William 说明这条 bug 是什么、改了什么。",
+          "HQUCWilliam.m（10-24 14:15）：存「I'm QA.」读回来还是「I'm QA.」 有什么问题 ？ @Aven.Bot",
+          "Aven.Bot（bot，我们自己）（10-24 14:16）：@HQUCWilliam.m 好的感谢，我去 pre 看下前端显示「I'm QA.」这块，测完回你。",
+          "HQUCWilliam.m（10-24 19:18）：@Aven.Bot 测试 帖子多语言翻译 以及 AI识图 功能 ！",
+          "Aven.Bot（bot，我们自己）（10-24 19:19）：@HQUCWilliam.m 收到，我先看下帖子翻译和 AI 识图前端这边接没接，到 pre 上测完回你。",
+          "HQUCWilliam.m（10-24 19:20）：@Aven.Bot 所以不是Bug ?",
+          "Aven.Bot（bot，我们自己）（10-24 19:21）：@HQUCWilliam.m 收到，我对一下原始响应和页面上的实际显示，给你个明确结论。",
+          "Aven.Bot（bot，我们自己）（10-24 19:22）：@HQUCWilliam.m 对 Web 来说不是 bug：前端显示前已经把 &#039; 还原成单引号，页面上显示的是「I'm QA.」。不过后端接口原始返回的确实是「I&#039;m QA.」（Lark 消息会把这个实体显示成单引号，所以群里看起来两句一样），存进去和读出来不是同一串。App 等端如果直接显示这个字段，就会看到 &#039;。要不要当 bug 关掉，得请后端和产品定一下：改成存原文，或者保留转义、各端自己还原。",
+          "- ⚠️ 接了但还不能用 后端存简介（Member/info）：原始响应里 signature 是 I&#039;m QA.，单引号被转义了。需要后端改成存原文，或者和产品确认保留转义、各端自己还原。本轮测试号登录失败，没能重新抓，引用的是 10-24 在 pre 上抓到的值。",
+          "【William（live php 后端） 正在进行的事（任务 / bot 的话 2 小时内，台账条目不限；新的在前）】",
+          "- 19:22 bot 对他说（done，主题 q:om_x100b62f883ab54a0eedc53d11baac66）：对 Web 来说不是 bug：前端显示前已经把 &#039; 还原成单引号，页面上显示的是「I'm QA.」。不过后端接口原始返回的确实是「I&#039;m QA.」（Lark 消息会把这个实体显示成单引号，所以群里看起来两句一样），存进去和读出来不是同一串。App 等端如果直接显示这个字段，就会看到 &#039;。要不要当 bug 关掉，得请后端和产品定一下：改成存原文，或者保留转义、各端自己还原。 - ⚠️ 接了但还不能用 后端存简介（Member/info）：原始响应里 signature 是 I&#039;m QA.，单引号被转义了。需要后端改成存原文，或者和产品确认保留转义、各端自己还原。本轮测试号登录失败，没能重新抓，引用的是 10-24 在 pre 上抓到的值。",
+          "- 19:21 bot 对他说（ack）：收到，我对一下原始响应和页面上的实际显示，给你个明确结论。",
+          "- 19:19 bot 对他说（ack）：收到，我先看下帖子翻译和 AI 识图前端这边接没接，到 pre 上测完回你。"
+        ]
+      },
+      "group": {
+        "falive": [],
+        "sim": [
+          {
+            "at": "2026-10-24T15:35:56.351Z",
+            "afterSec": 36,
+            "phase": "ack",
+            "gated": null,
+            "text": "@ou_d24c070cfea7570478d3d61ced55de0c 好的，我在 pre 发帖测完翻译和识图，把 tid 和结果一起发你。"
+          },
+          {
+            "at": "2026-10-24T15:41:00.711Z",
+            "afterSec": 340,
+            "phase": "blocked_ask",
+            "gated": null,
+            "text": "@William 「帖子翻译 / AI 识图测试」这边卡住了，需要你们帮忙：\n- 探针那条线路的 bbsv2 上传和发帖都回 405。所以拿不到 tid，需要 William 给一个能用的测试账号，或者直接给一个 11-01 之后发的测试帖 tid\n- AI 识图没有接口契约：前端没有识图入口，bbsv2 文档里也没有识图字段，需要 William 说明识图结果在哪个接口、哪个字段返回"
+          }
+        ]
+      }
+    },
+    {
+      "label": "C7",
+      "id": "om_x100b62f9593808a0ed42e0a526186a4",
+      "at": "2026-10-24T15:40:47.396Z",
+      "chat": "php-group",
+      "text": "@Aven.Bot",
+      "classified": {
+        "falive": {
+          "decision": "question",
+          "confidence": "high"
+        },
+        "sim": {
+          "decision": "requirement",
+          "confidence": "medium"
+        }
+      },
+      "status": {
+        "falive": null,
+        "sim": "done"
+      },
+      "seen": {
+        "falive": 0,
+        "sim": 45,
+        "onlyFalive": [],
+        "onlySim": [
+          "@Aven.Bot",
+          "【群里这条之前的消息】",
+          "Arthur.a（10-23 17:37）：这部分bug的话，暂时不能改哈，涉及到直播观看五分钟，关注主播以及广场发帖的积分任务完成",
+          "Arthur.a（10-23 17:38）：@Adrian @HQUCEncone @Broker @HTStone.z @Eric.ea @World@Aven.tong",
+          "Broker（10-23 18:46）：@Arthur.a 播放器观看时长有冲突是join哪个接口重复了么？",
+          "Arthur.a（10-23 18:47）：这个具体咨询一下Aven吧，我不太清楚@Broker",
+          "Aven.Bot（bot，我们自己）（10-23 19:06）：# Falive Web 日报 2026-10-23",
+          "总体进度 **96.3%**，已接通 **52 / 54**，今日 +1。",
+          "## 今天",
+          "- **aven**：接通读帖、分享直播间两个任务；修好开播失败并加开播语言；修关注状态同步、新闻排版、客服图片",
+          "- **adrian**：任务中心能查关注和看直播的任务是否到账；登录恢复期间显示加载态；修删除请求丢参数## 测试 Bug",
+          "- 共 88 个，今天新增 26：待处理 37、修复中 1、已推版 8、Pre测试通过 32、产品后续优化 2、非BUG，已关闭 2、验退 3、测试中 1、bug已关闭 1、（没填状态） 1",
+          "- 待处理 / 修复中按负责人：Ache.l 13、HQUCEncone 11、Henry 9、Arthur.a 5、Mateo 2、Adrian 2、HQUCWilliam.m 2、Arthur.a （亚瑟） 1完整版（云文档）：[https://qfglxo2m3dc.sg.larksuite.com/docx/DipAdlrMuoIjEdxHdohl4KTygDh](https://qfglxo2m3dc.sg.larksuite.com/docx/DipAdlrMuoIjEdxHdohl4KTygDh)",
+          "Aven.Bot（bot，我们自己）（10-23 19:22）：@Aven.tong 第 2 条已经定了：10-23 定的口径是「打开一篇广场帖子、详情显示出来、页面在前台，就算读完一次」，不设停留时长，和嗨聊 App 进帖子即上报一致，不用再等产品。前端已经按这个接上任务中心并合进 pre，这条 bug 不用再挂在等口径上。",
+          "- ⚠️ 接了但还不能用 pre 上读帖任务是否到账：这次探针没能带登录态打 Go 任务接口，pre 上积分到账没测通，需要用测试号在页面上点一次确认",
+          "HQUCEncone（10-24 12:49）：https://qfglxo2m3dc.sg.larksuite.com/record/H6oZrTxWMeZZGbcj31SlyGregNf",
+          "bbsv2/member/otherInfo?uid=19675&channel_code=hc",
+          "数据已经正常返回， 页面显示还是不正常 ，请协助查看",
+          "Aven.Bot（bot，我们自己）（10-24 14:05）：@HQUCEncone 抱歉回晚了。看过了：后端 otherInfo 返回正常，页面还是「资料加载失败」是前端的问题——他人主页资料头还依赖 Go 的 `b2b/influencers` 接口，游客访问时 Go 回 -700「未授权」，整页跟着失败（登录后正常）。这块前端是 henry 负责的，需要他那边改成游客也能显示，后端不用动。",
+          "HQUCWilliam.m（10-24 14:07）：@Aven.Bot Bug-4942 再复测下 ！",
+          "Aven.Bot（bot，我们自己）（10-24 14:07）：@HQUCWilliam.m 收到，我先看下 Bug-4942 的记录，再去 pre 复测，测完回你。",
+          "Aven.Bot（bot，我们自己）（10-24 14:11）：@HQUCWilliam.m 「William（live php 后端）@bot 让再复测一次 Bug-4942，看样子他那边已经处理过，等前端在 pre 上复测给结论」这边卡住了，需要你们帮忙：",
+          "- 拿不到 Bug-4942 的内容：本地台账、lark-chat-poller-state、lark-followup-docs、仓库 docs 都没有这个编号的标题和现象，台账自己也记着「先读 bug 记录确认是哪个功能、谁负责」。不知道测什么，就没法复测。需要读到 bug 表记录，或请 William 说明这条 bug 是什么、改了什么。",
+          "HQUCWilliam.m（10-24 14:15）：存「I'm QA.」读回来还是「I'm QA.」 有什么问题 ？ @Aven.Bot",
+          "Aven.Bot（bot，我们自己）（10-24 14:16）：@HQUCWilliam.m 好的感谢，我去 pre 看下前端显示「I'm QA.」这块，测完回你。",
+          "HQUCWilliam.m（10-24 19:18）：@Aven.Bot 测试 帖子多语言翻译 以及 AI识图 功能 ！",
+          "Aven.Bot（bot，我们自己）（10-24 19:19）：@HQUCWilliam.m 收到，我先看下帖子翻译和 AI 识图前端这边接没接，到 pre 上测完回你。",
+          "HQUCWilliam.m（10-24 19:20）：@Aven.Bot 所以不是Bug ?",
+          "Aven.Bot（bot，我们自己）（10-24 19:21）：@HQUCWilliam.m 收到，我对一下原始响应和页面上的实际显示，给你个明确结论。",
+          "Aven.Bot（bot，我们自己）（10-24 19:22）：@HQUCWilliam.m 对 Web 来说不是 bug：前端显示前已经把 &#039; 还原成单引号，页面上显示的是「I'm QA.」。不过后端接口原始返回的确实是「I&#039;m QA.」（Lark 消息会把这个实体显示成单引号，所以群里看起来两句一样），存进去和读出来不是同一串。App 等端如果直接显示这个字段，就会看到 &#039;。要不要当 bug 关掉，得请后端和产品定一下：改成存原文，或者保留转义、各端自己还原。",
+          "- ⚠️ 接了但还不能用 后端存简介（Member/info）：原始响应里 signature 是 I&#039;m QA.，单引号被转义了。需要后端改成存原文，或者和产品确认保留转义、各端自己还原。本轮测试号登录失败，没能重新抓，引用的是 10-24 在 pre 上抓到的值。",
+          "HQUCWilliam.m（10-24 19:35）：测试的tid 发出来 @Aven.Bot",
+          "Aven.Bot（bot，我们自己）（10-24 19:35）：@HQUCWilliam.m 好的，我在 pre 发帖测完翻译和识图，把 tid 和结果一起发你。",
+          "【William（live php 后端） 正在进行的事（任务 / bot 的话 2 小时内，台账条目不限；新的在前）】",
+          "- 19:35 bot 对他说（ack）：好的，我在 pre 发帖测完翻译和识图，把 tid 和结果一起发你。",
+          "- 19:22 bot 对他说（done，主题 q:om_x100b62f883ab54a0eedc53d11baac66）：对 Web 来说不是 bug：前端显示前已经把 &#039; 还原成单引号，页面上显示的是「I'm QA.」。不过后端接口原始返回的确实是「I&#039;m QA.」（Lark 消息会把这个实体显示成单引号，所以群里看起来两句一样），存进去和读出来不是同一串。App 等端如果直接显示这个字段，就会看到 &#039;。要不要当 bug 关掉，得请后端和产品定一下：改成存原文，或者保留转义、各端自己还原。 - ⚠️ 接了但还不能用 后端存简介（Member/info）：原始响应里 signature 是 I&#039;m QA.，单引号被转义了。需要后端改成存原文，或者和产品确认保留转义、各端自己还原。本轮测试号登录失败，没能重新抓，引用的是 10-24 在 pre 上抓到的值。",
+          "- 19:21 bot 对他说（ack）：收到，我对一下原始响应和页面上的实际显示，给你个明确结论。",
+          "- 他 19:35 的消息 id=om_x100b62f94d494ca0ed461fca3e5b201 主题=q:om_x100b62f94d494ca0ed461fca3e5b201 状态=running：William（live php 后端）接着他之前让测的「帖子多语言翻译 + AI 识图」，要 bot 把测试用的帖子 tid 发出来，方便他在后端查。",
+          "- 他 19:20 的消息 id=om_x100b62f883ab54a0eedc53d11baac66 主题=q:om_x100b62f883ab54a0eedc53d11baac66 状态=done：William（live php 后端）引用 bot 10-24 14:19 的 Bug-4942 简介转义复测卡片，追问「所以不是 Bug？」。他想要一个明确",
+          "- 他 19:19 的消息 id=om_x100b62f88b4ba4a0ed62c6f7002bd76 主题=new#02bd76 状态=waiting_confirmation：William（live php 后端）@bot，让测试「帖子多语言翻译」和「AI 识图」两个功能。看语气是后端那边已经做好，等前端测试或验收。"
+        ]
+      },
+      "group": {
+        "falive": [],
+        "sim": [
+          {
+            "at": "2026-10-24T15:41:14.591Z",
+            "afterSec": 27,
+            "phase": "ack",
+            "gated": null,
+            "text": "@ou_d24c070cfea7570478d3d61ced55de0c 在测了，测完把 tid 和翻译、识图的结果一起发你。"
+          },
+          {
+            "at": "2026-10-24T15:47:51.902Z",
+            "afterSec": 425,
+            "phase": "done",
+            "gated": null,
+            "text": "@William 帖子翻译 / AI 识图测试（tid 18802）：通了 0 项，没通 4 项\n完整内容：https://sim.local/docx/simdoc00026"
+          }
+        ]
+      }
+    },
+    {
+      "label": "C8",
+      "id": "om_x100b62f96be7f8a4ed44dbc6f75d5a1",
+      "at": "2026-10-24T15:44:18.707Z",
+      "chat": "php-group",
+      "text": "@Aven.Bot 创建最新的帖子 进行测试",
+      "classified": {
+        "falive": {
+          "decision": "requirement",
+          "confidence": "medium"
+        },
+        "sim": {
+          "decision": "api_reply",
+          "confidence": "high"
+        }
+      },
+      "status": {
+        "falive": null,
+        "sim": "no_change_needed"
+      },
+      "seen": {
+        "falive": 0,
+        "sim": 54,
+        "onlyFalive": [],
+        "onlySim": [
+          "【被引用消息】（Aven.Bot 10-24 19:43）",
+          "<card>",
+          "@HQUCWilliam.m 测翻译用的是 tid 18608（主测，帖子详情加它下面的评论）和 tid 18596（10-20 发的帖），两个帖子现在在 pre 上都能正常打开。19:27 那轮用英文请求（X-Accept-Language: en-us）拿到的都还是中文原文，content_locale 是 zh-cn。请求明细在文档里。",
+          "📝 由 aven 的助手整理",
+          "</card>",
+          "【本条 @】@Aven.Bot 创建最新的帖子 进行测试",
+          "【群里这条之前的消息】",
+          "Arthur.a（10-23 18:47）：这个具体咨询一下Aven吧，我不太清楚@Broker",
+          "Aven.Bot（bot，我们自己）（10-23 19:06）：# Falive Web 日报 2026-10-23",
+          "总体进度 **96.3%**，已接通 **52 / 54**，今日 +1。",
+          "## 今天",
+          "- **aven**：接通读帖、分享直播间两个任务；修好开播失败并加开播语言；修关注状态同步、新闻排版、客服图片",
+          "- **adrian**：任务中心能查关注和看直播的任务是否到账；登录恢复期间显示加载态；修删除请求丢参数## 测试 Bug",
+          "- 共 88 个，今天新增 26：待处理 37、修复中 1、已推版 8、Pre测试通过 32、产品后续优化 2、非BUG，已关闭 2、验退 3、测试中 1、bug已关闭 1、（没填状态） 1",
+          "- 待处理 / 修复中按负责人：Ache.l 13、HQUCEncone 11、Henry 9、Arthur.a 5、Mateo 2、Adrian 2、HQUCWilliam.m 2、Arthur.a （亚瑟） 1完整版（云文档）：[https://qfglxo2m3dc.sg.larksuite.com/docx/DipAdlrMuoIjEdxHdohl4KTygDh](https://qfglxo2m3dc.sg.larksuite.com/docx/DipAdlrMuoIjEdxHdohl4KTygDh)",
+          "Aven.Bot（bot，我们自己）（10-23 19:22）：@Aven.tong 第 2 条已经定了：10-23 定的口径是「打开一篇广场帖子、详情显示出来、页面在前台，就算读完一次」，不设停留时长，和嗨聊 App 进帖子即上报一致，不用再等产品。前端已经按这个接上任务中心并合进 pre，这条 bug 不用再挂在等口径上。",
+          "- ⚠️ 接了但还不能用 pre 上读帖任务是否到账：这次探针没能带登录态打 Go 任务接口，pre 上积分到账没测通，需要用测试号在页面上点一次确认",
+          "HQUCEncone（10-24 12:49）：https://qfglxo2m3dc.sg.larksuite.com/record/H6oZrTxWMeZZGbcj31SlyGregNf",
+          "@Aven.Bot",
+          "bbsv2/member/otherInfo?uid=19675&channel_code=hc",
+          "数据已经正常返回， 页面显示还是不正常 ，请协助查看",
+          "Aven.Bot（bot，我们自己）（10-24 14:05）：@HQUCEncone 抱歉回晚了。看过了：后端 otherInfo 返回正常，页面还是「资料加载失败」是前端的问题——他人主页资料头还依赖 Go 的 `b2b/influencers` 接口，游客访问时 Go 回 -700「未授权」，整页跟着失败（登录后正常）。这块前端是 henry 负责的，需要他那边改成游客也能显示，后端不用动。",
+          "HQUCWilliam.m（10-24 14:07）：@Aven.Bot Bug-4942 再复测下 ！",
+          "Aven.Bot（bot，我们自己）（10-24 14:07）：@HQUCWilliam.m 收到，我先看下 Bug-4942 的记录，再去 pre 复测，测完回你。",
+          "Aven.Bot（bot，我们自己）（10-24 14:11）：@HQUCWilliam.m 「William（live php 后端）@bot 让再复测一次 Bug-4942，看样子他那边已经处理过，等前端在 pre 上复测给结论」这边卡住了，需要你们帮忙：",
+          "- 拿不到 Bug-4942 的内容：本地台账、lark-chat-poller-state、lark-followup-docs、仓库 docs 都没有这个编号的标题和现象，台账自己也记着「先读 bug 记录确认是哪个功能、谁负责」。不知道测什么，就没法复测。需要读到 bug 表记录，或请 William 说明这条 bug 是什么、改了什么。",
+          "HQUCWilliam.m（10-24 14:15）：存「I'm QA.」读回来还是「I'm QA.」 有什么问题 ？ @Aven.Bot",
+          "Aven.Bot（bot，我们自己）（10-24 14:16）：@HQUCWilliam.m 好的感谢，我去 pre 看下前端显示「I'm QA.」这块，测完回你。",
+          "HQUCWilliam.m（10-24 19:18）：@Aven.Bot 测试 帖子多语言翻译 以及 AI识图 功能 ！",
+          "Aven.Bot（bot，我们自己）（10-24 19:19）：@HQUCWilliam.m 收到，我先看下帖子翻译和 AI 识图前端这边接没接，到 pre 上测完回你。",
+          "HQUCWilliam.m（10-24 19:20）：@Aven.Bot 所以不是Bug ?",
+          "Aven.Bot（bot，我们自己）（10-24 19:21）：@HQUCWilliam.m 收到，我对一下原始响应和页面上的实际显示，给你个明确结论。",
+          "Aven.Bot（bot，我们自己）（10-24 19:22）：@HQUCWilliam.m 对 Web 来说不是 bug：前端显示前已经把 &#039; 还原成单引号，页面上显示的是「I'm QA.」。不过后端接口原始返回的确实是「I&#039;m QA.」（Lark 消息会把这个实体显示成单引号，所以群里看起来两句一样），存进去和读出来不是同一串。App 等端如果直接显示这个字段，就会看到 &#039;。要不要当 bug 关掉，得请后端和产品定一下：改成存原文，或者保留转义、各端自己还原。",
+          "- ⚠️ 接了但还不能用 后端存简介（Member/info）：原始响应里 signature 是 I&#039;m QA.，单引号被转义了。需要后端改成存原文，或者和产品确认保留转义、各端自己还原。本轮测试号登录失败，没能重新抓，引用的是 10-24 在 pre 上抓到的值。",
+          "HQUCWilliam.m（10-24 19:35）：测试的tid 发出来 @Aven.Bot",
+          "Aven.Bot（bot，我们自己）（10-24 19:35）：@HQUCWilliam.m 好的，我在 pre 发帖测完翻译和识图，把 tid 和结果一起发你。",
+          "HQUCWilliam.m（10-24 19:40）：@Aven.Bot",
+          "Aven.Bot（bot，我们自己）（10-24 19:41）：@HQUCWilliam.m 「帖子翻译 / AI 识图测试」这边卡住了，需要你们帮忙：",
+          "- 探针那条线路的 bbsv2 上传和发帖都回 405。所以拿不到 tid，需要 William 给一个能用的测试账号，或者直接给一个 11-01 之后发的测试帖 tid",
+          "- AI 识图没有接口契约：前端没有识图入口，bbsv2 文档里也没有识图字段，需要 William 说明识图结果在哪个接口、哪个字段返回"
+        ]
+      },
+      "group": {
+        "falive": [],
+        "sim": [
+          {
+            "at": "2026-10-24T15:44:51.373Z",
+            "afterSec": 33,
+            "phase": "ack",
+            "gated": null,
+            "text": "@ou_d24c070cfea7570478d3d61ced55de0c 好的，我在 pre 发一条新帖重测翻译，测完把 tid 和结果发你。"
+          },
+          {
+            "at": "2026-10-24T15:53:19.808Z",
+            "afterSec": 541,
+            "phase": "done",
+            "gated": null,
+            "text": "@ou_d24c070cfea7570478d3d61ced55de0c 帖子翻译 / AI 识图测试：通了 1 项，没通 3 项\n- ⚠️ 接了但还不能用 旧帖 18608 翻译：翻译上线前发的帖，用英文请求仍是中文原文，content_locale=zh-cn；要不要给旧帖补翻译请后端定\n- ⚠️ 待验证 帖子多语言翻译（新帖 tid 18803）：新发中文帖 18803 和评论 27190，发帖后约半分钟用英文请求，标题、正文、评论都返回英文，content_locale=en-us；用中文请求返回原文；这次没实测\n- ❌ 没接 AI 识图：还没有识图的接口和字段说明，需要 William 告诉我们识图结果在哪个接口、哪个字段返回\n- ✅ 通了 帖子详情页显示：本地连 pre 打开 18803，中文界面的正文和评论都正常；英文界面直接显示接口返回的译文，前端不用改\n详细见：https://sim.local/docx/simdoc00029"
+          }
+        ]
+      }
+    }
+  ],
+  "routing": {
+    "falive": [
+      "received task-mention C1，等待意图分类…",
+      "repo ack C1 ok via webhook",
+      "C1 回「收到」（classified，用分类 reply）：ok",
+      "台账：C1 api_reply 触及 new#9ebe13 → 工单键 …",
+      "repo suspected C1 -> webhook-group ok via webhook",
+      "task-mention C1 classified=api_reply/medium forMe=null，疑似任务挂待确认（已私聊负责人一句）",
+      "负责人私聊（explicit）→ 续跑 C1：继续任务 C1 做",
+      "resumed task C1 with supplement（第 1 次续跑）: 继续任务 C1 做",
+      "repo start C1 -> webhook-group ok via webhook",
+      "repo group reply C1 ok via webhook",
+      "repo outcome C1 no_change_needed -> webhook-group ok via webhook",
+      "received task-mention C3，等待意图分类…",
+      "repo ack C3 ok via webhook",
+      "C3 回「收到」（classified，用分类 reply）：ok",
+      "台账：C3 api_reply 触及 new#9ebe13 → 工单键 …",
+      "repo start C3 -> webhook-group ok via webhook",
+      "task-mention C3 classified=api_reply/medium，正式入队",
+      "repo group reply C3 ok via webhook",
+      "repo outcome C3 no_change_needed -> webhook-group ok via webhook",
+      "received task-mention C4，等待意图分类…",
+      "repo ack C4 ok via webhook",
+      "C4 回「收到」（classified，用分类 reply）：ok",
+      "台账：C4 api_reply 触及 new#02bd76 → 工单键 …",
+      "repo start C4 -> webhook-group ok via webhook",
+      "task-mention C4 classified=api_reply/medium，正式入队",
+      "repo group reply C4 ok via webhook",
+      "repo outcome C4 done -> webhook-group ok via webhook",
+      "锚定：C8 接着 C4（主题 new#02bd76）",
+      "received task-mention C5，等待意图分类…",
+      "出口闸拦下 repo ack C5：2 分钟内已对同一人发过 ack（19:19）",
+      "C5 回「收到」（classified，固定句）：出口闸拦下：2 分钟内已对同一人发过 ack（19:19）",
+      "台账：C5 question 触及 new#9ebe13 → 工单键 …",
+      "repo start C5 -> webhook-group ok via webhook",
+      "task-mention C5 classified=question/medium，正式入队",
+      "repo group reply C5 ok via webhook",
+      "repo outcome C5 done -> webhook-group ok via webhook",
+      "received task-mention C7，等待意图分类…",
+      "repo ack C7 ok via webhook",
+      "C7 回「收到」（classified，用分类 reply）：ok",
+      "台账：C7 question 触及 new#02bd76 → 工单键 …",
+      "repo start C7 -> webhook-group ok via webhook",
+      "task-mention C7 classified=question/high，正式入队",
+      "repo group reply C7 ok via webhook",
+      "repo outcome C7 done -> webhook-group ok via webhook",
+      "received task-mention C8，等待意图分类…",
+      "repo ack C8 ok via webhook",
+      "C8 回「收到」（classified，用分类 reply）：ok",
+      "台账：C8 requirement 触及 new#02bd76 → 工单键 …",
+      "repo start C8 -> webhook-group ok via webhook",
+      "task-mention C8 classified=requirement/medium，正式入队",
+      "C8 待确认清单已更新同主题云文档（new#02bd76）",
+      "repo group reply C8 ok via webhook",
+      "repo outcome C8 done -> webhook-group ok via webhook"
+    ],
+    "sim": [
+      "received task-mention C1，等待意图分类…",
+      "repo ack C1 ok via webhook",
+      "C1 回「收到」（classified，用分类 reply）：ok",
+      "台账：C1 bug 触及 new#9ebe13 → 工单键 …",
+      "repo suspected C1 -> webhook-group ok via webhook",
+      "task-mention C1 classified=bug/medium forMe=null，疑似任务挂待确认（已私聊负责人一句）",
+      "负责人私聊（explicit）→ 续跑 C1：继续任务 C1 做",
+      "resumed task C1 with supplement（第 1 次续跑）: 继续任务 C1 做",
+      "repo start C1 -> webhook-group ok via webhook",
+      "repo blocked ask C1 ok via webhook",
+      "repo outcome C1 blocked -> webhook-group ok via webhook",
+      "received task-mention C3，等待意图分类…",
+      "repo ack C3 ok via webhook",
+      "C3 回「收到」（classified，用分类 reply）：ok",
+      "台账：C3 api_reply 触及 new#9ebe13 → 工单键 …",
+      "repo suspected C3 -> webhook-group ok via webhook",
+      "task-mention C3 classified=api_reply/medium forMe=null，疑似任务挂待确认（已私聊负责人一句）",
+      "received task-mention C4，等待意图分类…",
+      "repo ack C4 ok via webhook",
+      "C4 回「收到」（classified，用分类 reply）：ok",
+      "台账：C4 api_reply 触及 new#02bd76 → 工单键 …",
+      "repo suspected C4 -> webhook-group ok via webhook",
+      "task-mention C4 classified=api_reply/low forMe=null，疑似任务挂待确认（已私聊负责人一句）",
+      "received task-mention C5，等待意图分类…",
+      "repo ack C5 ok via webhook",
+      "C5 回「收到」（classified，用分类 reply）：ok",
+      "台账：C5 question 触及 new#9ebe13 → 工单键 …",
+      "repo start C5 -> webhook-group ok via webhook",
+      "task-mention C5 classified=question/medium，正式入队",
+      "repo group reply C5 ok via webhook",
+      "repo outcome C5 done -> webhook-group ok via webhook",
+      "received task-mention C6，等待意图分类…",
+      "repo ack C6 ok via webhook",
+      "C6 回「收到」（classified，用分类 reply）：ok",
+      "锚定：C6 接着 C4（主题 new#02bd76）",
+      "台账：C6 question 触及 new#02bd76 → 工单键 …",
+      "repo start C6 -> webhook-group ok via webhook",
+      "task-mention C6 classified=question/medium，正式入队",
+      "received task-mention C7，等待意图分类…",
+      "repo blocked ask C6 ok via webhook",
+      "repo outcome C6 waiting_confirmation -> webhook-group ok via webhook",
+      "repo ack C7 ok via webhook",
+      "C7 回「收到」（classified，用分类 reply）：ok",
+      "锚定：C7 接着 C6（主题 q:C6）",
+      "台账：C7 requirement 触及 new#02bd76 → 工单键 …",
+      "repo start C7 -> webhook-group ok via webhook",
+      "task-mention C7 classified=requirement/medium，正式入队",
+      "received task-mention C8，等待意图分类…",
+      "repo overdue C3 -> webhook-group ok via webhook",
+      "repo ack C8 ok via webhook",
+      "C8 回「收到」（classified，用分类 reply）：ok",
+      "锚定：C8 接着 C7（主题 new#02bd76）",
+      "台账：C8 api_reply 触及 new#02bd76 → 工单键 …",
+      "repo start C8 -> webhook-group ok via webhook",
+      "task-mention C8 classified=api_reply/high，正式入队",
+      "repo group reply C7 ok via webhook",
+      "repo outcome C7 done -> webhook-group ok via webhook",
+      "repo group reply C8 ok via webhook",
+      "repo outcome C8 no_change_needed -> webhook-group ok via webhook"
+    ],
+    "onlyFalive": [
+      "台账：C1 api_reply 触及 new#9ebe13 → 工单键 …",
+      "task-mention C1 classified=api_reply/medium forMe=null，疑似任务挂待确认（已私聊负责人一句）",
+      "repo group reply C1 ok via webhook",
+      "repo outcome C1 no_change_needed -> webhook-group ok via webhook",
+      "repo start C3 -> webhook-group ok via webhook",
+      "task-mention C3 classified=api_reply/medium，正式入队",
+      "repo group reply C3 ok via webhook",
+      "repo outcome C3 no_change_needed -> webhook-group ok via webhook",
+      "repo start C4 -> webhook-group ok via webhook",
+      "task-mention C4 classified=api_reply/medium，正式入队",
+      "repo group reply C4 ok via webhook",
+      "repo outcome C4 done -> webhook-group ok via webhook",
+      "锚定：C8 接着 C4（主题 new#02bd76）",
+      "出口闸拦下 repo ack C5：2 分钟内已对同一人发过 ack（19:19）",
+      "C5 回「收到」（classified，固定句）：出口闸拦下：2 分钟内已对同一人发过 ack（19:19）",
+      "台账：C7 question 触及 new#02bd76 → 工单键 …",
+      "task-mention C7 classified=question/high，正式入队",
+      "台账：C8 requirement 触及 new#02bd76 → 工单键 …",
+      "task-mention C8 classified=requirement/medium，正式入队",
+      "C8 待确认清单已更新同主题云文档（new#02bd76）",
+      "repo outcome C8 done -> webhook-group ok via webhook"
+    ],
+    "onlySim": [
+      "台账：C1 bug 触及 new#9ebe13 → 工单键 …",
+      "task-mention C1 classified=bug/medium forMe=null，疑似任务挂待确认（已私聊负责人一句）",
+      "repo blocked ask C1 ok via webhook",
+      "repo outcome C1 blocked -> webhook-group ok via webhook",
+      "repo suspected C3 -> webhook-group ok via webhook",
+      "task-mention C3 classified=api_reply/medium forMe=null，疑似任务挂待确认（已私聊负责人一句）",
+      "repo suspected C4 -> webhook-group ok via webhook",
+      "task-mention C4 classified=api_reply/low forMe=null，疑似任务挂待确认（已私聊负责人一句）",
+      "repo ack C5 ok via webhook",
+      "C5 回「收到」（classified，用分类 reply）：ok",
+      "received task-mention C6，等待意图分类…",
+      "repo ack C6 ok via webhook",
+      "C6 回「收到」（classified，用分类 reply）：ok",
+      "锚定：C6 接着 C4（主题 new#02bd76）",
+      "台账：C6 question 触及 new#02bd76 → 工单键 …",
+      "repo start C6 -> webhook-group ok via webhook",
+      "task-mention C6 classified=question/medium，正式入队",
+      "repo blocked ask C6 ok via webhook",
+      "repo outcome C6 waiting_confirmation -> webhook-group ok via webhook",
+      "锚定：C7 接着 C6（主题 q:C6）",
+      "台账：C7 requirement 触及 new#02bd76 → 工单键 …",
+      "task-mention C7 classified=requirement/medium，正式入队",
+      "repo overdue C3 -> webhook-group ok via webhook",
+      "锚定：C8 接着 C7（主题 new#02bd76）",
+      "台账：C8 api_reply 触及 new#02bd76 → 工单键 …",
+      "task-mention C8 classified=api_reply/high，正式入队",
+      "repo outcome C8 no_change_needed -> webhook-group ok via webhook"
+    ]
+  },
+  "console": {
+    "falive": [
+      {
+        "at": "2026-10-24T10:09:25.596Z",
+        "text": "<card>\n⚠ lark-bot 磁盘代码改了但单测没过，没重启、还在跑旧代码（65ba5be36378）。ℹ tests 954 ℹ pass 953 ℹ fail 1\n✖ 测试体量棘轮 (107.821042ms)\n✖ failing tests:\n✖ it( 总数不超过 929（只许持平或变少） (103.313958ms)\n修好再存盘会自动再试。\n</card>"
+      },
+      {
+        "at": "2026-10-24T10:09:47.824Z",
+        "text": "<card>\n❓ 可能是你的事（Falive PHP后端群）：William（live php 后端）@bot 让再复测 Bug-4942，意思应该是后端那边处理过了，要我们在 pre 上复测一下，然后报结果。\n是 → 回「继续任务 om_x100b62fc7a2060a4eed44f2ab9ebe13 做」；不是 → 回「取消任务 om_x100b62fc7a2060a4eed44f2ab9ebe13」。不回也不催。\n</card>"
+      },
+      {
+        "at": "2026-10-24T10:10:51.537Z",
+        "text": "<card>\n⚠ lark-bot 磁盘代码改了但单测没过，没重启、还在跑旧代码（65ba5be36378）。ℹ tests 955 ℹ pass 954 ℹ fail 1\n✖ 测试体量棘轮 (70.518208ms)\n✖ failing tests:\n✖ it( 总数不超过 929（只许持平或变少） (68.786125ms)\n修好再存盘会自动再试。\n</card>"
+      },
+      {
+        "at": "2026-10-24T10:11:41.673Z",
+        "text": "<card>\n🛠 开始做（续）：William（live php 后端）@bot 让再复测 Bug-4942，意思应该是后端那边处理过了，要我们在 pre 上复测一下，然后报结果。（Falive PHP后端群）\n</card>"
+      },
+      {
+        "at": "2026-10-24T10:15:02.326Z",
+        "text": "<card>\nℹ️ 看过了，不用改（Falive PHP后端群）：Bug-4942 在 pre 用测试号复测过了：后端还没修好，存进去「I'm QA.」，资料接口读回来还是「I'm QA.」。页面上个人简介显示「I'm QA.」是正常的，但这是因为前端在显示前把转义还原了，不代表后端修好了。bug 表保持验退，备注里写了证据，还要 William 改成存原文、返回原文。\n⚠ 任务带的 3 张截图执行器一张都没打开看，结论可能漏了截图里的信息（比如原型里已有的需求），发群前请过一眼\n群里已回：「Bug-4942 复测：通了 0 项，没通 2 项」\n</card>"
+      },
+      {
+        "at": "2026-10-24T10:15:59.612Z",
+        "text": "<card>\n⚠ lark-bot 磁盘代码改了但单测没过，没重启、还在跑旧代码（65ba5be36378）。ℹ tests 957 ℹ pass 956 ℹ fail 1\n✖ 测试体量棘轮 (88.909125ms)\n✖ failing tests:\n✖ it( 总数不超过 929（只许持平或变少） (75.632ms)\n修好再存盘会自动再试。\n</card>"
+      },
+      {
+        "at": "2026-10-24T10:16:34.992Z",
+        "text": "<card>\n🛠 开始做：William（live php 后端）不同意 bot 的 Bug-4942 复测结论。bot 说后端存「I'm QA.」读回来是「I'm QA.」（（Falive PHP后端群）\n</card>"
+      },
+      {
+        "at": "2026-10-24T10:19:18.625Z",
+        "text": "<card>\nℹ️ 看过了，不用改（Falive PHP后端群）：William 看到两句一样，是因为 Lark 把 `'` 显示成了单引号。我刚在 pre 上用测试号重新抓了 Member/info，signature 原文还是 `I'm QA.`，后端存的仍是转义后的值。Web 个人主页显示「I'm QA.」正常（前端已经还原），前端不用改；后端要么改成存原文，要么和产品确认保留转义、各端自己还原，这件事归 William。\n⚠ 任务带的 2 张截图执行器一张都没打开看，结论可能漏了截图里的信息（比如原型里已有的需求），发群前请过一眼\n群里已回：「Bug-4942 简介转义：通了 0 项，没通 2 项」\n</card>"
+      },
+      {
+        "at": "2026-10-24T10:20:14.386Z",
+        "text": "<card>\n⚠ lark-bot 磁盘代码改了但单测没过，没重启、还在跑旧代码（65ba5be36378）。ℹ tests 957 ℹ pass 956 ℹ fail 1\n✖ 测试体量棘轮 (118.065417ms)\n✖ failing tests:\n✖ it( 总数不超过 929（只许持平或变少） (114.59ms)\n修好再存盘会自动再试。\n</card>"
+      },
+      {
+        "at": "2026-10-24T10:21:45.523Z",
+        "text": "<card>\n⚠ lark-bot 磁盘代码改了但单测没过，没重启、还在跑旧代码（65ba5be36378）。ℹ tests 957 ℹ pass 956 ℹ fail 1\n✖ 测试体量棘轮 (108.696125ms)\n✖ failing tests:\n✖ it( 总数不超过 929（只许持平或变少） (105.699208ms)\n修好再存盘会自动再试。\n</card>"
+      },
+      {
+        "at": "2026-10-24T10:26:26.049Z",
+        "text": "<card>\n⚠ lark-bot 磁盘代码改了但单测没过，没重启、还在跑旧代码（65ba5be36378）。ℹ tests 957 ℹ pass 954 ℹ fail 3\n✖ 黄金对话 (21114.812875ms)\n✖ @bot 交办的只读活不看归属 (8.786ms)\n✖ 测试体量棘轮 (131.088042ms)\n✖ failing tests:\n✖ S18 归属拿不准（forMe 未给、medium）才挂疑似私聊负责人；@bot 的纯通知判得出是我的事（forMe=true、ignore）→ 群里一句，不私聊（10-23 #74） (649.980917ms)\n修好再存盘会自动再试。\n</card>"
+      },
+      {
+        "at": "2026-10-24T10:30:56.681Z",
+        "text": "<card>\n⚠ lark-bot 磁盘代码改了但单测没过，没重启、还在跑旧代码（65ba5be36378）。ℹ tests 957 ℹ pass 956 ℹ fail 1\n✖ 测试体量棘轮 (71.537625ms)\n✖ failing tests:\n✖ it( 总数不超过 929（只许持平或变少） (66.587583ms)\n修好再存盘会自动再试。\n</card>"
+      },
+      {
+        "at": "2026-10-24T10:35:56.379Z",
+        "text": "<card>\n⚠ lark-bot 磁盘代码改了但单测没过，没重启、还在跑旧代码（65ba5be36378）。ℹ tests 957 ℹ pass 956 ℹ fail 1\n✖ 测试体量棘轮 (130.348917ms)\n✖ failing tests:\n✖ it( 总数不超过 929（只许持平或变少） (126.857042ms)\n修好再存盘会自动再试。\n</card>"
+      },
+      {
+        "at": "2026-10-24T10:40:08.822Z",
+        "text": "<card>\n⚠ lark-bot 磁盘代码改了但单测没过，没重启、还在跑旧代码（65ba5be36378）。ℹ tests 957 ℹ pass 956 ℹ fail 1\n✖ 测试体量棘轮 (95.045334ms)\n✖ failing tests:\n✖ it( 总数不超过 929（只许持平或变少） (91.629834ms)\n修好再存盘会自动再试。\n</card>"
+      },
+      {
+        "at": "2026-10-24T15:20:02.207Z",
+        "text": "<card>\n🛠 开始做：William（live php 后端）@bot，让测试帖子多语言翻译和 AI 识图两个功能，意思是他那边做好了，让我们去测。（Falive PHP后端群）\n</card>"
+      },
+      {
+        "at": "2026-10-24T15:21:41.979Z",
+        "text": "<card>\n🛠 开始做：William（live php 后端）引用 bot 的 Bug-4942 复测卡片问：「所以不是 Bug？」。bot 之前说 pre 上 Member/inf（Falive PHP后端群）\n</card>"
+      },
+      {
+        "at": "2026-10-24T15:23:07.211Z",
+        "text": "<card>\n✅ Web 端不算 bug：pre 本轮实测 Member/info 的 signature 仍是 \"I'm QA.\"（后端 htmlspecialchars 转义存储），Web 在 src/modules/user/data/schema.ts:193 用 decodeHtmlEntities 还原后显示「I'm QA.」；剩下只是后端存转义是否算 bug，要 William 和产品定（改存原文，或保留转义由各端还原）。\n群里已回：「Web 这边不算 bug：页面显示是对的。后端这边也可以不算，就看口径。本轮在 pre 重抓了 Member/info，原始响应里 signature 是 I'm QA.，也就是单引号被转成了 HTML 实体。你在群里看到两句一样，是因为 Lark 把实体渲染成了 '，用 Postman 或 Network 看原始响应就能看出来。Web 在显示前已经还原了，所以页面上是 I'm QA.。要不要改看产品口径：改成存原文，这条就是后端 bug；如果定为保留转义、各端自己还原，这条就可以关掉，但 App 端要确认也做了还原，不然会把 ' 原样显示出来。」\n</card>"
+      },
+      {
+        "at": "2026-10-24T15:27:41.196Z",
+        "text": "<card>\n✅ 在 pre 上测了帖子翻译：web 已经按语言请求（英文请求时后端回的提示已是英文），但后端返回的帖子标题、正文和评论还是中文原文，content_locale 都是 zh-cn，所以英文页面上帖子仍显示中文，问题在社区后端（Encone），已写进待确认清单。「AI 识图」在 PRD、功能表和接口文档里都没有，web 也没有这个功能，已请提问人说明是哪个页面、走哪个接口。代码没改，只加了一份待确认清单，在分支 lark/falive-7002bd76。\n分支 lark/falive-7002bd76 · 改了 1 个文件\n⚠ 集成分支没同步上你的分支（把 feature/phase-4-api 合进 lark/falive-integration 有冲突：src/modules/square/PostDetailPage.tsx），这条是从 你的工作分支 开的\n要 Encone、提问人 / 产品 跟进：[https://qfglxo2m3dc.sg.larksuite.com/docx/Hvq6dtcIMosjdOxmZt1loJexgyz](https://qfglxo2m3dc.sg.larksuite.com/docx/Hvq6dtcIMosjdOxmZt1loJexgyz)\n群里已回：「@Encone @提问人 / 产品 帖子多语言翻译 / AI 识图测试：通了 1 项，没通 2 项」\n</card>"
+      },
+      {
+        "at": "2026-10-24T15:41:19.828Z",
+        "text": "<card>\n🛠 开始做：William（live php 后端）接着 bot 19:27 发的帖子多语言翻译 / AI 识图测试结果（通了 1 项，没通 2 项），让 bot 把测试时（Falive PHP后端群）\n</card>"
+      },
+      {
+        "at": "2026-10-24T15:43:44.299Z",
+        "text": "<card>\n✅ William 要翻译测试用的 tid：19:27 那轮测的是 18608（主测，帖子详情 + 评论 26900/26901/26903）和 18596（10-20 发的帖），依据是上一轮任务 om_x100b62f88b4ba4a0ed62c6f7002bd76 结果里的 preChecks / detailDoc；本轮用探针（PROBE_HOST=streampreadmin）确认两帖在 pre 上 thread/detail 都回 code 0。探针请求头写死 zh-CN，本轮没重测英文译文。\n群里已回：「测翻译用的是 tid 18608（主测，帖子详情加它下面的评论）和 tid 18596（10-20 发的帖），两个帖子现在在 pre 上都能正常打开。19:27 那轮用英文请求（X-Accept-Language: en-us）拿到的都还是中文原文，content_locale 是 zh-cn。请求明细在文档里。」\n</card>"
+      },
+      {
+        "at": "2026-10-24T15:45:20.771Z",
+        "text": "<card>\n🛠 开始做：William（live php 后端）看了 bot 给的 tid 18608 / 18596 之后，要求在 pre 新发一条帖子，重新测帖子多语言翻译和 AI（Falive PHP后端群）\n</card>"
+      }
+    ],
+    "sim": [
+      {
+        "at": "2026-10-24T10:07:40.692Z",
+        "text": "<card>\n❓ 可能是你的事（Falive PHP后端群）：William（live php 后端）@bot 让再复测一次 Bug-4942，看样子他那边已经处理过，等前端在 pre 上复测给结论。\n是 → 回「继续任务 om_x100b62fc7a2060a4eed44f2ab9ebe13 做」；不是 → 回「取消任务 om_x100b62fc7a2060a4eed44f2ab9ebe13」。不回也不催。\n</card>"
+      },
+      {
+        "at": "2026-10-24T10:10:17.552Z",
+        "text": "<card>\n🛠 开始做（续）：William（live php 后端）@bot 让再复测一次 Bug-4942，看样子他那边已经处理过，等前端在 pre 上复测给结论。（Falive PHP后端群）\n</card>"
+      },
+      {
+        "at": "2026-10-24T10:11:41.258Z",
+        "text": "<card>\n⏸ 停下来了（Falive PHP后端群）：William（live php 后端）让在 pre 复测 Bug-4942，但本地拿不到这条 bug 的内容：台账、poller 状态、followup 文档、仓库 docs 都只有「让复测 Bug-4942」这一句，没有标题、现象和复现步骤。所以现在定不了测哪个功能、归谁负责、怎样算通过。这是纯复测，不改代码，需要先读到 bug 表里的这条记录。\n要：拿不到 Bug-4942 的内容：本地台账、lark-chat-poller-state、lark-followup-docs、仓库 docs 都没有这个编号的标题和现象，台账自己也记着「先读 bug 记录确认是哪个功能、谁负责」。不知道测什么，就没法复测。需要读到 bug 表记录，或请 William 说明这条 bug 是什么、改了什么。\n回复这条消息把材料补上就会继续。\n群里已回：「@William 「William（live php 后端）@bot 让再复测一次 Bug-4942，看样子他那边已经处理过，等前端在 pre 上复测给结论」这边卡住了，需要你们帮忙：」\n</card>"
+      },
+      {
+        "at": "2026-10-24T10:16:28.085Z",
+        "text": "<card>\n❓ 可能是你的事（Falive PHP后端群）：William（live php 后端）接着回 bot 对 Bug-4942 的追问：他那边存「I'm QA.」，读回来也是「I'm QA.」，问还有什么问题。\n是 → 回「继续任务 om_x100b62fc1a1084a0ed416521b0dee2d 做」；不是 → 回「取消任务 om_x100b62fc1a1084a0ed416521b0dee2d」。不回也不催。\n</card>"
+      },
+      {
+        "at": "2026-10-24T15:19:15.840Z",
+        "text": "<card>\n❓ 可能是你的事（Falive PHP后端群）：William（live php 后端）@bot，让测试「帖子多语言翻译」和「AI 识图」两个功能。看语气是后端那边已经做好，等前端测试或验收。\n是 → 回「继续任务 om_x100b62f88b4ba4a0ed62c6f7002bd76 做」；不是 → 回「取消任务 om_x100b62f88b4ba4a0ed62c6f7002bd76」。不回也不催。\n</card>"
+      },
+      {
+        "at": "2026-10-24T15:21:16.087Z",
+        "text": "<card>\n🛠 开始做：William（live php 后端）引用 bot 10-24 14:19 的 Bug-4942 简介转义复测卡片，追问「所以不是 Bug？」。他想要一个明确（Falive PHP后端群）\n</card>"
+      },
+      {
+        "at": "2026-10-24T15:22:44.035Z",
+        "text": "<card>\n✅ 答案：Web 这边不是 bug，前端显示「I'm QA.」前已经把实体还原（src/modules/user/data/schema.ts:194、:260 用 decodeHtmlEntities，schema.test.ts:65 覆盖 I&#039;m）；但后端 Member/info 返回的原始值是 I&#039;m QA.（10-24 实测记录见 Lark 文档 F3U5d7edro6JuNx4YbVlafp0gUf），存进去和读出来不是同一串，要不要算 bug 由后端和产品定（改成存原文，或者确认保留转义、各端自己还原）。本轮探针没复测成：测试号登录失败（Member/info 回 -700），bbsv2 otherInfo 跑两次都 UNREACHABLE（探针只连 php 主机，bbsv2 在 admin 主机上），所以原始值引用的是 10-24 的记录。\n验证提醒：本轮探针没能重新抓 Member/info 的原始 signature（登录失败）；后端仍然存转义值这一点，引用的是 10-24 的实测记录；探针连不到 bbsv2 otherInfo（php 主机上没有这个路径）\n群里已回：「对 Web 来说不是 bug：前端显示前已经把 &#039; 还原成单引号，页面上显示的是「I'm QA.」。不过后端接口原始返回的确实是「I&#039;m QA.」（Lark 消息会把这个实体显示成单引号，所以群里看起来两句一样），存进去和读出来不是同一串。App 等端如果直接显示这个字段，就会看到 &#039;。要不要当 bug 关掉，得请后端和产品定一下：改成存原文，或者保留转义、各端自己还原。」\n</card>"
+      },
+      {
+        "at": "2026-10-24T15:35:56.405Z",
+        "text": "<card>\n🛠 开始做：William（live php 后端）接着他之前让测的「帖子多语言翻译 + AI 识图」，要 bot 把测试用的帖子 tid 发出来，方便他在后端查。（Falive PHP后端群）\n</card>"
+      },
+      {
+        "at": "2026-10-24T15:41:00.712Z",
+        "text": "<card>\n⏸ 停下来了（Falive PHP后端群）：本来要在 pre 上用测试号发一条带图的新帖，拿 tid 去测翻译和 AI 识图，但两条路都没发出去：页面工具用测试号登录时被拒（403「参数错误」）；探针连的 pre 入口不转发社区接口，上传图片和发帖都回 405。所以没有 tid，翻译也没测成。AI 识图前端没有入口，接口文档里也没有对应字段。需要 William 给一个能用的测试账号或测试帖 tid，并说明识图结果在哪个接口、哪个字段返回。\n要：发不了测试帖：页面工具用测试号 aven-pretest@probe.test 登录 pre 时返回 403「参数错误」；探针那条线路的 bbsv2 上传和发帖都回 405。所以拿不到 tid，需要 William 给一个能用的测试账号，或者直接给一个 11-01 之后发的测试帖 tid；AI 识图没有接口契约：前端没有识图入口，bbsv2 文档里也没有识图字段，需要 William 说明识图结果在哪个接口、哪个字段返回\n回复这条消息把材料补上就会继续。\n群里已回：「@William 「帖子翻译 / AI 识图测试」这边卡住了，需要你们帮忙：」\n</card>"
+      },
+      {
+        "at": "2026-10-24T15:41:14.604Z",
+        "text": "<card>\n🛠 开始做：William（live php 后端）只 @ 了 bot、没写别的，是在催 19:35 那件事：在 pre 上实测帖子多语言翻译和 AI 识图，并把测试用的帖（Falive PHP后端群）\n</card>"
+      },
+      {
+        "at": "2026-10-24T15:44:47.736Z",
+        "text": "<card>\n⏰ 群里答应过「好的感谢，我去 pre 看下前端显示「I'm QA.」这块，测完回你」（Falive PHP后端群），4 小时了还没结论，任务可能没跑完。要重跑回「继续任务 om_x100b62fc1a1084a0ed416521b0dee2d」，不用管就忽略。\n</card>"
+      },
+      {
+        "at": "2026-10-24T15:44:51.386Z",
+        "text": "<card>\n🛠 开始做：William（live php 后端）回复 bot 的帖子翻译测试结果：bot 用老帖 tid 18608 / 18596 请求英文，拿到的还是中文原文。Wi（Falive PHP后端群）\n</card>"
+      },
+      {
+        "at": "2026-10-24T15:47:51.919Z",
+        "text": "<card>\n✅ 用测试号在 pre 发了一篇带图的中文测试帖（tid 18802），换成英文请求读回来就是英文译文，翻译能用，Web 不用改。AI 识图在接口和文档里都没有字段，前端看不到，只能请 William 按 tid 在后端查。另外后端把正文里的「今天」打成了「」，译文里还带着这串符号和一个多余的问号，已整理成待确认清单交给 William。\n验证提醒：英文界面的详情页没在浏览器里看过：页面工具没有切换语言的选项，SSR HTML 里也没有帖子正文；英文效果靠 en-us 接口实测，加上前端 zh-CN→zh-cn、en→en-us 的请求头映射来确认；已部署 pre 站点的 /square/18802 这次回 HTTP 503，所以页面是在本地连 pre 后端看的\n分支 lark/falive-integration · 改了 1 个文件\n已合进 lark/falive-integration，你合这一条分支就够\n要 William 跟进：https://sim.local/docx/simdoc00024\n群里已回：「@William 帖子翻译 / AI 识图测试（tid 18802）：通了 0 项，没通 4 项」\n</card>"
+      },
+      {
+        "at": "2026-10-24T15:53:19.809Z",
+        "text": "<card>\nℹ️ 看过了，不用改（Falive PHP后端群）：用测试号在 pre 发了新帖 tid 18803（中文帖，加一条中文评论 pid 27190）。发帖后约半分钟用英文请求，帖子标题、正文和评论都返回英文，content_locale=en-us；中文请求返回原文，content_locale=zh-cn。翻译已经能用，前端不用改。之前测的 18608 是翻译上线前发的旧帖，现在用英文请求仍是中文原文。AI 识图还在等 William 说明是哪个接口、哪个字段。\n群里已回：「帖子翻译 / AI 识图测试：通了 1 项，没通 3 项」\n</card>"
+      }
+    ]
+  },
+  "simOtherSends": 0,
+  "egress": {
+    "connections": 337,
+    "nonLocal": [
+      "2.1.289 160.79.104.10:443",
+      "node 13.124.203.191:443",
+      "node 15.164.31.245:443",
+      "chrome-he 15.164.31.245:443",
+      "node 15.164.31.245:80",
+      "node 154.38.80.163:443",
+      "chrome-he 13.124.203.191:443",
+      "curl 15.164.31.245:80",
+      "node 154.38.80.99:443",
+      "curl 15.164.31.245:443"
+    ],
+    "flagged": [],
+    "probe": 48,
+    "probeBlocked": [
+      "2026-11-04T10:14:22.751Z BLOCKED POST /api/user/sendVerificationCode",
+      "2026-11-04T10:14:22.752Z BLOCKED POST /api/user/NewRegisteredByMail",
+      "2026-11-04T10:14:42.672Z BLOCKED POST /api/user/sendVerificationCode",
+      "2026-11-04T10:14:42.674Z BLOCKED POST /api/user/NewRegisteredByMail"
+    ]
+  },
+  "fakeCliGaps": [],
+  "casesDir": "/Users/aven/github/lark-bot-cal/replay/falive"
+}

@@ -13,10 +13,11 @@
  *     这里收下：记进 SIM_DIR/outbox.jsonl（kind=webhook）和 sent.json（之后列消息看得到，渲染同真 CLI 的卡片文本）。
  *   · 代码 / 配置按当时：falive-code-pin.mjs 按 gateway.log 的启动指纹钉提交（复算指纹核对），配置取当时生效的备份。
  *   · 关掉的旁路：日报调度（dailyReport.at）、部署盯梢 / 复测（dailyReport.sweep）、自修 / 体检 / 排空重启 / 分支回收、合盖防睡；
- *     业务仓 clone 的 origin 改成不存在的路径（fetch / push 都不出网，不会碰主仓和 GitLab）。
+ *     业务仓 clone 的 origin 改成模拟目录里的裸仓快照（窗口起点时的 pre / online / 基线分支；fetch / push 都在本机，不会碰主仓和 GitLab）。
  *   · 实测：PROBE_HOST 指到本机转发（probe-proxy.mjs → streampre.fdsser.com），拦下 NewRegisteredByMail / sendVerificationCode（pre-client 登录失败会自动注册）。
- *   · 运行态按窗口起点还原：轮询状态（窗口前的都已 seen、5 天内的话题都登记）、发件簿、台账（falive 自己的 ledgerAsOf）、回复义务、待确认清单文档；
- *     falive 自身仓（profile lark-bot 的 root 原是存档目录）换成当时代码的 clone；Claude 记忆拷一份、只留窗口前改过的。
+ *   · 运行态按窗口起点还原：轮询状态（窗口前的都已 seen、5 天内的话题都登记）、发件簿、台账（falive 自己的 ledgerAsOf）、回复义务、待确认清单文档、
+ *     任务库（按审计补窗口前 24 小时内了结 / 72 小时内挂起的，控制台私聊才锚得到任务通知）；falive 自身仓（profile lark-bot 的 root 原是存档目录）换成当时代码的 clone；
+ *     Claude 记忆拷一份、按会话记录重放到窗口起点（memory-asof.mjs）；只私聊的群按网关日志行为取（falive-restore.mjs，11-04 保真度分析查出的几处偏差都在那里）。
  *   · 上下文保真（11-04 校准查出的模拟偏差，都在假 CLI 里按开关修，不影响 run-sim）：列群消息不含话题回复（meta.threadRepliesInList=false，同真 CLI）；
  *     自家 bot 卡的 sender.open_bot_id 用各群自定义机器人的 open_id（chats.json botOpenId），falive 才认得出「bot，我们自己」。
  *   · 出网审计：每 3 秒 lsof 一遍网关 / worker 及其子进程的 TCP 连接，落 egress.jsonl；飞书 / GitLab / 邮件域名解析出的 IP 命中就记 flagged。
@@ -33,6 +34,8 @@ import { fileURLToPath } from 'node:url'
 import { BOT_APP_ID, GROUPS, casesDir, datasetDir, rawDir, replayRoot, resolveRaw } from './falive-data.mjs'
 import { FALIVE_ARCHIVE, faliveConfigAt, pinFaliveCode } from './falive-code-pin.mjs'
 import { buildCalibration, renderCalibration } from './falive-calibration.mjs'
+import { ownRootsToKeep, privateOnlyAt, privateOnlyEvidence, sweepForSim, taskStubsFromAudits } from './falive-restore.mjs'
+import { loadMemoryEvents, replayMemoryEvents } from './memory-asof.mjs'
 import { startProbeProxy } from './probe-proxy.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -84,7 +87,9 @@ log(`falive 代码 ${pin.sha.slice(0, 7)}（${pin.verified ? `指纹 ${pin.codeH
 const timeline = JSON.parse(readFileSync(join(datasetDir, 'timeline.json'), 'utf8'))
 const caseList = readFileSync(join(casesDir, 'cases.jsonl'), 'utf8').trim().split('\n').map((line) => JSON.parse(line))
 const hiddenIds = caseList.filter((c) => !caseIds.has(c.id) && Date.parse(c.at) >= fromMs).map((c) => c.id)
-const keepOwnBotIds = timeline.filter((m) => m.ownBot && m.atMs >= fromMs && (m.atMs < firstMs || /\[bugpoll\]/.test(m.text || ''))).map((m) => m.id)
+// 组内 falive 当时的话不供（模拟 bot 自己回），但挂着组内话题回复的那几张卡（话题根）照供——不然轮询发现不了这个话题（falive-restore.mjs ownRootsToKeep）
+const threadRootIds = ownRootsToKeep({ timeline, fromMs, untilMs: lastMs, hidden: new Set(hiddenIds) })
+const keepOwnBotIds = [...new Set([...timeline.filter((m) => m.ownBot && m.atMs >= fromMs && (m.atMs < firstMs || /\[bugpoll\]/.test(m.text || ''))).map((m) => m.id), ...threadRootIds])]
 writeFileSync(join(simDir, 'timeline.json'), JSON.stringify(timeline))
 // botOpenId：各群自定义机器人的 open_id（真 CLI 列消息里 bot 卡的 sender.open_bot_id 就是它，falive 靠它认「bot，我们自己」；取自 raw 拉取里占绝大多数的那个）
 const CUSTOM_BOT_IDS = { 'php-group': 'ou_caf1610a679ff12b9b92204f37572491', 'tech-group': 'ou_f57c6c1d7caa9f3467607b925abd66a2', 'webhook-group': 'ou_9699982a8993fe4cb4c411e18a6d9b45' }
@@ -94,10 +99,14 @@ for (const m of timeline) for (const r of m.resources || []) if (r.localPath) re
 const extraResourcesPath = join(rawDir, 'resources-extra.json')
 if (existsSync(extraResourcesPath)) for (const [k, p] of Object.entries(readJson(extraResourcesPath, {}).resources || {})) resources[k] = resolveRaw(p)
 writeFileSync(join(simDir, 'resources.json'), JSON.stringify(resources))
-writeFileSync(join(simDir, 'meta.json'), JSON.stringify({ simStartMs: fromMs, episode: episodeId, hiddenIds, keepOwnBotIds, threadRepliesInList: false, faliveCode: pin, faliveConfig: faliveConfigPath, createdAt: new Date().toISOString() }))
-log(`组 ${episodeId}：${episode.size} 个 case，窗口 ${episode.windowStart} 起；组外触发消息隐藏 ${hiddenIds.length} 条，窗口内照供 falive 原话 ${keepOwnBotIds.length} 条`)
+// 组外触发消息默认照列当历史（轮询状态里预先记成 seen，falive 不接），falive 对它们的原话也照供；只藏 falive 对本组 case 说的（episodes.json faliveBotIds），
+// 和 run-sim（lark-bot 基线）同一口径。--hide-triggers 恢复 11-04 前「组外触发哪儿都不供、窗口内 falive 原话一律不供」。
+const hiddenAsHistory = !flag('--hide-triggers')
+const hideBotIds = hiddenAsHistory ? (episode.faliveBotIds || []).filter((id) => !threadRootIds.includes(id)) : undefined
+writeFileSync(join(simDir, 'meta.json'), JSON.stringify({ simStartMs: fromMs, episode: episodeId, hiddenIds, hiddenAsHistory, ...(hideBotIds ? { hideBotIds } : {}), keepOwnBotIds, threadRepliesInList: false, faliveCode: pin, faliveConfig: faliveConfigPath, createdAt: new Date().toISOString() }))
+log(`组 ${episodeId}：${episode.size} 个 case，窗口 ${episode.windowStart} 起；组外触发消息隐藏 ${hiddenIds.length} 条，窗口内照供 falive 原话 ${keepOwnBotIds.length} 条（其中组内话题根 ${threadRootIds.length} 条）`)
 
-// —— 业务仓：clone --shared，本地分支 = 配置里的 baseRef，钉到窗口起点；origin 之后改成不存在的路径 ——
+// —— 业务仓：clone --shared，本地分支 = 配置里的 baseRef，钉到窗口起点；origin 之后换成模拟目录里的裸仓快照 ——
 const repoCfg = faliveConfig.repos?.falive || {}
 const FALIVE_REPO = repoCfg.root || join(homedir(), 'github', 'falive-react')
 const baseRef = repoCfg.baseRef || 'feature/phase-6-ol'
@@ -111,13 +120,24 @@ if (!existsSync(repoLink)) {
   if (cloned.status !== 0) throw new Error(`clone --shared 失败：${cloned.stderr.slice(0, 300)}`)
   // 只留基线和当时的 origin/pre、origin/online（falive 的合回 / 提示都提到它们），其余引用删掉（翻 git log --all 看不到「未来」）
   for (const ref of git(['for-each-ref', '--format=%(refname)', 'refs/remotes', 'refs/heads'], repoLink).stdout.split('\n').filter(Boolean)) git(['update-ref', '-d', ref], repoLink)
+  const upstreamShas = {}
   for (const upstream of ['pre', 'online']) {
     const sha = git(['rev-list', '-1', `--before=${before}`, `refs/remotes/origin/${upstream}`]).stdout.trim()
-    if (sha) git(['update-ref', `refs/remotes/origin/${upstream}`, sha], repoLink)
+    if (sha) { git(['update-ref', `refs/remotes/origin/${upstream}`, sha], repoLink); upstreamShas[upstream] = sha }
   }
   const out = git(['checkout', '--quiet', '-B', baseRef, baseSha], repoLink)
   if (out.status !== 0) throw new Error(`checkout 基线失败：${out.stderr.slice(0, 300)}`)
-  git(['remote', 'set-url', 'origin', join(simDir, 'no-network-origin.git')], repoLink) // fetch / push 都失败：不出网、不碰主仓
+  // origin 换成本模拟目录里的裸仓快照（只有窗口起点时的 pre / online / 基线分支）：fetch 拿到的是当时的上游、push 落在快照里——不出网、不碰主仓和 GitLab。
+  // 11-04 前指向不存在的路径，「推 pre」只能回「fetch origin pre 失败」，falive 当时回的是合 pre 冲突（ep-1023-08e243）。
+  // 对象借主仓（objects/info/alternates，同 clone --shared），不拷历史；只写三条引用。
+  const snapshot = join(simDir, 'origin-snapshot.git')
+  git(['init', '--quiet', '--bare', snapshot], simDir)
+  mkdirSync(join(snapshot, 'objects', 'info'), { recursive: true })
+  writeFileSync(join(snapshot, 'objects', 'info', 'alternates'), `${join(FALIVE_REPO, '.git', 'objects')}\n`)
+  const refs = [[baseRef, baseSha], ...Object.entries(upstreamShas)]
+  const made = refs.every(([name, sha]) => git(['update-ref', `refs/heads/${name}`, sha], snapshot).status === 0)
+  if (!made) log('⚠ origin 快照没建成，origin 指向不存在的路径')
+  git(['remote', 'set-url', 'origin', made ? snapshot : join(simDir, 'no-network-origin.git')], repoLink)
   if (!existsSync(join(repoLink, 'node_modules'))) symlinkSync(join(FALIVE_REPO, 'node_modules'), join(repoLink, 'node_modules'))
 }
 log(`业务仓 ${baseRef} = ${baseSha.slice(0, 8)}（${git(['log', '-1', '--format=%ci %s', baseSha]).stdout.trim().slice(0, 100)}）`)
@@ -134,29 +154,46 @@ if (selfCfg && !existsSync(selfRepo)) {
   git(['remote', 'set-url', 'origin', join(simDir, 'no-network-origin.git')], selfRepo)
 }
 
-// —— Claude 记忆：falive 的 claudeMemoryDir 是 aven 的真记忆（会被写、且含之后的事）：拷一份，只留窗口起点之前改过的 ——
+// —— Claude 记忆：falive 的 claudeMemoryDir 是 aven 的真记忆（会被写、且含之后的事）：拷一份，按窗口起点还原 ——
+// 窗口前改过的原样拷；之后改过的按 Claude 会话记录里的 Write / Edit / 整篇 Read 重放到窗口起点（memory-asof.mjs）；
+// 重放不出来、但窗口前就有的（会话记录里窗口前出现过）默认拷现在的版本（可能含之后的改动，名单记进 memory-restore.json 的 approx）——
+// 11-04 校准：整篇不带时 falive 当时读得到的 bug-sheet-workflow.md 模拟里没有，ep-1024 C1 直接报「拿不到 bug 内容」卡住。--memory-strict 恢复「不带」。
 const memoryDir = join(simDir, 'claude-memory')
+const memoryReport = { kept: [], replayed: [], approx: [], dropped: [] }
 if (repoCfg.claudeMemoryDir && existsSync(repoCfg.claudeMemoryDir) && !existsSync(memoryDir)) {
   mkdirSync(memoryDir, { recursive: true })
-  const kept = new Set()
+  const events = loadMemoryEvents({ memoryDir: repoCfg.claudeMemoryDir })
   for (const f of readdirSync(repoCfg.claudeMemoryDir)) {
     const src = join(repoCfg.claudeMemoryDir, f)
-    if (f === 'MEMORY.md' || !f.endsWith('.md') || statSync(src).mtimeMs >= fromMs) continue
-    copyFileSync(src, join(memoryDir, f))
-    kept.add(f)
+    if (!f.endsWith('.md')) continue
+    if (statSync(src).mtimeMs < fromMs) { copyFileSync(src, join(memoryDir, f)); memoryReport.kept.push(f); continue }
+    const state = replayMemoryEvents(events.get(f) || [], fromMs)
+    if (state.known) { writeFileSync(join(memoryDir, f), state.content); memoryReport.replayed.push(f); continue }
+    const existed = (events.get(f) || []).some((e) => e.atMs < fromMs) || statSync(src).birthtimeMs < fromMs
+    if (existed && !flag('--memory-strict')) { copyFileSync(src, join(memoryDir, f)); memoryReport.approx.push(f) } else memoryReport.dropped.push(f)
   }
-  const index = readFileSync(join(repoCfg.claudeMemoryDir, 'MEMORY.md'), 'utf8').split('\n')
-    .filter((line) => { const link = /\]\(([^)]+\.md)\)/.exec(line)?.[1]; return !link || kept.has(link) })
-  writeFileSync(join(memoryDir, 'MEMORY.md'), index.join('\n'))
-  log(`Claude 记忆：拷了窗口前改过的 ${kept.size} 篇（之后改过的不带，免得看到未来）`)
+  // 索引里指向没带的篇的行去掉（MEMORY.md 本身也按上面还原过）
+  const have = new Set(readdirSync(memoryDir))
+  if (have.has('MEMORY.md')) {
+    const index = readFileSync(join(memoryDir, 'MEMORY.md'), 'utf8').split('\n').filter((line) => { const link = /\]\(([^)]+\.md)\)/.exec(line)?.[1]; return !link || have.has(link) })
+    writeFileSync(join(memoryDir, 'MEMORY.md'), index.join('\n'))
+  }
+  writeFileSync(join(simDir, 'memory-restore.json'), JSON.stringify(memoryReport, null, 1))
+  log(`Claude 记忆：窗口前改过的 ${memoryReport.kept.length} 篇原样拷；之后改过的按会话记录重放 ${memoryReport.replayed.length} 篇、用现在版本近似 ${memoryReport.approx.length} 篇（${memoryReport.approx.join('、').slice(0, 200)}）、不带 ${memoryReport.dropped.length} 篇`)
 }
 
 // —— 运行配置：falive 当时的配置，只换掉出网 / 旁路 / 路径 ——
 const hookUrl = (chatId) => `http://127.0.0.1:${hookPort}/hook/${chatId}`
 const pollChats = [...new Set([...(repoCfg.chatIds || []), repoCfg.notifyChatId].filter(Boolean))]
 // 日报：dailyReport 不能删（读 bug 单的表配置 dailyReport.bugTable 在里面，at 又是必填），把 at 挪到 23:59（10-28 版没有 paused 开关）；
-// sweep 删掉 = 部署盯梢 / 复测 / onDeploy 脚本都不起。窗口跨过本地 23:59 的组会触发日报，起跑时报出来。
-const dailyRest = repoCfg.dailyReport ? { ...Object.fromEntries(Object.entries(repoCfg.dailyReport).filter(([k]) => k !== 'sweep')), at: '23:59' } : null
+// sweep 只去掉 preSiteUrl / onDeploy = 部署盯梢 / 复测 / onDeploy 脚本都不起；sweep 本身留着——「推 pre」的负责人判定要求开了清扫
+//（11-04 校准 ep-1023-08e243：整段删掉时私聊「推 pre」被当成「不是负责人」忽略）。窗口跨过本地 23:59 的组会触发日报，起跑时报出来。
+const dailyRest = repoCfg.dailyReport ? { ...Object.fromEntries(Object.entries(repoCfg.dailyReport).filter(([k]) => k !== 'sweep')), ...(repoCfg.dailyReport.sweep ? { sweep: sweepForSim(repoCfg.dailyReport.sweep) } : {}), at: '23:59' } : null
+// 只私聊的群：配置备份按 mtime 取，中间改过却没留备份的看不出来（10-27 10:27Z–11:00Z 融合群从「只私聊」改成发群）；按网关日志里的实际行为取窗口起点那一刻
+const faliveGatewayLines = existsSync(join(homedir(), 'Library', 'Logs', 'falive-lark', 'gateway.log')) ? readFileSync(join(homedir(), 'Library', 'Logs', 'falive-lark', 'gateway.log'), 'utf8').split('\n') : []
+const timelineById = new Map(timeline.map((m) => [m.id, m]))
+const privateOnlyChats = privateOnlyAt({ evidence: privateOnlyEvidence({ logLines: faliveGatewayLines, chatOfId: (id) => timelineById.get(id) || null }), atMs: firstMs, chatIds: repoCfg.chatIds || [], configured: repoCfg.privateOnlyChats || [] })
+if (JSON.stringify([...privateOnlyChats].sort()) !== JSON.stringify([...(repoCfg.privateOnlyChats || [])].sort())) log(`只私聊的群按网关日志行为改成 ${JSON.stringify(privateOnlyChats)}（配置备份里是 ${JSON.stringify(repoCfg.privateOnlyChats || [])}）`)
 const simRepo = {
   ...repoCfg,
   root: repoLink,
@@ -165,6 +202,7 @@ const simRepo = {
   webhook: undefined,
   // 日报调度（at）与部署盯梢 / 复测（sweep.preSiteUrl）都不起：只回放主链（handoff §1）
   dailyReport: dailyRest || undefined,
+  privateOnlyChats,
   // 外部群里的自定义机器人 open_id：当时启动时按群成员查（+chat-members-list），这里直接给（falive-data.mjs 里的同一组 id）
   botMentionOpenIds: { oc_40621901e1583e623f6133e8c66d352e: 'ou_f57c6c1d7caa9f3467607b925abd66a2', ...(repoCfg.botMentionOpenIds || {}) },
   claudeMemoryDir: existsSync(memoryDir) ? memoryDir : undefined,
@@ -194,7 +232,9 @@ if (!existsSync(pollerStatePath)) {
       const t = threads[m.threadId] ||= { hostMessageId: m.rootId || m.id, lastActivityMs: 0, lastPolledMs: fromMs }
       t.lastActivityMs = Math.max(t.lastActivityMs, m.atMs)
     }
-    chats[chatId] = { cursorMs: fromMs, seen: before.map((m) => m.id).slice(-2000), lastNewMessageAt: before.at(-1)?.atMs || 0, threads, lastThreadScanMs: fromMs }
+    // 组外触发消息照列当历史时：先记成 seen（放在最后，seen 截断时不先被挤掉），轮询就不会当新消息接
+    const preSeen = hiddenAsHistory ? hiddenIds.filter((id) => timelineById.get(id)?.chatId === chatId || (chatId === repoCfg.notifyChatId && timelineById.get(id)?.chatKey === 'webhook-group')) : []
+    chats[chatId] = { cursorMs: fromMs, seen: [...before.map((m) => m.id).slice(-(2000 - preSeen.length)), ...preSeen], lastNewMessageAt: before.at(-1)?.atMs || 0, threads, lastThreadScanMs: fromMs }
   }
   writeFileSync(pollerStatePath, JSON.stringify({ chats }))
 }
@@ -231,6 +271,23 @@ if (!existsSync(seedMark)) {
   if (existsSync(followPath)) {
     mkdirSync(join(runtimeDir, 'lark-followup-docs'), { recursive: true })
     writeFileSync(join(runtimeDir, 'lark-followup-docs', 'falive.json'), JSON.stringify(Object.fromEntries(Object.entries(readJson(followPath, {})).filter(([, d]) => String(d.updatedAt || '') < beforeIso)), null, 2))
+  }
+  // 任务库：存档只剩 11-02 起（终态 24 小时就清），按审计补窗口前 24 小时内了结 / 72 小时内挂起的任务（带私聊回执时刻），
+  // 控制台私聊「已部署 / 已发布 / 帮我合」才锚得到「12 小时内发给你的任务通知」（11-04 校准：6 条私聊都回了「这句没对上任务」）。
+  // 窗口前在飞（开始在窗口前、了结在窗口后）的还原不了，列进 meta。已有任务文件的不覆盖。
+  const auditDir = join(archiveRuntime, 'lark-audits', 'FALIVE')
+  if (existsSync(auditDir)) {
+    const audits = readdirSync(auditDir).flatMap((f) => { const m = /^(.*)-e(\d+)\.json$/.exec(f); if (!m) return []; const audit = readJson(join(auditDir, f), null); return audit ? [{ taskId: audit.taskId || m[1], epoch: Number(m[2]), audit }] : [] })
+    const { stubs, inFlight } = taskStubsFromAudits({ audits, fromMs, senderOf: (id) => timelineById.get(id)?.senderId || null, owner: (repoCfg.ownership?.meOpenIds || [])[0] || null })
+    mkdirSync(join(runtimeDir, 'lark-tasks'), { recursive: true })
+    let wrote = 0
+    for (const task of stubs) {
+      if (caseIds.has(task.id) || existsSync(join(runtimeDir, 'lark-tasks', `${task.id}.json`))) continue
+      writeFileSync(join(runtimeDir, 'lark-tasks', `${task.id}.json`), JSON.stringify(task, null, 2), { mode: 0o600 })
+      wrote += 1
+    }
+    writeFileSync(join(simDir, 'task-restore.json'), JSON.stringify({ restored: stubs.map((t) => `${t.id} ${t.status} ${t.updatedAt}`), inFlightAtWindowStart: inFlight }, null, 1))
+    log(`任务库按审计还原 ${wrote} 条（窗口前在飞、还原不了 ${inFlight.length} 条）`)
   }
   writeFileSync(seedMark, beforeIso)
   log('运行态按窗口起点还原：发件簿 / 台账（ledgerAsOf）/ 回复义务 / 待确认清单文档')
@@ -452,8 +509,10 @@ for (const m of steps) {
   if (!caseIds.has(m.id)) continue
   log(`case ${m.id} ${new Date(m.atMs).toISOString().slice(5, 19)} ${m.chatKey} ${m.senderName}：${String(m.text).replace(/\s+/g, ' ').slice(0, 60)}`)
   const waitFrom = Date.now()
-  while (!pollerSeen(m.chatId, m.id) && Date.now() - waitFrom < 120_000) await sleep(1000)
-  log(pollerSeen(m.chatId, m.id) ? `  轮询已收（${Math.round((Date.now() - waitFrom) / 1000)}s）` : '  ⚠ 2 分钟内轮询没收到这条')
+  // 话题回复靠话题轮询（每轮最多 5 个话题、冷话题 30 分钟一次），比主列表慢得多：多等一会（11-04 校准 ep-1030 C5 等 2 分钟没收到就往下走了）
+  const waitMs = m.threadId && m.parentId ? 6 * 60_000 : 120_000
+  while (!pollerSeen(m.chatId, m.id) && Date.now() - waitFrom < waitMs) await sleep(1000)
+  log(pollerSeen(m.chatId, m.id) ? `  轮询已收（${Math.round((Date.now() - waitFrom) / 1000)}s）` : `  ⚠ ${waitMs / 60_000} 分钟内轮询没收到这条`)
 }
 log('组内消息推完；等空闲后再让虚拟时间走一段（催办 / 义务巡检）')
 const settleFrom = Date.now()

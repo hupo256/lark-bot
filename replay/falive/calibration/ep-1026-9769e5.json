@@ -1,0 +1,295 @@
+{
+  "episode": "ep-1026-9769e5",
+  "faliveCode": {
+    "sha": "0e8162bfa6a0e32445541db402953f0e02e36503",
+    "dir": "/Users/aven/github/lark-bot-falive-sim/code-0e8162b",
+    "codeHash": "e3f6862d27e5",
+    "startedAt": "2026-10-26T09:54:16.974Z",
+    "verified": true,
+    "tried": [
+      {
+        "sha": "0e8162b",
+        "hashes": [
+          "e3f6862d27e5",
+          "1166ace5bdb9"
+        ]
+      }
+    ]
+  },
+  "faliveConfig": "/Users/aven/github/lark-bot-falive/runtime/lark-bot.bak-20261027.local.json",
+  "cases": [
+    {
+      "label": "C1",
+      "id": "om_x100b62c12ca584a0ed60b40549769e5",
+      "at": "2026-10-26T13:31:18.628Z",
+      "chat": "php-group",
+      "text": "https://falivepre.fdsser.com/hc-api/api/fameEx/market/symbol/list\n@Aven.Bot \n测试这个api 能不能请求通 \n",
+      "classified": {
+        "falive": {
+          "decision": "ignore",
+          "confidence": "medium"
+        },
+        "sim": {
+          "decision": "ignore",
+          "confidence": "medium"
+        }
+      },
+      "status": {
+        "falive": null,
+        "sim": "no_change_needed"
+      },
+      "seen": {
+        "falive": 0,
+        "sim": 43,
+        "onlyFalive": [],
+        "onlySim": [
+          "https://falivepre.fdsser.com/hc-api/api/fameEx/market/symbol/list",
+          "@Aven.Bot",
+          "测试这个api 能不能请求通",
+          "【群里这条之前的消息】",
+          "World（10-26 13:47）：@HQUCEncone @Arthur.a @HQUCWilliam.m@mainly 预约大家+4 14:00拉齐一下后端进度情况，烦请大家提前做好准备",
+          "@Aven.tong @Broker 如果方便也一起参与一下",
+          "CC@Rou @Charlie",
+          "World（10-26 13:49）：<calendar_share open_calendar_id=\"feishu.cn_HoM822nCY1CZOSGeDosWsc@group.calendar.feishu.cn\" open_event_id=\"ba5fa381-62ff-41bb-b1d8-c89bde9819a2_0\" share_token=\"cse_YXZDCGbY_6fAbLnowER5CQ\">",
+          "Falive一期 后端进度拉齐",
+          "2026-10-26 14:00:00 ~ 2026-10-26 14:30:00",
+          "</calendar_share>",
+          "Aven.Bot（bot，我们自己）（10-26 14:27）：@Arthur.a 好的感谢，我在 pre 上重新接一下头像上传，测完回你结果。",
+          "Aven.tong（10-26 14:30）：因为是外部群，bot 功能受限，不能在 话题 里发消息，也不能直接 回复 某条消息。只能群发 + @相关人员。 各位如果有给 bot 下任务，还请留群里 bot @各位的消息哈 @Arthur.a @HQUCEncone @.Ache.l @HQUCWilliam.m @Broker",
+          "Aven.Bot（bot，我们自己）（10-26 14:34）：@Arthur.a 修改头像复测：通了 3 项，没通 1 项",
+          "完整内容：[https://qfglxo2m3dc.sg.larksuite.com/docx/F0gXd3VPjosCCaxtmtel8XyPgqg](https://qfglxo2m3dc.sg.larksuite.com/docx/F0gXd3VPjosCCaxtmtel8XyPgqg)",
+          "Aven.Bot（bot，我们自己）（10-26 14:42）：@Arthur.a 好的，我把上传头像那次的完整 curl 和 503 报错原文整理好发你。",
+          "Aven.Bot（bot，我们自己）（10-26 14:44）：@Arthur.a 上传头像的完整 curl、测试时间和后端原始报错都整理好了，见文档；用的是测试号 508，网关和直连 Go 都回 HTTP 503「Internal server error」，请求没落库。",
+          "- ⚠️ 接了但还不能用 上传头像：带有效 token 传 PNG，网关和直连 Go 都回 HTTP 503 code -1「Internal server error」，同一个 request_id 查状态回「头像修改记录不存在」，需要 Go 后端查日志",
+          "Arthur.a（10-26 14:46）：@Aven.Bot 你说的文档在哪里",
+          "Aven.Bot（bot，我们自己）（10-26 14:47）：@Arthur.a 抱歉上条漏了链接，我马上把 curl 和 503 报错的文档链接补发给你。",
+          "Aven.Bot（bot，我们自己）（10-26 14:49）：@Arthur.a 抱歉，上次那条消息漏了文档链接，这次补上：上传头像的完整 curl、测试时间和 503 报错原文都在下面的文档里（测试号 508，网关和直连 Go 都回 HTTP 503「Internal server error」，请求没落库）。",
+          "详细见：[https://qfglxo2m3dc.sg.larksuite.com/docx/FOyhdaMCAojAGIxuK5TlbXgQgqb](https://qfglxo2m3dc.sg.larksuite.com/docx/FOyhdaMCAojAGIxuK5TlbXgQgqb)",
+          "Eric.ea（10-26 15:20）：[http://localhost:3000/go-api/api/thirdConfigManage/getStatus](http://localhost:3000/go-api/api/thirdConfigManage/getStatus)",
+          "[http://localhost:3000/hc-api/api/fameEx/market/symbol/list](http://localhost:3000/hc-api/api/fameEx/market/symbol/list)",
+          "这俩个接口，用于获取行情的开关状态以及列表",
+          "目前它俩需要登录才能调用，后续肯定要改，在非登录情况下，也应该要显示出来",
+          "所以，请把登录验证的逻辑去掉",
+          "@Arthur.a （发了 1 张图）",
+          "Arthur.a（10-26 15:21）：这俩目前都是走hichat对吧",
+          "Eric.ea（10-26 15:21）：是的，这就是以前 hichat 的接口",
+          "Arthur.a（10-26 15:22）：好",
+          "Aven.tong（10-26 15:33）：（发了文件：对接-后端-2026-10-26.md）",
+          "Aven.Bot（bot，我们自己）（10-26 16:14）：@Aven.tong 好的，我查一下 uid 271 头像是哪支接口哪个字段返回的，整理好回 Arthur。",
+          "Aven.Bot（bot，我们自己）（10-26 16:26）：@Arthur.a uid 271 的头像，Web 用的是 live php 返回的 avatar 字段，前端拿到原样加载，没做处理。有两处在用：顶栏头像来自登录返回和 Member/info；群聊里来自 chat/history 每条消息（新消息走 WS msg 推送）。这个头像地址带不带 /upload 在 pre 上请求都是 404，文件本身不存在，需要后端补上文件，或者把这个用户的头像改回默认地址。",
+          "Aven.Bot（bot，我们自己）（10-26 16:26）：@HQUCEncone @Henry 看过了，这条要改的在前端 henry 负责的部分（功能总表 #46、#47、#48、#49），麻烦 henry 看下，我这边不动。",
+          "Aven.tong（10-26 16:59）：任务中心接口 502 了，麻烦帮忙看看 @HQUCEncone （发了 1 张图）",
+          "HQUCEncone（10-26 17:00）：在更新，稍等",
+          "【Encone（portal 后端） 正在进行的事（任务 / bot 的话 2 小时内，台账条目不限；新的在前）】",
+          "- 台账 new#c2b104（noted）Encone 要 pre 环境测试账号密码，aven 授权直接回一份测试账号｜最近：Arthur（hichat / 账号后端）在群里 @ 机器人，要我方发一下 pre 测试号。前文里 Encone 也在要…",
+          "- 台账 对接-一期全项目问题-2026-10-20#C2（noted）游客调 `member/otherInfo` 回 -700，他人主页游客打不开｜最近：Encone（portal 后端）附了一条 bug 表记录：bbsv2/member/otherInfo?uid=196…"
+        ]
+      },
+      "group": {
+        "falive": [],
+        "sim": [
+          {
+            "at": "2026-10-26T13:31:45.667Z",
+            "afterSec": 27,
+            "phase": "ack",
+            "gated": null,
+            "text": "@ou_0474e2a35ff1054cdbc0bb9d9d9c9766 收到，我查一下，稍后回复。"
+          },
+          {
+            "at": "2026-10-26T13:33:59.064Z",
+            "afterSec": 160,
+            "phase": "done",
+            "gated": null,
+            "text": "@ou_0474e2a35ff1054cdbc0bb9d9d9c9766 ✅ 行情接口 pre 实测：都通了\n- ✅ 通了 行情列表 symbol/list：不登录、带登录 token 都回 code 200，有 1 条 BNB/USDT；经网关和直连 hichat 结果一样，登录校验已去掉\n- ✅ 通了 行情开关 getStatus：不登录也回 code 0，开关 cryptocurrencyMarketTicker 为 true\n详细见：https://sim.local/docx/simdoc00003"
+          }
+        ]
+      }
+    },
+    {
+      "label": "C2",
+      "id": "om_x100b62c1ec5ee0a4ed6ade7eaab85db",
+      "at": "2026-10-26T13:48:25.255Z",
+      "chat": "php-group",
+      "text": "@Aven.Bot",
+      "classified": {
+        "falive": {
+          "decision": "api_reply",
+          "confidence": "medium"
+        },
+        "sim": {
+          "decision": "question",
+          "confidence": "medium"
+        }
+      },
+      "status": {
+        "falive": null,
+        "sim": "done"
+      },
+      "seen": {
+        "falive": 0,
+        "sim": 44,
+        "onlyFalive": [],
+        "onlySim": [
+          "@Aven.Bot",
+          "【群里这条之前的消息】",
+          "Aven.Bot（bot，我们自己）（10-26 14:42）：@Arthur.a 好的，我把上传头像那次的完整 curl 和 503 报错原文整理好发你。",
+          "Aven.Bot（bot，我们自己）（10-26 14:44）：@Arthur.a 上传头像的完整 curl、测试时间和后端原始报错都整理好了，见文档；用的是测试号 508，网关和直连 Go 都回 HTTP 503「Internal server error」，请求没落库。",
+          "- ⚠️ 接了但还不能用 上传头像：带有效 token 传 PNG，网关和直连 Go 都回 HTTP 503 code -1「Internal server error」，同一个 request_id 查状态回「头像修改记录不存在」，需要 Go 后端查日志",
+          "Arthur.a（10-26 14:46）：@Aven.Bot 你说的文档在哪里",
+          "Aven.Bot（bot，我们自己）（10-26 14:47）：@Arthur.a 抱歉上条漏了链接，我马上把 curl 和 503 报错的文档链接补发给你。",
+          "Aven.Bot（bot，我们自己）（10-26 14:49）：@Arthur.a 抱歉，上次那条消息漏了文档链接，这次补上：上传头像的完整 curl、测试时间和 503 报错原文都在下面的文档里（测试号 508，网关和直连 Go 都回 HTTP 503「Internal server error」，请求没落库）。",
+          "详细见：[https://qfglxo2m3dc.sg.larksuite.com/docx/FOyhdaMCAojAGIxuK5TlbXgQgqb](https://qfglxo2m3dc.sg.larksuite.com/docx/FOyhdaMCAojAGIxuK5TlbXgQgqb)",
+          "Eric.ea（10-26 15:20）：[http://localhost:3000/go-api/api/thirdConfigManage/getStatus](http://localhost:3000/go-api/api/thirdConfigManage/getStatus)",
+          "[http://localhost:3000/hc-api/api/fameEx/market/symbol/list](http://localhost:3000/hc-api/api/fameEx/market/symbol/list)",
+          "这俩个接口，用于获取行情的开关状态以及列表",
+          "目前它俩需要登录才能调用，后续肯定要改，在非登录情况下，也应该要显示出来",
+          "所以，请把登录验证的逻辑去掉",
+          "@Arthur.a （发了 1 张图）",
+          "Arthur.a（10-26 15:21）：这俩目前都是走hichat对吧",
+          "Eric.ea（10-26 15:21）：是的，这就是以前 hichat 的接口",
+          "Arthur.a（10-26 15:22）：好",
+          "Aven.tong（10-26 15:33）：（发了文件：对接-后端-2026-10-26.md）",
+          "Aven.Bot（bot，我们自己）（10-26 16:14）：@Aven.tong 好的，我查一下 uid 271 头像是哪支接口哪个字段返回的，整理好回 Arthur。",
+          "Aven.Bot（bot，我们自己）（10-26 16:26）：@Arthur.a uid 271 的头像，Web 用的是 live php 返回的 avatar 字段，前端拿到原样加载，没做处理。有两处在用：顶栏头像来自登录返回和 Member/info；群聊里来自 chat/history 每条消息（新消息走 WS msg 推送）。这个头像地址带不带 /upload 在 pre 上请求都是 404，文件本身不存在，需要后端补上文件，或者把这个用户的头像改回默认地址。",
+          "Aven.Bot（bot，我们自己）（10-26 16:26）：@HQUCEncone @Henry 看过了，这条要改的在前端 henry 负责的部分（功能总表 #46、#47、#48、#49），麻烦 henry 看下，我这边不动。",
+          "Aven.tong（10-26 16:59）：任务中心接口 502 了，麻烦帮忙看看 @HQUCEncone （发了 1 张图）",
+          "HQUCEncone（10-26 17:00）：在更新，稍等",
+          "HQUCEncone（10-26 17:31）：https://falivepre.fdsser.com/hc-api/api/fameEx/market/symbol/list",
+          "测试这个api 能不能请求通",
+          "Aven.Bot（bot，我们自己）（10-26 17:31）：@HQUCEncone 收到，我查一下，稍后回复。",
+          "Aven.Bot（bot，我们自己）（10-26 17:33）：@HQUCEncone ✅ 行情接口 pre 实测：都通了",
+          "- ✅ 通了 行情列表 symbol/list：不登录、带登录 token 都回 code 200，有 1 条 BNB/USDT；经网关和直连 hichat 结果一样，登录校验已去掉",
+          "- ✅ 通了 行情开关 getStatus：不登录也回 code 0，开关 cryptocurrencyMarketTicker 为 true",
+          "详细见：https://sim.local/docx/simdoc00003",
+          "Arthur.a（10-26 17:44）：@Aven.tong 恢复了哈",
+          "HQUCEncone（10-26 17:48）：https://falivepre.fdsser.com/hc-api/api/fameEx/market/symbol/list",
+          "直接访问都可以正常，为啥你们的项目里面访问会 404",
+          "如果nginx 配置有问题，直连应该也是 404 才对",
+          "【Encone（portal 后端） 正在进行的事（任务 / bot 的话 2 小时内，台账条目不限；新的在前）】",
+          "- 17:33 bot 对他说（done）：✅ 行情接口 pre 实测：都通了 - ✅ 通了 行情列表 symbol/list：不登录、带登录 token 都回 code 200，有 1 条 BNB/USDT；经网关和直连 hichat 结果一样，登录校验已去掉 - ✅ 通了 行情开关 getStatus：不登录也回 code 0，开关 cryptocurrencyMarketTicker 为 true 详细见：https://sim.local/docx/simdoc00003",
+          "- 17:31 bot 对他说（ack）：收到，我查一下，稍后回复。",
+          "- 他 17:31 的消息 id=om_x100b62c12ca584a0ed60b40549769e5 主题=- 状态=no_change_needed：Encone（portal 后端）@ bot，让我们测一下 pre 上 hc-api/api/fameEx/market/symbol/list 能不能请求通（",
+          "- 台账 new#c2b104（noted）Encone 要 pre 环境测试账号密码，aven 授权直接回一份测试账号｜最近：Arthur（hichat / 账号后端）在群里 @ 机器人，要我方发一下 pre 测试号。前文里 Encone 也在要…"
+        ]
+      },
+      "group": {
+        "falive": [],
+        "sim": [
+          {
+            "at": "2026-10-26T13:49:00.588Z",
+            "afterSec": 35,
+            "phase": "ack",
+            "gated": null,
+            "text": "@ou_0474e2a35ff1054cdbc0bb9d9d9c9766 收到，我查下项目里 hc-api 的代理转发配置，看 404 出在哪再回你。"
+          },
+          {
+            "at": "2026-10-26T13:51:44.356Z",
+            "afterSec": 199,
+            "phase": "done",
+            "gated": null,
+            "text": "@ou_0474e2a35ff1054cdbc0bb9d9d9c9766 刚才复测，项目里实际发的请求现在不会 404 了：经 falivepre 网关 /hc-api 和直连 hichat，带不带登录 token 都回 200，有 1 条 BNB/USDT。之前的 404 是 10-20 那次网关 /hc-api 带有效 hichat token 时被转到错误的上游（直连是好的，所以两边表现不一样），现在已经正常了。你那边要是还看到 404，麻烦把浏览器 Network 里那条请求的完整地址和请求头截图给我们。"
+          }
+        ]
+      }
+    }
+  ],
+  "routing": {
+    "falive": [
+      "received task-mention C1，等待意图分类…",
+      "repo ack C1 ok via webhook",
+      "C1 回「收到」（classified，固定句）：ok",
+      "repo start C1 -> webhook-group ok via webhook",
+      "task-mention C1 classified=ignore/medium，正式入队",
+      "repo group reply C1 ok via webhook",
+      "repo outcome C1 done -> webhook-group ok via webhook",
+      "锚定：C2 接着 C1（主题 -）",
+      "received task-mention C2，等待意图分类…",
+      "repo ack C2 ok via webhook",
+      "C2 回「收到」（classified，用分类 reply）：ok",
+      "台账：C2 api_reply 触及 new#0063a6 → 工单键 …",
+      "repo start C2 -> webhook-group ok via webhook",
+      "task-mention C2 classified=api_reply/medium，正式入队",
+      "C2 待确认清单已更新同主题云文档（new#0063a6）",
+      "repo group reply C2 ok via webhook",
+      "repo outcome C2 done -> webhook-group ok via webhook"
+    ],
+    "sim": [
+      "received task-mention C1，等待意图分类…",
+      "repo ack C1 ok via webhook",
+      "C1 回「收到」（classified，固定句）：ok",
+      "repo start C1 -> webhook-group ok via webhook",
+      "task-mention C1 classified=ignore/medium，正式入队",
+      "repo group reply C1 ok via webhook",
+      "repo outcome C1 no_change_needed -> webhook-group ok via webhook",
+      "received task-mention C2，等待意图分类…",
+      "repo ack C2 ok via webhook",
+      "C2 回「收到」（classified，用分类 reply）：ok",
+      "锚定：C2 接着 C1（主题 -）",
+      "台账：C2 question 触及 new#0063a6 → 工单键 …",
+      "repo start C2 -> webhook-group ok via webhook",
+      "task-mention C2 classified=question/medium，正式入队",
+      "repo group reply C2 ok via webhook",
+      "repo outcome C2 done -> webhook-group ok via webhook"
+    ],
+    "onlyFalive": [
+      "repo outcome C1 done -> webhook-group ok via webhook",
+      "台账：C2 api_reply 触及 new#0063a6 → 工单键 …",
+      "task-mention C2 classified=api_reply/medium，正式入队",
+      "C2 待确认清单已更新同主题云文档（new#0063a6）"
+    ],
+    "onlySim": [
+      "repo outcome C1 no_change_needed -> webhook-group ok via webhook",
+      "台账：C2 question 触及 new#0063a6 → 工单键 …",
+      "task-mention C2 classified=question/medium，正式入队"
+    ]
+  },
+  "console": {
+    "falive": [
+      {
+        "at": "2026-10-26T13:31:54.165Z",
+        "text": "<card>\n🛠 开始做：Encone（portal 后端）@bot，让测一下 pre 的 /hc-api/api/fameEx/market/symbol/list 能不能请求通。前文（Falive PHP后端群）\n</card>"
+      },
+      {
+        "at": "2026-10-26T13:35:53.104Z",
+        "text": "<card>\n✅ 测了群里问的行情列表接口：现在还不通。经 pre 站点的 /hc-api 网关请求，不登录回 401，带测试号 508 的 token 回 404，在浏览器里打开首页也是 404，行情跑马灯不显示。同一个 token 直接请求 hichat pre 上游能拿到行情数据，所以问题在网关 /hc-api 转发的上游，要运维或 Arthur 查。另外免登录（Eric 提的）在 hichat 和 Go 的开关接口上都还没生效。前端代码没改，只在分支 lark/falive-549769e5 上加了一份待确认清单。\n分支 lark/falive-integration · 改了 1 个文件\n已合进 lark/falive-integration，你合这一条分支就够\n要 运维、Arthur、Encone 跟进：[https://qfglxo2m3dc.sg.larksuite.com/docx/VtZ0d1DuCoFV4yxKQ2IlZpw6ggh](https://qfglxo2m3dc.sg.larksuite.com/docx/VtZ0d1DuCoFV4yxKQ2IlZpw6ggh)\n⚠ 任务带的 2 张截图执行器一张都没打开看，结论可能漏了截图里的信息（比如原型里已有的需求），发群前请过一眼\n群里已回：「@运维 @Arthur @Encone 行情列表接口测试：通了 0 项，没通 4 项」\n</card>"
+      },
+      {
+        "at": "2026-10-26T13:49:00.220Z",
+        "text": "<card>\n🛠 开始做：Encone（portal 后端）只 @ 了 bot，没写别的内容。他刚才（17:31）让测 pre 的 /hc-api/api/fameEx/market/s（Falive PHP后端群）\n</card>"
+      }
+    ],
+    "sim": [
+      {
+        "at": "2026-10-26T13:31:45.813Z",
+        "text": "<card>\n🛠 开始做：Encone（portal 后端）@ bot，让我们测一下 pre 上 hc-api/api/fameEx/market/symbol/list 能不能请求通（（Falive PHP后端群）\n</card>"
+      },
+      {
+        "at": "2026-10-26T13:33:59.067Z",
+        "text": "<card>\nℹ️ 看过了，不用改（Falive PHP后端群）：测过了，行情列表接口在 pre 上能通：不登录和带登录 token 都回 code 200，有 1 条 BNB/USDT。经网关和直连 hichat 结果一样，说明后端已经去掉了登录校验。跑马灯开关接口 getStatus 不登录也回 code 0、开关为 true。前端现在仍然只在登录后才请求和展示跑马灯，要让游客也看到，得 eric 改前端，这部分我没动。\n⚠ 任务带的 2 张截图有 1 张执行器没打开看，结论可能漏了截图里的信息（比如原型里已有的需求），发群前请过一眼\n群里已回：「✅ 行情接口 pre 实测：都通了」\n</card>"
+      },
+      {
+        "at": "2026-10-26T13:49:00.740Z",
+        "text": "<card>\n🛠 开始做：Encone（portal 后端）@ 机器人追问：pre 上直接访问 hc-api/api/fameEx/market/symbol/list 是正常的，为什么（Falive PHP后端群）\n</card>"
+      },
+      {
+        "at": "2026-10-26T13:51:44.357Z",
+        "text": "<card>\n✅ symbol/list 的 404 我刚才复现不出来：经 falivepre 网关 /hc-api 和直连 hichat，带不带 token、带前端同样的请求头，都回 HTTP 200、code 200、1 条 BNB/USDT。之前的 404 是 10-20 记的「网关 /hc-api 带有效 hichat_token 时被转到错误的 Spring 上游」（docs/delivery/pending/对接-一期全项目问题-2026-10-20.md O1），现在已经不出现了。前端怎么选路见 src/modules/market-ticker/data/queries.ts（走 hichat）和 build/service-gateway.ts（pre 上 hichat 本地/SSR 直连 pre-hailiao，浏览器走同源 /hc-api）。页面工具登录测试号报 403 参数错误，所以首页跑马灯这次没在页面上看到。\n验证提醒：页面工具用测试号登录失败（HTTP 403 code -1 参数错误），所以 pre 首页跑马灯这次没在页面上看到；接口层已经实测通过；pre-probe.mjs 对 falivepre 网关的那次运行在打印时崩溃（data 是 undefined），改用 curl 只读 GET 测的\n群里已回：「刚才复测，项目里实际发的请求现在不会 404 了：经 falivepre 网关 /hc-api 和直连 hichat，带不带登录 token 都回 200，有 1 条 BNB/USDT。之前的 404 是 10-20 那次网关 /hc-api 带有效 hichat token 时被转到错误的上游（直连是好的，所以两边表现不一样），现在已经正常了。你那边要是还看到 404，麻烦把浏览器 Network 里那条请求的完整地址和请求头截图给我们。」\n</card>"
+      }
+    ]
+  },
+  "simOtherSends": 0,
+  "egress": {
+    "connections": 100,
+    "nonLocal": [
+      "2.1.289 160.79.104.10:443",
+      "curl 15.164.31.245:443",
+      "node 15.164.31.245:443",
+      "node 108.139.60.10:443"
+    ],
+    "flagged": [],
+    "probe": 0,
+    "probeBlocked": []
+  },
+  "fakeCliGaps": [],
+  "casesDir": "/Users/aven/github/lark-bot-cal/replay/falive"
+}

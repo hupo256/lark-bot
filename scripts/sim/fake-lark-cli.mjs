@@ -154,8 +154,10 @@ const hideFaliveBot = (id, atMs) => {
 }
 // run-sim-falive（P0-h，falive 代码校准）另用 meta.json 两项：hiddenIds 组外的触发消息哪儿都不供（falive 靠轮询收消息，看得见的 @bot 都会被接走）；
 // keepOwnBotIds 窗口内 falive bot 的消息照供原话（组外的、bugpoll 这类不归被测代码产出的）。
+// hiddenAsHistory=true（11-04 保真度分析）：组外触发消息照列（当历史），由 run-sim-falive 预先记进轮询状态的 seen，falive 不会当新消息接——
+// 藏起来时 falive 看到的「群里这条之前的消息」少了它们、窗口往前多吃几条（ep-1027-63a6f3 C4 上下文差），和 run-sim（lark-bot，组外的照供）也不一致。
 const META = readJson('meta.json', {})
-const HIDDEN = new Set(META.hiddenIds || [])
+const HIDDEN = new Set(META.hiddenAsHistory ? [] : META.hiddenIds || [])
 const KEEP_OWN = new Set(META.keepOwnBotIds || [])
 const hideOwnBot = (id, atMs) => hideFaliveBot(id, atMs) && !KEEP_OWN.has(id)
 let allMessages = null

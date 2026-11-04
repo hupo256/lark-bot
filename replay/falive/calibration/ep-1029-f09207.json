@@ -1,0 +1,172 @@
+{
+  "episode": "ep-1029-f09207",
+  "faliveCode": {
+    "sha": "edb202641337e75b19528ed5775be303c14a1a45",
+    "dir": "/Users/aven/github/lark-bot-falive-sim/code-edb2026",
+    "codeHash": "ed546bc63b37",
+    "startedAt": "2026-10-29T06:43:38.215Z",
+    "verified": true,
+    "tried": [
+      {
+        "sha": "edb2026",
+        "hashes": [
+          "ed546bc63b37",
+          "ab2bcb25e810"
+        ]
+      }
+    ]
+  },
+  "faliveConfig": "/Users/aven/github/lark-bot-falive/runtime/lark-bot.bak-20261031.local.json",
+  "cases": [
+    {
+      "label": "C1",
+      "id": "om_x100b611aa5e028b4ffb1a3e4ef09207",
+      "at": "2026-10-29T06:58:58.915Z",
+      "chat": "tech-group",
+      "text": "@Aven.Bot 帮忙解答一下，说详细点",
+      "classified": {
+        "falive": {
+          "decision": "question",
+          "confidence": "high"
+        },
+        "sim": {
+          "decision": "question",
+          "confidence": "high"
+        }
+      },
+      "status": {
+        "falive": "done",
+        "sim": "done"
+      },
+      "seen": {
+        "falive": 55,
+        "sim": 55,
+        "onlyFalive": [],
+        "onlySim": []
+      },
+      "group": {
+        "falive": [
+          {
+            "at": "2026-10-29T06:59:46.154Z",
+            "afterSec": 47,
+            "phase": "ack",
+            "gated": null,
+            "text": "@ou_91861d6da6cf6822e08045ba1868241e 好的，我查一下哪些功能在用 /hc-ws、前端是怎么连的，再详细回复 Encone。"
+          },
+          {
+            "at": "2026-10-29T07:02:28.512Z",
+            "afterSec": 210,
+            "phase": "done",
+            "gated": null,
+            "text": "@ou_91861d6da6cf6822e08045ba1868241e 这是行情跑马灯（一期 #51）的实时行情推送。前端不会直连 hichat 的域名：浏览器连本站的 /hc-ws，由网关转到 hichat 的 /ws/im/echo，和 /hc-api 走网关是一个思路。刚实测 pre 的 /hc-ws 已经能连上，并收到了 hichat 的鉴权提示帧，pre 这边的反代已经好了，10-28 那条可以结；uat / online 上线时还要配同一条反代。\n- ⚠️ 接了但还不能用 uat / online 的 /hc-ws 反代：uat、online 网关也要把 /hc-ws 转到各自 hichat 的 /ws/im/echo（uat-hailiao.hai-liao-uat.com、www.4ees1.xyz），已写在 uat 与 online 上线对接文档里\n详细见：https://qfglxo2m3dc.sg.larksuite.com/docx/IxB5dOeQ4otGG0xZyXelFCopgLb"
+          }
+        ],
+        "sim": [
+          {
+            "at": "2026-10-29T06:59:22.941Z",
+            "afterSec": 24,
+            "phase": "ack",
+            "gated": null,
+            "text": "@ou_91861d6da6cf6822e08045ba1868241e 好的，我按代码查一下前端怎么连 hichat 的 ws、哪些功能用到，再详细回复 Encone。"
+          },
+          {
+            "at": "2026-10-29T07:02:09.464Z",
+            "afterSec": 191,
+            "phase": "done",
+            "gated": null,
+            "text": "@ou_91861d6da6cf6822e08045ba1868241e 会连，但只有首页顶部的「行情跑马灯」用到：浏览器连本站的 /hc-ws，网关转到 hichat 的 /ws/im/echo，前端回 CLI_AUTH 认证后接收实时行情推送；直播间聊天走的是 php 的 /wss，和这个没关系。今天实测 pre 的 /hc-ws 已经能握手，连上后收到的是 hichat 的认证挑战，说明反代已经配好，这一项可以结了。\n完整内容：https://sim.local/docx/simdoc00004"
+          }
+        ]
+      }
+    },
+    {
+      "label": "C2",
+      "id": "om_x100b611b4eb6d0a0fe1607007fb4451",
+      "at": "2026-10-29T07:04:39.770Z",
+      "chat": "tech-group",
+      "text": "cc @HQUCEncone",
+      "classified": {
+        "falive": null,
+        "sim": null
+      },
+      "status": {
+        "falive": null,
+        "sim": null
+      },
+      "seen": {
+        "falive": 0,
+        "sim": 0,
+        "onlyFalive": [],
+        "onlySim": []
+      },
+      "group": {
+        "falive": [],
+        "sim": []
+      }
+    }
+  ],
+  "routing": {
+    "falive": [
+      "received task-mention C1，等待意图分类…",
+      "repo ack C1 ok via webhook",
+      "C1 回「收到」（classified，用分类 reply）：ok",
+      "台账：C1 question 触及 new#f09207 → 工单键 …",
+      "repo start C1 -> webhook-group ok via webhook",
+      "task-mention C1 classified=question/high，正式入队",
+      "repo group reply C1 ok via webhook",
+      "repo outcome C1 done -> webhook-group ok via webhook"
+    ],
+    "sim": [
+      "received task-mention C1，等待意图分类…",
+      "repo ack C1 ok via webhook",
+      "C1 回「收到」（classified，用分类 reply）：ok",
+      "台账：C1 question 触及 new#f09207 → 工单键 …",
+      "repo start C1 -> webhook-group ok via webhook",
+      "task-mention C1 classified=question/high，正式入队",
+      "repo group reply C1 ok via webhook",
+      "repo outcome C1 done -> webhook-group ok via webhook"
+    ],
+    "onlyFalive": [],
+    "onlySim": []
+  },
+  "console": {
+    "falive": [
+      {
+        "at": "2026-10-29T06:59:48.450Z",
+        "text": "<card>\n✅ pre 复测 5b183c88：通过 4 项，不通过 1 项。\n- SSR 服务端首屏取 php 数据（2c9f37bc 同批上线的内网回源）：pre 部署机这次服务端渲染取不到 php 数据，新闻详情回默认标题、直播间 / 直播列表 / 首页主内容服务端失败后改浏览器渲染；同代码本地连 pre 公网网关正常、前端 pre 回源配置未变（等 Ache / 运维查 php-swoole.internal · 证据见 对接-后端运维-uat与online上线-2026-10-29 复测追记）\n分支 feature/phase-5-test · 改了 3 个文件\n改动已合进 feature/phase-5-test。回「推 pre」我就推 feature/phase-5-test 并发 pre 的 MR。\n要 Ache 跟进（清单在分支里的 docs/delivery/pending/对接-后端运维-uat与online上线-2026-10-29.md）\n</card>"
+      },
+      {
+        "at": "2026-10-29T06:59:49.134Z",
+        "text": "<card>\n🛠 开始做：aven 转来 Encone 的提问，让 bot 详细解答。Encone 引用了 bot 10-28 的分类：pre 网关没配 /hc-ws 到 hichat （Falive产研技术沟通群）\n</card>"
+      },
+      {
+        "at": "2026-10-29T07:02:29.047Z",
+        "text": "<card>\n✅ /hc-ws 是一期 #51 行情跑马灯（前端 eric）收实时行情推送用的：浏览器不直连 hichat 域名，连本站同源 /hc-ws，由网关反代到 hichat 的 /ws/im/echo（dev 由 vite 代理，生产靠 nginx）。依据：src/modules/market-ticker/data/market-runtime.ts、src/kernel/hichat-socket/protocol.ts、build/service-hosts.ts HICHAT_WS_PATH、vite.config.ts proxyMap['/hc-ws']、phase1-feature-table #51。10-29 11:01（+04）实测 pre 的 wss://falivepre.fdsser.com/hc-ws 已握手 101，连上就收到 hichat 的 SRV_NEED_AUTH 帧，说明 pre 反代已经配好（10-28 是 404），bot 10-28 那条分类已过时；uat / online 还要配同样的反代（已写在 uat 与 online 上线对接文档）。\n群里已回：「这是行情跑马灯（一期 #51）的实时行情推送。前端不会直连 hichat 的域名：浏览器连本站的 /hc-ws，由网关转到 hichat 的 /ws/im/echo，和 /hc-api 走网关是一个思路。刚实测 pre 的 /hc-ws 已经能连上，并收到了 hichat 的鉴权提示帧，pre 这边的反代已经好了，10-28 那条可以结；uat / online 上线时还要配同一条反代。」\n</card>"
+      }
+    ],
+    "sim": [
+      {
+        "at": "2026-10-29T06:59:22.993Z",
+        "text": "<card>\n🛠 开始做：Encone 引用了 bot 10-28 的分类：pre 网关没配 /hc-ws 的 WebSocket 反代。Encone 问这条对应哪部分需求，以及前端是不（Falive产研技术沟通群）\n</card>"
+      },
+      {
+        "at": "2026-10-29T07:02:09.467Z",
+        "text": "<card>\n✅ 答案：会，但只用于 #51 行情跑马灯（前端负责人 eric），浏览器连同源 /hc-ws，由网关转到 hichat 的 /ws/im/echo，用来收 SRV_MARKET_TICKER_UPDATE 行情推送；直播间聊天走的是 php 的 /wss，和这个无关。本轮实测 wss://falivepre.fdsser.com/hc-ws 握手已经回 101，连上后第一帧就是 hichat 的 SRV_NEED_AUTH，说明 pre 的反代已经加好，O3 可以结掉。依据：src/modules/market-ticker/data/market-runtime.ts、src/kernel/hichat-socket/protocol.ts、build/service-hosts.ts HICHAT_WS_PATH、vite.config.ts proxyMap['/hc-ws']、phase1-feature-table #51。uat/online 也要配同样的 /hc-ws 反代，已写进 10-29 上线对接文档。\n验证提醒：pre-probe 只走 php 线路，测不了行情的 golang getStatus / hichat symbol/list，这次没测这两支（和本次问的 WS 问题无关）；带 hichat token 认证后能否收到行情推送，这次没用登录账号测；跑马灯归 eric 负责\n群里已回：「会连，但只有首页顶部的「行情跑马灯」用到：浏览器连本站的 /hc-ws，网关转到 hichat 的 /ws/im/echo，前端回 CLI_AUTH 认证后接收实时行情推送；直播间聊天走的是 php 的 /wss，和这个没关系。今天实测 pre 的 /hc-ws 已经能握手，连上后收到的是 hichat 的认证挑战，说明反代已经配好，这一项可以结了。」\n</card>"
+      }
+    ]
+  },
+  "simOtherSends": 0,
+  "egress": {
+    "connections": 89,
+    "nonLocal": [
+      "2.1.289 160.79.104.10:443",
+      "curl 13.124.203.191:443",
+      "curl 108.139.60.27:443"
+    ],
+    "flagged": [],
+    "probe": 10,
+    "probeBlocked": []
+  },
+  "fakeCliGaps": [],
+  "casesDir": "/Users/aven/github/lark-bot-cal/replay/falive"
+}

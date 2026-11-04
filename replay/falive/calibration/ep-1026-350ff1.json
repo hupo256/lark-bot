@@ -1,0 +1,464 @@
+{
+  "episode": "ep-1026-350ff1",
+  "faliveCode": {
+    "sha": "0e8162bfa6a0e32445541db402953f0e02e36503",
+    "dir": "/Users/aven/github/lark-bot-falive-sim/code-0e8162b",
+    "codeHash": "e3f6862d27e5",
+    "startedAt": "2026-10-26T06:40:50.964Z",
+    "verified": false,
+    "tried": [
+      {
+        "sha": "0e8162b",
+        "hashes": [
+          "3ea4b20dba8a",
+          "6139b5b8f50a"
+        ]
+      },
+      {
+        "sha": "852accd",
+        "hashes": [
+          "86df459f500e",
+          "c6742b20a968"
+        ]
+      },
+      {
+        "sha": "5b9bdd0",
+        "hashes": [
+          "1c10472c289a",
+          "44ffce60ed49"
+        ]
+      },
+      {
+        "sha": "2916e55",
+        "hashes": [
+          "bc94efc25076",
+          "0635cc9ff173"
+        ]
+      },
+      {
+        "sha": "ad37d9f",
+        "hashes": [
+          "a0777c8fffb3",
+          "152df47b0de2"
+        ]
+      },
+      {
+        "sha": "2f38e8a",
+        "hashes": [
+          "27178522fc49",
+          "7bbe3686c115"
+        ]
+      }
+    ]
+  },
+  "faliveConfig": "/Users/aven/github/lark-bot-falive/runtime/lark-bot.bak-20261027.local.json",
+  "cases": [
+    {
+      "label": "C1",
+      "id": "om_x100b62c5e706f0a0ed6d18be6350ff1",
+      "at": "2026-10-26T09:17:16.841Z",
+      "chat": "php-group",
+      "text": "![Image](img_v3_0216r_c9207012-b1fe-4410-b6c0-697b18d3c5ix)\n[https://falivepre.fdsser.com/bbsv2/member/threadsCount?channel_code=hc](https://falivepre.fdsser.com/bbsv2/member/threadsCount?channel_code",
+      "classified": {
+        "falive": {
+          "decision": "bug",
+          "confidence": "medium"
+        },
+        "sim": {
+          "decision": "bug",
+          "confidence": "medium"
+        }
+      },
+      "status": {
+        "falive": null,
+        "sim": "no_change_needed"
+      },
+      "seen": {
+        "falive": 0,
+        "sim": 64,
+        "onlyFalive": [],
+        "onlySim": [
+          "![Image](img_v3_0216r_c9207012-b1fe-4410-b6c0-697b18d3c5ix)",
+          "[https://falivepre.fdsser.com/bbsv2/member/threadsCount?channel_code=hc](https://falivepre.fdsser.com/bbsv2/member/threadsCount?channel_code=hc)",
+          "这个APi 返回的 帖子列表，封面图也需要同步图片解密 @Aven.Bot",
+          "【群里这条之前的消息】",
+          "Aven.Bot（bot，我们自己）（10-26 12:07）：@HQUCEncone 好的，我把 API 调试没通过的项整理成一份文档发你。",
+          "Arthur.a（10-26 12:08）：@Aven.tong @Adrian 关注、发帖任务完成相关API",
+          "Aven.Bot（bot，我们自己）（10-26 12:12）：@HQUCEncone 清单给了：pre 上现在还有 6 项接口没通，3 项卡网关 / 运维、2 项卡 Go、1 项卡 php。@Arthur Bug-4923 的 symbol/list 接口本身确实是通的（直连 200），没通的是 pre 网关 /hc-api 转发（经网关 404），要改网关配置；头像查询接口今天已部署，上传接口我们用测试号传图确认后再回。",
+          "完整内容：[https://qfglxo2m3dc.sg.larksuite.com/docx/GREjdorDDo9zQ8x222Zlx5XXgM4](https://qfglxo2m3dc.sg.larksuite.com/docx/GREjdorDDo9zQ8x222Zlx5XXgM4)",
+          "HTStone.z（10-26 12:18）：@mainly 請問嗨聊既有用戶的群組同步&訊息同步完成了嗎?",
+          "HQUCEncone（10-26 12:20）：https://www.figma.com/design/IwPvl4wA0Pc7ia8IHyoLK5/Falive?node-id=756-61117&t=6S8sgxMDkrrB5nBT-0",
+          "@Aven.Bot",
+          "需要按照设计稿更新一下 个人中心 界面",
+          "HQUCEncone（10-26 12:20）：（发了 2 张图）",
+          "Aven.Bot（bot，我们自己）（10-26 12:20）：@HQUCEncone 收到设计稿，我先对照现有个人中心看下改动点，再回你。",
+          "mainly（10-26 12:20）：@HTStone.z 聊天相关还剩禁言冻结封禁相关还在确认和调整，其他应该是都好了",
+          "HTStone.z（10-26 12:21）：@mainly 確認一下~所以既有群組會全部存在，然後如果群組內有發消息也會同步?",
+          "HQUCEncone（10-26 12:21）：https://www.figma.com/design/IwPvl4wA0Pc7ia8IHyoLK5/Falive?node-id=756-61117&t=6S8sgxMDkrrB5nBT-0",
+          "@Aven.tong 这个设计稿没有 【徽章】【记录】tab",
+          "mainly（10-26 12:22）：@HTStone.z 对",
+          "HQUCEncone（10-26 12:25）：https://qfglxo2m3dc.sg.larksuite.com/record/PznSrCTEAe8lGqcZTT3li33Ag3f",
+          "@Kaiser 确认下UI 设计稿，有没有这个功能，",
+          "https://www.figma.com/design/IwPvl4wA0Pc7ia8IHyoLK5/Falive?node-id=756-61117&t=6S8sgxMDkrrB5nBT-0",
+          "HQUCEncone（10-26 12:33）：[https://qfglxo2m3dc.sg.larksuite.com/record/Cy4JrsifKe0h6bchhu2lSgdpgPh](https://qfglxo2m3dc.sg.larksuite.com/record/Cy4JrsifKe0h6bchhu2lSgdpgPh)",
+          "这个富文本版本有点旧，建议下一版本重构时候更换",
+          "live 也在调研新版本的 富文本编辑器",
+          "@Mateo （发了 1 张图）",
+          "HQUCEncone（10-26 12:39）：\"側欄\" 與\"直播>正在直播\" icon 顯示不一樣",
+          "https://qfglxo2m3dc.sg.larksuite.com/record/VpFkrE4D2eXDYHcPkHtlslbRgsf",
+          "API 有返回 icon 地址",
+          "[",
+          "{",
+          "\"id\": 39,",
+          "\"lang\": 1,",
+          "\"name\": \"区块链\",",
+          "\"icon\": \"https://falivepre.fdsser.com/upload/live_tag/live_tag_02.webp\",",
+          "\"sort_order\": 100,",
+          "\"is_sidebar\": 1",
+          "},",
+          "\"id\": 40,",
+          "\"name\": \"BTC\","
+        ]
+      },
+      "group": {
+        "falive": [],
+        "sim": [
+          {
+            "at": "2026-10-26T09:17:55.008Z",
+            "afterSec": 38,
+            "phase": "ack",
+            "gated": null,
+            "text": "@ou_0474e2a35ff1054cdbc0bb9d9d9c9766 收到，我先查下个人中心帖子列表的封面图怎么取的，补上解密后再回你。"
+          },
+          {
+            "at": "2026-10-26T09:19:14.439Z",
+            "afterSec": 118,
+            "phase": "done",
+            "gated": null,
+            "text": "@ou_0474e2a35ff1054cdbc0bb9d9d9c9766 @Henry 看过了，这条要改的在前端 henry 负责的部分（功能总表 #1、#46），麻烦 henry 看下，我这边不动。"
+          }
+        ]
+      }
+    },
+    {
+      "label": "C2",
+      "id": "om_x100b62c5fe29d0a0ed6ce9393d15b6e",
+      "at": "2026-10-26T09:19:10.393Z",
+      "chat": "php-group",
+      "text": "https://falivepre.fdsser.com/bbsv2/member/threadsCursor?type=posts&last_id=0&per_page=20&channel_code=hc\n\n@Aven.Bot  更新下是这个 APi",
+      "classified": {
+        "falive": {
+          "decision": "api_reply",
+          "confidence": "medium"
+        },
+        "sim": {
+          "decision": "api_reply",
+          "confidence": "high"
+        }
+      },
+      "status": {
+        "falive": null,
+        "sim": "no_change_needed"
+      },
+      "seen": {
+        "falive": 0,
+        "sim": 66,
+        "onlyFalive": [],
+        "onlySim": [
+          "https://falivepre.fdsser.com/bbsv2/member/threadsCursor?type=posts&last_id=0&per_page=20&channel_code=hc",
+          "@Aven.Bot 更新下是这个 APi",
+          "【群里这条之前的消息】",
+          "Aven.Bot（bot，我们自己）（10-26 12:12）：@HQUCEncone 清单给了：pre 上现在还有 6 项接口没通，3 项卡网关 / 运维、2 项卡 Go、1 项卡 php。@Arthur Bug-4923 的 symbol/list 接口本身确实是通的（直连 200），没通的是 pre 网关 /hc-api 转发（经网关 404），要改网关配置；头像查询接口今天已部署，上传接口我们用测试号传图确认后再回。",
+          "完整内容：[https://qfglxo2m3dc.sg.larksuite.com/docx/GREjdorDDo9zQ8x222Zlx5XXgM4](https://qfglxo2m3dc.sg.larksuite.com/docx/GREjdorDDo9zQ8x222Zlx5XXgM4)",
+          "HTStone.z（10-26 12:18）：@mainly 請問嗨聊既有用戶的群組同步&訊息同步完成了嗎?",
+          "HQUCEncone（10-26 12:20）：https://www.figma.com/design/IwPvl4wA0Pc7ia8IHyoLK5/Falive?node-id=756-61117&t=6S8sgxMDkrrB5nBT-0",
+          "@Aven.Bot",
+          "需要按照设计稿更新一下 个人中心 界面",
+          "HQUCEncone（10-26 12:20）：（发了 2 张图）",
+          "Aven.Bot（bot，我们自己）（10-26 12:20）：@HQUCEncone 收到设计稿，我先对照现有个人中心看下改动点，再回你。",
+          "mainly（10-26 12:20）：@HTStone.z 聊天相关还剩禁言冻结封禁相关还在确认和调整，其他应该是都好了",
+          "HTStone.z（10-26 12:21）：@mainly 確認一下~所以既有群組會全部存在，然後如果群組內有發消息也會同步?",
+          "HQUCEncone（10-26 12:21）：https://www.figma.com/design/IwPvl4wA0Pc7ia8IHyoLK5/Falive?node-id=756-61117&t=6S8sgxMDkrrB5nBT-0",
+          "@Aven.tong 这个设计稿没有 【徽章】【记录】tab",
+          "mainly（10-26 12:22）：@HTStone.z 对",
+          "HQUCEncone（10-26 12:25）：https://qfglxo2m3dc.sg.larksuite.com/record/PznSrCTEAe8lGqcZTT3li33Ag3f",
+          "@Kaiser 确认下UI 设计稿，有没有这个功能，",
+          "https://www.figma.com/design/IwPvl4wA0Pc7ia8IHyoLK5/Falive?node-id=756-61117&t=6S8sgxMDkrrB5nBT-0",
+          "HQUCEncone（10-26 12:33）：[https://qfglxo2m3dc.sg.larksuite.com/record/Cy4JrsifKe0h6bchhu2lSgdpgPh](https://qfglxo2m3dc.sg.larksuite.com/record/Cy4JrsifKe0h6bchhu2lSgdpgPh)",
+          "这个富文本版本有点旧，建议下一版本重构时候更换",
+          "live 也在调研新版本的 富文本编辑器",
+          "@Mateo （发了 1 张图）",
+          "HQUCEncone（10-26 12:39）：\"側欄\" 與\"直播>正在直播\" icon 顯示不一樣",
+          "https://qfglxo2m3dc.sg.larksuite.com/record/VpFkrE4D2eXDYHcPkHtlslbRgsf",
+          "API 有返回 icon 地址",
+          "[",
+          "{",
+          "\"id\": 39,",
+          "\"lang\": 1,",
+          "\"name\": \"区块链\",",
+          "\"icon\": \"https://falivepre.fdsser.com/upload/live_tag/live_tag_02.webp\",",
+          "\"sort_order\": 100,",
+          "\"is_sidebar\": 1",
+          "},",
+          "\"id\": 40,",
+          "\"name\": \"BTC\",",
+          "\"icon\": \"https://falivepre.fdsser.com/upload/live_tag/live_tag_31.webp\",",
+          "\"sort_order\": 90,",
+          "\"id\": 41,"
+        ]
+      },
+      "group": {
+        "falive": [],
+        "sim": [
+          {
+            "at": "2026-10-26T09:19:28.629Z",
+            "afterSec": 18,
+            "phase": "ack",
+            "gated": "2 分钟内已对同一人发过 ack（13:17）",
+            "text": "@ou_0474e2a35ff1054cdbc0bb9d9d9c9766 好的，收到新接口，我把帖子列表换成 threadsCursor，封面解密一起做好再回你。"
+          },
+          {
+            "at": "2026-10-26T09:20:56.560Z",
+            "afterSec": 106,
+            "phase": "done",
+            "gated": null,
+            "text": "@ou_0474e2a35ff1054cdbc0bb9d9d9c9766 @Henry 看过了，这条要改的在前端 henry 负责的部分（功能总表 #46），麻烦 henry 看下，我这边不动。"
+          }
+        ]
+      }
+    },
+    {
+      "label": "C3",
+      "id": "om_x100b62c5b37208a4ed4f70429e7ed15",
+      "at": "2026-10-26T09:39:40.114Z",
+      "chat": "php-group",
+      "text": "@Aven.Bot 测试一下pre环境真实验证码接入",
+      "classified": {
+        "falive": {
+          "decision": "api_reply",
+          "confidence": "medium"
+        },
+        "sim": {
+          "decision": "api_reply",
+          "confidence": "high"
+        }
+      },
+      "status": {
+        "falive": null,
+        "sim": "no_change_needed"
+      },
+      "seen": {
+        "falive": 0,
+        "sim": 62,
+        "onlyFalive": [],
+        "onlySim": [
+          "@Aven.Bot 测试一下pre环境真实验证码接入",
+          "【群里这条之前的消息】",
+          "mainly（10-26 12:20）：@HTStone.z 聊天相关还剩禁言冻结封禁相关还在确认和调整，其他应该是都好了",
+          "HTStone.z（10-26 12:21）：@mainly 確認一下~所以既有群組會全部存在，然後如果群組內有發消息也會同步?",
+          "HQUCEncone（10-26 12:21）：https://www.figma.com/design/IwPvl4wA0Pc7ia8IHyoLK5/Falive?node-id=756-61117&t=6S8sgxMDkrrB5nBT-0",
+          "@Aven.tong 这个设计稿没有 【徽章】【记录】tab",
+          "mainly（10-26 12:22）：@HTStone.z 对",
+          "HQUCEncone（10-26 12:25）：https://qfglxo2m3dc.sg.larksuite.com/record/PznSrCTEAe8lGqcZTT3li33Ag3f",
+          "@Kaiser 确认下UI 设计稿，有没有这个功能，",
+          "https://www.figma.com/design/IwPvl4wA0Pc7ia8IHyoLK5/Falive?node-id=756-61117&t=6S8sgxMDkrrB5nBT-0",
+          "HQUCEncone（10-26 12:33）：[https://qfglxo2m3dc.sg.larksuite.com/record/Cy4JrsifKe0h6bchhu2lSgdpgPh](https://qfglxo2m3dc.sg.larksuite.com/record/Cy4JrsifKe0h6bchhu2lSgdpgPh)",
+          "这个富文本版本有点旧，建议下一版本重构时候更换",
+          "live 也在调研新版本的 富文本编辑器",
+          "@Mateo （发了 1 张图）",
+          "HQUCEncone（10-26 12:39）：\"側欄\" 與\"直播>正在直播\" icon 顯示不一樣",
+          "https://qfglxo2m3dc.sg.larksuite.com/record/VpFkrE4D2eXDYHcPkHtlslbRgsf",
+          "API 有返回 icon 地址",
+          "[",
+          "{",
+          "\"id\": 39,",
+          "\"lang\": 1,",
+          "\"name\": \"区块链\",",
+          "\"icon\": \"https://falivepre.fdsser.com/upload/live_tag/live_tag_02.webp\",",
+          "\"sort_order\": 100,",
+          "\"is_sidebar\": 1",
+          "},",
+          "\"id\": 40,",
+          "\"name\": \"BTC\",",
+          "\"icon\": \"https://falivepre.fdsser.com/upload/live_tag/live_tag_31.webp\",",
+          "\"sort_order\": 90,",
+          "\"id\": 41,",
+          "\"name\": \"ETH\",",
+          "\"icon\": \"\",",
+          "\"sort_order\": 80,",
+          "\"id\": 42,",
+          "\"name\": \"合约\",",
+          "\"sort_order\": 70,",
+          "}",
+          "]",
+          "@Aven.Bot"
+        ]
+      },
+      "group": {
+        "falive": [],
+        "sim": [
+          {
+            "at": "2026-10-26T09:40:10.704Z",
+            "afterSec": 31,
+            "phase": "ack",
+            "gated": null,
+            "text": "@ou_a0c48d661b36b1e16bf0d89b4a3bb775 好的，收到。我去 pre 实测 web 端的邮箱和手机号验证码，看完把结果回你。"
+          },
+          {
+            "at": "2026-10-26T09:43:17.030Z",
+            "afterSec": 217,
+            "phase": "done",
+            "gated": null,
+            "text": "@ou_a0c48d661b36b1e16bf0d89b4a3bb775 pre 真实验证码 web 端实测：通了 3 项，没通 2 项\n- ⚠️ 接了但还不能用 收真码走完邮箱注册 → 登录：我们没有能收信的 pre 测试邮箱，拿不到真码，正向流程没走完\n- ⚠️ 接了但还不能用 手机号验证码：手机号未测（无可用号码），只确认了号码格式不对会回 invalid phone\n- ✅ 通了 邮箱发验证码：发码成功；连发会提示已发送，前端显示中文提示\n- ✅ 通了 邮箱注册 / 验证码登录不再收 123456：都回「邮箱验证码错误或已过期」\n- ✅ 通了 找回密码 / 修改密码不再收 123456：回「验证码错误或已过期」，密码没被改\n详细见：https://sim.local/docx/simdoc00010"
+          }
+        ]
+      }
+    }
+  ],
+  "routing": {
+    "falive": [
+      "received task-mention C1，等待意图分类…",
+      "repo ack C1 ok via webhook",
+      "C1 回「收到」（classified，用分类 reply）：ok",
+      "台账：C1 bug 触及 new#350ff1 → 工单键 …",
+      "repo start C1 -> webhook-group ok via webhook",
+      "task-mention C1 classified=bug/medium，正式入队",
+      "repo group reply C1 ok via webhook",
+      "repo outcome C1 no_change_needed -> webhook-group ok via webhook",
+      "锚定：C2 接着 C1（主题 new#350ff1）",
+      "received task-mention C2，等待意图分类…",
+      "出口闸拦下 repo ack C2：2 分钟内已对同一人发过 ack（13:18）",
+      "C2 回「收到」（classified，固定句）：出口闸拦下：2 分钟内已对同一人发过 ack（13:18）",
+      "台账：C2 api_reply 触及 new#350ff1 → 工单键 …",
+      "repo start C2 -> webhook-group ok via webhook",
+      "task-mention C2 classified=api_reply/medium，正式入队",
+      "出口闸拦下 repo group reply C2：同内容 13:19 已发过（done）",
+      "repo outcome C2 no_change_needed -> webhook-group ok via webhook",
+      "received task-mention C3，等待意图分类…",
+      "repo ack C3 ok via webhook",
+      "C3 回「收到」（classified，用分类 reply）：ok",
+      "台账：C3 api_reply 触及 new#e7ed15 → 工单键 …",
+      "repo start C3 -> webhook-group ok via webhook",
+      "task-mention C3 classified=api_reply/medium，正式入队",
+      "repo group reply C3 ok via webhook",
+      "repo outcome C3 done -> webhook-group ok via webhook"
+    ],
+    "sim": [
+      "received task-mention C1，等待意图分类…",
+      "repo ack C1 ok via webhook",
+      "C1 回「收到」（classified，用分类 reply）：ok",
+      "台账：C1 bug 触及 new#350ff1 → 工单键 …",
+      "repo start C1 -> webhook-group ok via webhook",
+      "task-mention C1 classified=bug/medium，正式入队",
+      "repo group reply C1 ok via webhook",
+      "repo outcome C1 no_change_needed -> webhook-group ok via webhook",
+      "received task-mention C2，等待意图分类…",
+      "出口闸拦下 repo ack C2：2 分钟内已对同一人发过 ack（13:17）",
+      "C2 回「收到」（classified，固定句）：出口闸拦下：2 分钟内已对同一人发过 ack（13:17）",
+      "锚定：C2 接着 C1（主题 new#350ff1）",
+      "台账：C2 api_reply 触及 new#350ff1 → 工单键 …",
+      "repo start C2 -> webhook-group ok via webhook",
+      "task-mention C2 classified=api_reply/high，正式入队",
+      "repo group reply C2 ok via webhook",
+      "repo outcome C2 no_change_needed -> webhook-group ok via webhook",
+      "received task-mention C3，等待意图分类…",
+      "repo ack C3 ok via webhook",
+      "C3 回「收到」（classified，用分类 reply）：ok",
+      "台账：C3 api_reply 触及 new#e7ed15 → 工单键 …",
+      "repo start C3 -> webhook-group ok via webhook",
+      "task-mention C3 classified=api_reply/high，正式入队",
+      "repo group reply C3 ok via webhook",
+      "repo outcome C3 no_change_needed -> webhook-group ok via webhook"
+    ],
+    "onlyFalive": [
+      "出口闸拦下 repo ack C2：2 分钟内已对同一人发过 ack（13:18）",
+      "C2 回「收到」（classified，固定句）：出口闸拦下：2 分钟内已对同一人发过 ack（13:18）",
+      "task-mention C2 classified=api_reply/medium，正式入队",
+      "出口闸拦下 repo group reply C2：同内容 13:19 已发过（done）",
+      "task-mention C3 classified=api_reply/medium，正式入队",
+      "repo outcome C3 done -> webhook-group ok via webhook"
+    ],
+    "onlySim": [
+      "出口闸拦下 repo ack C2：2 分钟内已对同一人发过 ack（13:17）",
+      "C2 回「收到」（classified，固定句）：出口闸拦下：2 分钟内已对同一人发过 ack（13:17）",
+      "task-mention C2 classified=api_reply/high，正式入队",
+      "repo group reply C2 ok via webhook",
+      "task-mention C3 classified=api_reply/high，正式入队",
+      "repo outcome C3 no_change_needed -> webhook-group ok via webhook"
+    ]
+  },
+  "console": {
+    "falive": [
+      {
+        "at": "2026-10-26T09:18:07.061Z",
+        "text": "<card>\n🛠 开始做：Encone（portal 后端）报了一个前端缺陷：bbsv2/member/threadsCount 返回的是个人主页 / 个人中心的帖子列表，列表里的封面图（Falive PHP后端群）\n</card>"
+      },
+      {
+        "at": "2026-10-26T09:19:45.380Z",
+        "text": "<card>\nℹ️ 看过了，不用改（Falive PHP后端群）：这项功能（功能总表 #46、#1）的前端负责人是 henry，不归 aven 负责，bot 按分工跳过、未改代码；个人中心帖子四 tab（截图为「收藏」）的帖子卡 ThreadCard 直接把 bbsv2 picture / video.cover 原地址交给 Cover 显示，没有像广场 FeedPostCard / 搜索 SearchPostCard 那样经 useHcImageSrc 解密 HCIMG1 密文，所以只显示占位图；修复方式明确：复用 useHcImageSrc 逐格解密，前端问题、后端不用改。但该卡片属个人中心（功能表 #46 / #1，前端 henry；ThreadCard 由 henry 在 a92fc14 实现），不归 aven，转交 henry。\n群里已回：「@Henry 看过了，这条要改的在前端 henry 负责的部分（功能总表 #46、#1），麻烦 henry 看下，我这边不动。」\n</card>"
+      },
+      {
+        "at": "2026-10-26T09:19:56.441Z",
+        "text": "<card>\n🛠 开始做：Encone（portal 后端）补充 13:17 报的帖子列表封面图解密问题：涉及的接口要改成 bbsv2/member/threadsCursor?type（Falive PHP后端群）\n</card>"
+      },
+      {
+        "at": "2026-10-26T09:21:40.489Z",
+        "text": "<card>\nℹ️ 看过了，不用改（Falive PHP后端群）：这项功能（功能总表 #46、#1）的前端负责人是 henry，不归 aven 负责，bot 按分工跳过、未改代码；Encone 更正：个人中心帖子列表接口是 bbsv2 member/threadsCursor（代码已在用，地址不用改），要修的是列表卡片 ThreadCard 的配图 / 视频封面没走 HCIMG1 解密（广场 / 搜索已走 useHcImageSrc）；该卡片属 henry 的个人中心（#1 / #46），转交 henry。\n群里没发（出口闸拦下：同内容 13:19 已发过（done）），要回可以转发这段：\n@Henry 看过了，这条要改的在前端 henry 负责的部分（功能总表 #46、#1），麻烦 henry 看下，我这边不动。\n群里只回过「收到」，结论还没发到群里。\n</card>"
+      },
+      {
+        "at": "2026-10-26T09:40:33.161Z",
+        "text": "<card>\n🛠 开始做：Arthur（账号后端）通知 pre 环境的邮箱、手机号验证码已改成真实接入，并 @ bot 要 web 端在 pre 上测一下验证码流程。（Falive PHP后端群）\n</card>"
+      }
+    ],
+    "sim": [
+      {
+        "at": "2026-10-26T09:17:55.105Z",
+        "text": "<card>\n🛠 开始做：Encone（portal 后端）报了一个前端缺陷：个人中心「帖子 / 收藏」等列表（接口 bbsv2/member/threadsCount?channel_（Falive PHP后端群）\n</card>"
+      },
+      {
+        "at": "2026-10-26T09:19:14.442Z",
+        "text": "<card>\nℹ️ 看过了，不用改（Falive PHP后端群）：这项功能（功能总表 #1、#46）的前端负责人是 henry，不归 aven 负责，bot 按分工跳过、未改代码；个人中心帖子类 tab（截图里是「收藏」）的配图 / 视频封面没有解密，是前端漏接：ThreadCard.tsx 把 picture / video.cover 的原地址直接交给 Cover，没像广场、搜索那样走 useHcImageSrc（HCIMG1 解密）。修改范围能唯一定位，但个人中心帖子 tab 归 henry（#1 / #46），不是 aven 的功能，需要转交给 henry。\n群里已回：「@Henry 看过了，这条要改的在前端 henry 负责的部分（功能总表 #1、#46），麻烦 henry 看下，我这边不动。」\n</card>"
+      },
+      {
+        "at": "2026-10-26T09:19:28.643Z",
+        "text": "<card>\n🛠 开始做：Encone（portal 后端）补充 new#350ff1：个人中心帖子列表要用的接口改成 bbsv2/member/threadsCursor（参数 typ（Falive PHP后端群）\n</card>"
+      },
+      {
+        "at": "2026-10-26T09:20:56.561Z",
+        "text": "<card>\nℹ️ 看过了，不用改（Falive PHP后端群）：这项功能（功能总表 #46）的前端负责人是 henry，不归 aven 负责，bot 按分工跳过、未改代码；Encone 更正接口为 bbsv2 member/threadsCursor，前端已在调这个接口（channel_code 由签名层自动加），不用改接口；缺陷出在前端：个人中心帖子卡 ThreadCard 的 ThreadImages 直接把 picture / 视频 cover 原地址交给 Cover，没像广场 / 搜索那样走 useHcImageSrc 解密 HCIMG1，所以只显示占位图。这块属 henry 的个人主页功能（#46），需转交 henry。\n群里已回：「@Henry 看过了，这条要改的在前端 henry 负责的部分（功能总表 #46），麻烦 henry 看下，我这边不动。」\n</card>"
+      },
+      {
+        "at": "2026-10-26T09:40:10.770Z",
+        "text": "<card>\n🛠 开始做：Arthur（hichat / 账号后端）通知：pre 环境验证码已真实接入，后端已实测邮箱和手机号验证码，没发现问题。他 @ 机器人，要 web 端在 pre（Falive PHP后端群）\n</card>"
+      },
+      {
+        "at": "2026-10-26T09:43:17.033Z",
+        "text": "<card>\nℹ️ 看过了，不用改（Falive PHP后端群）：在 pre 上实测了 web 端实际调用的 portal 验证码接口：邮箱发码成功，重复发码会被拦（前端会转成中文提示）。注册、验证码登录、找回密码和修改密码现在都不再接受旧的 123456（php 那条也一样），说明真实验证码已经生效，前端不用改。没测完的有两项：我们没有能收信的邮箱或手机号，所以拿真码走完一遍的正向流程没做；页面工具用测试号登录报错，这次也没在浏览器里看页面。\n⚠ 任务带的 3 张截图执行器一张都没打开看，结论可能漏了截图里的信息（比如原型里已有的需求），发群前请过一眼\n群里已回：「pre 真实验证码 web 端实测：通了 3 项，没通 2 项」\n</card>"
+      }
+    ]
+  },
+  "simOtherSends": 0,
+  "egress": {
+    "connections": 130,
+    "nonLocal": [
+      "2.1.289 160.79.104.10:443",
+      "node 13.224.236.122:443",
+      "node 13.224.236.9:443",
+      "node 16.15.42.24:443",
+      "node 13.224.236.50:443",
+      "node 52.92.228.34:443",
+      "node 52.92.249.90:443",
+      "node 3.5.78.222:443",
+      "curl 13.124.203.191:443",
+      "curl 15.164.31.245:443"
+    ],
+    "flagged": [],
+    "probe": 8,
+    "probeBlocked": [
+      "2026-11-04T10:16:54.335Z BLOCKED POST /api/user/sendVerificationCode",
+      "2026-11-04T10:16:54.337Z BLOCKED POST /api/user/NewRegisteredByMail"
+    ]
+  },
+  "fakeCliGaps": [],
+  "casesDir": "/Users/aven/github/lark-bot-cal/replay/falive"
+}

@@ -1,0 +1,154 @@
+{
+  "episode": "ep-1024-b22368",
+  "faliveCode": {
+    "sha": "8f48bd8bc5a98bedc1b996b4ebaf4b6d01a76545",
+    "dir": "/Users/aven/github/lark-bot-falive-sim/code-8f48bd8",
+    "codeHash": "65ba5be36378",
+    "startedAt": "2026-10-23T15:18:12.432Z",
+    "verified": true,
+    "tried": [
+      {
+        "sha": "8f48bd8",
+        "hashes": [
+          "65ba5be36378",
+          "5119374962b7"
+        ]
+      }
+    ]
+  },
+  "faliveConfig": "/Users/aven/github/lark-bot-falive/runtime/lark-bot.bak-20261027.local.json",
+  "cases": [
+    {
+      "label": "C1",
+      "id": "om_x100b62f35ff42ca4ed3f669c7b22368",
+      "at": "2026-10-24T08:49:23.676Z",
+      "chat": "php-group",
+      "text": "https://qfglxo2m3dc.sg.larksuite.com/record/H6oZrTxWMeZZGbcj31SlyGregNf\n@Aven.Bot \nbbsv2/member/otherInfo?uid=19675&channel_code=hc \n数据已经正常返回， 页面显示还是不正常 ，请协助查看",
+      "classified": {
+        "falive": {
+          "decision": "bug",
+          "confidence": "medium"
+        },
+        "sim": {
+          "decision": "bug",
+          "confidence": "medium"
+        }
+      },
+      "status": {
+        "falive": null,
+        "sim": "ignored"
+      },
+      "seen": {
+        "falive": 0,
+        "sim": 43,
+        "onlyFalive": [],
+        "onlySim": [
+          "https://qfglxo2m3dc.sg.larksuite.com/record/H6oZrTxWMeZZGbcj31SlyGregNf",
+          "@Aven.Bot",
+          "bbsv2/member/otherInfo?uid=19675&channel_code=hc",
+          "数据已经正常返回， 页面显示还是不正常 ，请协助查看",
+          "【群里这条之前的消息】",
+          "Arthur.a（10-23 13:25）：意思是还没接？",
+          "Arthur.a（10-23 13:26）：bug在我头上 （发了 1 张图）",
+          "HTStone.z（10-23 13:28）：@Arthur.a",
+          "正常進直播間要打這個 [https://pre-hailiao.hai-liao-pre.com/api/video/statistics/1286](https://pre-hailiao.hai-liao-pre.com/api/video/statistics/1286)",
+          "目前FALIVE沒有打 （发了 1 张图）",
+          "Arthur.a（10-23 13:28）：好",
+          "HTStone.z（10-23 13:28）：@Arthur.a 這是原本嗨聊的接口~不知道整併後應該打哪個~你再確認一下",
+          "HQUCEncone（10-23 14:06）：[https://falivepre.fdsser.com/api/live/createRoom](https://falivepre.fdsser.com/api/live/createRoom)",
+          "@Aven.Bot 我测试API 开播正常，但是界面web 开播 500 （发了 2 张图）",
+          "Aven.Bot（bot，我们自己）（10-23 14:08）：@HQUCEncone 收到截图，我对比下 web 发出的 createRoom 和你直接调的参数差在哪，查完回你。",
+          "Aven.Bot（bot，我们自己）（10-23 14:28）：@HQUCEncone 查到了：pre 上的 web 还是旧版本，开播提交时把 tag_ids 也算进了签名，后端验签不过（407），所以弹「请求失败」，跟 lang / intro 无关。修复已经在开发分支上，合进 pre 部署后就好，部署完我再测一遍告诉你。",
+          "Arthur.a（10-23 14:40）：@HTStone.z 确认了，go的API已经搞好了，前端接入一下应该就可以了",
+          "Aven.Bot（bot，我们自己）（10-23 15:04）：@HQUCEncone pre 部署后复测了：web 开播提交已经正常，不再「请求失败」，修改场次时介绍、语言、标签都能写进去。新建时后端回「请先结束当前直播，再创建新的直播间」，因为 508 名下还有个没结束的场次 1268，这是规则不是报错。顺带问一下：createRoom 回这个 -1 之后，1268 的主副标题好像变成了这次新建时填的内容，是不是在校验前已经写进去一部分了？",
+          "HQUCEncone（10-23 15:18）：已有直播间在播，无法获取推拉流地址，无法创建直播间，不会改到直播间介绍",
+          "HQUCEncone（10-23 15:18）：@Aven.Bot",
+          "Aven.Bot（bot，我们自己）（10-23 15:20）：@HQUCEncone 在的～web 开播复测已正常，1268 标题被改那个你方便时帮看下。",
+          "Arthur.a（10-23 17:36）：1. **直播间关注改 Go 这条要撤**：今天和 Encone 确认过，现在关注只走 live（php），php 还没同步到 Go，Go 也还没有关注接口，下个月才统一改 Go。所以关注主播任务暂时完不成是预期内的。",
+          "2. **广场读帖是前端的**：读帖门槛还在等产品口径。",
+          "3. **播放器观看时长**要先和 henry 对，现在有冲突；**HiChat 进房会话**和 broker 那份重复了。",
+          "Arthur.a（10-23 17:37）：这部分bug的话，暂时不能改哈，涉及到直播观看五分钟，关注主播以及广场发帖的积分任务完成",
+          "Arthur.a（10-23 17:38）：@Adrian @HQUCEncone @Broker @HTStone.z @Eric.ea @World@Aven.tong",
+          "Broker（10-23 18:46）：@Arthur.a 播放器观看时长有冲突是join哪个接口重复了么？",
+          "Arthur.a（10-23 18:47）：这个具体咨询一下Aven吧，我不太清楚@Broker",
+          "Aven.Bot（bot，我们自己）（10-23 19:06）：# Falive Web 日报 2026-10-23",
+          "总体进度 **96.3%**，已接通 **52 / 54**，今日 +1。",
+          "## 今天",
+          "- **aven**：接通读帖、分享直播间两个任务；修好开播失败并加开播语言；修关注状态同步、新闻排版、客服图片",
+          "- **adrian**：任务中心能查关注和看直播的任务是否到账；登录恢复期间显示加载态；修删除请求丢参数## 测试 Bug",
+          "- 共 88 个，今天新增 26：待处理 37、修复中 1、已推版 8、Pre测试通过 32、产品后续优化 2、非BUG，已关闭 2、验退 3、测试中 1、bug已关闭 1、（没填状态） 1",
+          "- 待处理 / 修复中按负责人：Ache.l 13、HQUCEncone 11、Henry 9、Arthur.a 5、Mateo 2、Adrian 2、HQUCWilliam.m 2、Arthur.a （亚瑟） 1完整版（云文档）：[https://qfglxo2m3dc.sg.larksuite.com/docx/DipAdlrMuoIjEdxHdohl4KTygDh](https://qfglxo2m3dc.sg.larksuite.com/docx/DipAdlrMuoIjEdxHdohl4KTygDh)",
+          "Aven.Bot（bot，我们自己）（10-23 19:22）：@Aven.tong 第 2 条已经定了：10-23 定的口径是「打开一篇广场帖子、详情显示出来、页面在前台，就算读完一次」，不设停留时长，和嗨聊 App 进帖子即上报一致，不用再等产品。前端已经按这个接上任务中心并合进 pre，这条 bug 不用再挂在等口径上。",
+          "- ⚠️ 接了但还不能用 pre 上读帖任务是否到账：这次探针没能带登录态打 Go 任务接口，pre 上积分到账没测通，需要用测试号在页面上点一次确认",
+          "【Encone（portal 后端） 正在进行的事（任务 / bot 的话 2 小时内，台账条目不限；新的在前）】",
+          "- 台账 new#c2b104（noted）Encone 要 pre 环境测试账号密码，aven 授权直接回一份测试账号｜最近：Arthur（hichat / 账号后端）在群里 @ 机器人，要我方发一下 pre 测试号。前文里 Encone 也在要…",
+          "- 台账 new#0063a6（noted）Arthur：/fameEx/market/symbol/list 改走 hichat 的接口，前端…｜最近：Arthur（hichat 后端）答复 new#0063a6：Encone 报的 /hc-api/api/fameEx/…"
+        ]
+      },
+      "group": {
+        "falive": [],
+        "sim": [
+          {
+            "at": "2026-10-24T08:49:58.962Z",
+            "afterSec": 35,
+            "phase": "ack",
+            "gated": null,
+            "text": "@ou_0474e2a35ff1054cdbc0bb9d9d9c9766 收到，我按这条记录查下 uid 19675 的主页渲染哪里不对，查完回你。"
+          }
+        ]
+      }
+    }
+  ],
+  "routing": {
+    "falive": [
+      "received task-mention C1，等待意图分类…",
+      "repo ack C1 webhook attempt 1/3 failed: 请求失败（可能已送达，不重试）：ERR_SSL_TLSV1_ALERT_INTERNAL_ERROR",
+      "C1 回「收到」（classified，固定句）：请求失败（可能已送达，不重试）：ERR_SSL_TLSV1_ALERT_INTERNAL_ERROR",
+      "台账：C1 bug 触及 对接-一期全项目问题-2026-10-20#C2 → 工单键 …",
+      "repo start C1 -> webhook-group ok via webhook",
+      "task-mention C1 classified=bug/medium，正式入队"
+    ],
+    "sim": [
+      "received task-mention C1，等待意图分类…",
+      "repo ack C1 ok via webhook",
+      "C1 回「收到」（classified，用分类 reply）：ok",
+      "台账：C1 bug 触及 对接-一期全项目问题-2026-10-20#C2 → 工单键 …",
+      "repo start C1 -> webhook-group ok via webhook",
+      "task-mention C1 classified=bug/medium，正式入队"
+    ],
+    "onlyFalive": [
+      "repo ack C1 webhook attempt 1/3 failed: 请求失败（可能已送达，不重试）：ERR_SSL_TLSV1_ALERT_INTERNAL_ERROR",
+      "C1 回「收到」（classified，固定句）：请求失败（可能已送达，不重试）：ERR_SSL_TLSV1_ALERT_INTERNAL_ERROR"
+    ],
+    "onlySim": [
+      "repo ack C1 ok via webhook",
+      "C1 回「收到」（classified，用分类 reply）：ok"
+    ]
+  },
+  "console": {
+    "falive": [
+      {
+        "at": "2026-10-24T08:50:14.480Z",
+        "text": "<card>\n🛠 开始做：Encone（portal 后端）附了一条 bug 表记录：bbsv2/member/otherInfo?uid=19675&channel_code=hc 现（Falive PHP后端群）\n</card>"
+      }
+    ],
+    "sim": [
+      {
+        "at": "2026-10-24T08:49:59.024Z",
+        "text": "<card>\n🛠 开始做：Encone（portal 后端）直接 @ 机器人：他说 bbsv2/member/otherInfo?uid=19675&channel_code=hc 已经（Falive PHP后端群）\n</card>"
+      }
+    ]
+  },
+  "simOtherSends": 0,
+  "egress": {
+    "connections": 35,
+    "nonLocal": [
+      "2.1.289 160.79.104.10:443"
+    ],
+    "flagged": [],
+    "probe": 0,
+    "probeBlocked": []
+  },
+  "fakeCliGaps": [],
+  "casesDir": "/Users/aven/github/lark-bot-cal/replay/falive"
+}
