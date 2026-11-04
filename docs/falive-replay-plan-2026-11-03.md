@@ -247,3 +247,16 @@
    P1 校准 20 组跑完；初步汇总只 33% 全对上，但 falive 侧多半没记录（审计 10-27 才有）→ 派子代理重建 falive 侧（时间线原话按卡→case 归属、数据集基线、网关日志），把差异分成模拟偏差 / 抽样 / 还原不了 / 未知，出 calibration/fidelity.md。
 56. **11-04 分类强度重确认（v4，修好时间泄漏 + p4a 新提示）**：285 条一致 237；分歧 48 条 max 裁判 high 20 / low 17 / 一样 10 / 都错 1，基本打平（之前「high 净高 4%」是被泄漏污染的结论）。low 偏漏办，high 偏过度（派不必要的改码、抢答 aven 与同事的对话）。**aven 定：保持 high**（b2 不用重跑；过度类错误后面靠修提示压）。报告 runtime/falive-replay/l1/v4-low-bae5cfb/effort-judge.md。
    **P4 待修**：b2 ep-1031-f8065f 里 bot 为诊断 Google 登录组件 curl 了 accounts.google.com/gsi（看来源白名单），越过「只测配置里的环境」——提示规则约束不住，改成命令层拦：答疑 / 实测的 curl 只放行配置里的环境地址（claude --allowedTools 按主机前缀），其余域名发不出去。
+57. **11-04 b2 分诊（4 组 53 条）→ 派修复**：lark-bot 15 / falive 19 / 一样 13 / 都错 2 / 待办 4。
+   - 模拟局限 4 条：aven「继续任务 / 结单 / 结束 <id>」点名的是 falive 当时自己建的任务（没 @ bot 的消息建的、或卡片提示里的 falive 任务号），lark-bot 模拟里没有 → judge-rules 加旗标 sim_limit_ref，分诊单列、验收不计分。「stuck」3 条里改码任务卡在等「确认扩大范围」，而 aven 的确认带的是 falive 的任务号，同属这一链。
+   - 派 fix-control：「关闭直播间内的礼物入口」被当成关单指令（反义）；任务号对不上时按上下文找唯一的挂起任务（如正等确认扩大范围的那单），否则列候选追问。
+   - 派 fix-apireply：对方说「已补 / 已加」不复测只记一笔；答应复测没测；答非所问（没读自己上一句）；决定类消息被并进实测任务带偏。
+   - 派 fix-dup：同一结论隔 3 分钟连发两遍。
+   - 已在修：fix-merge（不同问题并进旧任务 → 答非所问、迟答 4 小时）、p4d（出网命令层拦截）。
+58. **11-04 校准结论（lark/falive-cal 43caf2d + 禁读快照）**：321 个可比格对上 73.5%；去掉模拟偏差 / 还原不了 / 说不清后 91%（≈ falive 自己跟自己的抽样噪声）。修了 7 处模拟偏差（窗口前任务库还原、负责人判定、只私聊群按日志取、话题回复收发、Claude 记忆按窗口起点重放、组外 case 照列为历史），时序压缩（模拟首句 27s vs 当时 47s）没修。
+   **判 lark-bot 的前提**：用修过的模拟器；单 case 差异要明显超过约 1 成的抽样噪声；6 类标「模拟局限」只看过程（实测类、锚窗口前任务的私聊指示、事后编辑过的触发消息、时序敏感、falive 当时 ack 失败 / 排空、依赖记忆 / bug 表快照）——下一版裁判提示（v3）纳入。
+   泄漏：模拟会话能读 ~/.lark-bugpoll/snapshot.json（今天的 bug 表），旧轮次读过、b2 没读（审计里只是聊天里提到 ask.py）；claude-q 在 SIM_DIR 下加 --disallowedTools 禁读，实测被拒。随下一波合并。
+59. **11-04 11:49 b2 停：回放往真实 pre 写了数据（事故）**
+   - ep-1020-17dd90（case「写脚本批量造测试帖」）用测试号 508 在真实 pre 上 POST `bbsv2/thread/create` 25 次（发了 25 个帖子）、`bbsv2/tool/upload` 33 次；ep-1023-9f0fd7 POST `avatar/upload` 10 次（传头像）、`verification/email/send` 1 次。p4b 的「只测配置环境 / 只读」规则只在提示里，约束不住。帖子留在 pre 社区里，**没删**（删也是写操作，交 aven 定）。
+   - 处理：立即停 b2（完成 10 组，结果留作分诊）。模拟器加硬拦：curl / wget 壳、node fetch / http(s) 预载对非本机主机的写请求一律不发（只放行登录），bot 收到可转述的说明；实测 curl POST 被拦（退出 22）、fetch POST 返回 403 说明、https PUT 抛错、GET 和登录照常。守卫见到漏网写请求（python 等只有 lsof 兜底的）一条就停轮。线上 bot 的命令层白名单由 p4d 做（已转证据）。
+   - 下一轮基线 b3 等这一波修复（fix-merge / fix-control / fix-apireply / fix-cost / p4d / fix-judge）合完一起起。

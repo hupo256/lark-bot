@@ -1,8 +1,8 @@
 #!/bin/sh
 # 回放出网审计壳（docs/falive-replay-design-v2.md §8 前置 7）：run-sim 把本目录放在 PATH 最前，bot 的 claude 会话里调 wget 先记一笔目标
-# （方法 + 主机 + 路径，不记 query / 头 / 正文）到 $SIM_DIR/egress.log，再原样交给真 wget。只记不拦，违规在 round-report 里标出。
+# （方法 + 主机 + 路径，不记 query / 头 / 正文）到 $SIM_DIR/egress.log，再原样交给真 wget。写请求（登录除外）直接拦下、不发出（11-04 b2 事故），其余原样交给真命令。
 here=$(cd "$(dirname "$0")" && pwd)
-node "$here/../egress-log.mjs" wget "$@" 2>/dev/null
+node "$here/../egress-log.mjs" wget "$@" || exit 22 # 写请求被拦（回放不许往真环境写），不交给真 wget
 PATH=$(printf '%s' "$PATH" | tr ':' '\n' | grep -vx "$here" | paste -sd: -)
 export PATH
 exec wget "$@"

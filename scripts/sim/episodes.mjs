@@ -11,6 +11,7 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { createFaliveBotOwners, loadFaliveAuditFiles } from './falive-bot-owner.mjs'
 import { casesDir, datasetDir, faliveLogDir, faliveRuntimeDir, loadWorkerClaimedTexts } from './falive-data.mjs'
 
 const GAP_MS = 30 * 60_000
@@ -66,32 +67,9 @@ const chainRoot = (m) => {
   return cur.id
 }
 
-// falive 的审计（全部代）：bot 卡归哪个任务、规则 3 / 4 都用。
-const auditFiles = (() => {
-  const dir = join(faliveRuntimeDir, 'lark-audits', 'FALIVE')
-  if (!existsSync(dir)) return []
-  return readdirSync(dir).filter((f) => /-e\d+\.json$/.test(f)).flatMap((f) => { try { return [{ file: f, audit: readJson(join(dir, f)) }] } catch { return [] } })
-})()
-const completions = auditFiles.map(({ audit }) => ({ taskId: audit.task?.messageId || audit.taskId, chatId: audit.task?.chatId || null, at: Date.parse(audit.completedAt || '') }))
-  .filter((x) => x.taskId && Number.isFinite(x.at))
-// bot 卡是哪个任务的结果：审计 completedAt 在卡前 3 分钟内（群里的卡还要同群）。
-const completedBefore = (card, sameChat) => {
-  let best = null
-  for (const x of completions) {
-    const d = card.atMs - x.at
-    if (d < -10_000 || d > 180_000 || (sameChat && x.chatId !== card.chatId)) continue
-    if (!best || Math.abs(d) < Math.abs(card.atMs - best.at)) best = x
-  }
-  return best?.taskId || null
-}
-// 私信草稿归哪个任务：先按审计完成时间；审计没了（早期的清过）就找它之前最近一张「🛠 开始做：…（群名）」卡，取那个群在开始卡前 2 小时内最后一条 case。
-const draftOwner = (card) => {
-  const byAudit = completedBefore(card, false)
-  if (byAudit) return byAudit
-  const start = timeline.filter((m) => m.chatKey === 'webhook-group' && m.ownBot && m.atMs <= card.atMs && card.atMs - m.atMs < 3 * 3600_000 && /🛠 开始做/.test(m.text)).at(-1)
-  const chatName = start?.text.match(/（([^（）]+群)）\s*(?:<\/card>|$)/m)?.[1]
-  return chatName ? cases.filter((c) => c.chat === chatName && c.atMs < start.atMs && start.atMs - c.atMs < 2 * 3600_000).at(-1)?.id || null : null
-}
+// falive 的审计（全部代）：bot 卡归哪个任务（scripts/sim/falive-bot-owner.mjs）、规则 3 / 4 都用。
+const auditFiles = loadFaliveAuditFiles()
+const { draftOwner, groupCardOwner, dmOwner } = createFaliveBotOwners({ timeline, cases, auditFiles })
 
 // —— 规则 1：同话题 / 回复链（全部时间线消息挂上根，bot 回复也算链上一环）
 for (const m of timeline) {
@@ -104,13 +82,9 @@ for (const m of timeline) {
 const cardOwners = []
 for (const card of timeline) {
   if (!card.ownBot || card.chatKey === 'webhook-group' || card.parentId) continue
-  let owner = completedBefore(card, true)
-  let how = '审计完成时间'
-  if (!owner) {
-    owner = cases.filter((c) => c.msg?.chatId === card.chatId && c.atMs < card.atMs && card.atMs - c.atMs < 6 * 3600_000 && c.msg?.senderId && (card.cliText ?? card.text).includes(c.msg.senderId)).at(-1)?.id || null
-    how = '卡里 @ 了发话人'
-  }
-  if (!owner) continue
+  const hit = groupCardOwner(card)
+  if (!hit) continue
+  const { owner, how } = hit
   cardOwners.push({ card: card.id, owner, how })
   union(`m:${card.id}`, node(owner), 'r1-bot-card', `bot 卡 ${card.id} 答的是 ${owner}（${how}）`)
 }
@@ -232,8 +206,6 @@ stage('规则 4 同天改同一批代码文件')
 // 私信（webhook 群 = 负责人私聊）：卡里写了 case 的任务 id 就归它；「收到，当作…」「这句没对上任务」回执归它之前 10 分钟内最近一条私聊 case；
 // 再按审计完成时间（3 分钟内）；开始 / 结论 / 停下卡最后按 draftOwner（之前最近一张「🛠 开始做」卡的群里最近一条 case）。
 // 对不上任何 case 的（bugpoll、日报、体检、部署通知……）不归任何组，照常当历史供给。
-// 不属于任何一单的私信广播（bug 表轮询、日报、体检、部署 / 复测通知、逾期提醒）：不按时间就近归到 case 上（11-04 实测会误归一串 bugpoll）。
-const DM_BROADCAST_RE = /^<card(?: title="[^"]*")?>\s*(?:\[bugpoll\]|日报|🩺|pre 已部署|✅ pre 复测|⏰|⚠ lark-bot|\*\*Falive Web)|^<card title=/
 const botOwner = new Map() // bot 消息 id → case id（私信）或分量根（群里）
 for (const m of timeline) {
   if (!m.ownBot) continue
@@ -242,13 +214,8 @@ for (const m of timeline) {
     if (caseCount.get(r) > 0) botOwner.set(m.id, { root: r, how: 'group' })
     continue
   }
-  if (DM_BROADCAST_RE.test(m.text)) continue
-  const named = (String(m.cliText ?? m.text).match(OM_RE) || []).find((id) => caseById.has(id)) || null
-  const owner = named
-    || (/^<card>\s*(?:收到，当作|这句没对上)/.test(m.text) ? dmCases.filter((c) => c.atMs <= m.atMs && m.atMs - c.atMs < 10 * 60_000).at(-1)?.id || null : null)
-    || completedBefore(m, false)
-    || (/^<card>\s*(?:🛠 开始做|✅|⏸|⛔|ℹ️)/.test(m.text) ? draftOwner(m) : null)
-  if (owner && caseById.has(owner)) botOwner.set(m.id, { root: find(`m:${owner}`), how: 'dm' })
+  const owner = dmOwner(m)
+  if (owner) botOwner.set(m.id, { root: find(`m:${owner}`), how: 'dm' })
 }
 
 // —— 出组
