@@ -12,7 +12,7 @@
   - 跑之前先验输入。一轮作废了先报告，再开下一轮。
   - 不要白跑浪费额度。
   - 断点续跑、分段并行、场景还原是基本功，方案要「好、快、准、省 token」。
-- **现状**：还没有一轮有效的完整结果。11-03 跑了 r1–r11，都因数据、环境或跑法问题作废，或被中途停掉（见 §5）。新方案 v2 **11-04 aven 已定**（见 design-v2 §5：两个线上 bot 11-04 已停、额度全给回放、做校准、aven 亲自定金标准、组外 bot 话用 falive 原话），从 P0 开始做。
+- **现状**：还没有一轮有效的完整结果。11-03 跑了 r1–r11，都因数据、环境或跑法问题作废，或被中途停掉（见 §5）。新方案 v2 **11-04 定稿**（`docs/falive-replay-design-v2.md`），从 §8 的 P0-a 开始做。
 
 ## 2. 东西都在哪
 
@@ -51,28 +51,17 @@
 - **录放缓存雏形**：`claude-cache.mjs` / `claude-cache-check.mjs`。是早先子代理写的，`--ai-cache` 才启用，**没在整轮里验证过**，v2 要先验命中率和一致性。
 - **重建数据**：`build-context-cache.mjs [docs|bugs|expanded|resources|threads]`（aven 身份只读拉取）→ `build-dataset.mjs` → `list-cases.mjs` → `preflight.mjs`。**时间线一变，依赖它的拉取步骤都要重跑**（11-03 就因为顺序错漏了话题回复里的 7 篇文档）。
 
-## 4. 下一步（按 v2 方案）
+## 4. 下一步
 
-v2 已定（design-v2 §5），依次做：
+按 **design-v2 §8 的执行步骤**做，从 P0-a 开始：先改两处 lark-bot 代码，再分组、实测类标注、模拟器按组跑……
+分组规则、录放、裁判、验收标准、已定口径分别见 design-v2 §2、§4、§5、§6、§7，这里不重复。
 
-0. **先改两处 lark-bot 代码**（遗留决策 2、3 带来的，见 design-v2 §6.4 末尾）：实测允许登录用的 POST；改码边界按需求边界管、不按模块归属。
-1. **P0 准备（几乎不耗额度，前置工作清单见 design-v2 §6.2）**：
-   - `episodes.mjs`：把 285 个 case 切成 142 个事件组（规则见 v2 §2.1；11-03 粗算：单条 92 组，最大 19 条，跨天 5 组）。aven 私聊里「继续任务 / 就这样回」指向的任务要并进被指的那组。
-   - 模拟器改成按事件组起实例。组外的 bot 消息供 falive 原话。断点精确到组。
-   - 规则预判裁判。
-   - 录放命中率验证：同一组跑两遍。
-   - 每组记录走过的环节，供「按影响重跑」挑组。
-2. **P1 校准**：用 falive 代码（`~/github/lark-bot-falive`）跑 20 组，对比 falive 真实表现，分清「模拟不像」和「bot 不行」。
-3. **P2 全量基线**：最新代码跑 142 组，同时录下所有调用（2–3 个额度窗口，可断点）。
-4. **P3 裁判**：全量裁判，只把分歧给 aven 过，定成金标准 `replay/falive/gold.jsonl`。
-5. **P4 迭代**：修 → L1 全量 → 受影响组 + 20 组金丝雀（录放）→ 按差异裁判。
-6. **P5 合并**：全量（录放）+ 未命中的真跑 + 裁判。然后按 AGENTS.md 全套验证，把 latest 合进 fameex-stable：
-   - `node scripts/test-all.mjs`（当前 640 绿）；
-   - `node scripts/mutate.mjs --diff fameex-stable`；
-   - `lark-replay-prompts --audits ~/github/lark-bot-falive/runtime/lark-audits`；
-   - `lark-replay-intake --live` 和 `--fixture __tests__/fixtures/intake-regression-1102.json --live`（56 条）。
-
-每个阶段做完都给 aven 报结果，再进下一阶段。
+- 每个阶段做完都给 aven 报结果，再进下一阶段。
+- P5 合并前按 AGENTS.md 全套验证：
+  - `node scripts/test-all.mjs`（当前 640 绿）；
+  - `node scripts/mutate.mjs --diff fameex-stable`；
+  - `lark-replay-prompts --audits ~/github/lark-bot-falive/runtime/lark-audits`；
+  - `lark-replay-intake --live` 和 `--fixture __tests__/fixtures/intake-regression-1102.json --live`（56 条）。
 
 ## 5. 11-03 的教训（别再犯）
 
@@ -98,12 +87,9 @@ v2 已定（design-v2 §5），依次做：
 - 仓库有 GitHub 远端；`replay/falive/` 是公司内部群聊数据，**不要 push**（任何 push 都要 aven 当次明确授权）。
 - 不执行 `lark-bot restart|start|stop|poll-on`、`launchctl`，不改 `~/Library/LaunchAgents/*`、`~/.config/fameex-lark/*`。
 
-## 7. 遗留决策（aven 11-04 已定，详见 design-v2 §6.4；以下是原题）
+## 7. 遗留决策
 
-1. 「已部署」→ 复测链路（falive 有，lark-bot 没移植）要不要搬。
-2. fameex 模块归属表：bot 改过别人负责的模块。
-3. 实测模式下的登录（POST 请求）放不放行。
-4. 「能不能先打包到 uat / OL」这类问题，现在按「回答」处理，回归集已放宽，aven 可否决。
+11-04 aven 都已定，口径见 design-v2 §7：复测链路待办；改码按需求边界不超界；实测允许登录用的 POST；打包问题按回答。
 
 ## 8. 11-03 已上线 / 已合的
 
