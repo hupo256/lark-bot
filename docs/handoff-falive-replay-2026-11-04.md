@@ -48,7 +48,7 @@
   - `preflight.mjs`：数据、代码、环境三类预检，不过就不跑。
   - `round-guard.mjs`：止损守卫，只认进程级崩溃、读取缺口、分类失败 ≥3、50 分钟不动；改规则先用 `--once` 拿历史日志验证。
   - `claude-q` / `claude-quota.mjs`：额度闸。撞 5 小时限额就冻住所有段的虚拟时钟，到点重试。lark-bot 的真实时间超时在回放里放大，原超时由闸按真实耗时执行。
-- **裁判与报表**：`judge-sim.mjs --sim <名> --all --score-from <ISO>`（Opus 模型裁判，记录 falive / same / lark-bot / both_wrong + larkIssue + idealBehavior）、`round-report.mjs --round <轮> --issues`。
+- **裁判与报表**（P0-g，11-04）：`judge-rules.mjs`（规则预判 + 输出指纹，落 `rules.jsonl`）→ `judge-sim.mjs --round <轮> [--effort high|max] [--all] [--gold]`（提示冻结在 `judge-prompt.mjs`，按 case + 指纹 + 提示版本缓存在 `runtime/falive-replay/judge-cache/`，只判变了的；`--all` 无视缓存；待办不计分单列）→ `gold.mjs review|ingest|compare`（金标准评审表 / 入库 / 对照判）→ `acceptance.mjs --round <轮> --prev <上一轮>`（§6 验收）；`round-report.mjs --round <轮> --issues`。sim 目录新旧两种布局都认（`sim-dir.mjs`）。
 - **L1 分类回放**：`replay-intake.mjs` / `judge-intake.mjs` / `compare-intake.mjs`，产物在 `runtime/falive-replay/l1/`。
 - **录放缓存雏形**：`claude-cache.mjs` / `claude-cache-check.mjs`。是早先子代理写的，`--ai-cache` 才启用，**没在整轮里验证过**，v2 要先验命中率和一致性。
 - **重建数据**：`build-context-cache.mjs [docs|bugs|expanded|resources|threads]`（aven 身份只读拉取）→ `build-dataset.mjs` → `list-cases.mjs` → `preflight.mjs`。**时间线一变，依赖它的拉取步骤都要重跑**（11-03 就因为顺序错漏了话题回复里的 7 篇文档）。
