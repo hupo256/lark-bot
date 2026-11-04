@@ -199,3 +199,18 @@
 45. **11-03 21:40 暂停（aven：「先放着明天再试试」）**：r11 停掉，没有进程在跑、不再耗额度。存档点在 runtime/falive-replay/sim/r11-b.ckpt/2026-10-16、r11-f.ckpt/2026-10-23；其余段没跑完一天、明天从头跑。
    明天续跑：`cd ~/github/lark-bot-latest && bash scripts/sim/run-round.sh r11`（先过预检；lib 有改就换轮名）。线上 fameex bot 不受影响，热修 c331067 已在线上。
    今天的教训见 43：跑之前验输入、改了跑法先在空日子上测、守卫规则先用历史日志 --once 验证、作废先报告。
+46. **11-04 进度（v2 定稿后开始执行；aven 中途要重启机器，此条为接续点）**
+   - **已完成**：
+     - P0-a 代码（合进 latest 741ef73）：实测可发登录 POST（3 处提示），删 bug 单正文里「只改负责人的模块」那句（线上 / falive 都没开该选项，行为不变）；全量 640 绿、提示回放规则不丢、变异 1 抓 1。
+     - 前置 1：run-sim 模型 / 强度读线上运行配置（`~/github/lark-bot/runtime/lark-bot.local.json`）。
+     - 前置 2：清理旧产物：17 个已合并 worktree 删了（分支保留；conv / fix3 / r3–r6 未合并的没动），旧 sim 6G 删了（各轮 judge.jsonl 存 `runtime/falive-replay/archive-1103-judge/`），旧录放缓存删了。
+     - 前置 8：run-round 套 caffeinate。
+     - P0-b 事件组：`replay/falive/episodes.json`，61 组、最大 45 条（10-29 一天）、跨天 5 组；falive 真实归并 255 条全部同组。
+     - P0-c：卡片原话核对（字段 / 链接都在；`text` 是群里看到的样子，`cliText` 保留 lark-cli 渲染、假 CLI 给 bot 看用它）；episodes 里 falive 回复改存全文；风险标签 `replay/falive/case-tags.{jsonl,md}`（风险 96、待办不计分 11，permission 偏宽待 aven 扫）；实测类当时证据 `verification-evidence.jsonl`（56 条中 51 条有）。
+     - 前置 6（部分）：falive pre / uat / online 现在都通（307）；测试号登录脚本在 falive-react `scripts/lib/pre-client.mjs`（10-14 起有），账号有效性还没实登验证。
+     - **前置 1b 分类强度**：L1 最新代码 285 条 low / high 各一遍（`runtime/falive-replay/l1/v3-{low,high}-0a7054d`），一致 87%；分歧 36 条 max 裁判：**high 更对 20、low 更对 9、一样 3、都不对 4**；中位 low 6s / high 9.5s。报告拷进 `replay/falive/l1/effort-low-vs-high-1104.md`。
+       **aven 定：改用 high**。回归集 high 55/56（失败那条「确认一下，请马上修掉」high 跑 3 次 2 次对，是边界题，记为 P4 分类提示修复目标）。
+       **线上运行配置 `~/github/lark-bot/runtime/lark-bot.local.json` 的 claudeIntentEffort 已改 low → high**（备份 /tmp/lark-bot.local.json.bak-1104；两个 bot 都停着，未生效）。
+   - **P4 待修清单（从 L1 分歧裁判来）**：都不对的 4 条（捏造「Arthur 说已上 pre」就复测；脑补 aven 没 @ 的话让 bot 复测；「Arthur 已补信息」失实；更正前一条接口的消息该并入 09:17 任务却另建）；high 把 aven 回的「继续任务」判不处理；「请马上修掉」边界题。
+   - **下一步**（design-v2 §8）：前置 3 裁判提示补口径并冻结 → 前置 4 风险标签 aven 扫 → 前置 6 测试号实登 → 前置 7 出网审计 → P0-d 模拟器按事件组跑（最大的一块）→ P0-e 内存 → P0-f 录放 → P0-g 规则预判 → P0-h falive 代码可行性 → P1 校准 → P2 全量基线（分类 high）。
+   - 现在没有任何回放进程在跑。

@@ -1,0 +1,150 @@
+# 分类强度 low vs high（v3-low-0a7054d / v3-high-0a7054d）
+
+两档都有 285 条；判得一样 249（87%），不一样 36；耗时中位 low 6s / high 9.5s
+
+**分歧裁判（36 条，effort max）：low 更对 9，high 更对 20，一样 3，都不对 4**
+
+- **high** 10-20 06:53 Aven.tong：继续任务 om_selftest0000 拆分后控制台连通测试
+  - low：question/medium·verification·接着 om_selftest0000 → 落地 actionable；回复「好，接着跑拆分后的控制台连通测试，跑完给你结果」（理由：负责人让继续之前的自测任务）
+  - high：ignore/medium·接着 om_selftest0000 → 落地 ignored；回复「收到，接着 selftest 这条，控制台这边消息能进来。」（理由：bot 自测连通性，前端没有 bug 或需求）
+  - aven 自测控制台连通，无前端活；low 拿假任务号建实测任务、许诺回结果，纯浪费；high 不建任务、回句对题，最好改成一句答复；理想：selfAnswer：aven 自测，回一句收到·连通正常·无此任务；不建不并
+- **high** 10-19 15:17 Arthur.a：@Aven.Bot 读一下
+  - low：api_reply/medium·verification → 落地 actionable；回复「Arthur，golang 这份回复收到了，我对着清单逐条过一遍，能测的去环境上复测，再回你结果。」（理由：后端对我方阻塞清单给出书面答复，让 bot 读）
+  - high：api_reply/medium·change → 落地 actionable；回复「收到 Arthur，Go 这份回复我对照前端过一遍，再去 pre 上验一下。」（理由：后端逐项答复我方 Go 对接问题，附带要前端按接口配请求头）
+  - 两档都判 api_reply 建任务，回复也都自然、对得上前文；但 high 读出 Go 文档要求前端按接口配请求头，交付判成改码更完整；low 只判复测，会漏掉这项前端改动；理想：api_reply/change 建任务：逐项回结清/未结，按文档补请求头
+- **high** 10-21 06:23 HQUCEncone：live 后端：把测试号拉进主播群（L1） @Aven.Bot 把你的账户 昵称给我发一下
+  - low：api_reply/medium·answer → 落地 actionable；回复「好嘞 Encone，我把测试号的账户和昵称查一下发你，拉进主播群后我再去测」（理由：后端在处理我方 L1 卡点，要我们的测试号信息）
+  - high：question/high·answer → 落地 actionable；回复「好的 Encone，我查一下测试号的账户和昵称，马上发你，方便拉进主播群」（理由：对方针对日报卡点 L1 来要我方测试号账户和昵称）
+  - 两档落地都是建任务答复；high 判 question 准，回复只说发信息；low 判 api_reply 不准，还许诺「拉进群后再去测」，超出了要交付的答复；理想：question·答复→建任务，查测试号昵称/UID 发给对方
+- **high** 10-21 06:55 HQUCEncone：@Williamwang HT @Aven.Bot 读一下 1.10 图片解密的章节
+  - low：api_reply/medium·answer → 落地 actionable；回复「好，我看下 PM-2954 文档 1.10 图片解密那节，对一下前端要怎么接再回你。」（理由：后端发对接文档，让我们按某个章节去对接）
+  - high：api_reply/medium·change → 落地 actionable；回复「好，我去读一下 1.10 图片解密那节，对照看看我们这边图片的处理」（理由：后端指向对接文档章节，要求前端按文档适配）
+  - 后端发文档点名读 1.10 图片解密，实际是要 Web 端按文档接上解密，交付该是改码；low 判成答复，只回怎么接会漏做。两句回复都自然；理想：api_reply·改码→actionable，按1.10接Web图片解密
+- **high** 10-19 10:58 HQUCEncone：@Aven.Bot 读一下
+  - low：api_reply/medium·verification → 落地 actionable；回复「好，我把 live 和 golang 两份回复对着 10-17 清单过一遍，已处理的去复测」（理由：后端回复了我方的联调阻塞清单，并让我们读一下）
+  - high：api_reply/medium·change → 落地 actionable；回复「好的 Encone，live 和 golang 两份回复我都过一遍，要前端适配的（像 C5 改 live uid）我整理出来」（理由：后端在答复我方阻塞清单，含要前端适配的改动）
+  - high 读出了要前端适配的项（如 C5），改码在需求边界内，回复也具体；low 要把已处理项去复测，违反暂不自动复测的口径，而且多项还在等发 pre；理想：api_reply 改码建任务：逐项对清单，前端适配就改，暂不复测
+- **high** 10-22 09:25 Aven.tong：范围契约声明纳入的 3 处兄弟位置实测未改（疑似漏改，请复核） ———————— 你帮我复核，告诉我结果
+  - low：question/medium·verification → 落地 actionable；回复「好，我去复核那 3 处兄弟位置是不是漏改了，看完把结果发你」（理由：负责人让复核疑似漏改的位置并报结果，不是直接让修）
+  - high：question/medium·answer → 落地 actionable；回复「好，我去对一下那 3 处兄弟位置是不是真漏改了，看完把结果告诉你」（理由：负责人要复核代码现状并告知结果，没让修）
+  - 要复核的是礼物分支里 3 份文档改没改，看分支 diff 就能答复；low 判实测，可分支没部署、pre 又连不上，容易卡在测不了；理想：question·answer→actionable，接礼物单查diff回结论
+- **high** 10-21 16:24 HQUCEncone：直播间关注会同步到 Go，这个不要改 go @Aven.Bot
+  - low：api_reply/medium → 落地 recordOnly；回复「收到，直播间关注会同步到 Go，Go 那边不动，我记下了。」（理由：后端答复不用改，前端没有活要做）
+  - high：api_reply/medium·change → 落地 actionable；回复「收到，关注由后端同步到 Go，前端不用再调 Go。我先看下现在的调用怎么改」（理由：后端针对日报里那项改动答复：前端别改，不用调 Go）
+  - 日报写 aven 刚做了关注同步 Go，后端是叫前端别改走 Go；low 误读成 Go 侧不动只记一笔会漏改，high 理解对、回复也自然；理想：api_reply→actionable：核对并去掉前端调 Go，只调原关注接口
+- **low** 10-22 12:15 Aven.tong：结单 om_x100b62aec0488ca4ffbbaf6bfcc5e77
+  - low：ignore/high·接着 om_x100b62aec0488ca4ffbbaf6bfcc5e77 → 落地 ignored；回复「好，这条我结掉了。」（理由：负责人指令结单，不需要前端改动）
+  - high：ignore/medium → 落地 ignored；回复「好，记下了，这单按结单处理。」（理由：负责人的结单指令，不涉及软件变更，记下即可）
+  - 消息点名了任务号。low 挂对了 om_…bfcc5e77（新闻详情页），回得也干脆；high 没关联任务，结单落不到原单上，「记下了」也偏记录口吻；理想：结单指令：关闭 om_…bfcc5e77（新闻详情页），不建新任务，回已结单
+- **high** 10-22 15:21 HQUCEncone：手機號登入 Account：+86 15661234567 PWD：123qwe hichat 旧帐户 @Aven.Bot 存一下
+  - low：ignore/medium → 落地 ignored；回复「好的 Encone，嗨聊旧账号记下了，后面复测嗨聊登录时用」（理由：只是给测试账号让存一下，没有要我们做事）
+  - high：api_reply/medium·verification → 落地 actionable；回复「收到，嗨聊旧账号记下了，我拿它去 pre 复测 Bug-4927 的登录，测完回你。」（理由：后端给的复测账号，正好补上 Bug-4927 复测要用的料）
+  - 这是 Bug-4927 复测缺的嗨聊老账号，low 判 ignore 漏了料还空说记下；high 拿去复测对路，只是该并入原复测任务而非另建；理想：api_reply → merged 入 Bug-4927 复测任务，用此号测
+- **high** 10-22 15:19 HQUCWilliam.m：复测Bug-4927 嗨聊既有帳號登入FALIVE失敗 ，直接测试 ！ @Aven.Bot
+  - low：bug/medium·verification → 落地 actionable；回复「好，这就去 pre 直接复测 Bug-4927 嗨聊老账号登录，测完结果回这里。」（理由：后端要求直接复测已报的登录缺陷）
+  - high：api_reply/medium·verification → 落地 actionable；回复「好，这就去 pre 复测 4927。手上还缺嗨聊老账号，方便的话发我一个」（理由：负责的后端催复测，要的是实测结论）
+  - 两档都该实测建任务；high 看出 bot 测试号非嗨聊注册、测不出此 bug，先要老账号，省一轮、防假通过；api_reply 也更贴；理想：api_reply·实测→actionable，索要嗨聊老账号后去pre复测
+- **low** 10-23 06:36 HQUCEncone：现在pre 还不能发帖、评论 @Aven.Bot
+  - low：api_reply/medium → 落地 recordOnly；回复「好，记下了，pre 现在发帖、评论还用不了，这两块先不在 pre 上测。」（理由：后端在同步 pre 环境能力现状，没让我们做事）
+  - high：ignore/low → 落地 ignored；回复「收到，pre 现在发不了帖和评论，我先记下。是接口那边还没上，还是前端页面报错了？」（理由：后端同事一句状态说明，看不出是在知会还是报前端 bug）
+  - 后端在知会 pre 发帖/评论还没开（昨天说的社区库迁移），low 记一笔、回复贴切；high 判忽略却又追问，自相矛盾且多余；理想：api_reply→recordOnly：记 pre 发帖/评论未开、先不测
+- **low** 10-23 13:52 Aven.tong：推 pre
+  - low：requirement/medium·change → 落地 actionable；回复「好，我把开发分支推上去，建个发 pre 的 MR」（理由：负责人直接交办发 pre 的运维动作）
+  - high：ignore/medium → 落地 ignored；回复「推 pre 这种得走运维指令，私信我发「运维：发 pre」，我就推分支建 MR」（理由：运维动作不归四类，无前缀且分支不明）
+  - 13:46 卡明说回「推 pre」就合进 pre 推送，aven 照回；low 照办对（「开发分支」稍含糊），high 称分支不明让改发指令，漏做又扰民；理想：requirement 续复测卡→actionable 合分支进 pre 推送
+- **high** 10-24 15:18 HQUCWilliam.m：@Aven.Bot 测试 帖子多语言翻译 以及 AI识图 功能 ！
+  - low：requirement/medium·verification → 落地 actionable；回复「好，帖子多语言翻译和 AI 识图我去测一下。在 pre 上测吗？」（理由：@bot 交办测两个功能，新话题，交付实测结论）
+  - high：api_reply/medium·verification → 落地 actionable；回复「好，帖子多语言翻译和 AI 识图我先在 pre 上走一遍，要是该在 test 测就跟我说一声，测完回你」（理由：后端 @bot 交办测这两个功能，是新话题，交付实测结论）
+  - 两档都判新话题、建实测任务；high 判后端交付更贴，默认 pre 并说测完回你；low 反问「在 pre 上测吗」多余，也没说回；理想：api_reply/实测→actionable 新任务，pre 测完回报附 tid
+- **same** 10-24 10:07 HQUCWilliam.m：@Aven.Bot Bug-4942 再复测下 ！
+  - low：bug/medium·verification → 落地 actionable；回复「好的 William，我去复测下 Bug-4942，看完回你结果」（理由：William 指定 bug 编号，要我们复测）
+  - high：api_reply/medium·verification → 落地 actionable；回复「好的 William，我去复测下 Bug-4942，有结果跟你说」（理由：后端 @bot 让复测具体 bug，像是他那边已处理）
+  - 两档都按明确的复测请求建任务去实测，回复也自然；bug 和 api_reply 只是标签不同，不影响落地，比 falive 的 suspected 更少打扰 aven；理想：bug·实测 → actionable，在 pre 复测 Bug-4942 后回结果
+- **low** 10-26 12:25 Aven.tong：继续任务 om_x100b62c49d8574a4eed405d3c6a3b2f
+  - low：requirement/medium·change·接着 om_x100b62c49d8574a4eed405d3c6a3b2f → 落地 actionable；回复「好，我接着这条任务往下做，有结果跟你说。」（理由：负责人私信要求继续指定任务，属延续交办）
+  - high：ignore/medium·接着 om_x100b62c49d8574a4eed405d3c6a3b2f → 落地 ignored；回复「好，不过这条任务的内容我这边没看到，你说下接着做哪一步？」（理由：只给了任务 id，原任务内容和类别都不清楚，判不了）
+  - aven 照上条超时提醒的原话回了「继续任务」，就是要续跑个人中心设计稿任务；high 判 ignore，还说没看到内容，漏了该做的事，回复也对不上前文；理想：requirement·change，续跑原个人中心任务→actionable
+- **low** 10-28 11:09 Aven.tong：同步对接一下，并生成反馈文档@Aven.Bot
+  - low：question/medium·answer → 落地 actionable；回复「好，我把 Henry 这份单子过一遍，对接清楚后出一份反馈文档」（理由：负责人交办整理对接反馈文档，不改代码）
+  - high：bug/medium·verification → 落地 actionable；回复「好，我先在 pre 上把这几条的现状再核一遍，整理成反馈文档给你过目」（理由：负责人交办：复核这几条 bug 并出反馈文档，不改代码）
+  - aven 要的是就 Henry 待确认的几条对接一下、出反馈文档，交付是答复；high 改成去 pre 实测是多做，回复还漏了对接；理想：答复类建任务：按已有结论逐条答 Henry 文档，待定项对接产品/后端，出反馈文档
+- **high** 10-29 06:03 Aven.tong：![Image](img_v3_0216u_17a0bc5b-8ddb-4141-a0ce-057fb3a707hu) 这个信息，现在能给出吗？不然，我先按上面
+  - low：question/medium·answer → 落地 actionable；回复「我对一下现在给到哪些了，只有前台域名的话，缺的我列出来，你再定先不先发」（理由：aven 在问缺的信息给全没有，好决定先不先发）
+  - high：ignore/medium → 落地 ignored；回复「这几项得 Ache、Arthur 那边给，我先记着，有了就更新到对接文档」（理由：aven 在催后端给信息、问要不要先发，前端这边没有活要做）
+  - aven 本人 @Ache 催信息、说不行就先发，不是问 bot；low 建任务插话，还重列 04:37 已报过的缺项，扰民；high 不处理是对的；理想：ignore→ignored：aven 本人在问 Ache，不插话，等对方回复再动
+- **both_wrong** 10-29 10:18 Aven.tong：go 这块儿改好上 pre 请记得在这里回复一下哈。bot 会去复测和改 bug 状态为 已推版 @mainly
+  - low：api_reply/medium·verification → 落地 actionable；回复「好，Arthur 说 Go 已经上 pre，我这就用邮箱注册复测 Bug-5022，过了就改成已推版」（理由：Arthur 说 Go 已上 pre，aven 交代 bot 去复测）
+  - high：bug/medium·verification → 落地 actionable；回复「好，Arthur 说 Go 已上 pre，我用邮箱注册复测 Bug-5022，测完在这回」（理由：负责人交代 Go 上 pre 后由 bot 复测并改 bug 状态）
+  - aven 预先叮嘱 mainly「Go 上 pre 后回复」，Go 还没上；两档都捏造「Arthur 说已上 pre」立刻复测，回复失实，且部署后复测暂不做；理想：bug·并入 Bug-5022 只记一笔（等 Go 上 pre），不测不回
+- **low** 10-29 11:28 mainly：@Arthur.a 前端给你了一个 guest_token 你再原样交给 /api/internal/issueToken 接口就行了，文档在这里: [http
+  - low：ignore/medium → 落地 ignored；回复「谢 mainly 补充，Go 这边原样转 guest_token 就行。Arthur 上 pre 后我再复测。」（理由：是给后端 Arthur 讲对接方式，没给前端派活）
+  - high：api_reply/medium·verification → 落地 actionable；回复「好，就是 Go 把前端给的 guest_token 原样转给 issueToken。Arthur 上 pre 后我去复测」（理由：mainly 给 bot 补对接口径和文档，前端已改完，只剩复测）
+  - mainly 是 @Arthur 直接答 Go 怎么转，前端没活；high 误读成对 bot 说，Go 未上 pre 就建复测任务，还违反暂不自动复测口径；理想：ignore→ignored（或并入在办的讲解任务作上下文），不建复测、不回话
+- **low** 10-29 12:21 Arthur.a：@Aven.Bot 现在uat环境前端API还是有问题 cc@World @Charlie
+  - low：bug/medium·verification → 落地 actionable；回复「收到，我去对一下 uat 和 pre 登录发验证码的接口，看完回你。」（理由：催办自己上一条报的 uat 接口不一致问题）
+  - high：bug/medium·change → 落地 actionable；回复「收到，我去对一下 uat 和 pre 登录发验证码调的接口，看完回你。」（理由：Arthur 接着自己上一条报 uat 前端接口还不对）
+  - 两档类型、落地、回复都对；uat差异源于包里Go开关关、修复另在phase-5分支，aven随后也只问差异和原因，该实测；high判改码会白做撞车；理想：bug·实测→actionable：核uat登录发码为何异于pre，不改码
+- **both_wrong** 10-29 13:33 Aven.tong：用邮件注册，会更流畅些
+  - low：bug/medium·verification → 落地 actionable；回复「好，我用邮箱注册在 pre 上复测一下 Bug-5022，有结果回你」（理由：Go 已上 pre，负责人让换邮箱注册的方式去复测）
+  - high：api_reply/high·verification → 落地 actionable；回复「好，我在 pre 用邮箱注册复测 Bug-5022，看游客聊天有没有转到新号」（理由：Go 端已上 pre，aven 指定用邮箱注册方式复测）
+  - aven 本人在回 mainly 注册收不到验证码，没 @bot 也非交办；两档都脑补成让 bot 复测 Bug-5022，扰民且违「部署后不自动复测」；理想：ignore→ignored：aven 回 mainly 注册建议，不回不复测
+- **low** 10-30 17:42 Aven.tong：自己登录进去看看，这个是账号： [734343862@qq.com](mailto:734343862@qq.com) Test1234
+  - low：requirement/medium·verification → 落地 actionable；回复「账号收到，我登录进去看看，有结果跟你说。」（理由：负责人给账号让登录实测，交付实测结论）
+  - high：ignore/low → 落地 ignored；回复「账号收到了。要看哪个页面、哪个问题？test 还是 pre？告诉我我就登进去看。」（理由：只给了账号，没上下文，不知道看什么、在哪个环境）
+  - aven 在给 3 分钟前缺 online 账号卡住的任务中心单补账号，low 去实测对（宜并入原单）；high 判忽略还问 test/pre，漏做且脱离前文；理想：requirement·实测→merged：用该账号续做任务中心卡点单
+- **high** 10-30 07:53 HQUCWilliam.m：@Aven.Bot OL 再复测下
+  - low：bug/medium·verification → 落地 actionable；回复「好，我再去 OL 复测下 /hc-ws 握手和行情推送，测完回你。」（理由：William 引用 bot 的 ws 结论，要求在 OL 上复测）
+  - high：api_reply/medium·verification → 落地 actionable；回复「好，我去 OL 再测下 /hc-ws 握手和行情推送，测完回你。」（理由：后端引用 bot 的 ws 结论，要我们去 OL 复测）
+  - 两档落地与回复一致；这是后端让去 OL 复测 /hc-ws 转发，属对接回复而非前端 bug，high 的 api_reply 更准；理想：api_reply·实测→actionable，去 OL 复测 /hc-ws
+- **both_wrong** 10-31 08:59 Aven.tong：@Arthur.a 麻烦在这里补信息吧
+  - low：requirement/medium·change → 落地 actionable；回复「Arthur 补了：updateInfo 或 avatar/upload 任一项成功就调完成接口，我按这个去接。」（理由：aven 交办，话题里 Arthur 已补清触发规则）
+  - high：api_reply/medium·change → 落地 actionable；回复「Arthur 已经在话题里回了：updateInfo 和 avatar/upload 任一个成功就调完成接口。我照这个口径去接一下。」（理由：Arthur 在话题里答了 bot 问的上报时机，等于交办接入）
+  - 这条是 aven 在催 Arthur 来话题里补信息，Arthur 还没回；两档却都说 Arthur 已经补了「任一项成功就调」，按这个开工改码，回的话也和前文对不上；理想：ignore（或静默并入完善资料任务）：不回也不开工，等 Arthur 补触发规则
+- **high** 11-02 16:04 Aven.tong：<p>项目已经上线。暂停日报生成、发送，啥时候开再通知你 @Aven.Bot</p>
+  - low：ignore/medium → 落地 ignored；回复「好，记下了：项目已上线，日报先停，等你通知再开。」（理由：停 bot 日报的指令，不涉及前端代码改动）
+  - high：requirement/medium·change → 落地 actionable；回复「好，日报先停掉，生成和发送都不跑了，等你说开再恢复。」（理由：负责人明确交办停掉 bot 的日报任务，属于配置调整）
+  - aven 本人明确下令暂停日报，得真去停；low 判 ignore 不落地，日报照发、「记下了」成空话；high 建任务去停，回复自然对得上。；理想：requirement→actionable：暂停 bot 日报生成与发送
+- **high** 10-31 15:23 Aven.tong：@Aven.Test 发群通知
+  - low：ignore/medium → 落地 ignored；回复「好，online c1a40982 已部署的群通知我先拟一版给你看，发哪个群你定」（理由：让 bot 发群通知，属于运维操作，不改前端代码）
+  - high：api_reply/medium → 落地 actionable；回复「好，c1a40982 上线的群通知我这就准备，发出去跟你说一声」（理由：aven 在回 bot 的「要发群通知跟我说」，确认要发）
+  - aven 应的是 bot「要发群通知跟我说」，明确指令；low 判 ignore 却答应拟稿，落空、重演 falive 漏发；high 照做，kind 标偏无碍；理想：指令→并入 Bug-5139 上线任务，向 PHP 后端群发上线通知
+- **high** 10-16 08:19 HQUCWilliam.m：@Aven.Bot 怎么测试对应接口
+  - low：question/medium·answer → 落地 actionable；回复「William，我先查一下前端哪里调了 fameEx/market/symbol/list，再告诉你在哪个页面能测到它」（理由：后端在问前端怎么测某个接口，查代码就能答）
+  - high：question/medium·answer → 落地 selfAnswer；回复「William，说一下是 test 还是 pre、主要看哪些字段，我去调 symbol/list 把结果回你」（理由：问 bot 怎么测接口，环境和要看的点都没说）
+  - 紧接「你能干嘛」，是问怎么让 bot 测接口，一句教用法即可；low 建任务查前端调用点，浪费且答非所问；high 不建任务只追问环境，代价小，但两档都臆定了 symbol/list；理想：question→selfAnswer：教用法，原消息下建话题@我写明接口和环境
+- **high** 10-26 06:53 Arthur.a：是的
+  - low：api_reply/medium → 落地 recordOnly；回复「好的 Arthur，换头像改接 Go 新接口这块等 Henry 给排期，接完再跟你说。」（理由：后端在确认我方对接结论，没有交办新的活）
+  - high：ignore/medium → 落地 ignored；回复「好的 Arthur，web 换头像改接 Go 上传这块已经交给 Henry 跟了，排期等他回复。」（理由：只是确认 bot 的结论，活已经派给 Henry，没有新的交办）
+  - 「是的」是答 aven 本人问的文档（两档都误读成确认 bot 结论），aven 在场亲自跟；high 不插话对，low 替 aven 补句排期承诺属扰民；理想：ignore/ignored 不回话；至多静默给换头像任务记「文档已确认」
+- **same** 10-22 13:36 HQUCWilliam.m：复测Bug-4927 嗨聊既有帳號登入FALIVE失敗 @Aven.Bot
+  - low：bug/medium·verification → 落地 actionable；回复「好的 William，我去复测 Bug-4927 嗨聊老账号登录 Falive，测完报结果。」（理由：后端让复测一个具体登录 bug，交付实测结论）
+  - high：api_reply/medium·verification → 落地 actionable；回复「William 收到，我去复测下 Bug-4927 嗨聊老账号登录 Falive，测完回你结果」（理由：后端让复测 Bug-4927，应该已经处理过了，要去环境实测）
+  - 两档都判 actionable 实测、新建任务、不接旧任务，回的话也都自然。bug 和 api_reply 只是标签不同，后者更贴「后端修完请复测」，对 aven 结果一样。；理想：api_reply·实测→actionable 新任务，去 pre 复测；缺嗨聊账号再问 William
+- **high** 10-22 13:33 HQUCWilliam.m：复测Bug-4927 嗨聊既有帳號登入FALIVE失敗 @Aven.Bot
+  - low：api_reply/medium·verification → 落地 actionable；回复「好的 William，我去用嗨聊老账号登一下 Falive，复测完把结果回给你」（理由：后端修完让我们复测，只要实测结论）
+  - high：bug/medium·verification → 落地 actionable；回复「好，我去复测下 Bug-4927 嗨聊老账号登录 Falive，有结果回你」（理由：William @bot 直接要复测一个具体 bug，只看结果不改代码）
+  - 两档落地都对（建任务实测、回复自然）；但这是具体 Bug 的复测请求，high 判 bug 准，low 判 api_reply 还臆测「后端修完」；理想：bug·verification → actionable，复测后回结果
+- **high** 10-26 06:52 Arthur.a：web也换一下新接口吧@Aven.tong
+  - low：requirement/medium·change → 落地 actionable；回复「好的 Arthur，web 换头像改接 Go 新接口记下了，Henry 在跟，接完了跟你说。」（理由：后端明确要求 web 改接新头像接口）
+  - high：requirement/medium·change → 落地 ignored；回复「收到，web 换头像改接 Go 新接口这块是 Henry 在跟，接好了在这里跟你说。」（理由：后端要求 web 切换头像新接口，aven 已指派 Henry 跟）
+  - 换头像前端归 Henry、10-23 已转交，low 建改码任务会越权做 Henry 的活，且与「Henry 在跟」矛盾；high 不接手对，只少一句应答；理想：需求归 Henry：recordOnly，回已催 Henry 排期，不改码
+- **both_wrong** 10-26 09:19 HQUCEncone：https://falivepre.fdsser.com/bbsv2/member/threadsCursor?type=posts&last_id=0&per
+  - low：api_reply/high·change → 落地 actionable；回复「好，接口是 threadsCursor，我按这个查帖子列表封面图解密，改好回你。」（理由：后端更正上一条封面解密对应的接口地址）
+  - high：bug/medium·change → 落地 actionable；回复「好，帖子列表的接口是 threadsCursor，我按这个查封面图解密，改好再回你。」（理由：更正上条封面图未解密问题的接口，属同一修复的补料）
+  - 两档都看出这条是更正 09:17 封面图解密请求的接口，却都落 actionable 另建任务。正确做法是并入 09:17 那个任务，不然会重复干活、重复回复；kind 不同对落地没影响；理想：api_reply 补料→merged：并入09:17封面解密任务，改查threadsCursor
+- **high** 10-29 12:16 Arthur.a：<p>uat环境登录发送验证码API和pre环境不一致，请解决@Aven.Bot</p>
+  - low：bug/medium·verification → 落地 actionable；回复「收到 Arthur，我先对一下 uat 和 pre 登录发验证码走的接口，有结论了回你。」（理由：明确报告两个环境接口不一致，并要求解决）
+  - high：bug/medium·change → 落地 actionable；回复「收到，我先对一下 uat 和 pre 登录发验证码走的接口，有结果回你」（理由：报 uat 前端接口和 pre 不一致，要我们解决）
+  - Arthur 明说「请解决」。uat 发码走旧接口，属于需求内的前端配置问题，应该查清后改掉；low 只实测会漏修。两档回复都自然；理想：bug/change·actionable：查 uat 发码接口差异并修
+- **same** 10-29 12:14 Arthur.a：@Aven.Bot @Aven.tong 辛苦核实一下现在API
+  - low：question/medium·verification → 落地 actionable；回复「好，我去线上看下现在登录和社区实际打的是哪套接口，再回你」（理由：让我们去线上核实接口现状，交付实测结论）
+  - high：bug/medium·verification → 落地 actionable；回复「好，我去线上看一下登录和社区现在实际请求的是哪套接口，看完回你。」（理由：紧接线上登录走 live、没有 bbsv2 请求的问题，请我们核实）
+  - 两档都建实测任务，去核线上登录和社区实际走哪套接口，回复几乎一样，也接得上前文；只差类型标签 bug/question，落地不受影响；理想：bug/实测→actionable：核线上登录/社区实际走哪套接口再回
+- **low** 10-31 09:04 Arthur.a：@Adrian
+  - low：ignore/medium → 落地 ignored；回复「Arthur 收到，规则是有一个接口成功就调完成，这块 Adrian 在接」（理由：空 @ 重复提醒，规则已答复，活已交给 Adrian）
+  - high：api_reply/medium·change → 落地 ignored；回复「收到 Arthur，规则清楚了：updateInfo 和 avatar/upload 任一成功就调完成接口，这块 Adrian 在跟。」（理由：Arthur 在话题里答复了 bot 问的上报时机，空 @ 是催跟进）
+  - 两档都落 ignored；这条是 Arthur 空 @ Adrian、bot 已交接，low 判 ignore 准，high 标 api_reply·改码是误读；理想：ignore→ignored，不回；空 @ Adrian，bot 已交接
+- **high** 10-31 15:02 Aven.tong：@Aven.Test uat 环境通过了，确认一下相同的改动是不是合到 online 上了。如果是，就运行 "部署 online" 指令， 不用我确认草稿，直接
+  - low：requirement/high·change → 落地 actionable；回复「好，我先核一下 uat 的改动是不是都进了 online，都进了就直接发部署 online 的邮件，发完跟你说。」（理由：负责人私信下运维指令：先核对再直接发，不用确认）
+  - high：requirement/medium·verification → 落地 actionable；回复「好，我先查一下 uat 这批改动进没进 online，进了就直接发部署 online 的信，发完跟你说」（理由：负责人交办运维动作：先核对 uat→online，再直接发部署信）
+  - 两档都建了任务，回复也自然。但这次不用改码，low 判成 change 越界；high 判 verification（核对后发部署信）才对。两档都没接上 Bug-5139；理想：requirement·verification→actionable，接续Bug-5139，核对后直发部署信
