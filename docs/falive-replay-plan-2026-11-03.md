@@ -245,3 +245,5 @@
    b1 进展：ep-1031-f8065f 出网 6 违规是真的（curl accounts.google.com 的 gsi 脚本，p4b 规则之前的代码）；ep-1031-35935b 的 5 条是审计误判（curl 壳把 grep 输出词粘进主机名），egress-audit 已改归「待核」。
 55. **11-04 b1 被守卫停 → 补 bug 表视图 → 合 next → 基线改 b2**：b1 ep-1024-9ebe13 读取缺口 68（bot 列整张 bug 视图逐条读，只缓存了群里提到的 153 条）。build-context-cache `bugs --all-view` 补齐视图 261 条记录 + 308 张截图（失败 6），bug-records 290M。数据变了指纹变，b1 不能续，于是把 lark/falive-next（p4a / p4b / p4c / cal）合进 latest，全量 642 绿、预检通过，**基线改跑 b2**（指纹 dbcb02121b1c，并发 8，录放开）。b1 作废（只完成 2 组）。
    P1 校准 20 组跑完；初步汇总只 33% 全对上，但 falive 侧多半没记录（审计 10-27 才有）→ 派子代理重建 falive 侧（时间线原话按卡→case 归属、数据集基线、网关日志），把差异分成模拟偏差 / 抽样 / 还原不了 / 未知，出 calibration/fidelity.md。
+56. **11-04 分类强度重确认（v4，修好时间泄漏 + p4a 新提示）**：285 条一致 237；分歧 48 条 max 裁判 high 20 / low 17 / 一样 10 / 都错 1，基本打平（之前「high 净高 4%」是被泄漏污染的结论）。low 偏漏办，high 偏过度（派不必要的改码、抢答 aven 与同事的对话）。**aven 定：保持 high**（b2 不用重跑；过度类错误后面靠修提示压）。报告 runtime/falive-replay/l1/v4-low-bae5cfb/effort-judge.md。
+   **P4 待修**：b2 ep-1031-f8065f 里 bot 为诊断 Google 登录组件 curl 了 accounts.google.com/gsi（看来源白名单），越过「只测配置里的环境」——提示规则约束不住，改成命令层拦：答疑 / 实测的 curl 只放行配置里的环境地址（claude --allowedTools 按主机前缀），其余域名发不出去。
