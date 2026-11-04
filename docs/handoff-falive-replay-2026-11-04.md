@@ -3,7 +3,7 @@
 > 写给接手的新 chat。先读本文，再按「下一步」做。用户是 aven，回复用中文。
 > 仓库 / 本机规则以 `AGENTS.md`、`~/.claude/CLAUDE.md` 为准；本文只写这件事本身。
 
-> **接续点**：最新进度看 `docs/falive-replay-plan-2026-11-03.md` 第 46 条（11-04：P0-a/b/c 完成、分类强度改 high、下一步清单）。
+> **接续点**：最新进度看 `docs/falive-replay-plan-2026-11-03.md` 第 46 条（11-04：P0-a/b/c 完成、分类强度改 high、下一步清单）；P0-d / P0-e / 前置 7 见第 49 条（按事件组跑用 `scripts/sim/run-episodes.mjs`，旧 run-round.sh 弃用）。
 
 ## 1. 这件事是什么
 
