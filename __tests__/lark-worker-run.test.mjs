@@ -9,7 +9,9 @@ import assert from 'node:assert/strict'
 import { tmpdir } from 'node:os'
 import { describe, it } from 'node:test'
 
-import { runAI } from '../lib/lark-worker-run.mjs'
+import { buildCredentialProbeBlock, hasLoginCredentials } from '../lib/lark-credential-cue.mjs'
+import { buildAnalysisPrompt } from '../lib/lark-worker-prompts.mjs'
+import { runAI, scopeFromAnalysisText } from '../lib/lark-worker-run.mjs'
 
 const workContext = (extra = {}) => ({ projectId: 'PR-99999', projectName: '测试项目', projectDocs: [], cwd: tmpdir(), ...extra })
 const scope = { targets: [{ path: 'apps/web/src/a.ts', symbols: ['amount'], reason: '首个出错位置' }], siblings: { searchQueries: ['amount'], items: [] } }
@@ -41,7 +43,7 @@ describe('runAI：所有执行器在会改代码的任务上先跑只读分析',
       assert.match(calls[0].promptText, /同因搜索/)
       assert.match(calls[1].promptText, /第一阶段只读分析已判定 ready/)
       assert.match(calls[1].promptText, /可改文件：\n {2}- apps\/web\/src\/a\.ts〔amount〕：首个出错位置/)
-      assert.match(calls[1].promptText, /改动行数上限 120 行/)
+      assert.match(calls[1].promptText, /改动行数参考 120 行.*超出不拦/)
       assert.match(calls[1].promptText, /实施中发现必须改契约外的文件 → 停止/)
     })
   }
@@ -121,8 +123,50 @@ describe('runAI：所有执行器在会改代码的任务上先跑只读分析',
     const task = bugTask('codex', { scopeApprovals: [{ paths: ['apps/web/src/neighbor.ts'], approvedBy: 'ou_x', at: '2026-10-11T00:00:00Z' }] })
     await runAI({ localConfig: { scopeBudgets: { bugfix: 80 } } }, task, workContext(), null, undefined, { exec, snapshot: stableSnapshot })
     assert.match(calls[0].promptText, /人工已确认扩大范围的文件（可信输入，必须列入 targets[^\n]*`apps\/web\/src\/neighbor\.ts`/)
-    assert.match(calls[0].promptText, /改动行数上限：80 行/)
+    assert.match(calls[0].promptText, /改动行数参考 80 行.*不因行数 blocked/)
     assert.match(calls[1].promptText, / {2}- apps\/web\/src\/neighbor\.ts：人工确认扩大范围/)
-    assert.match(calls[1].promptText, /改动行数上限 80 行/)
+    assert.match(calls[1].promptText, /改动行数参考 80 行/)
+    // 11-04 b3 stuck（并进本条，测试棘轮）：阻塞被放行（全是 decision / 归属 / 规模）且分析 scope=null → 用结论里点名的文件补契约；
+    // 系统层归属只作知会；分析提示只在正文带账号时出现账号取证块。
+    {
+    const analysis = { status: 'blocked', summary: '缺开关字段', applicableRules: [], requirements: [], scope: null, blockers: ['入口有两种做法（直接隐藏 / 点了提示），先按直接隐藏做，只改 apps/web/src/gift.tsx', '个人中心归 henry 负责，仓库规则不允许改别人负责的功能'] }
+    const { exec, calls } = mockExec({ analysis })
+    const run = await runAI({ localConfig: { envSites: { pre: 'https://pre.example.com' } } }, bugTask('claude'), workContext(), null, undefined, { exec, snapshot: stableSnapshot })
+    assert.deepEqual(calls.map((call) => call.resultKind), ['analysis', 'task'])
+    assert.deepEqual(run.scope.targets.map((item) => item.path), ['apps/web/src/gift.tsx'])
+    assert.match(calls[1].promptText, /可改文件：\n {2}- apps\/web\/src\/gift\.tsx/)
+    assert.match(calls[1].promptText, /归属只作知会：个人中心归 henry/)
+    // 系统层（分析 / 实施共用）：业务仓的负责人分工只作知会（aven 11-04）
+    assert.match(calls[0].systemPromptText, /归属只作知会：业务仓文档（含 CLAUDE\.md「按负责人改代码」）写的负责人只进 owner \/ followUps，不是停下的理由；转来的单就是交给你的，需求定边界，归属不明按 aven 的做。/)
+    assert.match(calls[0].promptText, /blocker.*前文已问过、已答的不再问.*「照现成实现迁移（如 x9）」或「按 UI 稿做」时，源实现 \/ 稿就是规格/)
+    assert.match(calls[0].promptText, /blocked 时能定出要改的文件也照填 scope（阻塞可能被放行）/)
+    assert.doesNotMatch(calls[0].promptText, /上下文给了登录账号/)
+    const { exec: exec2, calls: calls2 } = mockExec()
+    await runAI({ localConfig: { envSites: { pre: 'https://pre.example.com' } } }, bugTask('claude', { text: '状态不对\n\n【补料】\n自己登录进去看看，这个是账号： a@b.com Test1234' }), workContext(), null, undefined, { exec: exec2, snapshot: stableSnapshot })
+    assert.match(calls2[0].promptText, /上下文给了登录账号.*打 pre https:\/\/pre\.example\.com/)
+    // 真不放行（hard）时 scope 不补：照旧 blocked 返回
+    const { exec: exec3, calls: calls3 } = mockExec({ analysis: { ...analysis, blockers: ['缺 pre 测试账号，没法复现 apps/web/src/gift.tsx'] } })
+    const blocked = await runAI({ localConfig: {} }, bugTask('claude'), workContext(), null, undefined, { exec: exec3, snapshot: stableSnapshot })
+    assert.deepEqual([calls3.length, blocked.scope, blocked.result.status], [1, null, 'blocked'])
+    // 分析本来就 ready（没经放行）却没给 scope：不替它补（照旧按缺契约收尾）
+    const { exec: exec4 } = mockExec({ analysis: readyAnalysis({ scope: null, summary: '只改 apps/web/src/x.ts' }) })
+    assert.equal((await runAI({ localConfig: {} }, bugTask('claude'), workContext(), null, undefined, { exec: exec4, snapshot: stableSnapshot })).scope, null)
+    assert.deepEqual(scopeFromAnalysisText({ status: 'blocked', summary: '暂停', blockers: ['只改 src/a/Chat.tsx'], requirements: ['同步 docs/x.md'] }).targets.map((item) => item.path), ['src/a/Chat.tsx', 'docs/x.md'])
+    assert.deepEqual([scopeFromAnalysisText({ status: 'blocked', summary: '缺接口', blockers: ['后端没给字段'] }), scopeFromAnalysisText(null)], [null, null])
+    for (const [text, want] of [
+      ['自己登录进去看看，这个是账号： [734343862@qq.com](mailto:734343862@qq.com) Test1234', true],
+      ['請嘗試郵箱登入 郵箱：kegocel106@airhemp.com 密碼：123qwe', true],
+      ['手機號登入 Account：+86 15661234567 PWD：123qwe', true],
+      ['联系 a@b.com 问一下进度', false],
+      ['登录页报错', false],
+      ['', false],
+    ]) assert.equal(hasLoginCredentials(text), want, text)
+    const probe = buildCredentialProbeBlock({ envSites: { pre: 'https://pre.example.com', online: 'https://www.example.com', test: '' } })
+    assert.match(probe, /打 pre https:\/\/pre\.example\.com、online https:\/\/www\.example\.com（.*只发 GET，登录拿态的 POST（含验证码登录）除外；不注册、不发帖评论、不下单改数据/)
+    assert.match(probe, /不再把「缺 Network 证据 \/ 缺账号 \/ 请对方抓包」写成 blocker.*账号密码不写进任何给人看的字段/)
+    assert.match(buildCredentialProbeBlock(), /本仓没配环境地址，测不了就写明/)
+    const withCreds = { id: 't', attachments: [], chatId: 'oc', text: '状态不对\n账号：a@b.com 密码：x1' }
+    assert.doesNotMatch(buildAnalysisPrompt(workContext(), withCreds, null, { scopeEnforced: false }), /上下文给了登录账号/)
+    }
   })
 })
