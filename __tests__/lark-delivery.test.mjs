@@ -69,6 +69,14 @@ describe('任务的人话出口', () => {
       assert.deepEqual(blockedAskMentions({ task: { operator: 'ou_be' }, config, blockers: ['x'] }), [{ name: '后端', openId: 'ou_be', items: ['x'] }], '发起人在 ownerMap 里带名字')
       assert.deepEqual(blockedAskMentions({ task: { operator: 'ou_aven' }, config, blockers: ['x'] }), [])
       assert.deepEqual(blockedAskMentions({ task: { operator: 'oc_g' }, config: {}, blockers: ['x'] }), [])
+      // 上下文里说过话的人（task.contextPeople，11-05 b3 ep-1027-5e6172：Figma 走查卡在「请 Ace 说明」，Ace 不在 ownerMap、提单人是负责人本人）：
+      // 待补充里点名（大小写一致）就 @；内部名单 / 负责人本人不 @；和 ownerMap 撞同一个 open_id 只 @ 一次；没对上的责任人（设计）没 open_id 不 @
+      const ctxTask = { operator: 'ou_aven', outcome: { owner: '设计' }, contextPeople: { Ace: 'ou_ace', ace: 'ou_lower', 前端小李: 'ou_li', William: 'ou_w', Boss: 'ou_aven', Max: 'ou_max' } }
+      const ctxBlockers = ['02 没说明：请 Ace 说明要对齐哪个节点', '05 / 06 部署后请 William、Boss 复测', '前端小李 看下 max-width']
+      assert.deepEqual(blockedAskMentions({ task: ctxTask, config, blockers: ctxBlockers }), [{ name: 'William', openId: 'ou_w', items: ctxBlockers }, { name: 'Ace', openId: 'ou_ace', items: ctxBlockers }])
+      assert.deepEqual(blockedAskMentions({ task: { ...ctxTask, contextPeople: { Ace: 'ou_ace' } }, config, blockers: ['没点名谁'] }), [], '上下文里的人没被点名、提单人是负责人 → 没人可 @')
+      assert.equal(nameIn('看下 max-width', 'Max', { caseSensitive: true }), false)
+      assert.equal(nameIn('请 Max 看', 'Max', { caseSensitive: true }), true)
       assert.deepEqual(externalBlockers(['要接口示例', '负责人确认归属', '读不到 Lark 文档', 'lark-cli 没授权', '找前端小李要', '要 Aven 看'], { config }), ['要接口示例'])
       assert.deepEqual(externalBlockers(['找前端小李要'], { config: {} }), ['找前端小李要'], '没配内部名单只过固定词')
       assert.equal(nameIn('要 William 给', 'william'), true)

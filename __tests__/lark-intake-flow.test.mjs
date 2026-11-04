@@ -23,7 +23,7 @@ process.env.LARK_RUNTIME_DIR = runtime
 const { ACK_SWEEP_EVERY_MS, DEFAULT_ACK_TIMEOUT_MS, appendSuspectedSupplement, deliverFollowUpReply, flushPendingAck, holdsSuspectedForPrincipal, intakeTiming, isCompleteMessage, isUnfinishedMessage, markAckPending, mergeThreadSupplement, pickAwaitingRestTarget, pickSupplementTarget, resolveIntakeLane, resolveIntakeNotBefore, sweepPendingAcks } = await import('../lib/lark-intake-ack.mjs')
 const { DEFAULT_PRINCIPAL_REPLY_WINDOW_MS, anchorHead, buildPrincipalInstructionTask, classifyPrincipalReply, decidePrincipalAction, findHeldDraftTask, isBareGoAhead, isDeployNotice, isFreshInFlight, isReleaseHeldReply, isShortDeictic, latestDmReceipt, maybeHandlePrincipalChannel, resolvePrincipalAnchor } = await import('../lib/lark-principal-channel.mjs')
 const { ANSWERED_BEFORE_ACK_REPLY, NUDGE_RUNNING_ACK_REPLY, RERUN_ACK_REPLY, compatibleContinuation, handleIntakeResolution, mergeableTarget, resolveMergeTarget } = await import('../lib/lark-routes-intake.mjs')
-const { buildConversationBundle } = await import('../lib/lark-conversation-bundle.mjs')
+const { buildConversationBundle, pickContextPeople } = await import('../lib/lark-conversation-bundle.mjs')
 const { ingestLarkEvent } = await import('../lib/lark-ingest.mjs')
 const { handleBotAddedEvent, parseBotAddedEvent } = await import('../lib/lark-project-chat-sync.mjs')
 const { defaultRemindAfterMs, defaultRemindRounds, isNeverNagged, remindParkedTasks } = await import('../lib/lark-parked-reminder.mjs')
@@ -1063,7 +1063,7 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       const msg = (extra = {}) => ({ messageId: 'om_m', chatId: 'oc_g', senderOpenId: 'ou_qa', text: '登录页报错', mentions: [], attachments: [], ...extra })
       const bundle = (extra, project = null) => buildConversationBundle({ msg: msg(extra), config, store, project, deps })
       const bare = await bundle()
-      assert.deepEqual(bare, { text: '登录页报错', attachments: [], threadSpeakers: [], answering: null, conversation: { anchor: null, activity: { outbox: [], tasks: [] }, candidates: [] }, refText: null, quotedOwnCard: false, quotedTaskId: null })
+      assert.deepEqual(bare, { text: '登录页报错', attachments: [], threadSpeakers: [], contextPeople: {}, answering: null, conversation: { anchor: null, activity: { outbox: [], tasks: [] }, candidates: [] }, refText: null, quotedOwnCard: false, quotedTaskId: null })
       assert.deepEqual(calls, [['download', { project: 'PR-01947', messageId: 'om_m', attachments: [] }]])
       store.upsert({ id: 'om_bot', status: 'done', chatId: 'oc_g', epoch: 1, createdAt: iso(Date.now()) })
       store.recordReceipt('om_bot', { messageId: 'om_rcpt', kind: 'done', epoch: 0, chatId: 'oc_g' }) // 换代前的回执：只有忽略代次的反查能命中
@@ -1085,6 +1085,12 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
         { type: 'image', imageKey: 'rec_img', origin: '群里之前的消息 · 小王 17:00', localPath: '/x' },
       ])
       assert.deepEqual([full.threadSpeakers, full.refText, full.quotedOwnCard, full.answering], [['ou_l'], '被引用的原话', true, null])
+      // 上下文里说过话的人：最近消息 → 话题 → 被引用，后出现的排后；没名字 / 没 open_id 的不算
+      assert.deepEqual(Object.entries(full.contextPeople), [['我', 'ou_qa'], ['小李', 'ou_l'], ['小王', 'ou_w']])
+      assert.deepEqual(pickContextPeople({ items: [
+        { sender: ' 负责人 ', senderOpenId: 'ou_aven' }, { sender: 'Bot', senderOpenId: 'ou_x', bot: true }, { sender: '群', senderOpenId: 'oc_g' }, { sender: '', senderOpenId: 'ou_e' },
+        { sender: 'A', senderOpenId: 'ou_a' }, { sender: 'B', senderOpenId: 'ou_b' }, null, { sender: ' C ', senderOpenId: 'ou_c' }, { sender: 'A', senderOpenId: 'ou_a2' },
+      ], exclude: ['ou_aven', null], limit: 2 }), { C: 'ou_c', A: 'ou_a2' })
       assert.deepEqual(calls.slice(0, 3), [['ref', 'om_rcpt'], ['thread', 'om_rcpt', { excludeIds: ['om_m', 'om_rcpt'], botOpenIds: ['ou_bot', 'cli_x'] }], ['recent', { chatId: 'oc_g', beforeMs: 1_700_000_000_000, excludeIds: ['om_m', 'om_rcpt', 'om_t1', 'om_t2'], botOpenIds: ['ou_bot', 'cli_x'] }]])
       assert.deepEqual(calls.slice(3).map(([, args]) => [args.project, args.messageId, args.attachments.map((a) => a.imageKey)]), [['PR-X', 'om_m', ['own_img']], ['PR-X', 'om_rcpt', ['ref_img']], ['PR-X', 'om_t1', ['thr_img']], ['PR-X', 'om_r1', ['rec_img']]])
       // 单独 @bot、本条没文档：带上同一人紧接着发的那份文档；本条自带文档就不带

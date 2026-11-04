@@ -94,7 +94,7 @@ describe('摄入链路 / 上下文包 / 入群事件（真 store + 假 lark-cli�
       assert.ok(Date.parse(task.intake.notBefore) - Date.parse(task.intake.receivedAt) < 5_000, '快道不等')
       assert.ok(task.ackPending?.at && task.ackPending?.deadline, '挂起「收到」')
       assert.deepEqual(task.conversation, { anchor: null, activity: { outbox: [], tasks: [] }, candidates: [] })
-      assert.equal('threadSpeakers' in task, false)
+      assert.deepEqual(['threadSpeakers' in task, 'contextPeople' in task], [false, false])
       // 幂等：同一条再投一次不动
       const before = JSON.stringify(task)
       await ingestLarkEvent({ raw: event, config, store })
@@ -189,6 +189,7 @@ describe('摄入链路 / 上下文包 / 入群事件（真 store + 假 lark-cli�
       await ingestLarkEvent({ raw: empty, config, store })
       const quoted = store.get(empty.message_id)
       assert.deepEqual([quoted.text, quoted.summary, quoted.quotedOwnCard, quoted.intake.anchorTaskId], ['【被引用消息】（K 11-01 09:00）\n原话\n\n【本条 @】（无附言）', '原话', false, null])
+      assert.deepEqual(quoted.contextPeople, { K: 'ou_k' }, '上下文里说过话的人记在任务上（blocked 要材料时能 @ 到，11-05）')
       // 光一条「@bot」（没正文 / 附件 / 引用）：群里照样建任务进分类（11-03 falive 回放 10-26 被丢了两条）；私信空消息仍丢
       const bare = atBot('')
       await ingestLarkEvent({ raw: bare, config, store })
