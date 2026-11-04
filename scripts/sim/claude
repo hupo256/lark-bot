@@ -1,3 +1,4 @@
 #!/bin/sh
-# 回放用 claude 包装壳：LARK_CLAUDE_BIN 指到这里（scripts/sim/run-sim.mjs 设置）；只读调用按规范化后的输入缓存，其余直通真 claude（见 claude-cache.mjs）。
+# 回放用 claude 录放壳（见 claude-cache.mjs）：run-sim --ai-cache 把 LARK_CLAUDE_BIN 指到这里、SIM_REAL_CLAUDE 指到额度闸 claude-q。
+# 只读调用输入一样就放；改代码的调用还要业务仓状态一致；未命中经额度闸真调，成功才录。
 exec node "$(dirname "$0")/claude-cache.mjs" "$@"
