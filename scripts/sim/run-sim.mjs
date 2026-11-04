@@ -12,7 +12,7 @@
  * 产物：runtime/falive-replay/sim/<sim>/ 下 outbox.jsonl（bot 发了什么）、runtime/（任务 / 审计 / 发件簿 / 义务）、gateway.log / worker.log、events.ndjson。
  * claude 调用缓存（§6 改法 2）：LARK_CLAUDE_BIN 指到 scripts/sim/claude（claude-cache.mjs），只读调用（分类 / 分诊 / 分析 / 代答 / 实测）
  *   按规范化后的完整输入复用上次输出，可写调用与续会话直通；每次调用记 SIM_DIR/ai-cache.log，收尾在 sim.log 打本次 hit / miss / bypass 计数。
- * 基线代码：按窗口起点把 falive-react 的 feature/phase-6-ol 钉到当时的提交（主仓建分支 sim-base-<日期>；每个 sim 一份 clone --shared，origin = 主仓）。
+ * 基线代码：按窗口起点把 falive-react 当时用的基线分支（faliveBranchAt）钉到当时的提交（主仓建分支 sim-base-<日期>；每个 sim 一份 clone --shared，origin = 主仓）。
  */
 import { spawn, spawnSync } from 'node:child_process'
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
@@ -42,7 +42,15 @@ const tailToMs = value('--tail-to', null) ? Date.parse(value('--tail-to', null))
 const tailMs = Number(value('--tail-hours', 5)) * 3600_000
 const BOT_OPEN_ID = 'ou_e331d79d4491e64b7bba89bb4e3b5e43'
 const FALIVE_REPO = join(homedir(), 'github', 'falive-react')
-const FALIVE_BRANCH = 'feature/phase-6-ol'
+// 业务仓基线分支按时间取 falive 当时实际用的（11-04 p0h 校准发现：原来一律 phase-6-ol，10-30 之前的组 bot 看到的业务代码不是当时那版）。
+// 时间点取自 falive 网关每次启动打印的「repo falive: … base=<分支>」（~/Library/Logs/falive-lark/gateway.log）；phase-4-page 本地分支已删，用 origin 上的。
+const FALIVE_BRANCHES = [
+  [Date.parse('2026-10-30T19:35:46Z'), 'feature/phase-6-ol'],
+  [Date.parse('2026-10-26T06:40:50Z'), 'feature/phase-5-test'],
+  [Date.parse('2026-10-21T12:33:22Z'), 'feature/phase-4-api'],
+  [0, 'origin/feature/phase-4-page'],
+]
+const faliveBranchAt = (ms) => FALIVE_BRANCHES.find(([since]) => ms >= since)[1]
 
 const simDir = join(replayRoot, 'sim', simName)
 const runtimeDir = join(simDir, 'runtime')
@@ -82,6 +90,7 @@ log(`窗口 ${new Date(fromMs).toISOString()} → ${new Date(toMs).toISOString()
 
 // —— 业务仓基线：钉到窗口起点当时的提交 ——
 const git = (cmd, cwd = FALIVE_REPO) => spawnSync('git', cmd, { cwd, encoding: 'utf8' })
+const FALIVE_BRANCH = faliveBranchAt(fromMs)
 const baseSha = git(['rev-list', '-1', `--before=${new Date(fromMs).toISOString()}`, FALIVE_BRANCH]).stdout.trim()
 if (!baseSha) throw new Error(`falive-react 在 ${new Date(fromMs).toISOString()} 之前没有 ${FALIVE_BRANCH} 提交`)
 // 分支名带提交号：按组跑时同一天不同组的窗口起点不同、基线提交可能不同，只按日期命名会被并行的组互相 -f 改掉（拿到别组的「未来」提交）
