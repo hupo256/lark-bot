@@ -815,8 +815,12 @@ describe('parseCommandType', () => {
   })
 
   it('结单疑问句不自动关闭；暂停是独立控制动作；在问问题', () => {
-    for (const text of ['是不是已经解决了？', '这个不用做了吗？', '修复了没', '完成没', '已上线了吗', '还没有取消']) {
+    for (const text of ['是不是已经解决了？', '这个不用做了吗？', '修复了没', '完成没', '已上线了吗', '还没有取消', '处理好了吗', '搞定了？', '有没有处理', '取消了吗', '处理完了没有']) {
       assert.equal(classifyClosureIntent(text).intent, 'unclear', text)
+    }
+    // 问号 / 是不是 和完成类词不挨着的不是在问做完没（b4 ep-1019-57332a 4fa8af7e：新需求被发了「已在别处完成」结单确认）
+    for (const text of ['确认下，如果预期要 图片，但 api 没有给合法的图片，现在 前端 是不是给个 默认的图，如果没有，给这样处理 @Aven.Bot', '这个怎么处理？', '上线后会不会有问题？', '解决方案是什么？']) {
+      assert.equal(classifyClosureIntent(text).intent, null, text)
     }
     assert.equal(classifyPauseIntent('先暂停一下'), true)
     assert.equal(classifyPauseIntent('不用继续做了'), false)
