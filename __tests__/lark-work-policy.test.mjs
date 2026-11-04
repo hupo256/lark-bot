@@ -149,6 +149,8 @@ describe('classifyBlocker', () => {
     assert.equal(classifyBlocker('订单详情接口字段尚未确定，后端未提供 schema'), BLOCKER_CLASSES.soft)
     assert.equal(classifyBlocker('空态有两种实现方案，需要产品确认用哪个'), BLOCKER_CLASSES.decision)
     assert.equal(classifyBlocker('当前项目缺少 G2、README 和技术方案，当前不能依规进入实施'), BLOCKER_CLASSES.process)
+    // 分析查重（11-04 b3 ep-1031-35935b）：别的分支已做了同一件事 → 停下来问合入哪份，不按假设硬做（哪怕顺带说了后端接口未上线 / 待产品确认）
+    assert.equal(classifyBlocker('重复实现：origin/codex/task-center-core 的 b18e318f（Justin）已做了完善资料申报，后端接口未上线，请确认合入它还是仍要我做'), BLOCKER_CLASSES.hard)
   })
 
   it('读不懂的 blocker 按 hard 处理（fail-closed，而非旧实现的默认放行）', () => {

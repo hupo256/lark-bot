@@ -8,7 +8,7 @@ import { describe, it } from 'node:test'
 import { attributeMessages, latencyClose, matchTextLines, routeState } from '../scripts/sim/calibration-fidelity.mjs'
 import { normalizeRouting, routingLines } from '../scripts/sim/falive-calibration.mjs'
 import { ownRootsToKeep, privateOnlyAt, privateOnlyEvidence, sweepForSim, taskStubsFromAudits } from '../scripts/sim/falive-restore.mjs'
-import { replayMemoryEvents } from '../scripts/sim/memory-asof.mjs'
+import { keepParagraphsAsOf, replayMemoryEvents } from '../scripts/sim/memory-asof.mjs'
 import { parseCodeStarts, pickConfigBackup, runningCodeAt } from '../scripts/sim/falive-code-pin.mjs'
 import { runSteps } from './support/steps.mjs'
 
@@ -124,6 +124,12 @@ describe('falive 校准：代码 / 配置钉版与路由比对', () => {
       assert.deepEqual(replayMemoryEvents(ev, 3), { known: true, content: 'a=2\n' })
       assert.equal(replayMemoryEvents(ev, 6).known, false)
       assert.deepEqual(replayMemoryEvents(ev, 8), { known: true, content: 'a=3\n' })
+      // 按段落日期近似（lark-bot 回放的测试号知识，11-04）：段里最晚的日期晚于窗口那天就去掉；没日期的留；年份可写可不写
+      const memo = '508（2026-10-15 注册）\n10-16 起用 hichat\n\n19710（10-29 注册）\n\n没日期的说明\n\n生产 484（aven 10-30 给）\n\n10-31 更正：uat 能建号'
+      assert.equal(keepParagraphsAsOf(memo, Date.parse('2026-10-21T08:00:00Z')), '508（2026-10-15 注册）\n10-16 起用 hichat\n\n没日期的说明')
+      assert.equal(keepParagraphsAsOf(memo, Date.parse('2026-10-30T00:00:00Z')), '508（2026-10-15 注册）\n10-16 起用 hichat\n\n19710（10-29 注册）\n\n没日期的说明\n\n生产 484（aven 10-30 给）', '窗口当天写的算')
+      assert.equal(keepParagraphsAsOf('手机 +86 9000887951 / v1.10-3 版本', Date.parse('2026-10-01T00:00:00Z')), '手机 +86 9000887951 / v1.10-3 版本', '号码 / 版本号里的数字不当日期')
+      assert.equal(keepParagraphsAsOf(null, 0), '')
       assert.equal(replayMemoryEvents(ev, 10).known, false)
       assert.equal(replayMemoryEvents([], 10).known, false)
     }],

@@ -46,7 +46,17 @@ describe('runAI：所有执行器在会改代码的任务上先跑只读分析',
     })
   }
 
-  it('配了页面验证工具（localConfig.verify）：实施提示带「自己验证」规则；只读单趟不带规则但视觉口径按页面工具说（从 falive 移植 11-01）', async () => {
+  it('改码单「收到」里答应的事带环境地址；配了页面验证工具（localConfig.verify）：实施提示带「自己验证」规则；只读单趟不带规则但视觉口径按页面工具说（从 falive 移植 11-01）', async () => {
+    {
+      // 改码单发过「收到」：实施提示里答应的只读事带环境地址（11-04 b3 ep-1031-35935b：原先没传 envSites，成了「本仓没配环境地址」）；没发过不带
+      const { exec, calls } = mockExec()
+      await runAI({ localConfig: { envSites: { pre: 'https://falivepre.fdsser.com' } } }, bugTask('claude', { ackReply: '评论积分我再去 pre 复测下' }), workContext(), null, undefined, { exec, snapshot: stableSnapshot })
+      assert.match(calls[1].promptText, /群里已先回了一句：「评论积分我再去 pre 复测下」。.*本轮一并做（打 pre https:\/\/falivepre\.fdsser\.com，只发 GET/)
+      assert.doesNotMatch(calls[1].promptText, /本仓没配环境地址/)
+      calls.length = 0
+      await runAI({ localConfig: { envSites: { pre: 'https://falivepre.fdsser.com' } } }, bugTask('claude'), workContext(), null, undefined, { exec, snapshot: stableSnapshot })
+      assert.doesNotMatch(calls[1].promptText, /群里已先回了一句/)
+    }
     const verify = { localDev: ['pnpm', 'dev'], compareBase: 'https://test.example.com' }
     const { exec, calls } = mockExec()
     await runAI({ localConfig: { verify } }, bugTask('claude'), workContext(), null, undefined, { exec, snapshot: stableSnapshot })

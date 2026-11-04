@@ -20,7 +20,7 @@ chmodSync(cliBin, 0o755)
 process.env.LARK_CLI_BIN = cliBin
 process.env.LARK_RUNTIME_DIR = runtime
 
-const { ACK_SWEEP_EVERY_MS, DEFAULT_ACK_TIMEOUT_MS, appendSuspectedSupplement, deliverFollowUpReply, flushPendingAck, holdsSuspectedForPrincipal, intakeTiming, isCompleteMessage, markAckPending, mergeThreadSupplement, pickSupplementTarget, resolveIntakeLane, resolveIntakeNotBefore, sweepPendingAcks } = await import('../lib/lark-intake-ack.mjs')
+const { ACK_SWEEP_EVERY_MS, DEFAULT_ACK_TIMEOUT_MS, appendSuspectedSupplement, deliverFollowUpReply, flushPendingAck, holdsSuspectedForPrincipal, intakeTiming, isCompleteMessage, isUnfinishedMessage, markAckPending, mergeThreadSupplement, pickAwaitingRestTarget, pickSupplementTarget, resolveIntakeLane, resolveIntakeNotBefore, sweepPendingAcks } = await import('../lib/lark-intake-ack.mjs')
 const { DEFAULT_PRINCIPAL_REPLY_WINDOW_MS, anchorHead, buildPrincipalInstructionTask, classifyPrincipalReply, decidePrincipalAction, findHeldDraftTask, isBareGoAhead, isDeployNotice, isFreshInFlight, isReleaseHeldReply, isShortDeictic, latestDmReceipt, maybeHandlePrincipalChannel, resolvePrincipalAnchor } = await import('../lib/lark-principal-channel.mjs')
 const { ANSWERED_BEFORE_ACK_REPLY, NUDGE_RUNNING_ACK_REPLY, RERUN_ACK_REPLY, compatibleContinuation, handleIntakeResolution, mergeableTarget, resolveMergeTarget } = await import('../lib/lark-routes-intake.mjs')
 const { buildConversationBundle } = await import('../lib/lark-conversation-bundle.mjs')
@@ -58,7 +58,7 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
   let logs
   let errors
   it('ingest / conversation-bundle / intake-ack / principal-channel / routes-intake / project-chat-sync / parked-reminder / daily-digest', () => runSteps([
-    ['intake-ack 纯函数：默认超时、分道、完整件、notBefore', () => {
+    ['intake-ack 纯函数：默认超时、分道、完整件、notBefore', async () => {
       assert.equal(DEFAULT_ACK_TIMEOUT_MS, 45_000)
       assert.equal(ACK_SWEEP_EVERY_MS, 15_000)
       assert.deepEqual(intakeTiming(undefined), { fastLaneMs: 0, quietGapMs: 60_000, maxWaitMs: 180_000 })
@@ -72,6 +72,29 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       assert.equal(resolveIntakeNotBefore({ lane: 'slow', now, intake, firstReceivedAt: iso(now - 170_000) }), iso(now + 10_000), '最多等到首条 + maxWait')
       assert.equal(resolveIntakeNotBefore({ lane: 'slow', now, intake }), iso(now + 60_000), '没有首条时刻按现在算')
       assert.equal(resolveIntakeNotBefore({ lane: 'slow', now, intake, firstReceivedAt: iso(now - 400_000) }), iso(now), '超过最长等待也不早于现在')
+      // 11-04 b3 ep-1031-f8065f：话没说完（逗号收尾）快道也等安静期；完整件同样要等后半句
+      assert.equal(resolveIntakeNotBefore({ lane: 'fast', unfinished: true, now, intake, firstReceivedAt: iso(now) }), iso(now + 60_000))
+      assert.equal(resolveIntakeNotBefore({ lane: 'slow', complete: true, unfinished: true, now, intake, firstReceivedAt: iso(now) }), iso(now + 60_000))
+      assert.equal(resolveIntakeNotBefore({ lane: 'fast', unfinished: false, now, intake }), iso(now + 1000))
+      await eachCase([
+        { name: '逗号收尾（b3 原样）', msg: { text: '如果不方便补信息,' }, want: true },
+        { name: '全角逗号 / 顿号 / 冒号 / 分号 / 省略号', msg: { text: '还有一点，' }, want: true },
+        { name: '顿号', msg: { text: '头像、' }, want: true },
+        { name: '冒号', msg: { text: '接口是：' }, want: true },
+        { name: '分号', msg: { text: '先这样；' }, want: true },
+        { name: '三个点', msg: { text: '我看下...' }, want: true },
+        { name: '省略号', msg: { text: '然后…' }, want: true },
+        { name: '句号收尾', msg: { text: '如果不方便补信息，请给 Adrian 打电话。' }, want: false },
+        { name: '没标点', msg: { text: '请接入一下' }, want: false },
+        { name: '末尾 @bot 剥掉再看', msg: { text: '还有，@Aven.Bot', mentions: [{ name: 'Aven.Bot' }] }, want: true },
+        { name: 'html 标签剥掉再看', msg: { text: '<p>如果不方便，</p>' }, want: true },
+        { name: '带附件不等', msg: { text: '看图，', attachments: [{ type: 'image' }] }, want: false },
+        { name: '长的不等', msg: { text: `${'x'.repeat(199)},` }, want: false },
+        { name: '差一个字到上限还等', msg: { text: `${'x'.repeat(198)},` }, want: true },
+        { name: '只有标点', msg: { text: '，' }, want: true },
+        { name: '空', msg: { text: '  ' }, want: false },
+        { name: '没 msg', msg: null, want: false },
+      ], ({ msg, want }) => assert.equal(isUnfinishedMessage({ msg }), want))
       return eachCase([
         { name: '文档附件 + 短正文 → 完整', input: { msg: { text: '短', attachments: [{ type: 'file', fileName: 'prd.md' }] } }, want: true },
         { name: '图片不算文档', input: { msg: { text: '短', attachments: [{ type: 'image', imageKey: 'img' }] } }, want: false },
@@ -188,8 +211,36 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
         { name: '话题根已了结但话题里有未分类的兄弟 → 兄弟', tasks: [t('om_root', { status: 'done' }), t('om_sib', { threadRootId: 'om_root' })], msg: { ...plain, threadRootId: 'om_root' }, want: 'om_sib' },
         { name: '话题里没有 → null（不回落到同人连发）', tasks: [t('om_a')], msg: { ...plain, threadRootId: 'om_root' }, want: null },
         { name: '话题根本身还没分类 → 话题根', tasks: [t('om_root')], msg: { ...plain, threadRootId: 'om_root' }, want: 'om_root' },
+        // 等后半句的半句只收同一人的（11-04 b3：Arthur 在同话题里的答复不能并进 aven 的半句）
+        { name: '话题里等后半句的：别人的不并', tasks: [t('om_half', { threadRootId: 'om_root', operator: 'ou_aven', intake: { required: true, awaitingRest: true, receivedAt: iso(now - 10_000) } })], msg: { ...plain, threadRootId: 'om_root' }, want: null },
+        { name: '话题里等后半句的：同一人的并', tasks: [t('om_half', { threadRootId: 'om_root', intake: { required: true, awaitingRest: true, receivedAt: iso(now - 10_000) } })], msg: { ...plain, threadRootId: 'om_root' }, want: 'om_half' },
+        { name: '不在等后半句的：话题里别人的照旧并', tasks: [t('om_sib', { threadRootId: 'om_root', operator: 'ou_aven' })], msg: { ...plain, threadRootId: 'om_root' }, want: 'om_sib' },
       ], ({ tasks, msg = plain, want }) => {
         const found = pickSupplementTarget({ msg, store: memStore(tasks), now, quietGapMs: gap })
+        assert.equal(found, want === null ? null : tasks.find((task) => task.id === want))
+      })
+    }],
+    ['pickAwaitingRestTarget：同一人刚发的半句（同群、同话题或回复那半句、最长等待期内、还没分类）', () => {
+      const now = Date.parse('2026-11-01T10:00:00.000Z')
+      const half = (id, extra = {}, intakeExtra = {}) => ({ id, status: 'received', chatId: 'oc_g', operator: 'ou_aven', threadRootId: 'om_card', intake: { required: true, awaitingRest: true, receivedAt: iso(now - 30_000), ...intakeExtra }, createdAt: iso(now - 30_000), ...extra })
+      const rest = { messageId: 'om_rest', chatId: 'oc_g', senderOpenId: 'ou_aven', replyTo: 'om_card' }
+      return eachCase([
+        { name: '同话题后半句（b3 原样）', tasks: [half('om_half')], want: 'om_half' },
+        { name: '话题根写在 threadRootId', tasks: [half('om_half')], msg: { ...rest, replyTo: 'om_x', threadRootId: 'om_card' }, want: 'om_half' },
+        { name: '直接回复那半句', tasks: [half('om_half', { threadRootId: null })], msg: { ...rest, replyTo: 'om_half' }, want: 'om_half' },
+        { name: '主楼连发（都没话题）', tasks: [half('om_half', { threadRootId: null })], msg: { ...rest, replyTo: undefined }, want: 'om_half' },
+        { name: '另一个话题不并', tasks: [half('om_half', { threadRootId: 'om_other' })], want: null },
+        { name: '别人的不并', tasks: [half('om_half', { operator: 'ou_arthur' })], want: null },
+        { name: '别的群不并', tasks: [half('om_half', { chatId: 'oc_x' })], want: null },
+        { name: '不在等后半句的不并', tasks: [half('om_half', {}, { awaitingRest: false })], want: null },
+        { name: '已分类的不并', tasks: [half('om_half', {}, { required: false })], want: null },
+        { name: '在跑的不并', tasks: [half('om_half', { status: 'running' })], want: null },
+        { name: '本条自己不并', tasks: [half('om_rest')], want: null },
+        { name: '超过最长等待不并', tasks: [half('om_half', {}, { receivedAt: iso(now - 180_000) })], want: null },
+        { name: '差一点到最长等待还并', tasks: [half('om_half', {}, { receivedAt: iso(now - 179_999) })], want: 'om_half' },
+        { name: '没收到时刻用建任务时刻', tasks: [half('om_half', { createdAt: iso(now - 10_000) }, { receivedAt: undefined })], want: 'om_half' },
+      ], ({ tasks, msg = rest, want }) => {
+        const found = pickAwaitingRestTarget({ msg, store: memStore(tasks), now })
         assert.equal(found, want === null ? null : tasks.find((task) => task.id === want))
       })
     }],
@@ -226,6 +277,15 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       const classifying = store.upsert({ id: 'om_t4', status: 'running', chatId: 'oc_far', operator: 'ou_other', text: 'far4', claimedAt: iso(now), intake: { required: true, lane: 'fast', receivedAt: iso(now) }, createdAt: iso(now) })
       assert.equal(await mergeThreadSupplement({ msg: msg({ messageId: 'om_m5', chatId: 'oc_far', senderOpenId: 'ou_zz', text: '补一句：Safari 也复现' }), config, store, target: classifying, download }), true)
       assert.deepEqual([classifying.status, classifying.intake.required, classifying.intake.reclassify, /【话题补充 \d{2}:\d{2}】补一句：Safari 也复现$/.test(classifying.text)], ['running', true, true, true])
+      // 等后半句的（11-04 b3）：后半句到了不再等；后半句自己又没说完的接着等；不在等的目标并进没说完的补充照旧按道算
+      const half = store.upsert({ id: 'om_half', status: 'received', chatId: 'oc_h', operator: 'ou_aven', text: '如果不方便补信息,', addressedToBot: true, intake: { required: true, lane: 'fast', awaitingRest: true, receivedAt: iso(now) }, createdAt: iso(now) })
+      assert.equal(await mergeThreadSupplement({ msg: msg({ messageId: 'om_h1', chatId: 'oc_h', senderOpenId: 'ou_aven', text: '还有，' }), config, store, addressedToBot: true, target: half, download }), true)
+      assert.deepEqual([half.intake.awaitingRest, Date.parse(half.intake.notBefore) - now >= 59_000], [true, true], '后半句又没说完：接着等')
+      assert.equal(await mergeThreadSupplement({ msg: msg({ messageId: 'om_h2', chatId: 'oc_h', senderOpenId: 'ou_aven', text: '请给 Adrian 打个电话' }), config, store, addressedToBot: true, target: half, download }), true)
+      assert.deepEqual([half.intake.awaitingRest, Date.parse(half.intake.notBefore) - now < 5_000], [false, true], '说完了：马上分类')
+      const done = store.upsert({ id: 'om_full', status: 'received', chatId: 'oc_h', operator: 'ou_aven', text: '请接入', addressedToBot: true, intake: { required: true, lane: 'fast', receivedAt: iso(now) }, createdAt: iso(now) })
+      assert.equal(await mergeThreadSupplement({ msg: msg({ messageId: 'om_h3', chatId: 'oc_h', senderOpenId: 'ou_aven', text: '另外，' }), config, store, addressedToBot: true, target: done, download }), true)
+      assert.deepEqual([done.intake.awaitingRest, Date.parse(done.intake.notBefore) - now < 5_000], [undefined, true], '不在等的目标：快道照旧不等')
       await eachCase([
         { name: '疑似 + 挂起 + 不是负责人 → 扣住', task: { suspected: true, status: 'waiting_confirmation' }, operator: 'ou_qa', want: true },
         { name: '已不挂起', task: { suspected: true, status: 'done' }, operator: 'ou_qa', want: false },
@@ -925,7 +985,9 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       await eachCase([
         { name: '没 @、reply null → 静默', t: toOthers(), want: ['notePerson', 'flushPendingAck'] },
         { name: '没 @、reply null、「收到」已发 → 私信一句', t: toOthers({ ackedInGroup: true }), want: ['notePerson', 'flushPendingAck', 'deliverIgnoredAfterAck'] },
-        { name: '没 @、有 reply → 照旧回', t: toOthers({}, cls({ decision: 'ignore', reply: '记下了' })), want: ['notePerson', 'flushPendingAck', 'deliverNoted'] },
+        // 11-04 b3 ep-1031-f8065f：没 @ 的半句「如果不方便补信息,」判 ignore 写了「这句好像没发完…」也不回
+        { name: '没 @、有 reply → 也不回', t: toOthers({}, cls({ decision: 'ignore', reply: '这句好像没发完' })), want: ['notePerson', 'flushPendingAck'] },
+        { name: '没 @、有 reply、已回过固定句 → 私信负责人', t: toOthers({ ackedInGroup: true }, cls({ decision: 'ignore', reply: '记下了' })), want: ['notePerson', 'flushPendingAck', 'deliverIgnoredAfterAck'] },
         { name: '@ 了 bot、reply null → 照旧回', t: task({ status: 'ignored', fromPrincipal: true, intake: { trigger: 'bot_reply', mentionedBot: true, classification: cls({ decision: 'ignore', reply: null }) } }, cls({ decision: 'ignore', reply: null })), want: ['notePerson', 'flushPendingAck', 'deliverNoted'] },
       ], async ({ t, want }) => {
         assert.deepEqual(await run({ ok: true, task: t }), body({ ignored: true }))

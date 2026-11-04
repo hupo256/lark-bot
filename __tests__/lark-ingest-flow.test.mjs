@@ -150,7 +150,7 @@ describe('摄入链路 / 上下文包 / 入群事件（真 store + 假 lark-cli�
       for (const event of supplements) await ingestLarkEvent({ raw: event, config, store })
       const target = store.get(first.message_id)
       assert.ok(supplements.every((event) => !store.has(event.message_id)), '补充不建新任务')
-      assert.match(target.text, /^登录页白屏\n\n【话题补充 \d\d:\d\d】补充：Chrome 也是\n\n【话题补充 \d\d:\d\d】你也看下\n\n【话题补充 \d\d:\d\d】再补一句$/)
+      assert.match(target.text, /^登录页白屏\n\n【话题补充 \d\d:\d\d】补充：Chrome 也是\n\n【话题补充 \d\d:\d\d】你也看下（@ 的是 aven，没 @ 机器人）\n\n【话题补充 \d\d:\d\d】再补一句$/)
       assert.deepEqual([target.addressedToBot, target.intake.lane], [true, 'fast'])
       // 11-02 之前落下的「只 @ 负责人」任务（addressedToBot=false、慢道）：同一人紧接着 @bot → 升级
       const now = new Date().toISOString()
@@ -240,6 +240,41 @@ describe('摄入链路 / 上下文包 / 入群事件（真 store + 假 lark-cli�
       const cc = raw({ text: 'cc @Kaiser', mentions: [KAISER], reply_to: 'om_ack_fresh2', root_id: 'om_fresh2', sender: 'ou_qg' })
       await ingestLarkEvent({ raw: cc, config, store })
       assert.deepEqual([store.has(cc.message_id), store.get('om_fresh2').text], [false, '支付页'])
+    })],
+    ['话没说完（11-04 b3 ep-1031-f8065f）：回 bot 卡的半句「…,」等安静期、「收到」兜底顺延；同一人的后半句（哪怕只 @ 了别的同事）并进来、马上分类；别人在同话题的话不并', () => quiet(async () => {
+      const ADRIAN = { id: 'ou_adrian', key: '@_user_4', name: 'Adrian' }
+      store.upsert({ id: 'om_doneh', source: 'lark', chatId: 'oc_g', messageId: 'om_doneh', operator: 'ou_qa', status: 'done', epoch: 0, summary: '完善资料', text: '完善资料', createdAt: '2026-11-01T00:00:00Z' })
+      store.recordReceipt('om_doneh', { messageId: 'om_cardh', kind: 'done', epoch: 0, chatId: 'oc_g' })
+      const half = raw({ text: '如果不方便补信息,', reply_to: 'om_cardh', root_id: 'om_cardh', sender: 'ou_aven' })
+      await ingestLarkEvent({ raw: half, config, store })
+      const task = store.get(half.message_id)
+      const wait = Date.parse(task.intake.notBefore) - Date.parse(task.intake.receivedAt)
+      assert.deepEqual([task.intake.trigger, task.intake.lane, task.intake.awaitingRest, wait >= 59_000 && wait <= 61_000], ['bot_reply', 'fast', true, true], '快道也等安静期')
+      const ackWait = Date.parse(task.ackPending.deadline) - Date.parse(task.ackPending.at)
+      assert.ok(ackWait >= 100_000 && ackWait <= 106_000, `「收到」兜底从开始分类算起（${ackWait}）`)
+      const other = raw({ text: '调用 updateInfo 成功一项就直接调用完成', reply_to: 'om_cardh', root_id: 'om_cardh', sender: 'ou_arthur' })
+      await ingestLarkEvent({ raw: other, config, store })
+      assert.equal(store.get(other.message_id)?.status, 'received', '别人的另起一条')
+      assert.doesNotMatch(store.get(half.message_id).text, /updateInfo/)
+      const rest = raw({ text: '如果不方便补信息，请给 @Adrian 打个电话', mentions: [ADRIAN], reply_to: 'om_cardh', root_id: 'om_cardh', sender: 'ou_aven' })
+      await ingestLarkEvent({ raw: rest, config, store })
+      const merged = store.get(half.message_id)
+      assert.equal(store.has(rest.message_id), false, '后半句不另建（也没被当成跟同事说话丢掉）')
+      assert.match(merged.text, /【话题补充 \d\d:\d\d】如果不方便补信息，请给 打个电话（@ 的是 Adrian，没 @ 机器人）$/, '剥掉的 @ 补成说明')
+      assert.deepEqual([merged.intake.awaitingRest, Date.parse(merged.intake.notBefore) - Date.now() < 5_000, merged.intake.mentionedBot], [false, true, false], '说完了马上分类；没 @ bot 不改')
+      // 后半句 @ 了 bot：标上 mentionedBot（分类按直接 @ 说的判）。换张卡：同话题里还没分类的单会把后来的话都并进去（去抖），不是本段要测的
+      store.upsert({ id: 'om_donei', source: 'lark', chatId: 'oc_g', messageId: 'om_donei', operator: 'ou_qa', status: 'done', epoch: 0, summary: '页脚', text: '页脚', createdAt: '2026-11-01T00:00:00Z' })
+      store.recordReceipt('om_donei', { messageId: 'om_cardi', kind: 'done', epoch: 0, chatId: 'oc_g' })
+      const half2 = raw({ text: '还有一件，', reply_to: 'om_cardi', root_id: 'om_cardi', sender: 'ou_qz' })
+      await ingestLarkEvent({ raw: half2, config, store })
+      await ingestLarkEvent({ raw: raw({ text: '@Aven.Bot 页脚也改下', mentions: [BOT], reply_to: 'om_cardi', root_id: 'om_cardi', sender: 'ou_qz' }), config, store })
+      assert.deepEqual([store.get(half2.message_id).intake.mentionedBot, store.get(half2.message_id).intake.awaitingRest], [true, false])
+      // 说完整的不等
+      store.upsert({ id: 'om_donej', source: 'lark', chatId: 'oc_g', messageId: 'om_donej', operator: 'ou_qa', status: 'done', epoch: 0, summary: '注册', text: '注册', createdAt: '2026-11-01T00:00:00Z' })
+      store.recordReceipt('om_donej', { messageId: 'om_cardj', kind: 'done', epoch: 0, chatId: 'oc_g' })
+      const full = raw({ text: '请接入一下。', reply_to: 'om_cardj', root_id: 'om_cardj', sender: 'ou_qy' })
+      await ingestLarkEvent({ raw: full, config, store })
+      assert.deepEqual([store.get(full.message_id).intake.awaitingRest, Date.parse(store.get(full.message_id).intake.notBefore) - Date.now() < 5_000], [undefined, true])
     })],
     ['话题：thread_id 才回话题流（inThread）、话题键优先 thread_id；只有 root_id 的普通回复不进话题流', () => quiet(async () => {
       const inThread = atBot('话题里 @ 的', { thread_id: 'omt_1', root_id: 'om_root1' })
@@ -431,6 +466,20 @@ describe('摄入链路 / 上下文包 / 入群事件（真 store + 假 lark-cli�
       const capped = await run({ msg: { text: '@Aven.Bot 看' }, recentCtx: many })
       assert.deepEqual([capped.attachments.filter((a) => a.type === 'image').length, capped.attachments.filter((a) => a.type === 'file').length], [8, 4])
       assert.equal(capped.attachments[0].origin, '群里之前的消息 · M 11-01 05:00', '从新到旧')
+    })],
+    ['bundle：bot 自己被转进文档的长结论按发件簿展开回原文（11-04 b3 ep-1021-8cca5c）；没有 bot 的话不查发件簿；发件簿查挂了退原样', () => quiet(async () => {
+      const base = { messageId: 'om_me', chatId: 'oc_x', senderOpenId: 'ou_c', text: '@Aven.Bot 404 的接口具体是哪两个', mentions: [{ name: 'Aven.Bot' }], attachments: [], replyTo: null, createTimeMs: 1761990000000 }
+      const recentCtx = [{ messageId: 'om_b1', sender: 'Aven.Bot（bot，我们自己）', time: '10-21 16:47', text: '复测了：两个 profile/my 接口返回里都没有 fameExAssetsPath 完整内容：https://doc/1', attachments: [], bot: true, ownBot: true }]
+      const asked = []
+      const listOutbox = (args) => { asked.push(args); return [{ messageId: 'om_b1', text: 'x', fullText: '复测了：两个 profile/my 接口\n- ⚠️ profile/my（portal 路由）：没有 fameExAssetsPath\n- ⚠️ profile/my（hichat 路由）：同样没有' }] }
+      const deps = { fetchReferencedContext: async () => null, fetchThreadContext: async () => [], fetchRecentChatContext: async () => recentCtx, downloadAttachments: async ({ attachments }) => attachments, listOutbox }
+      const out = await buildConversationBundle({ msg: base, config, store: { list: () => [] }, deps })
+      assert.match(out.text, /【群里这条之前的消息】\nAven\.Bot（bot，我们自己）（10-21 16:47）：复测了：两个 profile\/my 接口\n {2}- ⚠️ profile\/my（portal 路由）：没有 fameExAssetsPath\n {2}- ⚠️ profile\/my（hichat 路由）：同样没有$/)
+      assert.deepEqual(asked, [{ chatId: 'oc_x', sinceMs: 1761990000000 - 7 * 86_400_000 }])
+      await buildConversationBundle({ msg: base, config, store: { list: () => [] }, deps: { ...deps, fetchRecentChatContext: async () => [{ ...recentCtx[0], ownBot: false, bot: false }] } })
+      assert.equal(asked.length, 1, '没有本 bot 的话不查发件簿')
+      const broken = await buildConversationBundle({ msg: base, config, store: { list: () => [] }, deps: { ...deps, listOutbox: () => { throw new Error('读坏了') } } })
+      assert.match(broken.text, /两个 profile\/my 接口返回里都没有 fameExAssetsPath 完整内容：https:\/\/doc\/1$/, '查挂了退原样')
     })],
     ['bundle：别人复制 bot 旧话 → 带原消息；引用的是 bot 回执 → quotedOwnCard（只看 findTaskByAnyReceipt 也行；没引用再有回执也不算）；拉取抛错 → 退空不挡建任务', () => quiet(async () => {
       const said = '❌ 没接 开播设置里的『语言』下拉，后端没给字段'

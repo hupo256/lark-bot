@@ -482,6 +482,8 @@ describe('focused rule loading and two-phase prompts', () => {
     assert.match(analysisPrompt, /权威规则：文案必须来自 PRD/)
     assert.match(analysisPrompt, /规则指纹：abc123/)
     assert.match(analysisPrompt, /规则来源版本：~\/\.ai-rules@aaa1111 · lark-bot@bbb2222/)
+    // 11-04 b3 ep-1031-35935b：别人已在别的分支做了同一件事，bot 又另开分支重做——动手前查重，做了就停下问合入哪份
+    assert.match(analysisPrompt, /- 动手前查重：`git log --all --since=14\.days --oneline -i --grep=<关键词>`.*看别的分支是否已有人做了同一件事；做了就不重做：status=blocked，blockers 写「重复实现：/)
 
     const implementationPrompt = buildTaskPrompt(workContext, task, 'codex', { ruleContext, analysis })
     assert.match(implementationPrompt, /第一阶段只读分析已判定 ready/)

@@ -116,12 +116,23 @@ for (const ref of git(['for-each-ref', '--format=%(refname)', 'refs/remotes', 'r
   if (ref === `refs/remotes/origin/${baseBranch}` || ref === 'refs/remotes/origin/HEAD') continue
   git(['update-ref', '-d', ref], repoLink)
 }
+// 主仓 origin 上别人的分支按窗口起点钉回当时的提交（11-04 b3 ep-1031-35935b：模拟仓只剩基线，「查重：别的分支是不是已经有人做了」无从查起；
+// falive 当时就是从 origin/codex/task-center-core 看到 Justin 已做了完善资料）。只留窗口前 30 天内有提交的，按提交时间取（看不到窗口之后的）。
+const pinnedBefore = new Date(fromMs).toISOString()
+let pinnedBranches = 0
+for (const ref of git(['for-each-ref', '--format=%(refname)', 'refs/remotes/origin']).stdout.split('\n').filter(Boolean)) {
+  if (ref === 'refs/remotes/origin/HEAD' || ref === `refs/remotes/origin/${baseBranch}`) continue
+  const [sha, at] = git(['log', '-1', `--before=${pinnedBefore}`, '--format=%H %ct', ref]).stdout.trim().split(' ')
+  if (!sha || Number(at) * 1000 < fromMs - 30 * 86_400_000) continue
+  if (git(['update-ref', ref, sha], repoLink).status === 0) pinnedBranches += 1
+}
 git(['config', 'remote.origin.fetch', `+refs/heads/${baseBranch}:refs/remotes/origin/${baseBranch}`], repoLink)
 if (git(['rev-parse', 'HEAD'], repoLink).stdout.trim() !== baseSha) {
   const out = git(['checkout', '--quiet', '--detach', baseSha], repoLink)
   if (out.status !== 0) throw new Error(`checkout 基线失败：${out.stderr.slice(0, 300)}`)
 }
 if (!existsSync(join(repoLink, 'node_modules'))) symlinkSync(join(FALIVE_REPO, 'node_modules'), join(repoLink, 'node_modules'))
+log(`业务仓 origin 其它分支按窗口起点钉回 ${pinnedBranches} 条`)
 log(`业务仓基线 ${baseBranch} = ${baseSha.slice(0, 8)}（${git(['log', '-1', '--format=%ci %s', baseSha]).stdout.trim().slice(0, 100)}）`)
 
 // —— 运行配置 ——
@@ -176,6 +187,18 @@ for (const name of ['persona', 'knowledge']) {
   const dst = join(runtimeDir, name)
   if (!existsSync(dst) && existsSync(src) && name === 'persona') symlinkSync(src, dst)
   if (name === 'knowledge') mkdirSync(dst, { recursive: true }) // fameex 的环境知识不带进 falive 回放
+}
+// 测试号：falive 当时从 Claude 记忆 pre-test-account.md 读到负责人给的各环境测试号（含 Kaiser 的生产号 uid 484），lark-bot 的对应物是固定知识
+//（runtime/knowledge）。11-04 b3 ep-1031-35935b「测生产评论任务」lark-bot 回「没有生产测试账号」——模拟里根本没给它。按窗口起点还原那篇
+//（窗口前改过的原样拷；之后改过的按段落里写的日期去掉窗口之后的段——那篇被 Bash 改过，会话记录重放不出来，见 memory-asof keepParagraphsAsOf），写进知识目录。
+const accountsMemory = repo.claudeMemoryDir ? join(repo.claudeMemoryDir, 'pre-test-account.md') : null
+const accountsKnowledge = join(runtimeDir, 'knowledge', 'falive-test-accounts.md')
+if (accountsMemory && existsSync(accountsMemory) && !existsSync(accountsKnowledge)) {
+  const { keepParagraphsAsOf } = await import('./memory-asof.mjs')
+  const raw = readFileSync(accountsMemory, 'utf8').replace(/^---\n[\s\S]*?\n---\n/, '').trim()
+  const body = statSync(accountsMemory).mtimeMs < fromMs ? raw : keepParagraphsAsOf(raw, fromMs)
+  writeFileSync(accountsKnowledge, `## Falive 各环境测试号（负责人给的；密码不发群）\n\n${body}\n`, { mode: 0o600 })
+  log(`测试号知识：${body.length} 字（窗口起点之后写的段已去掉）`)
 }
 if (dry) {
   log('dry：目录与配置已就绪，不起进程')

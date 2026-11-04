@@ -273,13 +273,22 @@ describe('worker 侧对话层：outcome / 契约映射 / 群回复补写 / 模�
       assert.equal(buildAckPromiseBlock({}), '')
       assert.equal(buildAckPromiseBlock(null), '')
       const block = buildAckPromiseBlock({ ackReply: '评论积分我去 pre 再测一下' }, { envSites: { pre: 'https://p', uat: ' ' } })
-      assert.match(block, /^群里已先回了一句：「评论积分我去 pre 再测一下」。里面答应的只读事.*本轮一并做（打 pre https:\/\/p，只发 GET（登录拿态的 POST 除外），上游 \/ 合作方域名不打）.*report.*not_done.*单趟没有下次，不写「测完再回你」。$/)
-      assert.match(buildAckPromiseBlock({ ackReply: '好' }), /本仓没配环境地址，测不了就写明/)
+      assert.match(block, /^群里已先回了一句：「评论积分我去 pre 再测一下」。里面答应的只读事.*本轮一并做（打 pre https:\/\/p，只发 GET（登录拿态的 POST 除外；下方固定知识里有该环境测试号就用它登录），上游 \/ 合作方域名不打）.*report.*not_done.*单趟没有下次，不写「测完再回你」。\n【环境与部署/)
+      assert.match(buildAckPromiseBlock({ ackReply: '好' }), /本仓没配环境地址，测不了就写明.*不写「测完再回你」。$/, '没环境没知识：不带知识块')
+      // 11-04 b3：实施阶段要带上测试号（固定知识）才测得了；知识原文接在后面
+      const known = buildAckPromiseBlock({ ackReply: '好' }, { knowledge: '生产测试号 uid 484' })
+      assert.match(known, /测不了就写明.*不写「测完再回你」。\n【环境与部署（负责人维护的固定知识）】[\s\S]*\n生产测试号 uid 484$/)
+      assert.doesNotMatch(known, /查各环境现在跑的是哪个提交/, '没配环境不给查版本工具')
     }],
     // 11-04 falive 回放 ep-1021-8cca5c：「404 的接口具体是哪两个」把台账里三支硬凑成两支（「两个」其实指同一接口两个号测）
     ['代答块：指着前文问先对上被指的那句，对不上直说、不硬凑；实测块不带', () => {
-      assert.match(ANSWER_MODE_BLOCK({}, {}), /对方指着前文问（「那两个」「刚才说的」）：先在上下文里找到被指的那句.*对不上.*就直说记录里是什么，不硬凑。/)
+      // 11-04 b3 同一条：旧示例「记录里是三个」反把答案带偏——从近往远对，最近 bot 那条优先，点明对的是哪条
+      assert.match(ANSWER_MODE_BLOCK({}, {}), /对方指着前文问（「那两个」「刚才说的」）：从近往远找被指的那句——先对上下文末尾 bot 自己最近发的结论.*answer 开头点明对的是哪条.*以最近的为准.*不硬凑。/)
+      assert.doesNotMatch(ANSWER_MODE_BLOCK({}, {}), /记录里是三个/)
       assert.equal(VERIFICATION_MODE_BLOCK({}, {}).includes('对方指着前文问'), false)
+      // 11-04 b3 ep-1031-35935b「测生产评论任务」：有测试号就用它只读查基线、写的那步点名请人做、修复上没上该环境先核
+      assert.match(VERIFICATION_MODE_BLOCK({}, {}), /\n账号：固定知识里有该环境测试号就登录查只读基线（任务状态、余额 \/ 流水），不说没账号；写数据那步点名请报问题或有号的人做。复测修复先核它上没上该环境（后端的在 answer 里问对方）。\n3\. /)
+      assert.equal(ANSWER_MODE_BLOCK({}, {}).includes('账号：固定知识'), false, '代答不带')
     }],
     ['分类提示的数据块：附件行、发送人（本人 / ownerMap 反查 + 角色 / 未登记）、persona 文件、锚点 / 活动 / 候选块、正文', () => {
       assert.equal(formatTaskAttachments({ attachments: [{ type: 'image', fileName: 'a.png', width: 10, height: 20, origin: '引用消息' }, { localPath: '/p', width: 10 }, { type: 'file', imageKey: 'img_1', downloadError: '403' }] }), '1. image「a.png」；来源：引用消息；尺寸：10x20\n2. attachment；本地路径：/p\n3. file；Lark image_key：img_1；下载状态：403')

@@ -111,6 +111,20 @@ describe('任务的人话出口', () => {
       await deliverOutcome({ config, store, task: mine, status: 'done', deps })
       assert.equal(group().at(-1).markdown, '改好了。\n<at user_id="ou_aven">aven</at>：合并到 online 后部署')
     })],
+    // 11-04 b3 ep-1031-35935b：改码 done 带了兑现「收到」的复测条目，超长转文档只留第一行（改码摘要），「pre 复测没做」只在文档里
+    ['超长转文档：改码 done 带复测条目 → 群里留放得下的开头几行（复测条目在内）；没条目的改码、代答照旧只留第一行', () => quiet(async () => {
+      const note = '细'.repeat(140)
+      const items = [{ mark: 'not_done', name: '帖子回复 pre 复测', note }, { mark: 'not_done', name: '完善资料到账', note }, { mark: 'ok', name: '完善资料申报', note }]
+      const t = task({ branch: 'fix/profile', outcome: out({ summary: '已接入完善资料。', changedFiles: ['a'], report: { subject: '评论积分 pre 复测', items } }) })
+      await deliverOutcome({ config, store, task: t, status: 'done', deps })
+      assert.equal(group().at(-1).markdown, `已接入完善资料。\n分支 fix/profile · 改了 1 个文件\n评论积分 pre 复测：通了 1 项，没通 2 项\n- ❌ 帖子回复 pre 复测：${note}\n- ❌ 完善资料到账：${note}\n完整内容：https://doc/1`)
+      const plain = task({ id: 'om_p', messageId: 'om_p', branch: 'fix/x', outcome: out({ summary: '已接入完善资料。', changedFiles: ['a'], followUps: [{ owner: '后端', items: [note, note, note, note] }] }) })
+      await deliverOutcome({ config, store, task: plain, status: 'done', deps })
+      assert.equal(group().at(-1).markdown, '已接入完善资料。\n完整内容：https://doc/1', '没复测条目：只留第一行')
+      const ans = task({ id: 'om_q', messageId: 'om_q', operator: 'ou_aven', contract: { deliverable: 'verification' }, outcome: out({ report: { subject: '评论积分', items: [...items, { mark: 'ok', name: '再一项', note }] } }) })
+      await deliverOutcome({ config, store, task: ans, status: 'done', deps })
+      assert.equal(group().at(-1).markdown, '评论积分：通了 2 项，没通 2 项\n完整内容：https://doc/1', '实测：只留第一行')
+    })],
     // 11-03 静态 review R12：docUrl 原先不持久化，回执没送达时 retryPendingReceipts 每 5 分钟重跑 deliverOutcome 都建一份细节文档（上限 12 份同内容）。
     ['细节文档只建一次：同任务同代同状态重发（回执重试）复用第一次建成的 docUrl；换代另建', () => quiet(async () => {
       const t = task({ contract: { deliverable: 'answer' }, outcome: out({ report: { subject: 'test / pre', answer: '不一样。', items: [] }, detailDoc: '# 三行提交' }) })
