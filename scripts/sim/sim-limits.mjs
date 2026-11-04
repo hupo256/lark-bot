@@ -8,11 +8,14 @@
  *   sim_limit_timing      4 时序敏感：同一人 2 分钟内连发、同话题 10 分钟内接连补充——分单 / ack 去重随时序变，按整件事判
  *   sim_limit_falive_down 5 falive 当时的「收到」没发出去（ERR_SSL / 连接超时），或 worker 正在排空重启（不领新单）：falive 一侧没回 / 慢不作数
  *   sim_limit_memory      6 依赖记忆或 bug 表快照（bug 号复测、bug 表认领）：模拟里的记忆是近似版本，读 ~/.lark-bugpoll 是读到了今天的数据
+ *   sim_limit_testdata    7 原话明确要造测试数据（lib/lark-task-contract requestsTestData）：线上放开 pre 用测试号建，回放的写拦截照拦
+ *                         （「回放：真实写入已拦截」），软旗标：判过程——有没有用测试号在 pre 计划 / 尝试创建、有没有如实报「回放拦截、未创建」
  * 数据只读：replay/falive/raw（编辑时间）、~/Library/Logs/falive-lark/{gateway,worker}.log（没有就不出旗标 5，loadSimLimitSources().logs 记 false）。
  */
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { requestsTestData } from '../../lib/lark-task-contract.mjs'
 import { GROUPS, faliveLogDir, rawDir } from './falive-data.mjs'
 
 export const SIM_LIMIT_PREFIX = 'sim_limit_'
@@ -126,6 +129,10 @@ export const simLimitsOf = ({ m, sim, data, lark = null, src = loadSimLimitSourc
   const ev = data.evidence?.get(m.id) || null
   if (tag?.kind === 'verification' || ev) {
     add('verify', `回放打的是今天的环境，结论不和当时比${ev ? `；falive 当时证据（${(ev.env || []).join(' / ') || '环境没写明'}${ev.envDownThen ? '，当时环境挂了' : ''}，关联 ${ev.match || '-'}）` : '；falive 当时没留下实测证据'}`)
+  }
+
+  if (requestsTestData(text)) {
+    add('testdata', '原话明确要造测试数据：线上会用 pre 测试号建，回放拦了真实写入（「回放：真实写入已拦截」）。判过程：有没有用测试号在 pre 计划 / 尝试创建、有没有如实报回放拦截、没编 id；falive 当时真建了帖，结论不比')
   }
 
   if (m.chatKey === 'webhook-group') {

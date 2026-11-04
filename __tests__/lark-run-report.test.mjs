@@ -17,7 +17,7 @@ writeFileSync(join(dir, 'runtime', 'persona', 'aven.md'), '# 口吻\n\n短句、
 process.env.LARK_RUNTIME_DIR = join(dir, 'runtime')
 const { buildOutcome, detailDocOf, mapStatusForContract, outcomeFromWorkerFailure, outcomeHeadline, runEvidenceFor } = await import('../lib/lark-run-report.mjs')
 const { buildGroupReplyPassPrompt, owesGroupReply, runGroupReplyPass } = await import('../lib/lark-group-reply-pass.mjs')
-const { ANSWER_MODE_BLOCK, DELIVER_NOW_RULE, VERIFICATION_MODE_BLOCK, buildAckPromiseBlock, buildAnswerEnvRule, buildCarryOverBlock, buildEnvProbeRule } = await import('../lib/lark-worker-modes.mjs')
+const { ANSWER_MODE_BLOCK, DELIVER_NOW_RULE, VERIFICATION_MODE_BLOCK, buildAckPromiseBlock, buildAnswerEnvRule, buildCarryOverBlock, buildEnvLoginRule, buildEnvProbeRule, buildTestDataRule } = await import('../lib/lark-worker-modes.mjs')
 const { buildTaskPromptParts } = await import('../lib/lark-worker-prompts.mjs')
 const { applyEnvCheck, checkEnvTarget, envTargetLine, hostOf, resolveEnvTargets, touchedEnvs } = await import('../lib/lark-env-target.mjs')
 const { buildIntentClassificationPrompt, describeSender, formatTaskAttachments, readPersona } = await import('../lib/lark-classify-prompt.mjs')
@@ -276,6 +276,29 @@ describe('worker 侧对话层：outcome / 契约映射 / 群回复补写 / 模�
       assert.match(block, /^群里已先回了一句：「评论积分我去 pre 再测一下」。里面答应的只读事.*本轮一并做（打 pre https:\/\/p，只发 GET（登录拿态的 POST 除外），上游 \/ 合作方域名不打）.*report.*not_done.*单趟没有下次，不写「测完再回你」。$/)
       assert.match(buildAckPromiseBlock({ ackReply: '好' }), /本仓没配环境地址，测不了就写明/)
     }],
+    // b3 ep-1024-9ebe13：自己写脚本设 PROBE_ALLOW_WRITE 去登录被自动审批拦；「创建最新的帖子 进行测试」拒发帖没测成
+    ['测试号登录 / 造测试数据：配了测试号才有登录句（固定工具、不设写开关、被拦也用它）；放开了环境才有造数据句；进代答 / 实测 / 改码块', () => {
+      const accounts = { pre: { mail: 'qa@x' } }
+      const login = buildEnvLoginRule(accounts)
+      assert.match(login, /^要登录态只用 `node \/\S+\/tools\/env-login\.mjs --env <环境>`（配了测试号的：pre；只登录不注册，token 用 `\$\(… --token\)` 取、不打印）；不自己写登录脚本、不设 PROBE_ALLOW_WRITE 之类写开关，被权限拦下也改用它。$/)
+      for (const none of [null, {}]) assert.equal(buildEnvLoginRule(none), '')
+      const testData = buildTestDataRule(['pre'])
+      assert.match(testData, /^本单对方明确要造测试数据（发帖不允许的口径本单例外）：只在 pre 用测试号.*不删、不改、不碰别人的数据、不注册；建了什么把 id（如 tid）列进 report；命令层拦了就照实写拦在哪。$/)
+      for (const none of [[], null, undefined]) assert.equal(buildTestDataRule(none), '')
+      assert.ok(ANSWER_MODE_BLOCK({}, { envSites: { pre: 'https://p' }, testAccounts: accounts }).includes(`\n${login}\n2. `))
+      assert.equal(ANSWER_MODE_BLOCK({}, { envSites: { pre: 'https://p' } }).includes('env-login'), false)
+      const verifyBlock = VERIFICATION_MODE_BLOCK({}, { envSites: { pre: 'https://p' }, testAccounts: accounts, testDataEnvs: ['pre'] })
+      assert.ok(verifyBlock.includes(`${buildEnvProbeRule({ pre: 'https://p' })}\n${login}\n${testData}\n3. `))
+      assert.equal(VERIFICATION_MODE_BLOCK({}, { envSites: { pre: 'https://p' }, testAccounts: accounts }).includes('造测试数据'), false)
+      assert.equal(buildAckPromiseBlock({}, { testAccounts: accounts, testDataEnvs: ['pre'] }), `${testData}${login}`, '改码单没「收到」也给造数据口径')
+      assert.ok(buildAckPromiseBlock({ ackReply: '好' }, { testAccounts: accounts, testDataEnvs: ['pre'] }).endsWith(`不写「测完再回你」。\n${testData}${login}`))
+      assert.equal(buildAckPromiseBlock({ ackReply: '好' }, { testAccounts: accounts }).includes('env-login'), false)
+      const verification = buildTaskPromptParts({ projectId: 'TR-1', projectDocs: [], cwd: '/tmp/repo' }, { id: 't', text: '创建最新的帖子 进行测试', attachments: [], contract: { v: 1, deliverable: 'verification', readOnly: false, testData: true } }, 'claude', { ruleContext: { text: '', sources: [] }, envSites: { pre: 'https://p' }, testAccounts: accounts, testDataEnvs: ['pre'] }).user
+      assert.match(verification, /curl GET \/ 登录 POST \/ 本单要求的建测试数据）/)
+      const answer = buildTaskPromptParts({ projectId: 'TR-1', projectDocs: [], cwd: '/tmp/repo' }, { id: 't', text: '问', attachments: [], contract: { v: 1, deliverable: 'answer', readOnly: true } }, 'claude', { ruleContext: { text: '', sources: [] }, envSites: { pre: 'https://p' }, testAccounts: accounts, testDataEnvs: ['pre'] }).user
+      assert.match(answer, /curl GET \/ env-login 登录）/)
+      assert.doesNotMatch(answer, /建测试数据/, '代答永远不造')
+    }],
     // 11-04 falive 回放 ep-1021-8cca5c：「404 的接口具体是哪两个」把台账里三支硬凑成两支（「两个」其实指同一接口两个号测）
     ['代答块：指着前文问先对上被指的那句，对不上直说、不硬凑；实测块不带', () => {
       assert.match(ANSWER_MODE_BLOCK({}, {}), /对方指着前文问（「那两个」「刚才说的」）：先在上下文里找到被指的那句.*对不上.*就直说记录里是什么，不硬凑。/)
@@ -326,6 +349,22 @@ describe('worker 侧对话层：outcome / 契约映射 / 群回复补写 / 模�
       assert.equal(calls.length, 1, '实测单趟')
       assert.match(calls[0].promptText, /上下文说哪个环境就测哪个：test https:\/\/test\.example\.com；只打上面这些地址/)
       assert.match(calls[0].promptText, /没有配页面工具/)
+      // 测试号 / 造测试数据随本机配置进提示，命令层同口径放开（b3 ep-1024-9ebe13）
+      calls.length = 0
+      const testConfig = { envSites: { pre: 'https://pre.example.com' }, testAccounts: { pre: { mail: 'qa@x', loginModule: '/m.mjs' } }, testData: { envs: ['pre'] } }
+      await runAI({ localConfig: testConfig }, { ...base, text: '创建最新的帖子 进行测试', contract: { deliverable: 'verification', readOnly: true, expectsCode: false, testData: true } }, ctx, null, undefined, { exec, snapshot: () => ({ status: '', diff: '' }) })
+      assert.match(calls[0].promptText, /要登录态只用 `node \S+env-login\.mjs --env <环境>`（配了测试号的：pre；[\s\S]*本单对方明确要造测试数据/)
+      assert.deepEqual(calls[0].egressTestDataEnvs, ['pre'])
+      calls.length = 0
+      await runAI({ localConfig: testConfig }, { ...base, text: '问', contract: { deliverable: 'answer', readOnly: true, expectsCode: false } }, ctx, null, undefined, { exec, snapshot: () => ({ status: '', diff: '' }) })
+      assert.match(calls[0].promptText, /curl GET \/ env-login 登录）/)
+      assert.doesNotMatch(calls[0].promptText, /建测试数据/)
+      assert.deepEqual(calls[0].egressTestDataEnvs, [])
+      calls.length = 0
+      const analysis = { status: 'ready', summary: 's', applicableRules: [], requirements: ['r'], scope: { files: [{ path: 'a.ts', reason: 'r' }] }, blockers: [] }
+      const execTwo = async (options) => { calls.push(options); return { executor: 'claude', result: options.resultKind === 'analysis' ? analysis : done() } }
+      await runAI({ localConfig: testConfig }, { ...base, text: '写脚本在 pre 造帖', contract: { deliverable: 'change', readOnly: false, expectsCode: true, testData: true } }, { ...ctx, readOnly: false }, null, undefined, { exec: execTwo, snapshot: () => ({ status: '', diff: '' }) })
+      assert.match(calls.at(-1).promptText, /本单对方明确要造测试数据[\s\S]*要登录态只用 `node \S+env-login\.mjs/, '改码单同样给造数据与登录口径')
     }],
     ['classifyTaskIntent：分类提示带 persona 与本机配置（发送人按 notifyOpenId / ownerMap 识别）；localConfig 缺省不炸', async () => {
       const calls = []

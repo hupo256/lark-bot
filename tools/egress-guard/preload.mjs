@@ -8,12 +8,19 @@
 import http from 'node:http'
 import https from 'node:https'
 import { syncBuiltinESMExports } from 'node:module'
+import { realpathSync } from 'node:fs'
 import net from 'node:net'
 import tls from 'node:tls'
+import { fileURLToPath } from 'node:url'
 
 import { EGRESS_GUARD_ENV, checkEgressRequest, hostInScope, blockedHostReason, parseEgressPolicy } from '../../lib/lark-egress-policy.mjs'
 
-const policy = process.env[EGRESS_GUARD_ENV] ? parseEgressPolicy(process.env[EGRESS_GUARD_ENV]) : null
+// 进程入口是登录工具 tools/env-login.mjs：代答里也许它发登录 POST（只登录，口径见 checkEgressRequest）。认 argv[1] 的真实路径，
+// 会话自己写的脚本（/tmp/probe.mjs 再 import 业务仓客户端）不算。argv[1] 不是文件（node -e）按「不是」算。
+const real = (path) => { try { return realpathSync(path) } catch { return null } }
+const loginTool = Boolean(process.argv[1]) && real(process.argv[1]) === real(fileURLToPath(new URL('../env-login.mjs', import.meta.url)))
+const parsed = process.env[EGRESS_GUARD_ENV] ? parseEgressPolicy(process.env[EGRESS_GUARD_ENV]) : null
+const policy = parsed && loginTool ? { ...parsed, loginTool: true } : parsed
 
 if (policy) {
   const said = new Set()

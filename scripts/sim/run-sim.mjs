@@ -162,6 +162,10 @@ const config = {
   },
   // falive php 发验证码 type：1 注册 / 2 找回密码 / 3 登录（falive-react src/modules/auth/data/schema.ts VerificationCodeType）；portal 用 scene=login 不用配
   egress: { loginCodeTypes: ['3'] },
+  // pre 测试号（aven 10-20 指定 uid 508，pre 测试与造数据都用它）：tools/env-login.mjs 用 falive-env-login.mjs 只登录（不调会自动注册的
+  // pre-client login()），密码用 pre-client 自带的缺省。造测试数据放开 pre：线上口径照走，回放的写拦截照拦（egress-log TESTDATA_BLOCK_NOTE）。
+  testAccounts: { pre: { mail: 'aven-pretest@probe.test', uid: 508, loginModule: join(here, 'falive-env-login.mjs') } },
+  testData: { envs: ['pre'] },
   dailyReport: { enabled: false },
   // bug 表占位（读 bug 单的工具 tools/read-bug-record.mjs 要它；假 CLI 按 raw/bug-records 缓存供数，appToken 不校验）。bug-watch 不起。
   bugTable: { appToken: 'sim-falive-bugtable', tableId: 'tblbJYjrxZsPe40V', viewId: 'vewvqqPhkD', statusField: '状态', assigneeField: '负责RD', watch: { enabled: false } },

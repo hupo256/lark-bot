@@ -58,7 +58,7 @@ const log = (line) => {
 // 都取 HEAD 的 git tree（预检已保证这些路径没有未提交改动）；裁判 / 报表脚本不进指纹（改了不影响 bot 的输出）。
 const FINGERPRINT_PATHS = ['lib', 'lark-gateway.mjs', 'lark-worker.mjs', 'runtime/lark-worker.mjs', 'tools', 'replay/falive/dataset', 'replay/falive/raw', 'replay/falive/episodes.json',
   'scripts/sim/run-sim.mjs', 'scripts/sim/fake-lark-cli.mjs', 'scripts/sim/lark-cli', 'scripts/sim/virtual-clock.mjs', 'scripts/sim/falive-data.mjs', 'scripts/sim/claude-quota.mjs', 'scripts/sim/claude-q',
-  'scripts/sim/egress', 'scripts/sim/egress-hook.mjs', 'scripts/sim/egress-log.mjs', 'scripts/sim/proc-sampler.mjs', 'scripts/sim/claude', 'scripts/sim/claude-cache.mjs']
+  'scripts/sim/egress', 'scripts/sim/egress-hook.mjs', 'scripts/sim/egress-log.mjs', 'scripts/sim/proc-sampler.mjs', 'scripts/sim/claude', 'scripts/sim/claude-cache.mjs', 'scripts/sim/falive-env-login.mjs']
 export const codeFingerprint = () => {
   const trees = FINGERPRINT_PATHS.map((p) => {
     const out = spawnSync('git', ['-C', repo, 'rev-parse', `HEAD:${p}`], { encoding: 'utf8' })
