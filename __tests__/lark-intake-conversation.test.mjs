@@ -128,6 +128,7 @@ describe('对话层：锚点、上下文、对话包、发件簿、义务、pers
       assert.deepEqual(out[0], { messageId: 'b1', sender: 'Aven.Bot（bot，我们自己）', senderOpenId: '', text: '我先看下', attachments: [], bot: true, createTime: '2026-11-01 17:00' })
       assert.deepEqual(out[2].attachments, [{ type: 'image', imageKey: 'img_1' }])
       assert.deepEqual([out[2].sender, out[2].senderOpenId, out[3].sender, out[3].senderOpenId], ['小王', 'ou_u', '', ''])
+      assert.deepEqual([out[2].createTime, pickThreadContext([{ ...userMsg('nt', '没时间'), create_time: undefined }])[0].createTime], ['2026-11-01 17:00', ''], '真人消息带 createTime（同话题前一单按它兜底切分），没有 → 空串')
       assert.equal(pickThreadContext(msgs, { botOpenIds: [BOT, APP], limit: 2 }).length, 2)
       assert.deepEqual(pickThreadContext(undefined), [])
     }],

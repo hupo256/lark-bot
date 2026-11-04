@@ -60,6 +60,7 @@ describe('同话题前一单关联（11-04）', () => {
       assert.equal(findThreadPredecessor({ msg: { messageId: 'om_x' }, store: s }), null)
       assert.equal(findThreadPredecessor({ msg: { messageId: 'om_x', threadRootId: 'omt_none' }, store: s }), null)
       assert.equal(findThreadPredecessor({ msg: { ...msg, createTimeMs: null }, store: s })?.id, 'om_late', '本条没时间：不按时间挡')
+      assert.equal(findThreadPredecessor({ msg: { ...msg, createTimeMs: at('2026-11-04T08:20:00Z') }, store: s })?.id, 'om_b', '与本条同一时刻的算之前')
     }],
     ['splitThreadSince：前一单在列表里按位置切；它是话题根 → 全算之后；不在列表按分钟兜底；本条之后的不算；没有前一单 → 全在 before', () => {
       const items = [
@@ -78,6 +79,8 @@ describe('同话题前一单关联（11-04）', () => {
       assert.deepEqual(ids(splitThreadSince({ items, predecessor: { id: 'om_pred' }, msg: { messageId: 'om_me' } })), [['om_x0', 'om_pred'], ['om_r1', 'om_r2', 'om_bot', 'om_nt']], '本条没时间：不挡之后的')
       assert.deepEqual(ids(splitThreadSince({ items, predecessor: null, msg })), [items.map((item) => item.messageId), []])
       assert.deepEqual(ids(splitThreadSince({ predecessor: { id: 'om_pred' }, msg })), [[], []])
+      const edge = [items[1], { messageId: 'om_eq', text: '同一分钟', createTime: '2026-11-04 16:40' }, { messageId: 'om_next', text: '下一分钟', createTime: '2026-11-04 16:41' }]
+      assert.deepEqual(ids(splitThreadSince({ items: edge, predecessor: { id: 'om_pred' }, msg })), [['om_pred'], ['om_eq']], '与本条同一时刻的算之前、要带')
     }],
     ['renderPredecessorBlock / renderSinceBlock / buildResumeSupplement：状态写人话（人工结单 / 已并入 / 原状态）、结果截 200 字、没摘要用正文；续跑补料只带正文里还没有的', () => {
       assert.equal(renderPredecessorBlock(null), '')
@@ -85,6 +88,9 @@ describe('同话题前一单关联（11-04）', () => {
       assert.match(renderPredecessorBlock({ id: 'om_b', status: 'superseded', supersededBy: 'om_c', text: '正文当摘要' }), /^【同话题前一单】om_b（已并入 om_c）：正文当摘要\n本条/)
       assert.match(renderPredecessorBlock({ id: 'om_d', status: 'blocked' }), /（blocked）：（无摘要）/)
       assert.ok(renderPredecessorBlock({ id: 'om_e', status: 'done', summary: 's', result: 'x'.repeat(300) }).includes(`上一轮结果：${'x'.repeat(200)}…`))
+      assert.ok(renderPredecessorBlock({ id: 'om_e', status: 'done', summary: 's', result: 'x'.repeat(200) }).includes(`上一轮结果：${'x'.repeat(200)}\n`), '恰好 200 字不截')
+      assert.match(renderPredecessorBlock({ id: 'om_f', status: 'superseded', summary: 's' }), /^【同话题前一单】om_f（superseded）：s\n/, 'superseded 但没有 supersededBy / closureReason → 原状态')
+      assert.match(renderPredecessorBlock({ id: 'om_g', status: 'blocked', supersededBy: 'om_c', summary: 's' }), /^【同话题前一单】om_g（blocked）：s\n/, '有 supersededBy 但没 superseded → 原状态')
       assert.equal(renderSinceBlock({ since: [{ sender: 'Rou', text: '還有Hurley' }, { text: '' }], predecessor: { id: 'om_a' } }), '【前一单（om_a）之后话题里的消息——当作本单的补充要求】\nRou：還有Hurley\n（附件）')
       assert.deepEqual([renderSinceBlock({ since: [], predecessor: { id: 'om_a' } }), renderSinceBlock({ since: [{ text: 'x' }], predecessor: null })], ['', ''])
       const items = [{ messageId: 'om_a', text: '原话' }, { messageId: 'om_r1', sender: 'Rou', text: 'bryn 發的可以直接作為a檔的範本' }, { messageId: 'om_r2', sender: 'Rou', text: '已经并过的' }]

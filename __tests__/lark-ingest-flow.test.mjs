@@ -25,6 +25,7 @@ n=$(wc -l < "${cliLog}" | tr -d ' ')
 case "$*" in
   *+messages-mget*) printf '%s' '{"ok":true,"data":{"messages":[{"message_id":"om_ref","msg_type":"text","content":"原话","sender":{"id":"ou_k","name":"K"},"create_time":"2026-11-01 09:00"}]}}' ;;
   *+chat-list*) printf '%s' '{"ok":true,"data":{"chats":[{"chat_id":"oc_named","name":"[PR-02306] 项目群"},{"chat_id":"oc_g","name":"测试群"},{"chat_id":"oc_bound","name":"绑定群"},{"chat_id":"oc_auto","name":"自动群"}]}}' ;;
+  *+threads-messages-list*om_card6*|*+threads-messages-list*om_card7*) printf '%s' '{"ok":true,"data":{"messages":[{"message_id":"om_rs9","msg_type":"text","content":"更晚的","sender":{"sender_type":"user","id":"ou_rou","name":"Rou"},"create_time":"1793782200000"},{"message_id":"om_rs1","msg_type":"text","content":"字段叫 avatar_url","sender":{"sender_type":"user","id":"ou_rou","name":"Rou"},"create_time":"1793781480000"}]}}' ;;
   *+threads-messages-list*|*+chat-messages-list*) printf '%s' '{"ok":true,"data":{"messages":[]}}' ;;
   *+messages-resources-download*file_ok*) printf '%s' '{"ok":true,"data":{}}' ;;
   *+messages-resources-download*) printf '%s' '{"ok":false,"error":{"type":"test","message":"no download"}}' ;;
@@ -336,6 +337,17 @@ describe('摄入链路 / 上下文包 / 入群事件（真 store + 假 lark-cli�
       const thanks = raw({ text: '[赞]', sender: 'ou_qy', reply_to: 'om_card5' })
       await ingestLarkEvent({ raw: thanks, config, store })
       assert.deepEqual([store.has(thanks.message_id), store.get('om_p5').status], [false, 'blocked'])
+      // 续跑补料带上前一单之后话题里的消息（withThreadSince，同话题唯一挂起那条路：回的是终态单的卡片）：按 reply_to 拉话题、有 reply_to 时不看 thread_id
+      // （假 lark-cli 只在 om_card6 / om_card7 下有消息）；只有 reply_to + root_id、没有 thread_id 也拉；本条之后的不带；话题里没有新消息 → 只续原话（上面几条都是这条路）
+      const since = (id) => `等字段\n\n【补料】\n按 Rou 说的改\n\n【前一单（${id}）之后话题里的消息——当作本单的补充要求】\nRou：字段叫 avatar_url`
+      for (const [n, thread] of [[6, { thread_id: 'omt_since' }], [7, { root_id: 'om_root7' }]]) {
+        store.upsert({ id: `om_p${n}`, source: 'lark', chatId: 'oc_g', messageId: `om_p${n}`, operator: 'ou_qa', status: 'waiting_confirmation', threadRootId: thread.thread_id || thread.root_id, summary: '等字段', text: '等字段', epoch: 0, createdAt: '2026-11-04T08:00:00Z' })
+        store.upsert({ id: `om_done${n}`, source: 'lark', chatId: 'oc_g', messageId: `om_done${n}`, operator: 'ou_qa', status: 'done', threadRootId: thread.thread_id || thread.root_id, summary: '做完的', text: '做完的', epoch: 0, createdAt: '2026-11-04T07:00:00Z' })
+        store.recordReceipt(`om_done${n}`, { messageId: `om_card${n}`, kind: 'done', epoch: 0, chatId: 'oc_g' })
+        const follow = raw({ text: '按 Rou 说的改', sender: 'ou_qa', reply_to: `om_card${n}`, create_time: '1793781600000', ...thread })
+        await ingestLarkEvent({ raw: follow, config, store })
+        assert.deepEqual([store.has(follow.message_id), store.get(`om_p${n}`).status, store.get(`om_p${n}`).text], [false, 'queued', since(`om_p${n}`)], Object.keys(thread)[0])
+      }
     })],
     ['bundle：引用 + 话题 + 最近消息的版式、附件按来源标记（本条 / 被引用 / 话题回复 / 群里之前的消息）、项目优先取参数、threadSpeakers 取最后 10 个、refText', () => quiet(async () => {
       const calls = []

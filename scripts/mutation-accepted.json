@@ -257,5 +257,18 @@
     "code": "if (notForBot) return console.log(`[lark-gateway] ${msg.messageId} 回 bot 消息但不是对机器人说的（${notForBot === 'social' ? '寒暄 / 抄送' : '@ 的是别的同事'}），静默、不分类`)",
     "op": "=== → !==",
     "reason": "只影响日志里的原因措辞（寒暄 / 抄送 vs @ 的是别的同事），不影响行为"
+  },
+  {
+    "file": "lib/lark-ingest.mjs",
+    "code": "if (!anchor || !task) return msg",
+    "op": "|| → &&",
+    "reason": "等价：两个调用点（续跑目标 / 同话题唯一挂起）都必带 task 且必有 reply_to 或 thread_id；就算 anchor 为空放行下去，fetchThreadContext(undefined) 不调 lark-cli 直接回 []，补料退回本条原话、原样返回 msg"
+  },
+  {
+    "file": "lib/lark-ingest.mjs",
+    "code": "return text === String(msg.text || '').trim() ? msg : { ...msg, text }",
+    "op": "|| → &&",
+    "col": 36,
+    "reason": "等价：msg 来自 normalizeMessage，text 恒为已 trim 的字符串；变异后比较对象变 ''，没有新消息时返回 { ...msg, text } 与 msg 内容逐字相同，原话为空时两边都是 ''"
   }
 ]
