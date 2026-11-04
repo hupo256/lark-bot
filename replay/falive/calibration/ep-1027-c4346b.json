@@ -1,0 +1,172 @@
+{
+  "episode": "ep-1027-c4346b",
+  "faliveCode": {
+    "sha": "34aa46dca5a5a2e27ea17db2762f2de86dc975c0",
+    "dir": "/Users/aven/github/lark-bot-falive-sim/code-34aa46d",
+    "codeHash": "edc4ad89b31e",
+    "startedAt": "2026-10-27T04:20:53.565Z",
+    "verified": true,
+    "tried": [
+      {
+        "sha": "34aa46d",
+        "hashes": [
+          "edc4ad89b31e",
+          "f5b8c344012d"
+        ]
+      }
+    ]
+  },
+  "faliveConfig": "/Users/aven/github/lark-bot-falive/runtime/lark-bot.bak-20261028.local.json",
+  "cases": [
+    {
+      "label": "C1",
+      "id": "om_x100b61337a64f8a0ff5f5a718c4346b",
+      "at": "2026-10-27T09:47:54.649Z",
+      "chat": "tech-group",
+      "text": "@Aven.Bot 请根据 @Mateo 给的信息，同步更新 web 端的相应逻辑",
+      "classified": {
+        "falive": {
+          "decision": "requirement",
+          "confidence": "high"
+        },
+        "sim": {
+          "decision": "requirement",
+          "confidence": "high"
+        }
+      },
+      "status": {
+        "falive": null,
+        "sim": "done"
+      },
+      "seen": {
+        "falive": 0,
+        "sim": 50,
+        "onlyFalive": [],
+        "onlySim": [
+          "【被引用消息】（HTStone.z 10-22 12:28）",
+          "![Image](img_v3_0216n_8f162343-88e8-4463-bd34-8add9ee104hu)",
+          "![Image](img_v3_0216n_cc6a5461-97f7-42f5-a9e9-063dd3a982hu)",
+          "@Mateo 問個問題~目前FALIVE主播等級與用戶等級皆無對應圖片",
+          "需請UI提供新的等級圖片還是?",
+          "【本条 @】@Aven.Bot 请根据 @Mateo 给的信息，同步更新 web 端的相应逻辑",
+          "【话题其它回复】",
+          "Mateo：@Kevin 我理解这个应该是可以直接把 klive 的拿过来用吧？",
+          "Kevin：可以的",
+          "HTStone.z：@Mateo 確認一下~這個最終方案是先沿用KLIVE的嗎?",
+          "Mateo：@HTStone.z 可以",
+          "HTStone.z：@Kevin 請問有相關圖檔嗎?",
+          "Kevin：我找k那边的pm确认下 稍后发出",
+          "Kevin：@Mateo",
+          "Mateo：@Aven.tong @Broker @HTStone.z 我们第一期先不做用户等级和主播等级了，前端把相应的等级图标和等级显示，都隐藏吧",
+          "CC：@HQUCEncone@World @Charlie",
+          "Charlie：@Mateo OK",
+          "【群里这条之前的消息】",
+          "Mateo（10-27 10:36）：@HTShellyhsu 这个页面我和设计师刚沟通完，再补页面",
+          "Mateo（10-27 10:49）：@HTStone.z 这个页面右下角的浮窗点击后是直接进入到【聊天】里，在【聊天】里，右下角就不需要展示这个浮窗了。其他导航里展示。这个跳转逻辑 我和@Aven.tong 已经沟通达成一致了。",
+          "HTShellyhsu（10-27 10:51）：@Mateo 調整完再麻煩通知一下，我再開單請前端調整",
+          "Mateo（10-27 10:51）：@HTShellyhsu",
+          "游客模式的个人中心样式设计师已经补完图了。设计师：@Ace 前端：@Broker",
+          "这个页面的逻辑是点击登录、新人专享、任务中心的去签到/兑换特权、立即登录、右下角浮窗都会直接触发去登录的页面 （发了 1 张图）",
+          "HTShellyhsu（10-27 10:54）：@Mateo 這應該是要給APP調整",
+          "Mateo（10-27 10:58）：@Broker",
+          "Broker（10-27 11:13）：好的",
+          "Aven.tong（10-27 11:55）：目前，falive 还没有 uat/online 环境，麻烦提供下相关的环境，[双手合十] 我这边先跑一跑 @HQUCEncone @.Ache.l cc @World @Charlie @Rou",
+          "HTStone.z（10-27 11:57）：@Mateo 由於APP上有C2C功能，在個人頁面需要提供對應的ID才可自行新增聯絡人，個人頁面的版面看需不需要調整一下? （发了 1 张图）",
+          "Mateo（10-27 11:58）：@HTStone.z 你指的 C2C 是什么场景？",
+          "HTStone.z（10-27 11:58）：用戶加用戶聯絡人",
+          "HTStone.z（10-27 11:59）：原功能是用嗨聊的ID進行新增",
+          "目前只展示FALIVE的UID",
+          "Mateo（10-27 12:00）：@HQUCEncone falive 的 UID 应该和 HICHAT 的 UID 是同一种吧？",
+          "Williamwang HT（10-27 12:07）：不一樣吧 falive uid 跟 hichat的uid 是兩個不同的id 代表兩個不同平台的id吧",
+          "Mateo（10-27 12:09）：是要做统一的，之前的 hichat uid 统一换到 falive 的 UID",
+          "Williamwang HT（10-27 12:12）：不是",
+          "現在專案內 同時有 go falive hichat原本的api",
+          "hichat需要 hichat uid 才能作動",
+          "falive 則是需要 falive的uid 才能作動"
+        ]
+      },
+      "group": {
+        "falive": [],
+        "sim": [
+          {
+            "at": "2026-10-27T09:48:13.764Z",
+            "afterSec": 19,
+            "phase": "ack",
+            "gated": null,
+            "text": "@ou_91861d6da6cf6822e08045ba1868241e 收到，按 Mateo 说的，web 端的等级图标和等级显示先全部隐藏。"
+          },
+          {
+            "at": "2026-10-27T09:52:40.010Z",
+            "afterSec": 285,
+            "phase": "done",
+            "gated": null,
+            "text": "@ou_91861d6da6cf6822e08045ba1868241e web 端等级隐藏：通了 1 项，没通 3 项\n- ⚠️ 待验证 他人主页昵称旁的等级胶囊：已隐藏，本地连 pre 打开 /user/260 看过，没有 Lv 胶囊；这次没实测\n- ⚠️ 待验证 直播间公屏等级徽章（含 Lv.7 以上绿字）：已隐藏，本地连 pre 打开直播间公屏看过，欢迎条和消息里都没有等级；这次没实测\n- ⚠️ 待验证 搜索结果主播卡等级徽章：已隐藏，本地连 pre 搜「Test」看过，主播卡没有等级；这次没实测\n- ✅ 通了 本人主页直播等级徽标 + 右栏直播等级卡：已隐藏；测试号这次登录失败，没在浏览器里看，只核对了代码和类型检查\n- ➖ 不涉及接口 社区等级（社区 Lv.N / 积分页等级）：不属于用户等级和主播等级，这次先保留，要不要一起隐藏等 aven 定"
+          }
+        ]
+      }
+    }
+  ],
+  "routing": {
+    "falive": [
+      "received task-mention C1，等待意图分类…",
+      "repo ack C1：【专项】Falive融合技术讨论群 只私聊不发群",
+      "C1 回「收到」（classified，固定句）：【专项】Falive融合技术讨论群 只私聊不发群",
+      "台账：C1 requirement 触及 new#c4346b → 工单键 …",
+      "repo start C1 -> webhook-group ok via webhook",
+      "task-mention C1 classified=requirement/high，正式入队",
+      "repo group reply C1：【专项】Falive融合技术讨论群 只私聊不发群",
+      "repo outcome C1 done -> webhook-group ok via webhook"
+    ],
+    "sim": [
+      "received task-mention C1，等待意图分类…",
+      "repo ack C1 ok via webhook",
+      "C1 回「收到」（classified，用分类 reply）：ok",
+      "台账：C1 requirement 触及 new#c4346b → 工单键 …",
+      "repo start C1 -> webhook-group ok via webhook",
+      "task-mention C1 classified=requirement/high，正式入队",
+      "repo group reply C1 ok via webhook",
+      "repo outcome C1 done -> webhook-group ok via webhook"
+    ],
+    "onlyFalive": [
+      "repo ack C1：【专项】Falive融合技术讨论群 只私聊不发群",
+      "C1 回「收到」（classified，固定句）：【专项】Falive融合技术讨论群 只私聊不发群",
+      "repo group reply C1：【专项】Falive融合技术讨论群 只私聊不发群"
+    ],
+    "onlySim": [
+      "repo ack C1 ok via webhook",
+      "C1 回「收到」（classified，用分类 reply）：ok",
+      "repo group reply C1 ok via webhook"
+    ]
+  },
+  "console": {
+    "falive": [
+      {
+        "at": "2026-10-27T09:48:59.521Z",
+        "text": "<card>\n🛠 开始做：aven 交办：按 Mateo（产品）在话题里的定论——第一期不做用户等级和主播等级，前端把等级图标和等级显示都隐藏——同步改 web 端（【专项】Falive融合技术讨论群）\n</card>"
+      }
+    ],
+    "sim": [
+      {
+        "at": "2026-10-27T09:48:13.814Z",
+        "text": "<card>\n🛠 开始做：aven 交办：Mateo 在话题里定了第一期不做用户等级和主播等级，要求前端把等级图标和等级显示都隐藏。aven 让 bot 照这个口径，把 web 端相应的（Falive产研技术沟通群）\n</card>"
+      },
+      {
+        "at": "2026-10-27T09:52:40.012Z",
+        "text": "<card>\n✅ 按 Mateo 的决定，web 端的用户等级和主播等级已经全部隐藏，共 5 处：本人主页资料头的「直播 Lv.N」、本人主页右栏的直播等级卡（含等级图标）、他人主页昵称旁的 Lv 胶囊、直播间公屏里的等级徽章（Lv.7 以上绿字高亮也一起去掉了）、搜索结果主播卡上的等级徽章。数据层没动，二期要恢复时直接接回。本地连 pre 后端看了他人主页、直播间公屏和搜索页，都没有等级、布局正常；本人主页因为测试号这次登录失败（403），没在浏览器里看，只核对了代码和类型检查。另外，社区等级（社区 Lv.N、积分页等级）不属于这次说的两种等级，暂时保留，要不要一起隐藏请你定。\n分支 feature/phase-5-test · 改了 5 个文件\n已合进 feature/phase-5-test\n⚠ 任务带的 4 张截图有 2 张执行器没打开看，结论可能漏了截图里的信息（比如原型里已有的需求），发群前请过一眼\n群里已回：「web 端等级隐藏：通了 1 项，没通 3 项」\n</card>"
+      }
+    ]
+  },
+  "simOtherSends": 0,
+  "egress": {
+    "connections": 80,
+    "nonLocal": [
+      "2.1.289 160.79.104.10:443",
+      "chrome-he 15.164.31.245:443"
+    ],
+    "flagged": [],
+    "probe": 0,
+    "probeBlocked": []
+  },
+  "fakeCliGaps": [],
+  "casesDir": "/Users/aven/github/lark-bot-cal/replay/falive"
+}

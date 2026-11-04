@@ -1,0 +1,346 @@
+{
+  "episode": "ep-1030-337e3d",
+  "faliveCode": {
+    "sha": "b69e44ff9c08d92c720adab68ceb3147e7afd15c",
+    "dir": "/Users/aven/github/lark-bot-falive-sim/code-b69e44f",
+    "codeHash": "9c980fa41958",
+    "startedAt": "2026-10-29T13:50:53.863Z",
+    "verified": true,
+    "tried": [
+      {
+        "sha": "b69e44f",
+        "hashes": [
+          "9c980fa41958",
+          "6ae0d4b611b6"
+        ]
+      }
+    ]
+  },
+  "faliveConfig": "/Users/aven/github/lark-bot-falive/runtime/lark-bot.bak-20261031.local.json",
+  "cases": [
+    {
+      "label": "C1",
+      "id": "om_x100b617ee9cc04a4eeef84e99337e3d",
+      "at": "2026-10-30T14:32:16.200Z",
+      "chat": "php-group",
+      "text": "@Aven.Bot \n\nOL 个人主页 帮忙看下api 返回资料\n\nhttps://www.falive.com/bbsv2/member/info?channel_code=hc",
+      "classified": {
+        "falive": {
+          "decision": "question",
+          "confidence": "medium"
+        },
+        "sim": {
+          "decision": "bug",
+          "confidence": "medium"
+        }
+      },
+      "status": {
+        "falive": "blocked",
+        "sim": "blocked"
+      },
+      "seen": {
+        "falive": 33,
+        "sim": 33,
+        "onlyFalive": [
+          "- 台账 new#60e6d6（noted）Encone 问 OL 版本为什么没有 bbsv2 接口请求，要对照代码 / 环境配置说明社区帖子接…｜最近：OL 社区 bbsv2 没出来、修改有没有发到 OL 的问题，和这次全量打包到 OL 的诉求有关",
+          "- 台账 new#02bd76（noted）William 让测试帖子多语言翻译和 AI 识图功能（后端已做好，等前端在 pre 测）｜最近：AI 识图这部分 web 不用测，后端说是服务端功能"
+        ],
+        "onlySim": [
+          "- 台账 new#c2b104（noted）Encone 要 pre 环境测试账号密码，aven 授权直接回一份测试账号｜最近：Arthur（hichat / 账号后端）在群里 @ 机器人，要我方发一下 pre 测试号。前文里 Encone 也在要…",
+          "- 台账 new#60e6d6（noted）Encone 问 OL 版本为什么没有 bbsv2 接口请求，要对照代码 / 环境配置说明社区帖子接…｜最近：Encone（portal 后端）@bot 问能不能先把前端全部功能打包部署到 uat 和 OL，方便后端看出各环境还缺…"
+        ]
+      },
+      "group": {
+        "falive": [
+          {
+            "at": "2026-10-30T14:32:44.767Z",
+            "afterSec": 29,
+            "phase": "ack",
+            "gated": null,
+            "text": "@ou_0474e2a35ff1054cdbc0bb9d9d9c9766 收到，我去 OL 个人主页看下 member/info 的返回，看完回你。"
+          },
+          {
+            "at": "2026-10-30T14:35:39.024Z",
+            "afterSec": 203,
+            "phase": "blocked_ask",
+            "gated": null,
+            "text": "@Encone 「Encone（portal 后端）@bot，请看一下 OL（www.falive.com）个人主页调 bbsv2/member/info?channel_cod」这边卡住了，需要你们帮忙：\n- 没有 OL 登录态：/bbsv2/member/info 只返回本人资料，游客调用一律 -700。需要以下二选一：提问人在 OL 个人主页打开 DevTools，把这个请求的完整响应（或其中的 sec 密文）发出来\n- 或在群里要一个 OL 测试账号。正式环境不能随手注册账号。\n- 问题现象不清楚：消息只说「帮忙看下 api 返回资料」，没说个人主页哪一项不对（积分？等级？获赞 / 收藏？昵称头像？），也没有个人主页截图（附件都是之前别的话题的图），没法对着页面找出错的位置。"
+          }
+        ],
+        "sim": [
+          {
+            "at": "2026-10-30T14:32:45.093Z",
+            "afterSec": 29,
+            "phase": "ack",
+            "gated": null,
+            "text": "@ou_0474e2a35ff1054cdbc0bb9d9d9c9766 收到，我去 OL 对一下 member/info 的返回和个人主页显示，看完回你。"
+          },
+          {
+            "at": "2026-10-30T14:33:54.661Z",
+            "afterSec": 98,
+            "phase": "blocked_ask",
+            "gated": null,
+            "text": "@Encone 「Encone（portal 后端）@bot，请我们查一下 OL 个人主页调 bbsv2/member/info?channel_code=hc 返回的资料，并核」这边卡住了，需要你们帮忙：\n- 拿不到 OL 上 bbsv2/member/info 的真实返回：没签名直接请求回 HTTP 407、{code:-800,msg:'非法请求'}，本地也没有 OL 登录 token。需要提问人提供登录状态下 Network 里这条请求的 Response 截图或复制内容，或者提供一个 OL 测试账号让 bot 登录后自己抓\n- 问题描述不清：只说「帮忙看下api返回资料」，没说个人主页上哪一项显示不对、期望是什么。附件都是群里更早的注册、上传、任务中心截图，没有个人主页的截图"
+          }
+        ]
+      }
+    },
+    {
+      "label": "C2",
+      "id": "om_x100b617eff5ea4a4ed04600bc21fcd8",
+      "at": "2026-10-30T14:35:05.318Z",
+      "chat": "php-group",
+      "text": "![Image](img_v3_0216v_91843cae-335a-438d-ac4c-50f08c6a27hu)\n@Arthur.a @HQUCEncone  cc @Kaiser @World",
+      "classified": {
+        "falive": null,
+        "sim": null
+      },
+      "status": {
+        "falive": null,
+        "sim": null
+      },
+      "seen": {
+        "falive": 0,
+        "sim": 0,
+        "onlyFalive": [],
+        "onlySim": []
+      },
+      "group": {
+        "falive": [],
+        "sim": []
+      }
+    },
+    {
+      "label": "C3",
+      "id": "om_x100b617ef5885ca0ed87e0a531e4598",
+      "at": "2026-10-30T14:37:40.411Z",
+      "chat": "php-group",
+      "text": "个人资料必须要登陆才行，请aven 给你一个账户 @Aven.Bot  帮忙看下 api 返回资料」",
+      "classified": {
+        "falive": {
+          "decision": "api_reply",
+          "confidence": "medium"
+        },
+        "sim": {
+          "decision": "api_reply",
+          "confidence": "medium"
+        }
+      },
+      "status": {
+        "falive": "blocked",
+        "sim": "blocked"
+      },
+      "seen": {
+        "falive": 41,
+        "sim": 38,
+        "onlyFalive": [
+          "Aven.Bot（bot，我们自己）（10-30 18:32）：@HQUCEncone 收到，我去 OL 个人主页看下 member/info 的返回，看完回你。",
+          "Aven.Bot（bot，我们自己）（10-30 18:33）：@.Ache.l @HQUCWilliam.m online 直播间两个问题麻烦看下：",
+          "1. 直播播不了：直播 CDN 播放域名 play2zz.sysiyu11.com 的 Referer 防盗链白名单里没有 www.falive.com。同一个播放地址带 www.falive.com 回 403，带 pre / uat 域名或不带 Referer 都是 200。请把 www.falive.com 和 falive.com 加进白名单，前端不用改。",
+          "2. 主播私聊发不出去：/hc/room/390 发消息，sendToAnchor 回 code -1「分配主播助手」，应该是 online 后台没给主播 390（Richie）配助手。请配上，也确认下其他开播主播都配了。",
+          "Aven.Bot（bot，我们自己）（10-30 18:35）：@HQUCEncone 「Encone（portal 后端）@bot，请看一下 OL（www.falive.com）个人主页调 bbsv2/member/info?channel_cod」这边卡住了，需要你们帮忙：",
+          "- 没有 OL 登录态：/bbsv2/member/info 只返回本人资料，游客调用一律 -700。需要以下二选一：提问人在 OL 个人主页打开 DevTools，把这个请求的完整响应（或其中的 sec 密文）发出来",
+          "- 或在群里要一个 OL 测试账号。正式环境不能随手注册账号。",
+          "- 问题现象不清楚：消息只说「帮忙看下 api 返回资料」，没说个人主页哪一项不对（积分？等级？获赞 / 收藏？昵称头像？），也没有个人主页截图（附件都是之前别的话题的图），没法对着页面找出错的位置。",
+          "- 18:35 bot 对他说（blocked_ask，主题 q:om_x100b617ee9cc04a4eeef84e99337e3d）：@Encone 「Encone（portal 后端）@bot，请看一下 OL（www.falive.com）个人主页调 bbsv2/member/info?channel_cod」这边卡住了，需要你们帮忙： - 没有 OL 登录态：/bbsv2/member/info 只返回本人资料，游客调用一律 -700。需要以下二选一：提问人在 OL 个人主页打开 DevTools，把这个请求的完整响应（或其中的 sec 密文）发出来 - 或在群里要一个 OL 测试账号。正式环境不能随手注册账号。 - 问题现象不清楚：消息只说「帮忙看下 api 返回资料」，没说个人主页哪一项不对（积分？等级？获赞 / 收藏？昵称头像？），也没有个人主页截图（附件都是之前别的话题的图），没法对着页面找出错的位置。",
+          "- 18:32 bot 对他说（ack）：收到，我去 OL 个人主页看下 member/info 的返回，看完回你。",
+          "- 他 18:32 的消息 id=om_x100b617ee9cc04a4eeef84e99337e3d 主题=q:om_x100b617ee9cc04a4eeef84e99337e3d 状态=blocked：Encone（portal 后端）@bot，请看一下 OL（www.falive.com）个人主页调 bbsv2/member/info?channel_cod",
+          "- 台账 new#60e6d6（noted）Encone 问 OL 版本为什么没有 bbsv2 接口请求，要对照代码 / 环境配置说明社区帖子接…｜最近：同属 OL 社区 bbsv2 接口在线上环境能不能用、返回对不对的核对",
+          "- 台账 new#337e3d（open）Encone 请在 OL 看个人主页 bbsv2/member/info?channel_code=…｜最近：Encone 请在 OL 看个人主页 bbsv2/member/info?channel_code=hc 返回的资料（O…",
+          "- 台账 对接-后端-2026-10-27#L2（verified）直播列表里拉不到流的房间｜最近：HTStone 说没推流的直播间已关闭，待复查直播列表"
+        ],
+        "onlySim": [
+          "Arthur.a（10-30 17:29）：我用邮箱也是正常注册了",
+          "Aven.Bot（bot，我们自己）（10-30 18:32）：@HQUCEncone 收到，我去 OL 对一下 member/info 的返回和个人主页显示，看完回你。",
+          "Aven.Bot（bot，我们自己）（10-30 18:33）：@HQUCEncone 「Encone（portal 后端）@bot，请我们查一下 OL 个人主页调 bbsv2/member/info?channel_code=hc 返回的资料，并核」这边卡住了，需要你们帮忙：",
+          "- 拿不到 OL 上 bbsv2/member/info 的真实返回：没签名直接请求回 HTTP 407、{code:-800,msg:'非法请求'}，本地也没有 OL 登录 token。需要提问人提供登录状态下 Network 里这条请求的 Response 截图或复制内容，或者提供一个 OL 测试账号让 bot 登录后自己抓",
+          "- 问题描述不清：只说「帮忙看下api返回资料」，没说个人主页上哪一项显示不对、期望是什么。附件都是群里更早的注册、上传、任务中心截图，没有个人主页的截图",
+          "- 18:33 bot 对他说（blocked_ask，主题 new#337e3d+new#60e6d6）：@Encone 「Encone（portal 后端）@bot，请我们查一下 OL 个人主页调 bbsv2/member/info?channel_code=hc 返回的资料，并核」这边卡住了，需要你们帮忙： - 拿不到 OL 上 bbsv2/member/info 的真实返回：没签名直接请求回 HTTP 407、{code:-800,msg:'非法请求'}，本地也没有 OL 登录 token。需要提问人提供登录状态下 Network 里这条请求的 Response 截图或复制内容，或者提供一个 OL 测试账号让 bot 登录后自己抓 - 问题描述不清：只说「帮忙看下api返回资料」，没说个人主页上哪一项显示不对、期望是什么。附件都是群里更早的注册、上传、任务中心截图，没有个人主页的截图",
+          "- 18:32 bot 对他说（ack）：收到，我去 OL 对一下 member/info 的返回和个人主页显示，看完回你。",
+          "- 他 18:32 的消息 id=om_x100b617ee9cc04a4eeef84e99337e3d 主题=new#337e3d+new#60e6d6 状态=blocked：Encone（portal 后端）@bot，请我们查一下 OL 个人主页调 bbsv2/member/info?channel_code=hc 返回的资料，并核",
+          "- 台账 new#c2b104（noted）Encone 要 pre 环境测试账号密码，aven 授权直接回一份测试账号｜最近：Arthur（hichat / 账号后端）在群里 @ 机器人，要我方发一下 pre 测试号。前文里 Encone 也在要…",
+          "- 台账 new#60e6d6（noted）Encone 问 OL 版本为什么没有 bbsv2 接口请求，要对照代码 / 环境配置说明社区帖子接…｜最近：同属 OL 上 bbsv2 接口的排查，可以一起对照",
+          "- 台账 new#337e3d（open）Encone 请查 OL 个人主页 bbsv2/member/info 的返回资料，核对页面显示｜最近：Encone 请查 OL 个人主页 bbsv2/member/info 的返回资料，核对页面显示"
+        ]
+      },
+      "group": {
+        "falive": [
+          {
+            "at": "2026-10-30T14:38:27.469Z",
+            "afterSec": 47,
+            "phase": "ack",
+            "gated": null,
+            "text": "@ou_0474e2a35ff1054cdbc0bb9d9d9c9766 好的，我跟 aven 要个 OL 账号，登录后看 member/info 返回再回你。"
+          }
+        ],
+        "sim": [
+          {
+            "at": "2026-10-30T14:38:15.922Z",
+            "afterSec": 36,
+            "phase": "ack",
+            "gated": null,
+            "text": "@ou_0474e2a35ff1054cdbc0bb9d9d9c9766 好的，我找 aven 要个 OL 账号，登录后抓 member/info 返回再回你。"
+          }
+        ]
+      }
+    },
+    {
+      "label": "C4",
+      "id": "om_x100b617f63ee0ca0ff60005c7683910",
+      "at": "2026-10-30T15:08:02.585Z",
+      "chat": "php-group",
+      "text": "[Image: img_v3_0216v_c34eb065-1c58-435f-a802-9209dc0defhu]",
+      "classified": {
+        "falive": null,
+        "sim": null
+      },
+      "status": {
+        "falive": null,
+        "sim": null
+      },
+      "seen": {
+        "falive": 0,
+        "sim": 0,
+        "onlyFalive": [],
+        "onlySim": []
+      },
+      "group": {
+        "falive": [],
+        "sim": []
+      }
+    },
+    {
+      "label": "C5",
+      "id": "om_x100b617f7f0644a0eda2a9a8d16c959",
+      "at": "2026-10-30T15:09:16.868Z",
+      "chat": "php-group",
+      "text": "@Arthur.a cc @Kaiser @HQUCEncone",
+      "classified": {
+        "falive": null,
+        "sim": null
+      },
+      "status": {
+        "falive": null,
+        "sim": null
+      },
+      "seen": {
+        "falive": 0,
+        "sim": 0,
+        "onlyFalive": [],
+        "onlySim": []
+      },
+      "group": {
+        "falive": [],
+        "sim": []
+      }
+    }
+  ],
+  "routing": {
+    "falive": [
+      "received task-mention C1，等待意图分类…",
+      "repo ack C1 ok via webhook",
+      "C1 回「收到」（classified，用分类 reply）：ok",
+      "台账：C1 question 触及 new#337e3d、new#60e6d6 → 工单键 …",
+      "repo start C1 -> webhook-group ok via webhook",
+      "task-mention C1 classified=question/medium，正式入队",
+      "repo blocked ask C1 ok via webhook",
+      "repo outcome C1 blocked -> webhook-group ok via webhook",
+      "锚定：C3 接着 C1（主题 q:C1）",
+      "终端结单：任务 C1 由 blocked -> superseded（no_longer_needed）",
+      "received task-mention C3，等待意图分类…",
+      "repo ack C3 ok via webhook",
+      "C3 回「收到」（classified，用分类 reply）：ok",
+      "台账：C3 api_reply 触及 new#337e3d → 工单键 …",
+      "repo start C3 -> webhook-group ok via webhook",
+      "task-mention C3 classified=api_reply/medium，正式入队",
+      "repo outcome C3 blocked -> webhook-group ok via webhook",
+      "终端结单：任务 C3 由 blocked -> superseded（no_longer_needed）"
+    ],
+    "sim": [
+      "received task-mention C1，等待意图分类…",
+      "repo ack C1 ok via webhook",
+      "C1 回「收到」（classified，用分类 reply）：ok",
+      "台账：C1 bug 触及 new#337e3d、new#60e6d6 → 工单键 …",
+      "repo start C1 -> webhook-group ok via webhook",
+      "task-mention C1 classified=bug/medium，正式入队",
+      "repo blocked ask C1 ok via webhook",
+      "repo outcome C1 blocked -> webhook-group ok via webhook",
+      "received task-mention C3，等待意图分类…",
+      "repo ack C3 ok via webhook",
+      "C3 回「收到」（classified，用分类 reply）：ok",
+      "锚定：C3 接着 C1（主题 new#337e3d+new#60e6d6）",
+      "台账：C3 api_reply 触及 new#337e3d、new#60e6d6 → 工单键 …",
+      "repo start C3 -> webhook-group ok via webhook",
+      "task-mention C3 classified=api_reply/medium，正式入队",
+      "repo outcome C3 blocked -> webhook-group ok via webhook"
+    ],
+    "onlyFalive": [
+      "台账：C1 question 触及 new#337e3d、new#60e6d6 → 工单键 …",
+      "task-mention C1 classified=question/medium，正式入队",
+      "锚定：C3 接着 C1（主题 q:C1）",
+      "终端结单：任务 C1 由 blocked -> superseded（no_longer_needed）",
+      "台账：C3 api_reply 触及 new#337e3d → 工单键 …",
+      "终端结单：任务 C3 由 blocked -> superseded（no_longer_needed）"
+    ],
+    "onlySim": [
+      "台账：C1 bug 触及 new#337e3d、new#60e6d6 → 工单键 …",
+      "task-mention C1 classified=bug/medium，正式入队",
+      "锚定：C3 接着 C1（主题 new#337e3d+new#60e6d6）",
+      "台账：C3 api_reply 触及 new#337e3d、new#60e6d6 → 工单键 …"
+    ]
+  },
+  "console": {
+    "falive": [
+      {
+        "at": "2026-10-30T14:32:46.320Z",
+        "text": "<card>\n🛠 开始做：Encone（portal 后端）@bot，请看一下 OL（www.falive.com）个人主页调 bbsv2/member/info?channel_cod（Falive PHP后端群）\n</card>"
+      },
+      {
+        "at": "2026-10-30T14:35:39.487Z",
+        "text": "<card>\n⏸ 停下来了（Falive PHP后端群）：我在 OL 上带签名请求了这个接口（只读）：游客调用 `/bbsv2/member/info` 返回 HTTP 200 + code -700「登陆状态失效，无TOKEN」，这是正常的登录门槛。公开接口 otherInfo 和 threadsCount 在 OL 上都能正常返回资料。但「个人主页资料」必须带登录 token 才能取到，bot 没有 OL 账号，看不到真实返回，也不清楚提问人看到的具体问题是什么，所以先判 blocked。\n要：没有 OL 登录态：/bbsv2/member/info 只返回本人资料，游客调用一律 -700。需要以下二选一：提问人在 OL 个人主页打开 DevTools，把这个请求的完整响应（或其中的 sec 密文）发出来；或在群里要一个 OL 测试账号。正式环境不能随手注册账号。；问题现象不清楚：消息只说「帮忙看下 api 返回资料」，没说个人主页哪一项不对（积分？等级？获赞 / 收藏？昵称头像？），也没有个人主页截图（附件都是之前别的话题的图），没法对着页面找出错的位置。\n回复这条消息把材料补上就会继续。\n群里已回：「@Encone 「Encone（portal 后端）@bot，请看一下 OL（www.falive.com）个人主页调 bbsv2/member/info?channel_cod」这边卡住了，需要你们帮忙：」\n</card>"
+      },
+      {
+        "at": "2026-10-30T14:38:27.914Z",
+        "text": "<card>\n🛠 开始做：Encone 答复 bot 18:35 的卡点：OL 个人资料接口必须登录才能看，请 aven 给 bot 一个账号，再登录看 bbsv2/member/inf（Falive PHP后端群）\n</card>"
+      },
+      {
+        "at": "2026-10-30T14:39:14.573Z",
+        "text": "<card>\n⏸ 停下来了（Falive PHP后端群）：这是只读查接口的活：用 OL 登录态调 www.falive.com/bbsv2/member/info?channel_code=hc，把返回的资料给 Encone。这个接口只返回本人资料，游客调用一律 -700，必须登录。bot 现在没有 OL 账号，正式环境也不能自己注册，得等 aven 给一个 OL 账号（或 token）才能查。不改代码。\n要：没有 OL（www.falive.com）登录态：/bbsv2/member/info 只返回本人资料，游客调用一律 -700，正式环境也不能随手注册账号。需要 aven 私信给一个 OL 测试账号（或该账号的 token），拿到后才能调接口看返回\n回复这条消息把材料补上就会继续。\n群里只回过「好的，我跟 aven 要个 OL 账号，登录后看 member/info 返回再回你」，结论还没发到群里。\n</card>"
+      },
+      {
+        "at": "2026-10-30T15:09:37.701Z",
+        "text": "<card>\n日报核对 2026-10-30\n\n**今天删掉的行**：\n- 三节：产品：待答事项——Henry BUG问题-2026-10-28 已移入 pending/done/（done/README：Bug-4997 / 4952 bug 表 Pre测试通过，全部结）；pending/ 根目录只剩对接-上线-2026-10-30（运维 / live php），没有在等产品的事**功能总表要改的状态**（日报已按 pre 代码写）：\n- #1 用户资料（henry）：总表 🟠 → pre 代码 ✅（modules/user/data/queries.ts 本人资料走 php Member/info + bbsv2 threadsCount；4f3b5523）\n- #9 推荐的视频（营销上传视频）（aven）：总表 🟠 → pre 代码 ✅（录播接 front/robotManualList，pre 探针 7 条、kliveRobotManualPageSchema 通过）\n- #17 新手任务-关于直播的任务（adrian）：总表 🟠 → pre 代码 ✅（aven 2026-10-21 拍板关闭：已完成）\n- #18 新手任务-联动fameex任务？（adrian）：总表 🟠 → pre 代码 ✅（aven 2026-10-21 拍板关闭：已完成）\n- #19 每日任务-关于直播的任务（adrian）：总表 🟠 → pre 代码 ✅（aven 2026-10-21 拍板关闭：已完成）\n- #20 每日任务-联动fameex任务？（adrian）：总表 🟠 → pre 代码 ✅（aven 2026-10-21 拍板关闭：已完成）\n- #21 积分兑换-联动fameex体验金兑换？（adrian）：总表 🟡 → pre 代码 ✅（aven 2026-10-28 拍板关闭：aven 拍板关闭，不再作为问题 / 待办）\n- #23 客服（henry）：总表 🟡 → pre 代码 ✅（modules/help/data/queries.ts 走 php chat/getChatRoomList、chat/history，生产不回落 mock）\n- #24 群组？（henry）：总表 🟡 → pre 代码 ✅（群组走 chat/* 真实接口 + WS；af5eaeaf 群名 / 群头像推送后按服务端重拉（Bug-5106））\n- #25 私聊？（henry）：总表 🟡 → pre 代码 ✅（私聊走 chat/* + sendToAssistant 真实接口）\n- #28 热门主播-个人主页-**直播存档** 🆕（broker）：总表 🟠 → pre 代码 ✅（live front/anchorRecordList 已接，沿用上一版）\n- #30 录播——推荐的视频（运营上传）（aven）：总表 🟠 → pre 代码 ✅（同 #9，robotManualList pre 探针 7 条）\n- #33 右侧-广场（henry）：总表 🟡 → pre 代码 ✅（公屏走 WS 真实通道，沿用上一版）\n- #34 右侧-私聊？（henry）：总表 🟡 → pre 代码 ✅（直播间私聊走 chat/sendToAnchor 真实接口，沿用上一版）\n- #35 右侧-群组？（henry）：总表 🟡 → pre 代码 ✅（群组 tab 走 getChatRoomList / history / sendMessage + WS；af5eaeaf 群信息变更重拉）\n- #46 基础信息（henry）：总表 🟠 → pre 代码 ✅（aven 2026-10-28 拍板关闭：aven 拍板关闭，不再作为问题 / 待办）\n- #47 fameex入口（eric）：总表 🟠 → pre 代码 ✅（aven 2026-10-21 拍板关闭：已完成）\n- #48 个人简介（henry）：总表 🟠 → pre 代码 ✅（简介读 otherInfo / member/info 的 signature，写 member/updateInfo，沿用上一版）\n- #49 **直播存档** 🆕（broker）：总表 🟠 → pre 代码 ✅（同 #28，沿用上一版）\n- #51 行情跑马灯（eric）：总表 🟠 → pre 代码 ✅（aven 2026-10-21 拍板关闭：已完成）\n- #52 一键跟单？？（broker）：总表 🟠 → pre 代码 ✅（aven 2026-10-21 拍板关闭：已完成）\n- #54 adjust与ex对接（（无web工作））：总表 ❌ → pre 代码 ✅（aven 2026-10-21 拍板关闭：已完成（后端））\n</card>"
+      }
+    ],
+    "sim": [
+      {
+        "at": "2026-10-30T14:32:45.145Z",
+        "text": "<card>\n🛠 开始做：Encone（portal 后端）@bot，请我们查一下 OL 个人主页调 bbsv2/member/info?channel_code=hc 返回的资料，并核（Falive PHP后端群）\n</card>"
+      },
+      {
+        "at": "2026-10-30T14:33:54.664Z",
+        "text": "<card>\n⏸ 停下来了（Falive PHP后端群）：任务是查看 OL bbsv2 member/info 的返回资料，但请求要 vn-sign 签名和 OL 登录 token。没签名直接请求回 -800 非法请求，任务和附件里也没有这个接口的真实返回或页面截图，没法判断异常在哪一层，需要补材料。\n要：拿不到 OL 上 bbsv2/member/info 的真实返回：没签名直接请求回 HTTP 407、{code:-800,msg:'非法请求'}，本地也没有 OL 登录 token。需要提问人提供登录状态下 Network 里这条请求的 Response 截图或复制内容，或者提供一个 OL 测试账号让 bot 登录后自己抓；问题描述不清：只说「帮忙看下api返回资料」，没说个人主页上哪一项显示不对、期望是什么。附件都是群里更早的注册、上传、任务中心截图，没有个人主页的截图\n回复这条消息把材料补上就会继续。\n群里已回：「@Encone 「Encone（portal 后端）@bot，请我们查一下 OL 个人主页调 bbsv2/member/info?channel_code=hc 返回的资料，并核」这边卡住了，需要你们帮忙：」\n</card>"
+      },
+      {
+        "at": "2026-10-30T14:38:15.929Z",
+        "text": "<card>\n🛠 开始做：Encone（portal 后端）接着回了 bot 18:33 卡住时提的问题：OL 个人主页的 bbsv2/member/info 要登录后才能拿到资料，让 （Falive PHP后端群）\n</card>"
+      },
+      {
+        "at": "2026-10-30T14:39:01.119Z",
+        "text": "<card>\n⏸ 停下来了（Falive PHP后端群）：这是只读排查：要在 OL 登录状态下抓 bbsv2/member/info?channel_code=hc 的真实返回，再和个人主页显示对一遍。Encone 已说明这个接口要登录才能调，并请 aven 给 bot 一个账号，但目前本地没有 OL 测试账号或登录 token，进不去，只能等 aven 给账号。\n要：没有 OL（www.falive.com）的登录账号或 token。member/info 要登录才能调，不带签名直接请求回 HTTP 407、code -800。Encone 10-30 已请 aven 给 bot 一个 OL 账号，现在还没给，仓库文档里也只有 pre 测试号 uid 508，没有 OL 账号。\n回复这条消息把材料补上就会继续。\n群里只回过「好的，我找 aven 要个 OL 账号，登录后抓 member/info 返回再回你」，结论还没发到群里。\n</card>"
+      }
+    ]
+  },
+  "simOtherSends": 0,
+  "egress": {
+    "connections": 143,
+    "nonLocal": [
+      "2.1.289 160.79.104.10:443"
+    ],
+    "flagged": [],
+    "probe": 0,
+    "probeBlocked": []
+  },
+  "fakeCliGaps": [],
+  "casesDir": "/Users/aven/github/lark-bot-cal/replay/falive"
+}

@@ -1,0 +1,87 @@
+{
+  "episode": "ep-1030-83e8e3",
+  "faliveCode": {
+    "sha": "b69e44ff9c08d92c720adab68ceb3147e7afd15c",
+    "dir": "/Users/aven/github/lark-bot-falive-sim/code-b69e44f",
+    "codeHash": "9c980fa41958",
+    "startedAt": "2026-10-29T13:50:53.863Z",
+    "verified": true,
+    "tried": [
+      {
+        "sha": "b69e44f",
+        "hashes": [
+          "9c980fa41958",
+          "6ae0d4b611b6"
+        ]
+      }
+    ]
+  },
+  "faliveConfig": "/Users/aven/github/lark-bot-falive/runtime/lark-bot.bak-20261031.local.json",
+  "cases": [
+    {
+      "label": "C1",
+      "id": "om_x100b6177ab8c8ca8fffa5c17283e8e3",
+      "at": "2026-10-30T06:51:00.088Z",
+      "chat": "webhook-group",
+      "text": "帮我合",
+      "classified": {
+        "falive": null,
+        "sim": null
+      },
+      "status": {
+        "falive": null,
+        "sim": null
+      },
+      "seen": {
+        "falive": 0,
+        "sim": 0,
+        "onlyFalive": [],
+        "onlySim": []
+      },
+      "group": {
+        "falive": [],
+        "sim": []
+      }
+    }
+  ],
+  "routing": {
+    "falive": [],
+    "sim": [],
+    "onlyFalive": [],
+    "onlySim": []
+  },
+  "console": {
+    "falive": [
+      {
+        "at": "2026-10-30T06:51:07.369Z",
+        "text": "<card>\n好，2 条开始合：pre 部署后复测（pre @ 11a5c6c6，构建于 10-30 08:53）；William（live php 后端）引用 aven 上线清单里的 U2「uat 前台 nginx 没转发 /hc-w。合进 feature/phase-5-test 后私信你取舍。\n</card>"
+      },
+      {
+        "at": "2026-10-30T06:51:10.271Z",
+        "text": "<card>\n⛔ 没做成（falive 控制台）：项目 FALIVE 需要准备隔离临时 worktree；\n临时分支 lark/falive-10300853 已有提交但不包含本次项目基线 d3b079ef5abd；为避免把旧基线提交混入当前需求，请人工 rebase/cherry-pick 后重试\n</card>"
+      },
+      {
+        "at": "2026-10-30T06:51:12.970Z",
+        "text": "<card>\n⛔ 没做成（falive 控制台）：项目 FALIVE 需要准备隔离临时 worktree；\n临时分支 lark/falive-90e4c409 已有提交但不包含本次项目基线 d3b079ef5abd；为避免把旧基线提交混入当前需求，请人工 rebase/cherry-pick 后重试\n</card>"
+      }
+    ],
+    "sim": [
+      {
+        "at": "2026-10-30T06:51:04.418Z",
+        "text": "<card>\n这句没对上任务：12 小时内没有我发给你的任务通知。要续跑或补充，请写「继续任务 <任务 id> 补充内容」；要结单写「结单 <任务 id>」。\n</card>"
+      }
+    ]
+  },
+  "simOtherSends": 0,
+  "egress": {
+    "connections": 18,
+    "nonLocal": [
+      "2.1.289 160.79.104.10:443"
+    ],
+    "flagged": [],
+    "probe": 0,
+    "probeBlocked": []
+  },
+  "fakeCliGaps": [],
+  "casesDir": "/Users/aven/github/lark-bot-cal/replay/falive"
+}

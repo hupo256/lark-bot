@@ -200,12 +200,11 @@ export const toListItem = (m) => ({
 const CLASSIFIED_RE = /task-mention (om_x[0-9a-f]+) classified=([a-z_]+)(?:\/([a-z]+))?/
 const stripTs = (line) => line.replace(/^\d{4}-\d{2}-\d{2}[ T][\d:.]+\S*\s+/, '')
 
-export const loadGatewayBaseline = () => {
-  const path = join(faliveLogDir, 'gateway.log')
-  if (!existsSync(path)) return { classified: new Map(), lines: new Map() }
+// 网关日志正文 → 每条 id 的分类与提到它的行（falive 当时的日志、模拟里 falive 代码的日志同一个口径，校准两边共用）
+export const parseGatewayLog = (text) => {
   const classified = new Map()
   const lines = new Map()
-  for (const raw of readFileSync(path, 'utf8').split('\n')) {
+  for (const raw of String(text || '').split('\n')) {
     const line = stripTs(raw)
     const m = line.match(CLASSIFIED_RE)
     if (m) classified.set(m[1], { decision: m[2], confidence: m[3] || null })
@@ -216,13 +215,12 @@ export const loadGatewayBaseline = () => {
   }
   return { classified, lines }
 }
+export const loadGatewayBaseline = (path = join(faliveLogDir, 'gateway.log')) => (existsSync(path) ? parseGatewayLog(readFileSync(path, 'utf8')) : { classified: new Map(), lines: new Map() })
 
 // worker.log 里「claimed <id> via claude: <正文…>」：正文到下一行 [lark-worker] 为止（含上下文块）。
-export const loadWorkerClaimedTexts = () => {
-  const path = join(faliveLogDir, 'worker.log')
+export const parseClaimedTexts = (text) => {
   const out = new Map()
-  if (!existsSync(path)) return out
-  const lines = readFileSync(path, 'utf8').split('\n')
+  const lines = String(text || '').split('\n')
   for (let i = 0; i < lines.length; i += 1) {
     const m = stripTs(lines[i]).match(/\[lark-worker\] claimed (om_x[0-9a-f]+|[\w-]+) via \w+: (.*)$/)
     if (!m) continue
@@ -232,6 +230,7 @@ export const loadWorkerClaimedTexts = () => {
   }
   return out
 }
+export const loadWorkerClaimedTexts = (path = join(faliveLogDir, 'worker.log')) => (existsSync(path) ? parseClaimedTexts(readFileSync(path, 'utf8')) : new Map())
 
 export const loadLedger = () => {
   const path = join(faliveRuntimeDir, 'lark-ledger', 'falive.json')

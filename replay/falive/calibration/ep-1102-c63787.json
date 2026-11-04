@@ -1,0 +1,69 @@
+{
+  "episode": "ep-1102-c63787",
+  "faliveCode": {
+    "sha": "8dda2c902d6a9840b650dbfb2dedf6dc325755e9",
+    "dir": "/Users/aven/github/lark-bot-falive-sim/code-8dda2c9",
+    "codeHash": "e41f2f429c3c",
+    "startedAt": "2026-10-31T14:25:00.379Z",
+    "verified": true,
+    "tried": [
+      {
+        "sha": "8dda2c9",
+        "hashes": [
+          "e41f2f429c3c",
+          "c8202f05a069"
+        ]
+      }
+    ]
+  },
+  "faliveConfig": "/Users/aven/github/lark-bot-falive/runtime/lark-bot.bak-20261102.local.json",
+  "cases": [
+    {
+      "label": "C1",
+      "id": "om_x100b61b68d9d18a4edaadea92c63787",
+      "at": "2026-11-02T06:22:45.166Z",
+      "chat": "php-group",
+      "text": "对，总之代码修了，技术文档: https://ojp3our9ofog.jp.larksuite.com/docx/OZKGdeNLRofhWTxWlzFju5eSp9g",
+      "classified": {
+        "falive": null,
+        "sim": null
+      },
+      "status": {
+        "falive": null,
+        "sim": null
+      },
+      "seen": {
+        "falive": 0,
+        "sim": 0,
+        "onlyFalive": [],
+        "onlySim": []
+      },
+      "group": {
+        "falive": [],
+        "sim": []
+      }
+    }
+  ],
+  "routing": {
+    "falive": [],
+    "sim": [],
+    "onlyFalive": [],
+    "onlySim": []
+  },
+  "console": {
+    "falive": [],
+    "sim": []
+  },
+  "simOtherSends": 0,
+  "egress": {
+    "connections": 17,
+    "nonLocal": [
+      "2.1.289 160.79.104.10:443"
+    ],
+    "flagged": [],
+    "probe": 0,
+    "probeBlocked": []
+  },
+  "fakeCliGaps": [],
+  "casesDir": "/Users/aven/github/lark-bot-cal/replay/falive"
+}

@@ -1,0 +1,244 @@
+{
+ "om_x100b6282265658a0fe17f790908e243": {
+  "category": "sim",
+  "cause": "配置：sweep 整段删掉",
+  "note": "run-sim-falive 删了 dailyReport.sweep，「推 pre」的负责人判定要求开了清扫，被当成「不是负责人」忽略、一句没回。已修（sweepForSim，只去 preSiteUrl/onDeploy），复跑 fix2 回了「pre 已经是最新」；falive 当时是「合 lark/falive-integration 有冲突」——任务分支 / 集成分支的 git 状态还原不了，交付物仍不同。"
+ },
+ "om_x100b6283e1512ca0eed52b48098f8fa": {
+  "category": "limit",
+  "cause": "当时发送失败",
+  "note": "falive 的 ack webhook 当时 ERR_SSL_TLSV1_ALERT_INTERNAL_ERROR 没发出去（网关日志），群里少一句、首句变成结论（185s）；模拟的 ack 正常发出。"
+ },
+ "om_x100b62fc7a2060a4eed44f2ab9ebe13": {
+  "category": "sim",
+  "cause": "Claude 记忆缺篇",
+  "note": "falive 当时会话先 cat 了记忆 bug-sheet-workflow.md（bug 表怎么查）再读 ~/.lark-bugpoll 快照和 bug 表；模拟只拷窗口前改过的记忆，这篇 11-02 改过被整篇丢掉，会话不知道去哪查 Bug-4942，直接 blocked。已修（memory-asof：会话记录重放，重放不出来就用现在版本近似）。分类 api_reply→bug 是抽样；首句 154s→30s 是 falive 当时在排空重启跑单测（⚠ 卡 10:09 / 10:10），不领新单。",
+  "fields": {
+   "decision": "sampling",
+   "latency": "limit",
+   "endState": "sim",
+   "gist": "sim",
+   "dmCount": "sim"
+  }
+ },
+ "om_x100b62fc1a1084a0ed416521b0dee2d": {
+  "category": "sim",
+  "cause": "连带（C1 偏差）",
+  "note": "William 回的是 C1 的复测结论卡；模拟的 C1 卡住了，群里 bot 的话、台账和「正在进行的事」都不同，分类器给了 forMe=null 挂待确认（falive 直接开做）。上游修好后应复现；单看本条是分类抽样。",
+  "fields": {
+   "groupCount": "sim",
+   "endState": "sim",
+   "gist": "sim"
+  }
+ },
+ "om_x100b62f88b4ba4a0ed62c6f7002bd76": {
+  "category": "sampling",
+  "cause": "分类 forMe 抽样",
+  "note": "同样 api_reply，模拟给 forMe=null 挂待确认，falive 当时直接开做；领单正文两边一致（看不到差异输入），上游 C1/C3 的状态不同可能有影响。"
+ },
+ "om_x100b62f883ab54a0eedc53d11baac66": {
+  "category": "sim",
+  "cause": "时序（时钟压缩）",
+  "note": "falive 当时 C4 的 ack 在 15:19:57、C5 在 15:20:54，C5 的 ack 被出口闸「2 分钟内已对同一人发过 ack」拦下，首句变成结论（132s）；模拟里 C4 的 ack 更早（27s vs 69s），C5 的 ack 刚过 2 分钟没被拦。根因是模拟首句普遍更快（见时延）。结论一致。"
+ },
+ "om_x100b62f94d494ca0ed461fca3e5b201": {
+  "category": "limit",
+  "cause": "被编辑的消息",
+  "note": "原始数据 updated=true（发出 8 秒后编辑过）：falive 当时轮询到的是编辑前的版本、没 @ 到 bot，网关一行都没记；模拟拿的是编辑后的版本（带 @），接成了任务。"
+ },
+ "om_x100b62f9593808a0ed42e0a526186a4": {
+  "category": "limit",
+  "cause": "连带（C6 被编辑）",
+  "note": "falive 没收到 C6，把只 @ 的 C7 当成「要 tid」答了 tid；模拟收到了 C6（挂待确认）、C7 判 requirement 重新发帖测。",
+  "fields": {
+   "decision": "limit",
+   "gist": "limit"
+  }
+ },
+ "om_x100b62f96be7f8a4ed44dbc6f75d5a1": {
+  "category": "sampling",
+  "cause": "分类 / 终态措辞抽样",
+  "note": "requirement→api_reply、done→no_change_needed：两边都新发帖测了翻译，结论一致（大意 same），只是判成「做了」还是「不用改」。"
+ },
+ "om_x100b62f35ff42ca4ed3f669c7b22368": {
+  "category": "limit",
+  "cause": "当时发送失败",
+  "note": "falive 的 ack webhook 当时 SSL 报错没发出去；两边之后都按「不归 aven（henry）」静默忽略。"
+ },
+ "om_x100b62c5fe29d0a0ed6ce9393d15b6e": {
+  "category": "sampling",
+  "cause": "出口闸去重（连带抽样）",
+  "note": "falive 当时 C2 的群回复和 C1 同内容，被出口闸「同内容已发过」拦下；模拟两条措辞不同，照发。结论一致。"
+ },
+ "om_x100b62c5b37208a4ed4f70429e7ed15": {
+  "category": "sampling",
+  "cause": "实测范围抽样",
+  "note": "主结论一致；falive 多测了手机号验证码（+84 不支持该国家），模拟没测。done/no_change_needed 是同一交付的两种判法。"
+ },
+ "om_x100b62c785b43ca4fe0ac414c4f9abc": {
+  "category": "limit",
+  "cause": "窗口前任务库（无审计）",
+  "note": "「已部署」要锚到窗口前的复测任务；10-26 还没有审计（10-27 08:32Z 起才有），任务库补不出来，模拟回「这句没对上任务」。"
+ },
+ "om_x100b62c12ca584a0ed60b40549769e5": {
+  "category": "limit",
+  "cause": "环境漂移（实测打今天的 pre）",
+  "note": "falive 当时实测 symbol/list 不通（401/404），模拟今天打 pre 已经通了（200）——探针转发到的是今天的 pre。终态 done→no_change_needed 跟着结论变。"
+ },
+ "om_x100b62c1ec5ee0a4ed6ade7eaab85db": {
+  "category": "limit",
+  "cause": "环境漂移（实测打今天的 pre）",
+  "note": "同 C1：当时仍 404、今天 200。分类 api_reply→question 是抽样。",
+  "fields": {
+   "decision": "sampling",
+   "gist": "limit"
+  }
+ },
+ "om_x100b613162deaca4ffca709b163a6f3": {
+  "category": "limit",
+  "cause": "窗口前任务库（无审计）",
+  "note": "「已发布」当时 falive 判 ignore 只记下；模拟锚不到任务回「这句没对上任务」。窗口在 10-27 早上，审计还没开始记，补不出来。"
+ },
+ "om_x100b61317d91a8a8ffaf85949d657d4": {
+  "category": "limit",
+  "cause": "窗口前任务库（无审计）",
+  "note": "「已部署」要锚到窗口前的复测任务，同上补不出来。"
+ },
+ "om_x100b613ddef190b0ed4f8d2a408e026": {
+  "category": "limit",
+  "cause": "环境漂移（实测打今天的 pre）",
+  "note": "主结论一致（271 能播、要关房），模拟今天多测出 uat / 分享等其它项的状态——在播房间、推流是今天的。"
+ },
+ "om_x100b613e317a7ca8ed433e4cdf4c0a9": {
+  "category": "limit",
+  "cause": "环境漂移（实测打今天的 pre）",
+  "note": "falive 当时 4 个在播房间都能拉流、判已结；模拟今天 258、19674 拉不到流。上下文差是模拟把组外 case 从历史里藏了（另记一条模拟偏差，已修 hiddenAsHistory）。",
+  "fields": {
+   "dmCount": "limit",
+   "gist": "limit",
+   "seen": "sim"
+  }
+ },
+ "om_x100b613d351128a0ff6f5e3c76e06d2": {
+  "category": "unknown",
+  "cause": "falive 一侧归属歧义",
+  "note": "falive 对 C1 的 ack 发在 C2 到达之后（+87s），启发式归属把它给了 C2，C1 的首句成了 510s 的结论；按网关日志 C2 的 ack 其实被出口闸拦了。大意一致。实际时延 87s vs 48s。"
+ },
+ "om_x100b613dceea2cacff9a53996da700f": {
+  "category": "unknown",
+  "cause": "falive 一侧归属歧义",
+  "note": "同 C1：C1 的 ack 被归到 C2。网关日志里 C2 的 ack 被出口闸拦下，falive 实际也只发了 1 句结论，和模拟一样。"
+ },
+ "om_x100b613dc6a61ca0fe2e062023c63ab": {
+  "category": "sampling",
+  "cause": "群回复取舍抽样",
+  "note": "模拟 done 但没发群结论（网关无 group reply，只私信），falive 发了；结论大意部分一致（都说接口已修，falive 多指出页面仍「资料加载失败」）。"
+ },
+ "om_x100b61337a64f8a0ff5f5a718c4346b": {
+  "category": "sim",
+  "cause": "配置：只私聊的群",
+  "note": "falive 当时融合群配置成「只私聊不发群」（网关日志 10-21→10-27 10:27Z 都是这样），10-27 10:27Z–11:00Z 之间改掉了但没留备份；模拟按 mtime 取到 10-28 的备份（[]），照发群。已修（privateOnlyAt 按日志行为取）。结论大意 partial 是汇总措辞抽样。",
+  "fields": {
+   "replied": "sim",
+   "groupCount": "sim",
+   "gist": "sampling"
+  }
+ },
+ "om_x100b6133904a8ca0eedb2ac2b7bcc4c": {
+  "category": "sim",
+  "cause": "话题根被藏",
+  "note": "「文档在哪里」是挂在 falive 当时那张 C1 结论卡下的话题回复；组内 falive 的卡不供，轮询发现不了这个话题，2 分钟没收到就往下走了。已修（ownRootsToKeep 照供话题根）。"
+ },
+ "om_x100b612f9e03f8a0fe2bf3f6e03cd66": {
+  "category": "sim",
+  "cause": "任务库没还原",
+  "note": "「已部署」要锚到窗口前 07:01Z 了结的 retest-falive-20261028-1047；模拟没还原任务库，回「这句没对上任务」。已修（taskStubsFromAudits），复跑 fix 已锚到同一条任务、开做。"
+ },
+ "om_x100b6128e240eca0ffd8360fc5e55ec": {
+  "category": "sim",
+  "cause": "任务库没还原（连带）",
+  "note": "第二句「已部署」falive 锚到 C1；C1 在模拟里没建成，跟着锚不到。"
+ },
+ "om_x100b61790d52a4a0ff5fecf60167d28": {
+  "category": "sim",
+  "cause": "时序（时钟压缩）",
+  "note": "模拟 C1 17s 就开做、很快 blocked，C2「这有更多点的信息」到时 C1 已挂起 → 同话题并入 C1 续跑（C1 多了群 / 私信）；falive 当时 C1 首句 105s，C2 到时没并入、另起一单。结论大意 partial。",
+  "fields": {
+   "groupCount": "sim",
+   "dmCount": "sim",
+   "gist": "sampling"
+  }
+ },
+ "om_x100b6179153170a0fff1b7b426297ed": {
+  "category": "sim",
+  "cause": "时序（时钟压缩）",
+  "note": "同 C1：模拟里并进了 C1，falive 当时另起任务（bug/blocked，群 4 句）。"
+ },
+ "om_x100b617a6af430a4ffdcddda4e9e86e": {
+  "category": "sim",
+  "cause": "话题回复等待太短",
+  "note": "话题回复靠话题轮询（每轮最多 5 个话题），模拟每条 case 只等 2 分钟就往下推、随后收尾，没收到；falive 当时收到并答了。已修（话题回复等 6 分钟）。falive 当时还读了记忆 bug-sheet-workflow.md（同 ep-1024 C1，已修）。"
+ },
+ "om_x100b617ee9cc04a4eeef84e99337e3d": {
+  "category": "sampling",
+  "cause": "分类抽样",
+  "note": "question→bug，两边都卡在要 OL 登录态 / 说明，结论 same；falive 多发了一句。"
+ },
+ "om_x100b617ef5885ca0ed87e0a531e4598": {
+  "category": "sampling",
+  "cause": "群回复句数抽样",
+  "note": "结论 same（都停下等 aven 给 OL 账号），falive 多一句 ack。"
+ },
+ "om_x100b6177ab8c8ca8fffa5c17283e8e3": {
+  "category": "limit",
+  "cause": "合回状态 / 任务分支还原不了",
+  "note": "「帮我合」要窗口前的合回冲突记录（runtime/lark-merge-back，存档里今天是空的）和任务分支；还原不了，模拟回「这句没对上任务」，falive 当时开合了 2 条（随后因基线问题没做成）。"
+ },
+ "om_x100b6177d8a13cacff5fc67ecb864a1": {
+  "category": "limit",
+  "cause": "环境漂移（实测打今天的 uat）",
+  "note": "falive 当时判 uat 已在跑全量最新包、不用再打包；模拟判还要部署、停下等 aven。看的是今天的 uat（推断）。"
+ },
+ "om_x100b617786100ca0ff6b1db92350c34": {
+  "category": "limit",
+  "cause": "环境漂移（实测打今天的 uat）",
+  "note": "falive 当时 uat /hc-ws 还不通（301 / 409），模拟今天握手 101 通了。"
+ },
+ "om_x100b617784d30ca0ffcef5a90e4c409": {
+  "category": "limit",
+  "cause": "环境漂移（实测打今天的 uat）",
+  "note": "同 C2。"
+ },
+ "om_x100b61701eb704a4fe09213dfc12889": {
+  "category": "limit",
+  "cause": "环境漂移（实测打今天的 online）",
+  "note": "uat 一致；falive 当时 online 还没转发，模拟今天 online 也 101。"
+ },
+ "om_x100b6170168a64a8ff72d6226351f74": {
+  "category": "sampling",
+  "cause": "做法抽样",
+  "note": "falive 改了前端（终检超时没提交，failed），模拟只报卡点找 Arthur（blocked）；分类 bug→api_reply。首句 156s→58s 归时序。",
+  "fields": {
+   "latency": "sim",
+   "decision": "sampling",
+   "endState": "sampling",
+   "gist": "sampling",
+   "groupCount": "sampling"
+  }
+ },
+ "om_x100b61709e7ea8a0fff406216b67dde": {
+  "category": "sim",
+  "cause": "组外 case 从历史里藏了",
+  "note": "falive 看到的「群里之前的消息」里有 aven 10:08 那条长消息（别组的 case），模拟把组外 case 整条藏了、窗口往前多吃。已修（hiddenAsHistory：组外触发照列当历史、轮询预先记 seen）。结论 same。"
+ },
+ "om_x100b612916b3c8a0ed3b215e1ee9885": {
+  "category": "unknown",
+  "cause": "私信归属歧义",
+  "note": "模拟里 C2（aven 私聊「已部署」）的开始卡写的是 Arthur 那条问题，启发式归属把它算到了 C1，C1 多 1 条私信；结论 same。"
+ },
+ "om_x100b61292d1cb0a0fe10cefbcde0e47": {
+  "category": "unknown",
+  "cause": "群回复归属歧义",
+  "note": "C2 是 aven 的私聊指示，falive 当时的指示任务结论只私信（群里那句没发 / 归到了别处），模拟发了群；两边结论 same，差在哪条群消息归给谁。"
+ }
+}

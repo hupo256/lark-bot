@@ -1,0 +1,83 @@
+{
+  "episode": "ep-1024-f34b24",
+  "faliveCode": {
+    "sha": "8f48bd8bc5a98bedc1b996b4ebaf4b6d01a76545",
+    "dir": "/Users/aven/github/lark-bot-falive-sim/code-8f48bd8",
+    "codeHash": "65ba5be36378",
+    "startedAt": "2026-10-23T15:18:12.432Z",
+    "verified": true,
+    "tried": [
+      {
+        "sha": "8f48bd8",
+        "hashes": [
+          "65ba5be36378",
+          "5119374962b7"
+        ]
+      }
+    ]
+  },
+  "faliveConfig": "/Users/aven/github/lark-bot-falive/runtime/lark-bot.bak-20261027.local.json",
+  "cases": [
+    {
+      "label": "C1",
+      "id": "om_x100b62f0d51c94a0ffc88e81df34b24",
+      "at": "2026-10-24T06:01:33.100Z",
+      "chat": "webhook-group",
+      "text": "@Aven.Test 空单直接忽略、跳过也行",
+      "classified": {
+        "falive": null,
+        "sim": null
+      },
+      "status": {
+        "falive": null,
+        "sim": null
+      },
+      "seen": {
+        "falive": 0,
+        "sim": 0,
+        "onlyFalive": [],
+        "onlySim": []
+      },
+      "group": {
+        "falive": [],
+        "sim": []
+      }
+    }
+  ],
+  "routing": {
+    "falive": [
+      "repo-only 控制台消息 C1 锚不到仓库任务：空单直接忽略、跳过也行"
+    ],
+    "sim": [],
+    "onlyFalive": [
+      "repo-only 控制台消息 C1 锚不到仓库任务：空单直接忽略、跳过也行"
+    ],
+    "onlySim": []
+  },
+  "console": {
+    "falive": [
+      {
+        "at": "2026-10-24T06:03:13.562Z",
+        "text": "<card>\n这句没对上任务：12 小时内没有我发给你的任务通知。要续跑或补充，请写「继续任务 <任务 id> 补充内容」；要结单写「结单 <任务 id>」。\n</card>"
+      }
+    ],
+    "sim": [
+      {
+        "at": "2026-10-24T06:01:45.329Z",
+        "text": "<card>\n这句没对上任务：12 小时内没有我发给你的任务通知。要续跑或补充，请写「继续任务 <任务 id> 补充内容」；要结单写「结单 <任务 id>」。\n</card>"
+      }
+    ]
+  },
+  "simOtherSends": 0,
+  "egress": {
+    "connections": 19,
+    "nonLocal": [
+      "2.1.289 160.79.104.10:443"
+    ],
+    "flagged": [],
+    "probe": 0,
+    "probeBlocked": []
+  },
+  "fakeCliGaps": [],
+  "casesDir": "/Users/aven/github/lark-bot-cal/replay/falive"
+}

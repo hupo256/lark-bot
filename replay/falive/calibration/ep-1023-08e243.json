@@ -1,0 +1,74 @@
+{
+  "episode": "ep-1023-08e243",
+  "faliveCode": {
+    "sha": "f746d9c118c6aeb4d6c601643e0b2e630f6b9312",
+    "dir": "/Users/aven/github/lark-bot-falive-sim/code-f746d9c",
+    "codeHash": "5e99a180b92f",
+    "startedAt": "2026-10-23T11:50:18.954Z",
+    "verified": true,
+    "tried": [
+      {
+        "sha": "f746d9c",
+        "hashes": [
+          "5e99a180b92f",
+          "13c405dd8717"
+        ]
+      }
+    ]
+  },
+  "faliveConfig": "/Users/aven/github/lark-bot-falive/runtime/lark-bot.bak-20261027.local.json",
+  "cases": [
+    {
+      "label": "C1",
+      "id": "om_x100b6282265658a0fe17f790908e243",
+      "at": "2026-10-23T13:52:09.782Z",
+      "chat": "webhook-group",
+      "text": "推 pre",
+      "classified": {
+        "falive": null,
+        "sim": null
+      },
+      "status": {
+        "falive": null,
+        "sim": null
+      },
+      "seen": {
+        "falive": 0,
+        "sim": 0,
+        "onlyFalive": [],
+        "onlySim": []
+      },
+      "group": {
+        "falive": [],
+        "sim": []
+      }
+    }
+  ],
+  "routing": {
+    "falive": [],
+    "sim": [],
+    "onlyFalive": [],
+    "onlySim": []
+  },
+  "console": {
+    "falive": [
+      {
+        "at": "2026-10-23T13:54:04.525Z",
+        "text": "<card>\n⛔ 没推 pre：合 lark/falive-integration 进 pre 有冲突，没推：src/modules/square/PostDetailPage.tsx\n</card>"
+      }
+    ],
+    "sim": []
+  },
+  "simOtherSends": 0,
+  "egress": {
+    "connections": 17,
+    "nonLocal": [
+      "2.1.289 160.79.104.10:443"
+    ],
+    "flagged": [],
+    "probe": 0,
+    "probeBlocked": []
+  },
+  "fakeCliGaps": [],
+  "casesDir": "/Users/aven/github/lark-bot-cal/replay/falive"
+}

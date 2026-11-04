@@ -1,0 +1,208 @@
+{
+  "episode": "ep-1028-03cd66",
+  "faliveCode": {
+    "sha": "9bef1b121d19bf0c8df74c963716a5e80d974737",
+    "dir": "/Users/aven/github/lark-bot-falive-sim/code-9bef1b1",
+    "codeHash": "a301f6c04d91",
+    "startedAt": "2026-10-28T07:57:50.168Z",
+    "verified": false,
+    "tried": [
+      {
+        "sha": "9bef1b1",
+        "hashes": [
+          "3ea4b20dba8a",
+          "6139b5b8f50a"
+        ]
+      },
+      {
+        "sha": "e498901",
+        "hashes": [
+          "c6742b20a968",
+          "ac9108ef6060"
+        ]
+      },
+      {
+        "sha": "695d01b",
+        "hashes": [
+          "bc94efc25076",
+          "44ffce60ed49"
+        ]
+      },
+      {
+        "sha": "8ca2ea6",
+        "hashes": [
+          "1c10472c289a",
+          "44ffce60ed49"
+        ]
+      },
+      {
+        "sha": "7ed2c53",
+        "hashes": [
+          "152df47b0de2",
+          "152df47b0de2"
+        ]
+      },
+      {
+        "sha": "292ad34",
+        "hashes": [
+          "7bbe3686c115",
+          "7bbe3686c115"
+        ]
+      }
+    ]
+  },
+  "faliveConfig": "/Users/aven/github/lark-bot-falive/runtime/lark-bot.bak-20261028.local.json",
+  "cases": [
+    {
+      "label": "C1",
+      "id": "om_x100b612f9e03f8a0fe2bf3f6e03cd66",
+      "at": "2026-10-28T09:14:52.955Z",
+      "chat": "webhook-group",
+      "text": "已部署",
+      "classified": {
+        "falive": {
+          "decision": "requirement",
+          "confidence": "high"
+        },
+        "sim": null
+      },
+      "status": {
+        "falive": "done",
+        "sim": null
+      },
+      "seen": {
+        "falive": 9,
+        "sim": 0,
+        "onlyFalive": [
+          "【aven 私聊指示】已部署",
+          "【指示针对的群消息（任务 retest-falive-20261028-1047，当前 done）】",
+          "pre 已部署（pre @ c026afb6，构建于 10-28 10:47），在 pre 上复测这次部署带进去的改动。aven 只看结果。",
+          "本次部署带进去的提交：",
+          "- 1255f68 fix(live,search): 直播列表与搜索直播卡封面优先 animated_thumb（Bug-5005）",
+          "- e5307f2 feat(legal): 同步用户协议 / 隐私政策最新版并接英文版",
+          "做法：按提交逐条找到对应功能，在已部署的 pre 站点 https://falivepre.fdsser.com/ 做浏览器验证或接口实测（工具与禁止事项同日报清扫：scripts/pre-probe.mjs、页面工具、验证码 123456、不给陌生号码发短信、不改 pre 共享数据）。只复测 aven 负责的功能，别人的只记录。",
+          "复测通过的，在对应待对接文档 / 功能总表备注里把「待部署后回归」改成复测结论；不通过的，判断前端还是后端：前端问题直接修（Worker 统一提交），后端问题写进待对接文档并带证据。",
+          "summary 格式：第一行「pre 复测 c026afb6：通过 X 项，不通过 Y 项。」，之后每个不通过一行「- 功能：原因（前端已修 / 等谁 · 证据）」。"
+        ],
+        "onlySim": []
+      },
+      "group": {
+        "falive": [],
+        "sim": []
+      }
+    },
+    {
+      "label": "C2",
+      "id": "om_x100b6128e240eca0ffd8360fc5e55ec",
+      "at": "2026-10-28T10:13:28.883Z",
+      "chat": "webhook-group",
+      "text": "已部署",
+      "classified": {
+        "falive": {
+          "decision": "requirement",
+          "confidence": "high"
+        },
+        "sim": null
+      },
+      "status": {
+        "falive": "done",
+        "sim": null
+      },
+      "seen": {
+        "falive": 10,
+        "sim": 0,
+        "onlyFalive": [
+          "【aven 私聊指示】已部署",
+          "【指示针对的群消息（任务 om_x100b612f9e03f8a0fe2bf3f6e03cd66，当前 done，之前判定 requirement：这是 aven 本人的私聊指示，优先级最高。他针对的是一张已经 done 的 pre 复测工单，现在说「已部署」，就是让 bot 在新部署的 pre 上再测一遍。两条改动里，直播列表 / 搜索结果的封面属于 aven 的 #29 正在直播、#7 直播封面、#55 顶栏搜索；协议页没写负责人，按归属不明归 aven 处理。所以这件事归 aven。交付的是实测结论，deliverable 填 verification。）】",
+          "【指示针对的群消息（任务 retest-falive-20261028-1047，当前 done）】",
+          "pre 已部署（pre @ c026afb6，构建于 10-28 10:47），在 pre 上复测这次部署带进去的改动。aven 只看结果。",
+          "本次部署带进去的提交：",
+          "- 1255f68 fix(live,search): 直播列表与搜索直播卡封面优先 animated_thumb（Bug-5005）",
+          "- e5307f2 feat(legal): 同步用户协议 / 隐私政策最新版并接英文版",
+          "做法：按提交逐条找到对应功能，在已部署的 pre 站点 https://falivepre.fdsser.com/ 做浏览器验证或接口实测（工具与禁止事项同日报清扫：scripts/pre-probe.mjs、页面工具、验证码 123456、不给陌生号码发短信、不改 pre 共享数据）。只复测 aven 负责的功能，别人的只记录。",
+          "复测通过的，在对应待对接文档 / 功能总表备注里把「待部署后回归」改成复测结论；不通过的，判断前端还是后端：前端问题直接修（Worker 统一提交），后端问题写进待对接文档并带证据。",
+          "summary 格式：第一行「pre 复测 c026afb6：通过 X 项，不通过 Y 项。」，之后每个不通过一行「- 功能：原因（前端已修 / 等谁 · 证据）」。"
+        ],
+        "onlySim": []
+      },
+      "group": {
+        "falive": [],
+        "sim": []
+      }
+    }
+  ],
+  "routing": {
+    "falive": [
+      "负责人私聊（recent）→ 指示任务 C1，针对 retest-falive-20261028-1047（done）：已部署",
+      "锚定：C1 接着 retest-falive-20261028-1047（主题 retest#20261028-1047）",
+      "台账：C1 requirement 触及 （无条目） → 工单键 …",
+      "repo start C1 -> webhook-group ok via webhook",
+      "task-mention C1 classified=requirement/high，正式入队",
+      "repo outcome C1 done -> webhook-group ok via webhook",
+      "负责人私聊（recent）→ 指示任务 C2，针对 C1（done）：已部署",
+      "锚定：C2 接着 C1（主题 retest#20261028-1047）",
+      "台账：C2 requirement 触及 （无条目） → 工单键 …",
+      "repo start C2 -> webhook-group ok via webhook",
+      "task-mention C2 classified=requirement/high，正式入队",
+      "repo outcome C2 done -> webhook-group ok via webhook"
+    ],
+    "sim": [],
+    "onlyFalive": [
+      "负责人私聊（recent）→ 指示任务 C1，针对 retest-falive-20261028-1047（done）：已部署",
+      "锚定：C1 接着 retest-falive-20261028-1047（主题 retest#20261028-1047）",
+      "台账：C1 requirement 触及 （无条目） → 工单键 …",
+      "repo start C1 -> webhook-group ok via webhook",
+      "task-mention C1 classified=requirement/high，正式入队",
+      "repo outcome C1 done -> webhook-group ok via webhook",
+      "负责人私聊（recent）→ 指示任务 C2，针对 C1（done）：已部署",
+      "锚定：C2 接着 C1（主题 retest#20261028-1047）",
+      "台账：C2 requirement 触及 （无条目） → 工单键 …",
+      "repo start C2 -> webhook-group ok via webhook",
+      "task-mention C2 classified=requirement/high，正式入队",
+      "repo outcome C2 done -> webhook-group ok via webhook"
+    ],
+    "onlySim": []
+  },
+  "console": {
+    "falive": [
+      {
+        "at": "2026-10-28T09:15:23.017Z",
+        "text": "<card>\n🛠 开始做：aven 在私聊里说 pre「已部署」，让 bot 重跑 pre 复测任务 retest-falive-20261028-1047：逐条复测这次部署带进去的 1（falive 控制台）\n</card>"
+      },
+      {
+        "at": "2026-10-28T09:22:52.108Z",
+        "text": "<card>\n✅ pre 复测 a5817b8d：通过 5 项，不通过 0 项。\n分支 feature/phase-5-test · 改了 1 个文件\n改动已合进 feature/phase-5-test。回「推 pre」我就推 feature/phase-5-test 并发 pre 的 MR。\n</card>"
+      },
+      {
+        "at": "2026-10-28T09:24:59.850Z",
+        "text": "<card>\n✅ pre 复测 a5817b8：通过 6 项，不通过 0 项。\n这次部署带进去的 aven 的 6 项我都在 pre 上亲自点过、探过，全部能用：协议页标题随语言切换、隐私政策邮箱、页脚删两列、隐藏「我要开播」、帮助中心私聊 tab（Bug-5060），以及上轮卡住的动图封面——后端已经补上数据，直播列表和搜索卡都能看到动图了。别人的只记录：henry 的观看时长上报，Go 接口已经不再 404，但真实上报现在回 503，还是用不了，由 henry 跟 Go 后端。\n分支 lark/falive-6e03cd66 · 改了 1 个文件\n⚠ 没合进 feature/phase-5-test：合进 feature/phase-5-test 有冲突：docs/lark-migration-source/requirements/phase1-feature-table.md。分支 lark/falive-6e03cd66 要你手动合\n</card>"
+      },
+      {
+        "at": "2026-10-28T10:14:04.856Z",
+        "text": "<card>\n🛠 开始做：aven 在私聊里对一张已结单的 pre 复测工单说「已部署」，意思是让 bot 在新部署的 pre（c026afb6）上重新复测两个提交：1255f68 直播（falive 控制台）\n</card>"
+      }
+    ],
+    "sim": [
+      {
+        "at": "2026-10-28T09:15:00.216Z",
+        "text": "<card>\n这句没对上任务：12 小时内没有我发给你的任务通知。要续跑或补充，请写「继续任务 <任务 id> 补充内容」；要结单写「结单 <任务 id>」。\n</card>"
+      },
+      {
+        "at": "2026-10-28T10:13:30.893Z",
+        "text": "<card>\n这句没对上任务：12 小时内没有我发给你的任务通知。要续跑或补充，请写「继续任务 <任务 id> 补充内容」；要结单写「结单 <任务 id>」。\n</card>"
+      }
+    ]
+  },
+  "simOtherSends": 0,
+  "egress": {
+    "connections": 28,
+    "nonLocal": [
+      "2.1.289 160.79.104.10:443"
+    ],
+    "flagged": [],
+    "probe": 0,
+    "probeBlocked": []
+  },
+  "fakeCliGaps": [],
+  "casesDir": "/Users/aven/github/lark-bot-cal/replay/falive"
+}
