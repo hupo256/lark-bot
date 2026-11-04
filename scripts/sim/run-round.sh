@@ -1,7 +1,7 @@
 #!/bin/bash
 # 中断后再跑同一条命令 = 断点续跑：跑完的段跳过、没跑完的从最近的「一天结束」存档点接着跑（run-days.sh）。
 # 一轮完整回放（docs/falive-replay-plan-2026-11-03.md 39）：falive 10-14 → 11-03 切 8 段并行，每段先热身前一个工作日（bot 照常干活、
-# 留下跨天的任务 / 义务 / 发件状态，不计分），再跑计分窗口；每段跑完立刻 judge-sim --all --score-from 计分起点。
+# 留下跨天的任务 / 义务 / 发件状态，不计分），再跑计分窗口；每段跑完立刻 judge-sim --score-from 计分起点（按输出指纹沿用判过的结论，只判变了的）。
 #   bash scripts/sim/run-round.sh r8 [端口起点 3180]
 # 进度：runtime/falive-replay/sim/<轮>-<段>/{sim.log,judge.out,DONE}；汇总：node scripts/sim/round-report.mjs --round r8
 set -u
@@ -40,7 +40,7 @@ while read -r seg warm score end; do
   while [ "$(jobs -rp | wc -l)" -ge "$((MAX_PARALLEL + 1))" ]; do sleep 20; done
   (
     sh scripts/sim/run-days.sh "$warm" "$end" "$sim" "$((port + i))" >> "$root/$sim.run-days.out" 2>&1 || exit 1
-    node scripts/sim/judge-sim.mjs --sim "$sim" --all --score-from "${score}T00:00:00+00:00" --conc 3 > "$root/$sim/judge.out" 2>&1
+    node scripts/sim/judge-sim.mjs --sim "$sim" --score-from "${score}T00:00:00+00:00" --conc 3 > "$root/$sim/judge.out" 2>&1
     echo "$warm $score $end" > "$root/$sim/DONE"
   ) &
   segpids="$segpids $!"
