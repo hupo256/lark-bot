@@ -334,6 +334,7 @@ describe('应用令牌跨进程缓存（lib/lark-tenant-token）', () => {
       assert.deepEqual(parse(await runLarkCli(['im', 'x'], { identity: 'user', tokenProvider: providerOf(['t-1']) })), { ok: true, as: 'user', app: '', token: '' })
       assert.deepEqual(parse(await runLarkCli(['im', 'x'], { env: { LARKSUITE_CLI_CONFIG_DIR: '/tmp/other-app' }, tokenProvider: providerOf(['t-1']) })), { ok: true, as: 'bot', app: '', token: '' })
       assert.deepEqual(parse(await runLarkCli(['im', 'x'], { tokenProvider: providerOf([]) })), { ok: true, as: 'bot', app: '', token: '' })
+      assert.deepEqual(parse(await runLarkCli(['im', 'x', '--as', 'user'], { tokenProvider: providerOf(['t-1']) })), { ok: true, as: 'bot', app: '', token: '' }, 'args 自带 --as 不注（11-03 读通知会话 strict mode 拒 user）')
     }],
     ['runLarkCli：令牌无效（99991663）→ 作废那枚、换新的重试一次；第二次还拿不到就原样跑', async () => {
       const runLarkCli = await loadRunLarkCli()
