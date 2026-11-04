@@ -125,7 +125,7 @@ describe('对话层：锚点、上下文、对话包、发件簿、义务、pers
       ]
       const out = pickThreadContext(msgs, { excludeIds: ['skip'], botOpenIds: [BOT, APP] })
       assert.deepEqual(out.map((item) => item.messageId), ['b1', 'b3', 'u2', 'nosender'])
-      assert.deepEqual(out[0], { messageId: 'b1', sender: 'Aven.Bot（bot，我们自己）', senderOpenId: '', text: '我先看下', attachments: [], bot: true })
+      assert.deepEqual(out[0], { messageId: 'b1', sender: 'Aven.Bot（bot，我们自己）', senderOpenId: '', text: '我先看下', attachments: [], bot: true, createTime: '2026-11-01 17:00' })
       assert.deepEqual(out[2].attachments, [{ type: 'image', imageKey: 'img_1' }])
       assert.deepEqual([out[2].sender, out[2].senderOpenId, out[3].sender, out[3].senderOpenId], ['小王', 'ou_u', '', ''])
       assert.equal(pickThreadContext(msgs, { botOpenIds: [BOT, APP], limit: 2 }).length, 2)
