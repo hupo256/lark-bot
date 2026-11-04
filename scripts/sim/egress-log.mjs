@@ -11,7 +11,10 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { realpathSync } from 'node:fs'
 
-import { CODE_SEND_PATH_RE, codePurposeOf, parseCurlArgs } from '../../lib/lark-egress-policy.mjs'
+import { CODE_SEND_PATH_RE, LOGIN_PATH_RE, REGISTER_PATH_RE, codePurposeOf, parseCurlArgs } from '../../lib/lark-egress-policy.mjs'
+
+// 发码的登录用途值：scene=login 一类 + falive php 发码 type 3（falive-react VerificationCodeType.SignIn）；egress-audit 共用
+export const LOGIN_PURPOSES = new Set(['login', 'signin', 'sign_in', 'sign-in', '3'])
 
 const realNow = () => Math.round(performance.timeOrigin + performance.now()) // 不用 Date：gateway / worker 里 Date 是虚拟时钟
 export const LOCAL_HOST_RE = /^(?:127(?:\.\d{1,3}){3}|localhost|::1|\[::1\]|0\.0\.0\.0)$/i
@@ -97,6 +100,24 @@ export const parseWget = (argv) => {
   return { method: method || 'GET', urls }
 }
 
+// 回放写拦截（11-04 b2 事故：ep-1020 在真实 pre 上发了 25 个帖子、传了 33 张图；ep-1023 传了 10 次头像）：回放里对任何非本机主机的写请求一律拦下，
+// 只放行登录（路径含 login）。验证码发送分不清是登录还是注册 → 也拦（回放宁可测不到，不许在真环境留数据）。线上 bot 的口径另由 lib 的出网工具管。
+const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
+// purpose：发验证码的用途值（验证码登录算登录，aven 11-04）；注册路径先拦（lib/lark-egress-policy 同一套路径口径）。
+export const blockedWrite = ({ method, url, purpose = null }) => {
+  const m = String(method || 'GET').toUpperCase()
+  if (READ_METHODS.has(m)) return null
+  let u = null
+  try { u = new URL(/^[a-z][\w+.-]*:\/\//i.test(url) ? url : `http://${url}`) } catch { return `${m} ${String(url).slice(0, 80)}（解析不了的地址）` }
+  const host = u.hostname.replace(/^\[|\]$/g, '')
+  if (LOCAL_HOST_RE.test(host)) return null
+  if (REGISTER_PATH_RE.test(u.pathname)) return `${m} ${host}${u.pathname}（注册）`
+  if (CODE_SEND_PATH_RE.test(u.pathname)) return purpose != null && LOGIN_PURPOSES.has(String(purpose).toLowerCase()) ? null : `${m} ${host}${u.pathname}（发码用途${purpose == null ? '不明' : ` ${purpose}`}）`
+  if (LOGIN_PATH_RE.test(u.pathname)) return null
+  return `${m} ${host}${u.pathname}`
+}
+export const BLOCK_NOTE = '回放环境禁止往真实环境写数据（只放行只读请求和登录）：这一步没有执行。'
+
 const main = () => {
   const [tool, ...argv] = process.argv.slice(2)
   if (tool === 'lark-cli') {
@@ -107,11 +128,16 @@ const main = () => {
   if (!urls.length && argv.some((a) => /^(?:-V|--version|-h|--help)$/.test(a))) return
   if (!urls.length) noteEgress({ via: tool, method, url: '', extra: '没解析出 URL（如 curl -K 配置文件）' })
   const bodies = tool === 'curl' ? parseCurlArgs(argv).bodies : undefined
+  let blocked = null
   for (const url of urls) {
     let query = ''
     try { query = new URL(/^[a-z][\w+.-]*:\/\//i.test(url) ? url : `http://${url}`).search } catch { query = '' }
-    noteEgress({ via: tool, method, url, purpose: method !== 'GET' && CODE_SEND_PATH_RE.test(url) ? codePurposeOf({ bodies, query }) : null })
+    const purpose = method !== 'GET' && CODE_SEND_PATH_RE.test(url) ? codePurposeOf({ bodies, query }) : null
+    const why = process.env.SIM_DIR ? blockedWrite({ method, url, purpose }) : null
+    noteEgress({ via: tool, method, url, purpose, ...(why ? { extra: 'blocked' } : {}) })
+    blocked ||= why
   }
+  if (blocked) { process.stderr.write(`[sim] ${BLOCK_NOTE}（${blocked}）\n`); process.exitCode = 3 }
 }
 // 判是不是被直接执行：argv[1] 不一定是存在的文件（预载进每个 node 子进程，`node -e '…' 参数` 的 argv[1] 就是那个参数），realpath 失败按「不是」算——绝不能让预载把 bot 的子进程弄崩
 const isMain = (() => { try { return Boolean(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)) } catch { return false } })()

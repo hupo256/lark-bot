@@ -146,6 +146,15 @@ export const faliveFacts = ({ m, baseline }) => {
   }
 }
 
+/** 模拟局限（11-04 b2）：aven 的「继续任务 / 结单 / 结束 <id>」点名的任务在这个模拟里不存在——那是 falive 当时自己建的任务（常是没 @ bot 的消息、
+ *  或别的事件组），lark-bot 真跑时 aven 会点它自己的任务号；这条的对错不该算到 lark-bot 头上。点了 id、id 不在模拟的任务库里才算。 */
+export const refMissing = (m, sim) => {
+  const text = String(m.text || '')
+  if (!/继续任务|结单|结束|取消任务|重开/.test(text)) return false
+  const ids = [...text.matchAll(/om_x[0-9a-f]{20,}/g)].map((x) => x[0]).filter((id) => id !== m.id)
+  return ids.length > 0 && ids.every((id) => !sim.tasks.has(id))
+}
+
 /** 规则旗标：便宜信号，给汇总 / 验收 / 裁判排序用，不是结论。 */
 export const ruleFlags = ({ lark, falive, pending }) => {
   const flags = []
@@ -182,7 +191,7 @@ export const computeSimRules = ({ sim, data, scoreFromMs = 0 }) => {
       pending,
       rulesVersion: RULES_VERSION,
       fingerprint: lark.fingerprint,
-      flags: ruleFlags({ lark, falive, pending }),
+      flags: [...ruleFlags({ lark, falive, pending }), ...(refMissing(m, sim) ? ['sim_limit_ref'] : [])],
       lark,
       falive,
     }

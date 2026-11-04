@@ -19,15 +19,14 @@ import { fileURLToPath } from 'node:url'
 import { realpathSync } from 'node:fs'
 
 import { CODE_SEND_PATH_RE, LOGIN_PATH_RE, REGISTER_PATH_RE } from '../../lib/lark-egress-policy.mjs'
-import { LOCAL_HOST_RE } from './egress-log.mjs'
+import { LOCAL_HOST_RE, LOGIN_PURPOSES } from './egress-log.mjs'
 
 const CLAUDE_HOST_RE = /^(?:[\w-]+\.)*anthropic\.com$|^claude\.ai$/i
 const FALIVE_HOST_RE = /^(?:[\w-]+\.)*falive\.com$|^(?:falive|stream)[\w-]*\.fdsser\.com$/i
 const LARK_HOST_RE = /(?:^|\.)(?:larksuite\.com|feishu\.cn|larkoffice\.com|feishucdn\.com|larksuitecdn\.com|larksuite-boe\.com)$/i
 const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 // 路径口径与 bot 的出网核对同一套（lib/lark-egress-policy）：发验证码看用途——登录码算登录（aven 11-04），注册码 / 用途不明算违规。
-// 登录用途值：scene=login 一类 + falive php 发码 type 3（falive-react VerificationCodeType.SignIn）。
-const LOGIN_PURPOSES = new Set(['login', 'signin', 'sign_in', 'sign-in', '3'])
+const FIGMA_HOST_RE = /^(?:api\.)?figma\.com$|^(?:[\w-]+\.)*figma\.com$|^figma-alpha-api\.s3\.[\w-]+\.amazonaws\.com$/i
 // Anthropic 自有地址段（api.anthropic.com 解析在这里）
 const inAnthropicRange = (ip) => /^160\.79\.10[4-7]\.\d+$/.test(ip) || /^2607:6bc0:/i.test(ip)
 
@@ -42,6 +41,8 @@ export const classifyLine = (x, dns = {}) => {
   }
   if (LARK_HOST_RE.test(x.host)) return { kind: 'violation', reason: '直连飞书 / Lark（应全部走假 lark-cli）' }
   if (CLAUDE_HOST_RE.test(x.host)) return { kind: 'allowed', reason: 'Claude 接口' }
+  // Figma 设计稿只读预取（lark-bot 自带：消息里的 Figma 链接读节点 / 变量 / 导出图，LARK_FIGMA_PREFETCH）= 读上下文，同云文档，不是去测别的环境（11-04 b2 ep-1021-193c03）
+  if (FIGMA_HOST_RE.test(x.host) && READ_METHODS.has(x.method)) return { kind: 'allowed', reason: 'Figma 设计稿只读（上下文）' }
   if (FALIVE_HOST_RE.test(x.host)) {
     if (READ_METHODS.has(x.method)) return { kind: 'allowed', reason: 'falive 环境只读' }
     if (REGISTER_PATH_RE.test(x.path || '')) return { kind: 'violation', reason: `falive 环境注册（${x.method} ${x.path}）：只允许登录` }

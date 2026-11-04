@@ -14,7 +14,7 @@ import {
 } from '../lib/lark-egress-policy.mjs'
 import { EGRESS_GUARD_BIN_DIR, EGRESS_GUARD_PRELOAD } from '../lib/lark-paths.mjs'
 import { classifyLine } from '../scripts/sim/egress-audit.mjs'
-import { noteEgress } from '../scripts/sim/egress-log.mjs'
+import { blockedWrite, noteEgress } from '../scripts/sim/egress-log.mjs'
 import { eachCase, runSteps } from './support/steps.mjs'
 
 // 代答 / 实测的出网范围命令层核对（aven 11-04 design-v2 §7；b2 ep-1031-f8065f 代答 curl 了 accounts.google.com/gsi/…）。
@@ -218,6 +218,12 @@ describe('代答 / 实测出网范围（命令层）', () => {
       assert.match(line('/api/user/NewRegisteredByMail', '3').reason, /注册/)
       assert.equal(line('/api/user/NewMailLogin').kind, 'allowed')
       assert.equal(line('/go-api/api/auth/avatar/upload').kind, 'violation')
+      // 回放硬拦（latest 的 blockedWrite）同口径：登录码放，注册 / 注册码 / 用途不明 / 上传拦
+      assert.equal(blockedWrite({ method: 'POST', url: 'https://falivepre.fdsser.com/api/user/sendVerificationCode', purpose: '3' }), null)
+      assert.match(blockedWrite({ method: 'POST', url: 'https://falivepre.fdsser.com/api/user/sendVerificationCode', purpose: '1' }), /发码用途 1/)
+      assert.match(blockedWrite({ method: 'POST', url: 'https://falivepre.fdsser.com/go-api/api/auth/verification/email/send' }), /用途不明/)
+      assert.match(blockedWrite({ method: 'POST', url: 'https://falivepre.fdsser.com/api/user/NewRegisteredByMail' }), /注册/)
+      assert.equal(blockedWrite({ method: 'POST', url: 'https://falivepre.fdsser.com/api/user/NewMailLogin' }), null)
       const dir = mkdtempSync(join(tmpdir(), 'lark-egress-sim-'))
       noteEgress({ via: 'curl', method: 'POST', url: 'https://falivepre.fdsser.com/api/user/sendVerificationCode', purpose: '3', dir })
       noteEgress({ via: 'curl', method: 'GET', url: 'https://falivepre.fdsser.com/', dir })

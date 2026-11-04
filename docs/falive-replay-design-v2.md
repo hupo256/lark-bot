@@ -143,3 +143,28 @@
 - 实测类 case 的环境还原不了，按 §5 判过程不判结论。
 - 云文档 / bug 单是拉取时的版本。
 - 跨组的业务仓改动看不到，靠 §2 规则 4 并组缓解。
+
+## 11. 迭代策略（aven 11-04：要 lark-bot 实际运行比 falive 更好；自己设计、自己跑到达标，不停下来问）
+
+**达标**：§6 验收全过（硬线 + 「falive 更好」≤ 5% 且都有原因 + 不回退），且「lark-bot 更好」条数 > 「falive 更好」条数。金标准由我按 §7 口径复核代替 aven（裁判 max 判一遍，我逐条复核 falive 更好 / 都不对 / 拿不准的，记理由），aven 事后可抽查推翻。
+
+**一轮的流水线（全程不停）**：
+1. **基线跑着就开始分诊**：run-episodes 每组跑完自动裁判；`triage.mjs` 每 10 分钟把已判的 falive 更好 / 都不对按「根因类」聚类（larkIssue + 理由关键词 + 走过的环节），新出现的类立刻派一个修复子代理，不等整轮跑完。
+2. **一类一个修复分支**（lark/falive-fix-<类>），各在自己的 worktree：先从工件定根因（分类？路由？执行提示？交付？时延？），再改；**只用最便宜的方式验证**——单测 + L1（只跑分类，几分钟）或只重跑该类涉及的那几组（录放：没变的调用不花钱）。改提示必须带回放规则校验、回归集。
+3. **合并波**：攒到的修复分支先在 next 分支上合，全量测试 + 提示回放 + 回归集 + 变异全绿，再合进 latest。
+4. **验证轮**：只重跑受影响的组 + 20 组固定金丝雀（录放开）；按输出指纹只判变了的 case；跑 acceptance。
+5. 没达标 → 回到 1（分诊只看新一轮的差异）；达标 → **终轮**：全量 61 组（录放，只花未命中）+ 全量裁判（max）+ acceptance，过了按 AGENTS.md 全套验证合进 fameex-stable（两个线上 bot 停着，合了不自动上线，启动交给 aven）。
+
+**省时省钱的硬规则**：一轮只改一批、只跑受影响的；任何改动先过最便宜的验证；修复分支互不阻塞；合并只在验证轮之间做（一轮只许一版代码）；模拟局限（校准 fidelity.md 标出的）不当 lark-bot 的错，也不为它改 bot。
+
+**「更好」的三项指标（aven 11-04：决断更准、反应更快、token 更省）**——每轮由 `scripts/sim/round-metrics.mjs` 出，和 falive 当时比：
+1. **决断更准**：裁判「lark-bot 更好」>「falive 更好」，§6 验收全过；分类 / 落地对照金标准的准确率。
+2. **反应更快**：每 case 首句回应时延、结论送达时延（虚拟时间，从消息发出算），lark-bot 的中位数与 P90 都不慢于 falive（falive 侧取时间线里 falive 的原话按卡→case 归属）。
+3. **token 更省**：每 case 等价花费（审计里的 total_cost_usd），在双方都有记录的 case 上 lark-bot 的中位数与合计都不高于 falive（falive 审计 10-27 起才有）。
+三项都满足才算达标；取舍冲突时顺序是 准 > 快 > 省（不能为省 token 牺牲决断）。
+
+**口径细则（round-metrics.mjs 实现，11-04）**：`node scripts/sim/round-metrics.mjs --round <轮> [--md out.md]` 出 markdown + `sim/<轮>/metrics.json`，`acceptance.mjs --metrics <json>` 加查快 / 省三项。
+- 只算跑完（DONE）的组；待办不计分的 case 三项都不进。
+- 「看得到」= 问话人看得到：群里的 case 只算群里的话，负责人私聊的算私信；lark-bot 私信 aven 的「开始做 / 结论」不算回应。结论 = 第一句非 ack 的话（ack 判法用 case-context `isAck`，两边一把尺），全是 ack 取最后一句。falive 的话按事件组 faliveBotIds 再逐条归 case（`falive-bot-owner.mjs`，与 episodes.mjs 同一套）。
+- 花费：`total_cost_usd` 在同一会话里是累计的，按 session_id 取增量；网关分类那一趟也写在任务审计 e0 里，已含。录放命中照算录时的数（等价），另报本轮实花。直通调用（text 输出）没有花费记录，只报次数。
+- 已知偏差：录放命中立刻回放的 case 时延偏快（要真实时延用 `SIM_AI_CACHE_HIT_DELAY=orig`）；并单 / 续跑的花费记在目标任务上，两边同理；falive 10-27 之前没审计，不进花费对比。
