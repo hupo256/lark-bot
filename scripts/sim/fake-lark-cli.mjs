@@ -373,8 +373,19 @@ if (domain === 'event' && command === 'consume') {
   // falive bot 自己在话题里说的按 hideFaliveBot 藏（同列群消息）。
   const cutoff = nowMs()
   const cached = (threadItems().byThread.get(threadId) || []).filter((m) => Number(m.create_time) <= cutoff && !HIDDEN.has(m.message_id) && !(m.ownBot && hideOwnBot(m.message_id, Number(m.create_time))))
-  const seen = new Set(cached.map((m) => m.message_id))
-  const list = [...cached, ...messages().filter((m) => m.thread_id === threadId && m.parent_id && !seen.has(m.message_id))]
+  // 喂进这个话题的 case（run-sim 把回 falive 卡的改挂到模拟 bot 那句下，events.ndjson 里记的是新的 thread_id）也列出来：真 bot 的卡下面，
+  // 人互相说的话就在同一个话题里（11-04 b3 ep-1019-57332a：Henry「@Encone 用户中心哪些要换接口」和 Encone「稍等，我给你一份」都改挂到了模拟 bot 的话题，
+  // 列话题却只有缓存的原话题回复，看不出 Encone 在回 Henry）。发送人 / 正文 / @ 取时间线原样，只换成喂进来时的话题位置。
+  const eventsFile = join(simDir, 'events.ndjson')
+  const fedEvents = existsSync(eventsFile)
+    ? readFileSync(eventsFile, 'utf8').split('\n').filter(Boolean).map((line) => { try { return JSON.parse(line) } catch { return null } })
+      .filter((e) => e?.thread_id === threadId && Number(e.create_time) <= cutoff)
+    : []
+  const timelineById = fedEvents.length ? new Map(readJson('timeline.json', []).map((x) => [x.id, x])) : new Map()
+  const fed = fedEvents.map((e) => timelineById.get(e.message_id) && { ...toListItem(timelineById.get(e.message_id)), thread_id: e.thread_id, root_id: e.root_id, parent_id: e.reply_to || e.root_id }).filter(Boolean)
+  const fedIds = new Set(fed.map((m) => m.message_id))
+  const seen = new Set([...cached.map((m) => m.message_id), ...fedIds])
+  const list = [...cached.filter((m) => !fedIds.has(m.message_id)), ...fed, ...messages().filter((m) => m.thread_id === threadId && m.parent_id && !seen.has(m.message_id))]
     .map(({ ownBot, ...m }) => m)
     .sort((a, b) => Number(a.create_time) - Number(b.create_time))
   cacheLog(cached.length ? 'hit' : 'empty', 'thread', threadId, `${cached.length} 条缓存回复`)

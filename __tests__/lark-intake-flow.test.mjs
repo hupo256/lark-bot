@@ -352,6 +352,38 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       const grp = put('om_grp2', [{ messageId: 'om_g2', kind: 'done', epoch: 0, chatId: 'ou_aven', createdAt: iso(now + 1) }])
       assert.deepEqual(resolve('那条再看看'), { task: grp, via: 'recent' }, '群里发起的任务 + 短指代句照旧锚')
       assert.equal(resolve('现在 pre 环境跑的是哪个版本'), null, '群任务的结果通知后问新问题 → 不锚（11-02 真机：带「是」的问句被当指示、答案发去了群里）')
+      // 11-04 b3 cacad3d4：回了一条对不上任务的消息（列候选的追问 / 不带任务的回话）→ 不拿最近一条去猜；回的是对某条说过的话（linkedMessageIds）→ 就是那条
+      assert.deepEqual(resolve('web 端不用改，只用从 x9 迁过来', { replyToDirect: 'om_askback' }), { task: null, via: 'unresolved_reply' })
+      const linked = put('om_lk', null, { linkedMessageIds: ['om_said_to_it'] })
+      assert.deepEqual(resolve('那就这样', { replyToDirect: 'om_said_to_it' }), { task: linked, via: 'reply' })
+      assert.deepEqual(resolve('那就这样', { replyToDirect: 'om_lk' }), { task: grp, via: 'recent' }, '回的是任务原消息（他自己的私信那种）：照旧往下走')
+    }],
+    ['负责人回的那条对不上任务（11-04 b3 cacad3d4）：列最近私信过他的群任务（窗口内、新的在前、最多 3 条、不含私信任务）问回去；一条都没有就放行', async () => {
+      const now = Date.parse('2026-11-04T12:00:00.000Z')
+      const dm = (at) => [{ messageId: `om_r${at}`, kind: 'done', chatId: 'ou_aven', createdAt: iso(now - at * 60_000) }]
+      const tasks = [
+        { id: 'om_c1', chatId: 'oc_g', summary: '送礼入口', receipts: dm(5) },
+        { id: 'om_c2', chatId: 'oc_g', summary: '新闻详情页', receipts: dm(1) },
+        { id: 'om_c3', chatId: 'oc_g', summary: '分享卡片', receipts: dm(30) },
+        { id: 'om_c4', chatId: 'oc_g', summary: '最旧', receipts: dm(60) },
+        { id: 'om_c5', chatId: 'oc_g', summary: '窗口外', receipts: dm(13 * 60) },
+        { id: 'om_c6', chatId: 'ou_aven', chatType: 'p2p', summary: '私信任务', receipts: dm(0) },
+        { id: 'om_c7', chatId: 'oc_g', summary: '没私信过' },
+      ]
+      const fake = { list: () => tasks, get: () => null }
+      const msg = { messageId: 'om_in', chatId: 'oc_p2p', chatType: 'p2p', senderOpenId: 'ou_aven', text: 'web 端不用改', mentions: [], attachments: [], replyToDirect: 'om_askback' }
+      const { principalCandidates, unresolvedReplyText } = await import('../lib/lark-principal-channel.mjs')
+      assert.deepEqual(principalCandidates({ msg, store: fake, config, now }).map((t) => t.id), ['om_c2', 'om_c1', 'om_c3'])
+      assert.deepEqual(principalCandidates({ msg, store: { list: () => [tasks[4]] }, config, now: now - 60_000 }).map((t) => t.id), [], '12 小时窗口外不列')
+      assert.deepEqual(principalCandidates({ msg, store: { list: () => [tasks[4]] }, config, now: now - 13 * 3600_000 + 12 * 3600_000 }).map((t) => t.id), ['om_c5'], '恰好 12 小时还算')
+      assert.equal(unresolvedReplyText([tasks[1]]), '你回的这条我对不上是哪个任务，先没动。是不是这条：\n- 「新闻详情页」：回「继续任务 om_c2 <你的话>」\n要是新的事，直接另发一条（不用回复）。')
+      assert.match(unresolvedReplyText([tasks[1], { id: 'om_x' }]), /是不是这几条里的：\n- 「新闻详情页」.*\n- 「om_x」：回「继续任务 om_x <你的话>」/)
+      const notes = []
+      const deps = { now: () => now, resolveAnchor: () => ({ task: null, via: 'unresolved_reply' }), sendPrincipalNote: async (args) => { notes.push(args.text); return { ok: true } } }
+      assert.equal(await maybeHandlePrincipalChannel({ msg, config, store: fake, deps }), true)
+      assert.match(notes.pop(), /^你回的这条我对不上是哪个任务，先没动。是不是这几条里的：\n- 「新闻详情页」：回「继续任务 om_c2 <你的话>」/)
+      assert.equal(await maybeHandlePrincipalChannel({ msg, config, store: { list: () => [] }, deps }), false, '没候选：放行（独立私信任务）')
+      assert.equal(notes.length, 0)
     }],
     ['maybeHandlePrincipalChannel：部署通知 / 放行草稿 / 续跑 / 指示任务；锚不到放行', async () => {
       const now = Date.now()
@@ -954,7 +986,7 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       const msg = (extra = {}) => ({ messageId: 'om_m', chatId: 'oc_g', senderOpenId: 'ou_qa', text: '登录页报错', mentions: [], attachments: [], ...extra })
       const bundle = (extra, project = null) => buildConversationBundle({ msg: msg(extra), config, store, project, deps })
       const bare = await bundle()
-      assert.deepEqual(bare, { text: '登录页报错', attachments: [], threadSpeakers: [], conversation: { anchor: null, activity: { outbox: [], tasks: [] }, candidates: [] }, refText: null, quotedOwnCard: false, quotedTaskId: null })
+      assert.deepEqual(bare, { text: '登录页报错', attachments: [], threadSpeakers: [], answering: null, conversation: { anchor: null, activity: { outbox: [], tasks: [] }, candidates: [] }, refText: null, quotedOwnCard: false, quotedTaskId: null })
       assert.deepEqual(calls, [['download', { project: 'PR-01947', messageId: 'om_m', attachments: [] }]])
       store.upsert({ id: 'om_bot', status: 'done', chatId: 'oc_g', epoch: 1, createdAt: iso(Date.now()) })
       store.recordReceipt('om_bot', { messageId: 'om_rcpt', kind: 'done', epoch: 0, chatId: 'oc_g' }) // 换代前的回执：只有忽略代次的反查能命中
@@ -975,7 +1007,7 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
         { type: 'image', imageKey: 'thr_img', origin: '话题回复 · 小李', localPath: '/x' },
         { type: 'image', imageKey: 'rec_img', origin: '群里之前的消息 · 小王 17:00', localPath: '/x' },
       ])
-      assert.deepEqual([full.threadSpeakers, full.refText, full.quotedOwnCard], [['ou_l'], '被引用的原话', true])
+      assert.deepEqual([full.threadSpeakers, full.refText, full.quotedOwnCard, full.answering], [['ou_l'], '被引用的原话', true, null])
       assert.deepEqual(calls.slice(0, 3), [['ref', 'om_rcpt'], ['thread', 'om_rcpt', { excludeIds: ['om_m', 'om_rcpt'], botOpenIds: ['ou_bot', 'cli_x'] }], ['recent', { chatId: 'oc_g', beforeMs: 1_700_000_000_000, excludeIds: ['om_m', 'om_rcpt', 'om_t1', 'om_t2'], botOpenIds: ['ou_bot', 'cli_x'] }]])
       assert.deepEqual(calls.slice(3).map(([, args]) => [args.project, args.messageId, args.attachments.map((a) => a.imageKey)]), [['PR-X', 'om_m', ['own_img']], ['PR-X', 'om_rcpt', ['ref_img']], ['PR-X', 'om_t1', ['thr_img']], ['PR-X', 'om_r1', ['rec_img']]])
       // 单独 @bot、本条没文档：带上同一人紧接着发的那份文档；本条自带文档就不带
@@ -991,6 +1023,9 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       assert.deepEqual(refers.attachments.map((a) => [a.imageKey || a.fileName, a.origin]), [['api.md', '群里之前的消息 · 小李 17:05'], ['rec_img', '群里之前的消息 · 小王 17:00']])
       const unrelated = await bundle({ messageId: 'om_m6', createTimeMs: 1_700_000_000_000 })
       assert.deepEqual(unrelated.attachments.map((a) => a.imageKey), ['rec_img'])
+      // 话题里上一条是别人 @ 了本条发送人：answering 给出那人（ingest 据此静默，11-04 b3 ep-1019-57332a）
+      thread = [{ messageId: 'om_h', sender: 'Henry', senderOpenId: 'ou_h', text: '用户中心哪些要换接口？', attachments: [], mentionIds: ['ou_qa'] }]
+      assert.equal((await bundle({ messageId: 'om_m8', text: '稍等，我给你一份', replyTo: 'om_rcpt' })).answering, 'Henry')
       // 引用的不是 bot 的卡：quotedOwnCard=false；被引用消息没正文就只有本条；有正文没附言
       ref = { text: '', sender: '', attachments: [] }
       recent = []

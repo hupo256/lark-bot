@@ -17,7 +17,7 @@ writeFileSync(join(dir, 'runtime', 'persona', 'aven.md'), '# 口吻\n\n短句、
 process.env.LARK_RUNTIME_DIR = join(dir, 'runtime')
 const { buildOutcome, detailDocOf, mapStatusForContract, outcomeFromWorkerFailure, outcomeHeadline, runEvidenceFor } = await import('../lib/lark-run-report.mjs')
 const { buildGroupReplyPassPrompt, owesGroupReply, runGroupReplyPass } = await import('../lib/lark-group-reply-pass.mjs')
-const { ANSWER_MODE_BLOCK, DELIVER_NOW_RULE, VERIFICATION_MODE_BLOCK, buildAckPromiseBlock, buildAnswerEnvRule, buildCarryOverBlock, buildEnvProbeRule } = await import('../lib/lark-worker-modes.mjs')
+const { ANSWER_MODE_BLOCK, CLAIM_EVIDENCE_RULE, DELIVER_NOW_RULE, VERIFICATION_MODE_BLOCK, buildAckPromiseBlock, buildAnswerEnvRule, buildApiReplyRetestBlock, buildCarryOverBlock, buildEnvProbeRule } = await import('../lib/lark-worker-modes.mjs')
 const { buildTaskPromptParts } = await import('../lib/lark-worker-prompts.mjs')
 const { applyEnvCheck, checkEnvTarget, envTargetLine, hostOf, resolveEnvTargets, touchedEnvs } = await import('../lib/lark-env-target.mjs')
 const { buildIntentClassificationPrompt, describeSender, formatTaskAttachments, readPersona } = await import('../lib/lark-classify-prompt.mjs')
@@ -218,7 +218,9 @@ describe('worker 侧对话层：outcome / 契约映射 / 群回复补写 / 模�
     }],
     // 11-03 falive 回放：「测试的tid 发出来」tid 在上一单结论里却回「去翻文档」；「创建最新的帖子」先回「我在 pre 发几条新帖」，实测只读没发。
     ['代答 / 实测：要什么本轮给什么（两种模式都带）；「收到」那句与上一单结论只进单趟提示', () => {
-      for (const block of [ANSWER_MODE_BLOCK({}), ANSWER_MODE_BLOCK({}, { persona: '短句' }), VERIFICATION_MODE_BLOCK({}), VERIFICATION_MODE_BLOCK({}, { hasPageTool: true })]) assert.ok(block.endsWith(`\n${DELIVER_NOW_RULE}`))
+      for (const block of [ANSWER_MODE_BLOCK({}), ANSWER_MODE_BLOCK({}, { persona: '短句' }), VERIFICATION_MODE_BLOCK({}), VERIFICATION_MODE_BLOCK({}, { hasPageTool: true })]) assert.ok(block.endsWith(`\n${DELIVER_NOW_RULE}\n${CLAIM_EVIDENCE_RULE}`))
+      // 下结论要有据（11-04 b3）：只依据本轮实测或 bot 自己最近一次带时间的实测；对方说法没核过不附和不反驳；核不了就说核不了、不下结论
+      assert.match(CLAIM_EVIDENCE_RULE, /只依据本轮实测，或 bot 自己最近一次带时间的实测.*以最近那次为准.*没核过不附和（不说「对上了」）也不反驳.*核不了.*就说核不了、缺什么，不下结论/)
       assert.match(DELIVER_NOW_RULE, /要事实（tid \/ 账号 \/ 地址 \/ 数据）就查出来直接列.*上一单结论.*只读去环境拉.*不让对方自己去翻.*不允许（发帖 \/ 注册 \/ 下单这类写操作）就直说这边做不了、该找谁.*单趟没有下次.*群里先回的那句答应过的/)
       const prior = { taskId: 'om_prev', summary: '翻译实测', text: '- 标题翻译：18726–18742' }
       const PRIOR_LINE = '本条接着任务 om_prev（翻译实测），那单 bot 的结论（以前的记录，用前对一下）：\n- 标题翻译：18726–18742'
@@ -275,6 +277,23 @@ describe('worker 侧对话层：outcome / 契约映射 / 群回复补写 / 模�
       const block = buildAckPromiseBlock({ ackReply: '评论积分我去 pre 再测一下' }, { envSites: { pre: 'https://p', uat: ' ' } })
       assert.match(block, /^群里已先回了一句：「评论积分我去 pre 再测一下」。里面答应的只读事.*本轮一并做（打 pre https:\/\/p，只发 GET（登录拿态的 POST 除外），上游 \/ 合作方域名不打）.*report.*not_done.*单趟没有下次，不写「测完再回你」。$/)
       assert.match(buildAckPromiseBlock({ ackReply: '好' }), /本仓没配环境地址，测不了就写明/)
+    }],
+    // 11-04 b3 ep-1019-57332a：对接答复「读一下」判了不用改、没在 pre 复测；「已经上 pre 了」只报了改码
+    ['buildApiReplyRetestBlock：只给分类成 api_reply 的单；逐项复测写进 report.items、归别人的写 followUps、不用改也逐项报；配了环境列地址只 GET；进改码 user 层、代答 / 实测不带', () => {
+      assert.equal(buildApiReplyRetestBlock({}), '')
+      assert.equal(buildApiReplyRetestBlock(null), '')
+      assert.equal(buildApiReplyRetestBlock({ intake: { classification: { decision: 'bug' } } }), '')
+      const api = { intake: { classification: { decision: 'api_reply', deliverable: 'change' } } }
+      const block = buildApiReplyRetestBlock(api, { envSites: { pre: 'https://p', uat: ' ' } })
+      assert.match(block, /^本条是对方在答复我方的对接待办.*每一项本轮都去环境复测（打 pre https:\/\/p，只发 GET（登录拿态的 POST 除外））.*report\.items.*not_done.*followUps \[\{owner, items\}\].*不用改代码也逐项报，不只给一句「不用改」。$/)
+      assert.match(buildApiReplyRetestBlock(api), /本仓没配环境地址，测不了就写明/)
+      const ctx = { projectId: 'PR-99999', projectName: 't', projectDocs: [], cwd: '/tmp/repo' }
+      const base = { id: 't', attachments: [], chatId: 'oc', text: '读一下', ...api }
+      const user = (contract, extra = {}) => buildTaskPromptParts(ctx, { ...base, contract, ...extra }, 'claude', { ruleContext: { text: '', sources: [] } }).user
+      assert.ok(user({ v: 1, deliverable: 'change', readOnly: false, expectsCode: true }).includes(buildApiReplyRetestBlock(api)))
+      const both = user({ v: 1, deliverable: 'change', readOnly: false, expectsCode: true }, { ackReply: '我先理出来' })
+      assert.ok(both.includes(`${buildAckPromiseBlock({ ackReply: '我先理出来' })}\n${buildApiReplyRetestBlock(api)}`), '和「收到」那块各一段')
+      for (const deliverable of ['answer', 'verification']) assert.equal(user({ v: 1, deliverable, readOnly: deliverable === 'answer', expectsCode: false }).includes('本条是对方在答复我方的对接待办'), false)
     }],
     // 11-04 falive 回放 ep-1021-8cca5c：「404 的接口具体是哪两个」把台账里三支硬凑成两支（「两个」其实指同一接口两个号测）
     ['代答块：指着前文问先对上被指的那句，对不上直说、不硬凑；实测块不带', () => {

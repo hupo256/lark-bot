@@ -129,6 +129,8 @@ describe('对话层：锚点、上下文、对话包、发件簿、义务、pers
       assert.deepEqual(out[2].attachments, [{ type: 'image', imageKey: 'img_1' }])
       assert.deepEqual([out[2].sender, out[2].senderOpenId, out[3].sender, out[3].senderOpenId], ['小王', 'ou_u', '', ''])
       assert.deepEqual([out[2].createTime, pickThreadContext([{ ...userMsg('nt', '没时间'), create_time: undefined }])[0].createTime], ['2026-11-01 17:00', ''], '真人消息带 createTime（同话题前一单按它兜底切分），没有 → 空串')
+      // 真人消息带 @ 了谁（answeringColleague 用）：id 是串或 { open_id }，没有的跳过
+      assert.deepEqual([out[2].mentionIds, pickThreadContext([{ ...userMsg('mm', '@A @B 看下'), mentions: [{ id: 'ou_a' }, { id: { open_id: 'ou_b' } }, { key: '@_all' }] }])[0].mentionIds], [[], ['ou_a', 'ou_b']])
       assert.equal(pickThreadContext(msgs, { botOpenIds: [BOT, APP], limit: 2 }).length, 2)
       assert.deepEqual(pickThreadContext(undefined), [])
     }],
@@ -228,10 +230,10 @@ describe('对话层：锚点、上下文、对话包、发件簿、义务、pers
       ], '排除本条、别的群、别人的、2h 外、没时间的；恰好 2h 算在内')
       assert.deepEqual(recentCalls, [[chatId, { excludeId: 'om_now', days: 7, limit: 15 }]])
       assert.deepEqual(data.candidates, [
-        { id: 't_c', summary: 'test/pre 一样吗', status: 'answered', deliverable: 'answer', createdAt: 'c1', botSaid: `不一样，${'多'.repeat(116)}…` },
-        { id: 't_b', summary: '第一行 第二行', status: 'done', deliverable: null, createdAt: null, botSaid: null },
-        { id: 't_a', summary: 'a', status: 'done', deliverable: null, createdAt: null, botSaid: 'o3' },
-      ], '拦下的不算 bot 说过；bot 最后说截 120；对别人说的也算「bot 最后说」')
+        { id: 't_c', summary: 'test/pre 一样吗', status: 'answered', deliverable: 'answer', createdAt: 'c1', botSaid: `不一样，${'多'.repeat(116)}…`, botSaidAt: iso(NOW_MS - 5 * MIN) },
+        { id: 't_b', summary: '第一行 第二行', status: 'done', deliverable: null, createdAt: null, botSaid: null, botSaidAt: null },
+        { id: 't_a', summary: 'a', status: 'done', deliverable: null, createdAt: null, botSaid: 'o3', botSaidAt: iso(NOW_MS - 60 * MIN) },
+      ], '拦下的不算 bot 说过；bot 最后说截 120、带几点说的；对别人说的也算「bot 最后说」')
       assert.deepEqual(data.anchor, { taskId: 't_c', topic: 'diff', at: iso(NOW_MS - 5 * MIN), phase: 'done', text: `不一样，${'多'.repeat(130)}` })
       // 另一个人：发件簿最多 3 条、任务最多 5 条，都是新的在前
       const otherData = buildConversationData({ store, msg: { ...msg, senderOpenId: other, text: '重跑一次' }, nowMs: NOW_MS })
@@ -284,6 +286,12 @@ describe('对话层：锚点、上下文、对话包、发件簿、义务、pers
       ]
       const block = renderCandidateBlock(candidates)
       assert.equal(block, '【最近 7 天这个群里已有的任务】（判断本条是不是其中某条的延续 / 补充 / 对它的答复）\n- id=t_c 状态=answered 交付=answer 摘要=test/pre 一样吗｜bot 最后说：不一样，多 3 个提交\n- id=t_b 状态=done 摘要=第一行\n- 是延续（接着那条问 / 补料 / 答它）→ continues 填该 id，topic 沿用它的；相关但另一件事 → relatedTaskId 填该 id、continues=null；新主题 → 都为 null，topic 给一个短的稳定标识。')
+      // 带几点说的（11-04 b3：引用自己的结论要说清是哪次）：候选跨 7 天，带日期；时间坏了回落 --:--
+      const saidAt = '2026-10-24T06:19:00.000Z'
+      const day = new Date(saidAt)
+      const stamp = `${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')} ${localHHMM(saidAt)}`
+      assert.match(renderCandidateBlock([{ ...candidates[0], botSaidAt: saidAt }]), new RegExp(`｜bot ${stamp} 最后说：不一样，多 3 个提交\\n`))
+      assert.match(renderCandidateBlock([{ ...candidates[0], botSaidAt: 'bad' }]), /｜bot --:-- 最后说：/)
       assert.equal(renderCandidateBlock([]), '')
       assert.equal(renderCandidateBlock(undefined), '')
     }],

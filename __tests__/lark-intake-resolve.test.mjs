@@ -10,7 +10,7 @@ import { join } from 'node:path'
 import { describe, it, mock } from 'node:test'
 
 import { CONTRACT_VERSION, deriveContract, isReadOnlyAsk, isRecordOnly, refreshContract, taskContract } from '../lib/lark-task-contract.mjs'
-import { PRIOR_CONCLUSION_MAX, PROBE_RECORD_HEAD, applyIntakeClassification, intakeActionable, priorConclusionOf, sameIntentClassification } from '../lib/lark-intake-resolve.mjs'
+import { PRIOR_CONCLUSION_MAX, PROBE_RECORD_HEAD, applyIntakeClassification, intakeActionable, priorConclusionOf, sameIntentClassification, stripUnverifiedClaims } from '../lib/lark-intake-resolve.mjs'
 import { isNudgeFollowUp, mergeTaskObjects } from '../lib/lark-task-merge.mjs'
 import { judgeIntakeCase, regressionTaskOf } from '../lib/lark-intake-replay.mjs'
 import { buildIntentClassificationPrompt } from '../lib/lark-classify-prompt.mjs'
@@ -140,6 +140,7 @@ describe('对话层：契约、入队门槛、分类落态、归并', () => {
       { name: 'A ¬P bug medium forMe true → 是', t: { addressedToBot: true }, c: cls('bug', 'medium', { forMe: true }), want: true },
       { name: 'A ¬P bug high forMe false → 否（礼貌转介）', t: { addressedToBot: true }, c: cls('bug', 'high', { forMe: false }), want: false },
       { name: 'A ¬P api_reply high deliverable 空 → 否（只记一笔）', t: { addressedToBot: true }, c: cls('api_reply', 'high', { forMe: true }), want: false },
+      { name: 'A P api_reply high deliverable 空 → 否（负责人的也只记一笔，11-04 b3）', t: { addressedToBot: true, fromPrincipal: true }, c: cls('api_reply', 'high'), want: false },
       { name: 'A ¬P api_reply high deliverable change → 是', t: { addressedToBot: true }, c: cls('api_reply', 'high', { deliverable: 'change' }), want: true },
       { name: 'A ¬P question low → 否（疑似）', t: { addressedToBot: true }, c: cls('question', 'low'), want: false },
       { name: 'A ¬P 未知类别 high → 否', t: { addressedToBot: true }, c: cls('chitchat'), want: false },
@@ -233,7 +234,18 @@ describe('对话层：契约、入队门槛、分类落态、归并', () => {
         check: (t) => assert.equal(t.contract.deliverable, 'record'),
       },
       { name: '只记一笔也覆盖 low（规则表里只记一笔排在疑似前）', t: { addressedToBot: true, text: 'x' }, c: cls('api_reply', 'low', { forMe: true }), want: { out: { recordOnly: true, suspected: false }, status: 'ignored' } },
-      { name: '负责人的 api_reply deliverable 空 high → 开跑，不是只记一笔；commandType=api', t: { addressedToBot: true, fromPrincipal: true, text: 'x' }, c: cls('api_reply'), want: { out: { actionable: true, recordOnly: false }, commandType: 'api', commandTypeSource: 'explicit' } },
+      // 11-04 b3 ep-1019-57332a：aven「这个待办清掉，之后到 uat 运营配数据」原先按只读派工、挂起私信他重新派——负责人的也只记一笔
+      { name: '负责人的 api_reply deliverable 空 high → 只记一笔（ignored），不开跑', t: { addressedToBot: true, fromPrincipal: true, text: '这个待办清掉' }, c: cls('api_reply'), want: { out: { actionable: false, recordOnly: true, askBack: false, requeue: false }, status: 'ignored', recordOnly: true, commandType: undefined } },
+      { name: '负责人的 api_reply deliverable 空 low → 只记一笔，不追问', t: { addressedToBot: true, fromPrincipal: true, text: 'x' }, c: cls('api_reply', 'low'), want: { out: { recordOnly: true, askBack: false, suspected: false }, status: 'ignored', askBack: undefined } },
+      { name: '负责人的 api_reply 交付 change → 开跑；commandType=api', t: { addressedToBot: true, fromPrincipal: true, text: 'x' }, c: cls('api_reply', 'high', { deliverable: 'change' }), want: { out: { actionable: true, recordOnly: false }, commandType: 'api', commandTypeSource: 'explicit' } },
+      { name: '负责人私聊指示的 api_reply 交付空 → 不算只记一笔，照开跑', t: { addressedToBot: true, fromPrincipal: true, privateOrigin: { anchorId: 'a' }, text: 'x' }, c: cls('api_reply'), want: { out: { actionable: true, recordOnly: false } } },
+      // 11-04 b3：分类器写的「收到」里没核过的断言（之前实测已通 / 对上了 / 确实没同步）去掉、补一句先核实；带时间的、自答 / 追问 / ignore 不动
+      { name: '开跑：「收到」里没带时间的实测断言去掉', t: { addressedToBot: true, text: 'x' }, c: cls('question', 'high', { deliverable: 'answer', reply: '对，要的就是这样。之前实测这条已经通了。' }), want: { out: { actionable: true } }, check: (t) => assert.deepEqual([t.intake.classification.reply, t.intake.classification.replyDropped], ['对，要的就是这样。这个我先核实再回你。', '之前实测这条已经通了。']) },
+      { name: '疑似：整句都是附和 → reply 置空（发固定句）', t: { addressedToBot: true, text: 'x' }, c: cls('bug', 'low', { reply: '你说存取一致那就对上了' }), want: { out: { suspected: true } }, check: (t) => assert.deepEqual([t.intake.classification.reply, t.intake.classification.replyDropped], [null, '你说存取一致那就对上了']) },
+      { name: '只记一笔：断言去掉', t: { addressedToBot: true, text: 'x' }, c: cls('api_reply', 'high', { forMe: true, reply: '收到。确实没同步' }), want: { out: { recordOnly: true } }, check: (t) => assert.equal(t.intake.classification.reply, '收到。这个我先核实再回你。') },
+      { name: '带时间的引用照留', t: { addressedToBot: true, text: 'x' }, c: cls('question', 'high', { deliverable: 'answer', reply: '我 10:19 实测还是转义的，再核下' }), want: { out: { actionable: true } }, check: (t) => assert.equal('replyDropped' in t.intake.classification, false) },
+      { name: 'ignore 的回话不动', t: { addressedToBot: true, text: 'x' }, c: cls('ignore', 'high', { reply: '确实是后端的事，记下了' }), want: { status: 'ignored' }, check: (t) => assert.equal(t.intake.classification.reply, '确实是后端的事，记下了') },
+      { name: '自答不动', t: { addressedToBot: true, fromPrincipal: true, text: '你能发邮件吗' }, c: cls('question', 'high', { selfAnswer: true, deliverable: 'answer', reply: '能，之前实测过发得通' }), want: { out: { selfAnswer: true } }, check: (t) => assert.equal(t.result, '能，之前实测过发得通') },
       { name: 'A ¬P forMe=false bug high → ignored，不疑似、不只记', t: { addressedToBot: true, text: 'x' }, c: cls('bug', 'high', { forMe: false }), want: { out: { actionable: false, suspected: false, recordOnly: false, askBack: false }, status: 'ignored', suspected: undefined } },
       { name: 'A ¬P forMe=false low → ignored（不疑似）', t: { addressedToBot: true, text: 'x' }, c: cls('requirement', 'low', { forMe: false }), want: { out: { suspected: false }, status: 'ignored' } },
       { name: 'A P ignore → ignored，reply 保留', t: { addressedToBot: true, fromPrincipal: true, text: 'x' }, c: cls('ignore', 'high', { reply: '好，不做' }), want: { out: { actionable: false, suspected: false, askBack: false }, status: 'ignored' }, check: (t) => assert.equal(t.intake.classification.reply, '好，不做') },
@@ -294,6 +306,16 @@ describe('对话层：契约、入队门槛、分类落态、归并', () => {
       assert.equal(target.claimedAt, null)
       check?.(target)
     })],
+    ['stripUnverifiedClaims：按句去掉没带时间的状态断言（实测…通 / 对上了 / 确实没…），留下的补「先核实」；整句都是 → null；别的原样', () => eachCase([
+      { name: '没断言原样', reply: '好，我去 pre 实测一下', want: { text: '好，我去 pre 实测一下', dropped: [] } },
+      { name: '留下的没句号补一个', reply: '确实没同步。我去看下', want: { text: '我去看下。这个我先核实再回你。', dropped: ['确实没同步。'] } },
+      { name: '留下的以分号结尾不再补', reply: '我看下；确实漏改了', want: { text: '我看下；这个我先核实再回你。', dropped: ['确实漏改了'] } },
+      { name: '「实测」后面跟结果才算', reply: '之前实测过没问题！要的就是这个', want: { text: '要的就是这个。这个我先核实再回你。', dropped: ['之前实测过没问题！'] } },
+      { name: '带日期的不算', reply: '10-22 实测是通的', want: { text: '10-22 实测是通的', dropped: [] } },
+      { name: '空 / null / 非串', reply: '  ', want: { text: '  ', dropped: [] } },
+      { name: 'null', reply: null, want: { text: null, dropped: [] } },
+      { name: '非串', reply: 3, want: { text: 3, dropped: [] } },
+    ], ({ reply, want }) => assert.deepEqual(stripUnverifiedClaims(reply), want))],
     ['priorConclusionOf：答案取 report.answer → groupReply → summary；条目「- 名：说明」；detailDoc 附在后面；截到上限；没结论 → null', () => eachCase([
       { name: '三者都有取 answer', prior: { id: 'p', summary: 's', outcome: { report: { answer: 'A', items: [] }, groupReply: 'G', summary: 'S' } }, want: { taskId: 'p', summary: 's', text: 'A' } },
       { name: '没 answer 取 groupReply', prior: { id: 'p', outcome: { report: { answer: null, items: [{ name: '登录', note: '' }, { name: '', note: '孤立说明' }] }, groupReply: 'G', summary: 'S' } }, want: { taskId: 'p', summary: null, text: 'G\n- 登录' } },

@@ -109,6 +109,17 @@ const CELLS = [
     want: ['注册登录：通了 1 项，没通 1 项\n- ⚠️ 待验证 登录\n- ✅ 注册：pre 通', '注册登录：都通了\n- ✅ 注册\n- ✅ 登录'],
   },
   { name: 'no_change（群）有 / 无 owner', got: () => [sayNoChangeGroup({ outcome: { summary: '是后端字段没返回。', owner: '后端' } }), sayNoChangeGroup({ outcome: { summary: '是后端字段没返回' } })], want: ['看过了，这个不用改前端：是后端字段没返回。要 后端 看下。', '看过了，这个不用改前端：是后端字段没返回。'] },
+  // 11-04 b3：对接答复逐项复测写了 report → 条目跟在后面（不带 answer），归别人跟的每人一行；没事项的不 @
+  {
+    name: 'no_change（群）带逐项复测与待跟进',
+    got: () => sayNoChangeGroup({ outcome: { summary: '前端不用改', report: normalizeReport({ subject: 'pre 复测', answer: '不该出现', items: [{ mark: 'ok', name: 'C4 点赞状态', note: '列表返回 is_liked' }] }) }, mentions: [{ name: '运营', openId: 'ou_op', items: ['配 APK 地址'] }, { name: 'QA', openId: 'ou_qa', items: [] }] }),
+    want: [
+      '看过了，这个不用改前端：前端不用改。',
+      renderReport({ ...normalizeReport({ subject: 'pre 复测', items: [{ mark: 'ok', name: 'C4 点赞状态', note: '列表返回 is_liked' }] }), answer: null }),
+      '@运营：配 APK 地址',
+    ].join('\n'),
+  },
+  { name: 'no_change（群）report 没条目照旧一句', got: () => sayNoChangeGroup({ outcome: { summary: 'x', report: normalizeReport({ subject: 's', items: [] }) } }), want: '看过了，这个不用改前端：x。' },
   {
     name: 'blocked_ask（群）：缺材料 / 根因在对方 / 没标题 / 条目最多 6 条 / 没名字的 @',
     got: () => [

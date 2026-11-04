@@ -63,12 +63,24 @@ describe('任务控制通道（真出口 + 假 lark-cli）', () => {
       assert.equal(await maybeHandleControlDirective({ msg: msg(chatId, '取消任务 om_nope'), config, store }), true)
       assert.equal(await maybeHandleControlDirective({ msg: msg(chatId, '重开任务 om_nope', { senderOpenId: 'ou_qb' }), config, store }), true)
       assert.deepEqual(said(chatId), [
-        '没找到任务 om_nope（可能是别的 bot 的 id 或抄错了），我这边现在也没有在等你的任务，结单不了。要做什么直接 @我 说。',
-        '没找到任务 om_nope（可能是别的 bot 的 id 或抄错了），我这边现在也没有在等你的任务，重开不了。要做什么直接 @我 说。',
+        '没找到任务 om_nope（可能是别的 bot 的 id 或抄错了），你指的是哪件事？我这边现在没有在等你的任务，结单不了，直接说要做什么就行。',
+        '没找到任务 om_nope（可能是别的 bot 的 id 或抄错了），你指的是哪件事？我这边现在没有在等你的任务，重开不了，直接说要做什么就行。',
       ])
-      assert.equal(listOutbox({ chatId })[0].taskId, null)
+      assert.deepEqual(listOutbox({ chatId }).map((entry) => [entry.taskId, entry.phase]), [[null, 'ask_back'], [null, 'ask_back']], '认不出目标的追问走 ask_back（按消息去重）')
+      // 同一句第二次也要回（11-04 b3 4f7de629：notice 按内容去重，第二次「继续任务 <id>」被拦、一声不吭）
+      assert.equal(await maybeHandleControlDirective({ msg: msg(chatId, '取消任务 om_nope'), config, store }), true)
+      assert.equal(said(chatId).length, 3)
+      assert.equal(listOutbox({ chatId }).filter((entry) => entry.gated).length, 0)
+      // 负责人在群里下的指令认不出：私信问他，群里不说话
+      const dmBefore = dms().length
+      assert.equal(await maybeHandleControlDirective({ msg: msg(chatId, '取消任务 om_nope2', { senderOpenId: 'ou_aven' }), config, store }), true)
+      assert.deepEqual([said(chatId).length, dms().length - dmBefore, dms().at(-1)], [3, 1, '没找到任务 om_nope2（可能是别的 bot 的 id 或抄错了），你指的是哪件事？我这边现在没有在等你的任务，结单不了，直接说要做什么就行。'])
+      // 私信里认不出：就在私信里回（回复他那条），不另发
+      const dmChat = 'oc_d1_p2p'
+      assert.equal(await maybeHandleControlDirective({ msg: msg(dmChat, '取消任务 om_nope3', { senderOpenId: 'ou_aven', chatType: 'p2p' }), config, store }), true)
+      assert.deepEqual([said(dmChat).length, dms().length - dmBefore], [1, 1])
       assert.equal(await maybeHandleControlDirective({ msg: msg(chatId, '随便聊两句'), config, store }), false)
-      assert.equal(said(chatId).length, 2)
+      assert.equal(said(chatId).length, 3)
     })],
     ['显式指令结单：running → superseded（cancelled），回话带标题、回执登记在任务上（代次 / 群）、发件簿带任务与主题；再结一次幂等回「早就结束」；没标题的任务回 id', () => quiet(async () => {
       const chatId = 'oc_d2'
@@ -361,6 +373,48 @@ describe('任务控制通道（真出口 + 假 lark-cli）', () => {
       assert.equal(await maybeHandleControlDirective({ msg: msg(chatId, `结单 ${ping.messageId}`, aven), config, store }), true)
       assert.deepEqual([store.get(k.id).status, store.get(k.id).closureReason], ['superseded', 'completed_elsewhere'])
       assert.equal(last(), `你给的 ${ping.messageId} 我这边没有，这个 id 是它的消息，按「新闻详情页二」（${k.id}）处理。好，「新闻详情页二」按已经处理掉结了。`)
+    })],
+    ['11-04 b3：点名的 id 盖过回复的卡片；扩大范围只认同群 / 同话题；挂起话题里在回同事的不续跑', () => quiet(async () => {
+      const chatId = 'oc_b3'
+      const aven = { senderOpenId: 'ou_aven', chatType: 'p2p' }
+      const last = (where = 'oc_b3_dm') => said(where).at(-1)
+      // cb95226c：「继续任务 <新闻详情页那条处理过的消息 id，抄错一位> 确认扩大范围」回在送礼单的挂起卡下——控制通道不按卡片续送礼单
+      const news = task(chatId, { status: 'done', summary: '新闻详情页', linkedMessageIds: ['om_x100b62aec0488ca4ffbbaf6bfcc5e88'] })
+      const gift = task(chatId, { status: 'waiting_confirmation', summary: '送礼入口', text: '原文', scopeRequest: { paths: ['src/Chat.tsx'], overBudget: false, siblingsRequired: false, missingScope: false } })
+      store.recordReceipt(gift.id, { messageId: 'om_gift_card', kind: 'waiting_confirmation', epoch: 2, chatId: 'ou_aven' })
+      const text = '@Aven.Test 继续任务 om_x100b62aec0488ca4ffbbaf6fbcc5e88 确认扩大范围'
+      const directive = msg('oc_b3_dm', text, { ...aven, replyToDirect: 'om_gift_card', mentions: [{ id: 'ou_test', name: 'Aven.Test' }] })
+      assert.deepEqual(await maybeHandleControlChannel({ msg: directive, config, store }), { handled: false, anchorTaskId: null }, '写了继续任务 <id>：交给续跑指令那条路')
+      assert.equal(store.get(gift.id).status, 'waiting_confirmation')
+      await handleResume({ msg: directive, config, store, resumeDirective: { taskId: 'om_x100b62aec0488ca4ffbbaf6fbcc5e88', supplementText: '确认扩大范围' }, parentTask: { taskId: 'om_x100b62aec0488ca4ffbbaf6fbcc5e88', task: null, explicit: true } })
+      assert.equal(store.get(gift.id).status, 'waiting_confirmation', 'id 认出的（新闻详情页）和回复的（送礼）不是同一条：不续')
+      assert.equal(last(), `没找到任务 om_x100b62aec0488ca4ffbbaf6fbcc5e88（可能是别的 bot 的 id 或抄错了），这句先没动。你说的是不是这几条：\n- 「新闻详情页」：回「继续任务 ${news.id}」\n- 「送礼入口」：回「继续任务 ${gift.id}」`)
+      // 没写 id 的照旧按卡片续（控制通道接走）
+      assert.deepEqual(await maybeHandleControlChannel({ msg: msg('oc_b3_dm', '确认扩大范围', { ...aven, replyToDirect: 'om_gift_card' }), config, store }), { handled: true, anchorTaskId: gift.id })
+      assert.equal(store.get(gift.id).status, 'queued')
+      // 扩大范围：私信里说、在等的那条在群里 → 不按「唯一在等」认，列候选
+      const scoped = task(chatId, { status: 'blocked', summary: '多语言', scopeRequest: { paths: ['messages/en.json'], overBudget: false, siblingsRequired: false, missingScope: false } })
+      const dmAsk = msg('oc_b3_dm', '继续任务 om_unknown_falive_id_0009 确认扩大范围', aven)
+      await handleResume({ msg: dmAsk, config, store, resumeDirective: { taskId: 'om_unknown_falive_id_0009', supplementText: '确认扩大范围' }, parentTask: { taskId: 'om_unknown_falive_id_0009', task: null, explicit: true } })
+      assert.equal(store.get(scoped.id).status, 'blocked')
+      assert.match(last(), /^没找到任务 om_unknown_falive_id_0009.*你说的是不是这/)
+      // 同话题里说的照认
+      const inThread = msg('oc_b3_dm', '继续任务 om_unknown_falive_id_0010 确认扩大范围', { ...aven, threadRootId: scoped.id })
+      await handleResume({ msg: inThread, config, store, resumeDirective: { taskId: 'om_unknown_falive_id_0010', supplementText: '确认扩大范围' }, parentTask: { taskId: 'om_unknown_falive_id_0010', task: null, explicit: true } })
+      assert.equal(store.get(scoped.id).status, 'queued')
+      assert.match(last(), /只有它在等确认扩大范围，按「多语言」/)
+      // 2594f0a1：挂起任务的话题里，上一条是 Henry @ 了 Encone，Encone 没 @ 谁回「稍等，我给你一份」→ 不续跑、不说话
+      const cfg = { ...config, botOpenId: 'ou_bot' }
+      const parked = task(chatId, { status: 'blocked', text: '原文', operator: 'ou_encone' })
+      const henry = { message_id: 'om_henry', msg_type: 'text', content: '@Encone 用户中心哪些要换接口？', sender: { sender_type: 'user', id: 'ou_henry', name: 'Henry' }, mentions: [{ id: 'ou_encone', key: '@_user_1', name: 'Encone' }], create_time: '1793781480000' }
+      writeFileSync(join(dir, `thread-${parked.id}.json`), JSON.stringify({ ok: true, data: { messages: [henry] } }))
+      const before = said(chatId).length
+      await handleResume({ msg: msg(chatId, '稍等，我给你一份', { senderOpenId: 'ou_encone', replyTo: parked.id, createTimeMs: 1793781600000 }), config: cfg, store, parentTask: { taskId: parked.id, task: parked, explicit: false } })
+      assert.deepEqual([store.get(parked.id).status, said(chatId).length], ['blocked', before])
+      // 上一条 @ 的不是他：照常续
+      writeFileSync(join(dir, `thread-${parked.id}.json`), JSON.stringify({ ok: true, data: { messages: [{ ...henry, mentions: [{ id: 'ou_other', name: 'X' }] }] } }))
+      await handleResume({ msg: msg(chatId, '稍等，我给你一份', { senderOpenId: 'ou_encone', replyTo: parked.id, createTimeMs: 1793781600000 }), config: cfg, store, parentTask: { taskId: parked.id, task: parked, explicit: false } })
+      assert.equal(store.get(parked.id).status, 'queued')
     })],
     ['假 lark-cli 顺带钉两处无注入口的 IO：拉被引用消息带发送人；回复义务没指定目录时落在运行态目录（不是只在内存）', async () => {
       assert.deepEqual(await fetchReferencedContext('om_ref'), { text: '原话', attachments: [], sender: 'K', senderOpenId: 'ou_k', createTime: '1700000000000' })
