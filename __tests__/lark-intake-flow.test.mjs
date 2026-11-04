@@ -1087,10 +1087,12 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       assert.deepEqual([full.threadSpeakers, full.refText, full.quotedOwnCard, full.answering], [['ou_l'], '被引用的原话', true, null])
       // 上下文里说过话的人：最近消息 → 话题 → 被引用，后出现的排后；没名字 / 没 open_id 的不算
       assert.deepEqual(Object.entries(full.contextPeople), [['我', 'ou_qa'], ['小李', 'ou_l'], ['小王', 'ou_w']])
-      assert.deepEqual(pickContextPeople({ items: [
-        { sender: ' 负责人 ', senderOpenId: 'ou_aven' }, { sender: 'Bot', senderOpenId: 'ou_x', bot: true }, { sender: '群', senderOpenId: 'oc_g' }, { sender: '', senderOpenId: 'ou_e' },
+      const people = [
         { sender: 'A', senderOpenId: 'ou_a' }, { sender: 'B', senderOpenId: 'ou_b' }, null, { sender: ' C ', senderOpenId: 'ou_c' }, { sender: 'A', senderOpenId: 'ou_a2' },
-      ], exclude: ['ou_aven', null], limit: 2 }), { C: 'ou_c', A: 'ou_a2' })
+        { sender: ' 负责人 ', senderOpenId: 'ou_aven' }, { sender: 'Bot', senderOpenId: 'ou_x', bot: true }, { sender: '群', senderOpenId: 'oc_g' }, { sender: '', senderOpenId: 'ou_e' },
+      ]
+      assert.deepEqual(Object.entries(pickContextPeople({ items: people, exclude: ['ou_aven', null] })), [['B', 'ou_b'], ['C', 'ou_c'], ['A', 'ou_a2']], '负责人 / bot / 非 ou_ / 没名字的不算；同名后出现的覆盖并排后')
+      assert.deepEqual(pickContextPeople({ items: people, exclude: ['ou_aven'], limit: 2 }), { C: 'ou_c', A: 'ou_a2' })
       assert.deepEqual(calls.slice(0, 3), [['ref', 'om_rcpt'], ['thread', 'om_rcpt', { excludeIds: ['om_m', 'om_rcpt'], botOpenIds: ['ou_bot', 'cli_x'] }], ['recent', { chatId: 'oc_g', beforeMs: 1_700_000_000_000, excludeIds: ['om_m', 'om_rcpt', 'om_t1', 'om_t2'], botOpenIds: ['ou_bot', 'cli_x'] }]])
       assert.deepEqual(calls.slice(3).map(([, args]) => [args.project, args.messageId, args.attachments.map((a) => a.imageKey)]), [['PR-X', 'om_m', ['own_img']], ['PR-X', 'om_rcpt', ['ref_img']], ['PR-X', 'om_t1', ['thr_img']], ['PR-X', 'om_r1', ['rec_img']]])
       // 单独 @bot、本条没文档：带上同一人紧接着发的那份文档；本条自带文档就不带
