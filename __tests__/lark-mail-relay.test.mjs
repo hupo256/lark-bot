@@ -94,6 +94,15 @@ describe('审批邮件转群：OL 评分、路由、转发、引擎、拆分接�
       assert.equal(result.riskNoRollback, true)
       const text = renderOlScore(result, { subject })
       assert.match(text, /类别：运维操作单/)
+      assert.deepEqual([result.max, result.tier], [11, 'D'], '撮合重启只几行字：运维单格式也是 D')
+      // 11-04 Rou：补 K 线按往常运维单格式写就算 A（bryn 原件，此前按 9 段模板判 7/16 D）
+      const kline = '【HQEX】【CHAINUP】【OL】 合约部分币对补K线 (数据源 20261030)【20261103】'
+      const klineBody = '在ONLINE环境： PS： 单个命令执行耗时大概10-20分钟。需要确定执行成功。 服务器名称： chainup-gcp-ol-futures-chmatch-new09 git仓库位置： fcex-go/kline-migrate.git 分支/tag： v3.0 执行操作如下： cd kline-migrate && ./kline-migrate > kline_migrate_prod.log'
+      const ops = scoreOlMail({ subject: kline, body: klineBody, to: STD_TO, cc: STD_CC })
+      assert.deepEqual([ops.score, ops.max, ops.tier, ops.kind], [11, 11, 'A', 'ops'])
+      assert.match(renderOlScore(ops, { subject: kline }), /- 主题 2\/2 ✓\n- 正文 6\/6 ✓\n- 收件 3\/3 ✓\n评分口径：运维单格式 主题 2 \+ 正文 6 \+ 收件 3，共 11 项；≥10 标准/)
+      const opsCut = (body, cc = STD_CC) => scoreOlMail({ subject: kline, body, to: STD_TO, cc }).tier
+      assert.deepEqual([opsCut(klineBody.replace('分支/tag： v3.0', '')), opsCut(klineBody.replace(/PS：.*?成功。|> kline_migrate_prod.log|分支\/tag： v3\.0/g, '')), opsCut(klineBody.replace(/服务器名称.*?v3\.0/, ''))], ['A', 'B', 'C'], '缺 1 → A、缺 2 → B、缺 3 → C')
       assert.match(text, /⚠️ 含 SQL \/ redis \/ 重启 \/ 删数据类操作，但没写回滚方式/)
       assert.match(text, /结尾 8 位日期【YYYYMMDD】（现在写的是【202601027】）/)
       assert.match(renderOlScore(scoreOlMail({ subject: '【HQEX】【ONLINE】x', body: '' }), { subject: '【HQEX】【ONLINE】x' }), /（没写日期）/)
