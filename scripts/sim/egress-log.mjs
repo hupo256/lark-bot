@@ -104,4 +104,6 @@ const main = () => {
   if (!urls.length) noteEgress({ via: tool, method, url: '', extra: '没解析出 URL（如 curl -K 配置文件）' })
   for (const url of urls) noteEgress({ via: tool, method, url })
 }
-if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) main()
+// 判是不是被直接执行：argv[1] 不一定是存在的文件（预载进每个 node 子进程，`node -e '…' 参数` 的 argv[1] 就是那个参数），realpath 失败按「不是」算——绝不能让预载把 bot 的子进程弄崩
+const isMain = (() => { try { return Boolean(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)) } catch { return false } })()
+if (isMain) main()

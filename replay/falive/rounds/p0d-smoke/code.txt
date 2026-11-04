@@ -1,0 +1,1 @@
+cfee2bf feat(replay): 按事件组跑（design-v2 §2 / P0-d）——run-episodes.mjs（组级目录 sim/<轮>/<组>、DONE+代码指纹断点、一轮不混指纹、最长先跑有界并发、预检 / caffeinate / 守卫）；run-sim --episode 只喂组内 case、跨天按天续跑时钟只进不退、基线分支名带提交号防并行互改、进程树内存采样；假 CLI 只藏 falive 对组内 case 的原话、私信历史按 aven open_id 供、列群消息不含话题回复；守卫 / 总账认组目录；check-context 逐条核上下文；旧 run-days / run-round 标弃用 lark/falive-p0d 指纹 80c823a808a3

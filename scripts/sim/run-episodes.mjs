@@ -2,6 +2,8 @@
 /**
  * 按事件组跑一轮回放（docs/falive-replay-design-v2.md §2、§8 P0-d；取代按天切段的 run-round.sh / run-days.sh）：
  *   node scripts/sim/run-episodes.mjs --round <轮> [--only ep-…,ep-…] [--max-parallel N] [--port-base 3200] [--no-guard] [--ai-cache] [--no-judge]
+ *   [--mem-reserve-mb 3072] [--episode-mem-mb 2560]：内存闸——系统可用内存（memory_pressure 的空闲百分比 × 物理内存）
+ *   不够「余量 + 一组的预估峰值」就不起下一组，等在跑的组收尾（并发上限现在由内存决定，design-v2 §0；11-03 八段全开内存紧张杀过进程）。
  *   --ai-cache 透传给 run-sim（claude 调用录放，scripts/sim/claude-cache.mjs；SIM_AI_CACHE_HIT_DELAY 等环境变量照常继承）。
  * 每组 = 一个独立的 lark-bot 实例（网关 + worker），目录 runtime/falive-replay/sim/<轮>/<组>/：从组里第一条 case 前 30 分钟起，
  * 只喂本组的 case，到最后一条之后 bot 没动静、再让虚拟时间走 5 小时（逾期义务 / 催办）为止。跨天的组按 UTC 天切段，
@@ -15,7 +17,7 @@
  */
 import { spawn, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { appendFileSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -35,6 +37,15 @@ if (!round || !/^[\w.-]+$/.test(round)) throw new Error('--round <轮名> 必填
 const only = value('--only', null)?.split(',').filter(Boolean) || null
 const maxParallel = Number(value('--max-parallel', DEFAULT_PARALLEL))
 const portBase = Number(value('--port-base', 3200))
+const memReserveMb = Number(value('--mem-reserve-mb', 3072))
+const episodeMemMb = Number(value('--episode-mem-mb', 2560))
+// macOS 可用内存（MB）：memory_pressure 的「System-wide memory free percentage」× 物理内存——内核判内存压力用的口径（空闲 + 可回收的文件缓存），
+// 比 vm_stat 的 free+inactive 宽、比「总量 − App − 联动 − 压缩」窄；读不到按 0（只放行第一组）。
+export const availableMemMb = () => {
+  const pct = Number(/free percentage:\s*(\d+)%/.exec(spawnSync('memory_pressure', [], { encoding: 'utf8' }).stdout || '')?.[1] || 0)
+  const total = Number(spawnSync('sysctl', ['-n', 'hw.memsize'], { encoding: 'utf8' }).stdout.trim() || 0)
+  return Math.round((total * pct) / 100 / 1048576)
+}
 const roundDir = join(replayRoot, 'sim', round)
 const outDir = join(roundsDir, round)
 const log = (line) => {
@@ -163,13 +174,22 @@ const main = async () => {
   const results = []
   await Promise.all(Array.from({ length: Math.max(1, Math.min(maxParallel, todo.length)) }, async (_, slot) => {
     await new Promise((r) => setTimeout(r, slot * 15_000)) // 错开起跑：每组要 clone 业务仓、起网关
-    for (let g = queue.shift(); g; g = queue.shift()) results.push(await runEpisode(g, portBase + slot))
+    for (let g = queue.shift(); g; g = queue.shift()) {
+      // 内存闸：第一组总是放行；之后可用内存不够「余量 + 一组峰值」就等（每 30 秒看一次，在跑的组收尾会放出内存）
+      for (let waited = 0; running.size > 0 && availableMemMb() < memReserveMb + episodeMemMb; waited += 1) {
+        if (waited % 10 === 0) log(`内存闸：可用 ${availableMemMb()}MB < 余量 ${memReserveMb} + 一组 ${episodeMemMb}，${g.id} 等在跑的组收尾`)
+        await new Promise((r) => setTimeout(r, 30_000))
+      }
+      results.push(await runEpisode(g, portBase + slot))
+    }
   }))
   guard?.kill('SIGTERM')
   return finish(results)
 }
 
 const finish = (results) => {
+  // 每组的裁判进版本：replay/falive/rounds/<轮>/<组>.judge.jsonl（sim 目录本身体量大、可重跑，留在 runtime）
+  for (const g of readdirSync(roundDir)) if (existsSync(join(roundDir, g, 'judge.jsonl'))) copyFileSync(join(roundDir, g, 'judge.jsonl'), join(outDir, `${g}.judge.jsonl`))
   spawnSync('node', [join(here, 'round-report.mjs'), '--round', round, '--md', join(outDir, 'report.md')], { cwd: repo, stdio: 'inherit' })
   const failed = results.filter((r) => !r.ok)
   log(failed.length ? `ROUND-PARTIAL ${round}：${failed.length} 组没跑完（${failed.map((r) => r.id).join('、')}）` : `ROUND-DONE ${round}`)
