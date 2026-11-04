@@ -79,7 +79,10 @@ const runOnce = (bin, argv, input) => new Promise((resolve) => {
 })
 
 const main = async () => {
-  const argv = process.argv.slice(2)
+  // 回放会话禁读「今天」的本机状态（11-04 校准查出泄漏：~/.lark-bugpoll/snapshot.json 是今天的 bug 表，带窗口之后的备注；旧轮次 64 个会话读过）。
+  // 只在模拟里（SIM_DIR 有值）追加，claude 的 --disallowedTools 是变长参数，放在最前面、紧跟一个 -- 选项之前不会吞 prompt。
+  const SIM_DENY = ['Read(~/.lark-bugpoll/**)', 'Bash(cat ~/.lark-bugpoll:*)', 'Bash(python3 -I ~/.lark-bugpoll:*)', 'Bash(python3 ~/.lark-bugpoll:*)']
+  const argv = process.env.SIM_DIR ? ['--disallowedTools', ...SIM_DENY, ...process.argv.slice(2)] : process.argv.slice(2)
   const input = process.stdin.isTTY ? Buffer.alloc(0) : readFileSync(0)
   const bin = resolveReal()
   for (let attempt = 1; ; attempt += 1) {
