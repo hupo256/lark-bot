@@ -338,7 +338,14 @@ Object.assign(env, {
   SIM_ORIG_INTENT_MS: '120000',
   SIM_ORIG_TOTAL_MS: String(repoCfg.aiTimeoutMs || 1800000),
   PROBE_HOST: `http://127.0.0.1:${probePort}`,
+  // 出网拦截（11-04 校准 ep-1024 事故：falive 的 claude 会话在 Bash 里直接敲 lark-cli，走的是 PATH 里的真 lark-cli，用 aven 身份读了真实 bug 表）：
+  // 同 run-sim，curl / wget / lark-cli 壳放 PATH 最前（lark-cli 壳只转假 CLI），node 子进程预载 egress-hook 记 fetch。
+  // 第二道保险（11-04）：真 lark-cli 的配置目录指到空目录——就算有进程绕过 PATH 壳调到真 lark-cli，user / bot 身份都是「not configured」，读写不了真飞书。
+  LARKSUITE_CLI_CONFIG_DIR: join(simDir, 'no-lark-credentials'),
+  PATH: `${join(here, 'egress')}:${process.env.PATH || ''}`,
+  NODE_OPTIONS: `${process.env.NODE_OPTIONS ? `${process.env.NODE_OPTIONS} ` : ''}--import ${join(here, 'egress-hook.mjs')}`,
 })
+mkdirSync(join(simDir, 'no-lark-credentials'), { recursive: true })
 let virtualNow = fromMs
 const setClock = (virtualMs) => writeFileSync(clockPath, JSON.stringify({ virtualMs, realMs: Date.now() }))
 setClock(virtualNow)
@@ -404,7 +411,14 @@ const egressTimer = setInterval(() => {
     egressSeen.add(key)
     const entry = { at: new Date().toISOString(), command: cols[0], pid: Number(cols[1]), remote, local: ip === '127.0.0.1' || ip === '::1', flagged: flagged.get(ip) || null }
     appendFileSync(join(simDir, 'egress.jsonl'), `${JSON.stringify(entry)}\n`)
-    if (entry.flagged) log(`⚠ 出网命中 ${entry.flagged}：${key}`)
+    if (entry.flagged) {
+      log(`⚠ 出网命中 ${entry.flagged}：${key}——立即停跑（回放不许碰真飞书 / GitLab / 邮件）`)
+      writeFileSync(join(simDir, 'EGRESS-STOP'), `${JSON.stringify(entry)}\n`)
+      shuttingDown = true
+      for (const child of children) child.kill('SIGTERM')
+      try { process.kill(entry.pid, 'SIGKILL') } catch { /* 已退出 */ }
+      process.exit(3)
+    }
   }
 }, 3000)
 egressTimer.unref()

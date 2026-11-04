@@ -242,9 +242,12 @@ const env = {
   ...(aiCache ? { SIM_REAL_CLAUDE: join(here, 'claude-q') } : {}),
   // 出网审计（design-v2 §8 前置 7）：curl / wget / lark-cli 壳放 PATH 最前（claude 的 Bash 工具保留这个 PATH，11-04 实测），
   // node 子进程全部预载 egress-hook 记 fetch / http(s)；都落 SIM_DIR/egress.log，egress-audit.mjs 归类。
+  // 第二道保险（11-04）：真 lark-cli 的配置目录指到空目录——就算有进程绕过 PATH 壳调到真 lark-cli，user / bot 身份都是「not configured」，读写不了真飞书。
+  LARKSUITE_CLI_CONFIG_DIR: join(simDir, 'no-lark-credentials'),
   PATH: `${join(here, 'egress')}:${process.env.PATH || ''}`,
   NODE_OPTIONS: `${process.env.NODE_OPTIONS ? `${process.env.NODE_OPTIONS} ` : ''}--import ${join(here, 'egress-hook.mjs')}`,
 }
+mkdirSync(join(simDir, 'no-lark-credentials'), { recursive: true })
 const clockPath = join(simDir, 'clock.json')
 const setClock = (virtualMs) => writeFileSync(clockPath, JSON.stringify({ virtualMs, realMs: Date.now() }))
 // 虚拟时钟只进不退：同一 sim 目录跨天续跑时，上一段收尾可能已经走过了这一段的 --from
