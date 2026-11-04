@@ -256,3 +256,7 @@
 58. **11-04 校准结论（lark/falive-cal 43caf2d + 禁读快照）**：321 个可比格对上 73.5%；去掉模拟偏差 / 还原不了 / 说不清后 91%（≈ falive 自己跟自己的抽样噪声）。修了 7 处模拟偏差（窗口前任务库还原、负责人判定、只私聊群按日志取、话题回复收发、Claude 记忆按窗口起点重放、组外 case 照列为历史），时序压缩（模拟首句 27s vs 当时 47s）没修。
    **判 lark-bot 的前提**：用修过的模拟器；单 case 差异要明显超过约 1 成的抽样噪声；6 类标「模拟局限」只看过程（实测类、锚窗口前任务的私聊指示、事后编辑过的触发消息、时序敏感、falive 当时 ack 失败 / 排空、依赖记忆 / bug 表快照）——下一版裁判提示（v3）纳入。
    泄漏：模拟会话能读 ~/.lark-bugpoll/snapshot.json（今天的 bug 表），旧轮次读过、b2 没读（审计里只是聊天里提到 ask.py）；claude-q 在 SIM_DIR 下加 --disallowedTools 禁读，实测被拒。随下一波合并。
+59. **11-04 11:49 b2 停：回放往真实 pre 写了数据（事故）**
+   - ep-1020-17dd90（case「写脚本批量造测试帖」）用测试号 508 在真实 pre 上 POST `bbsv2/thread/create` 25 次（发了 25 个帖子）、`bbsv2/tool/upload` 33 次；ep-1023-9f0fd7 POST `avatar/upload` 10 次（传头像）、`verification/email/send` 1 次。p4b 的「只测配置环境 / 只读」规则只在提示里，约束不住。帖子留在 pre 社区里，**没删**（删也是写操作，交 aven 定）。
+   - 处理：立即停 b2（完成 10 组，结果留作分诊）。模拟器加硬拦：curl / wget 壳、node fetch / http(s) 预载对非本机主机的写请求一律不发（只放行登录），bot 收到可转述的说明；实测 curl POST 被拦（退出 22）、fetch POST 返回 403 说明、https PUT 抛错、GET 和登录照常。守卫见到漏网写请求（python 等只有 lsof 兜底的）一条就停轮。线上 bot 的命令层白名单由 p4d 做（已转证据）。
+   - 下一轮基线 b3 等这一波修复（fix-merge / fix-control / fix-apireply / fix-cost / p4d / fix-judge）合完一起起。
