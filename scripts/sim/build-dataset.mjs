@@ -28,7 +28,8 @@ const after = (m, pred, limit) => {
   }
   return out
 }
-const brief = (x) => ({ id: x.id, atMs: x.atMs, sender: x.senderName, ownBot: x.ownBot, text: String(x.text || '').slice(0, 400) })
+// bot 的回复存全文（裁判要看 falive 当时完整回了什么；11-04 前截 400 字，1210 条里 245 条被截断）；人的后续仍截 400 字。
+const brief = (x) => ({ id: x.id, atMs: x.atMs, sender: x.senderName, ownBot: x.ownBot, text: x.ownBot ? String(x.text || '') : String(x.text || '').slice(0, 400) })
 
 // 哪些消息算一个 episode：网关分类过的；或 @bot 的；或 aven 在通知群说的（私聊指示走通知群）。
 const episodeIds = new Set(gateway.classified.keys())
