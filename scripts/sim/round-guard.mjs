@@ -15,7 +15,7 @@ import { spawnSync } from 'node:child_process'
 import { replayRoot, roundsDir } from './falive-data.mjs'
 import { pausedUntil } from './claude-quota.mjs'
 import { listSimDirs } from './sim-dir.mjs'
-import { isClaudeHost } from './egress-audit.mjs'
+import { classifyLine, isClaudeHost } from './egress-audit.mjs'
 
 const args = process.argv.slice(2)
 const value = (name, fallback) => (args.includes(name) ? args[args.indexOf(name) + 1] : fallback)
@@ -72,6 +72,8 @@ for (;;) {
     const sockCovered = (x) => x.via === 'sock' && /^(?:claude|\d+\.\d+\.\d+|curl|wget)$/.test(x.extra || '')
     const writes = read('egress.log').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l) } catch { return null } })
       .filter((x) => x && ['curl', 'wget', 'fetch', 'http', 'https'].includes(x.via) && !['GET', 'HEAD', 'OPTIONS', 'CLI'].includes(x.method) && x.extra !== 'blocked' && x.host && !/^(?:127\.|localhost|::1)/.test(x.host) && !/login/i.test(x.path || '') && !/anthropic|claude\.ai/i.test(x.host))
+      // 出网审计认作允许的（发登录验证码：用途是登录，aven 11-04「验证码登录算登录」）不算写——b3 / fixb3b-check 都被 POST …/verification/email/send（purpose=login）误停
+      .filter((x) => classifyLine(x).kind !== 'allowed')
     if (writes.length) why.push(`${seg} 有写请求发到了真实环境：${writes[0].method} ${writes[0].host}${writes[0].path}`)
     const failedIntake = (read('gateway.log').match(/分类失败/g) || []).length
     if (failedIntake >= 3 && !paused) why.push(`${seg} 分类失败 ${failedIntake} 次`)
