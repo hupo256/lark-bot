@@ -17,7 +17,7 @@ writeFileSync(join(dir, 'runtime', 'persona', 'aven.md'), '# 口吻\n\n短句、
 process.env.LARK_RUNTIME_DIR = join(dir, 'runtime')
 const { buildOutcome, detailDocOf, mapStatusForContract, outcomeFromWorkerFailure, outcomeHeadline, runEvidenceFor } = await import('../lib/lark-run-report.mjs')
 const { buildGroupReplyPassPrompt, owesGroupReply, runGroupReplyPass } = await import('../lib/lark-group-reply-pass.mjs')
-const { ANSWER_MODE_BLOCK, CLAIM_EVIDENCE_RULE, DELIVER_NOW_RULE, VERIFICATION_MODE_BLOCK, buildAckPromiseBlock, buildAnswerEnvRule, buildApiReplyRetestBlock, buildCarryOverBlock, buildEnvLoginRule, buildEnvProbeRule, buildTestDataRule } = await import('../lib/lark-worker-modes.mjs')
+const { ANSWER_MODE_BLOCK, CLAIM_EVIDENCE_RULE, DELIVER_NOW_RULE, VERIFICATION_MODE_BLOCK, buildAckPromiseBlock, buildAnswerEnvRule, buildApiReplyRetestBlock, buildCarryOverBlock, buildDocAskBlock, buildEnvLoginRule, buildEnvProbeRule, buildTestDataRule } = await import('../lib/lark-worker-modes.mjs')
 const { buildTaskPromptParts } = await import('../lib/lark-worker-prompts.mjs')
 const { applyEnvCheck, checkEnvTarget, envTargetLine, hostOf, resolveEnvTargets, touchedEnvs } = await import('../lib/lark-env-target.mjs')
 const { buildIntentClassificationPrompt, describeSender, formatTaskAttachments, readPersona } = await import('../lib/lark-classify-prompt.mjs')
@@ -261,6 +261,21 @@ describe('worker 侧对话层：outcome / 契约映射 / 群回复补写 / 模�
           assert.equal(user.includes('curl GET / 登录 POST'), contract.deliverable === 'verification', '只有实测放开登录 POST（aven 11-04）')
         }
       })
+    }],
+    ['buildDocAskBlock：改码单原话（含并进来的补充）要文档 / 点名找人 → detailDoc + followUps；只进改码类 user 层（11-05 b3 ep-1029-8aca6e c2536e7d）', () => {
+      const BLOCK = '原话还要一份给人的文档 / 点名找人：文档正文（缺什么、各找谁、怎么接）写进结果顶层 detailDoc（markdown，bot 建成 Lark 文档、群里附链接）；要谁补什么写进 followUps [{owner, items}]（群里逐人 @）。只改了代码不算交付完。'
+      const hits = ['现在进入了发 uat/online 阶段，还需要什么支持，请出一份对接文档，@相关同学', '同步对接一下，并生成反馈文档', '整理一下待办清单', '改完更新下对接文档', '有问题 @ 相关同学']
+      const misses = ['按文档改一下登录页', '文档在这，你看下', '把清单里的第 3 项删掉', '@Arthur 看下']
+      assert.deepEqual([hits.map((line) => buildDocAskBlock({ text: `【本条 @】${line}` })), misses.map((line) => buildDocAskBlock({ text: `【本条 @】${line}` }))], [hits.map(() => BLOCK), misses.map(() => '')])
+      assert.equal(buildDocAskBlock({ text: '【本条 @】改下 SSR 地址\n\n【同主题补充 2026-10-29T04:25 · aven】【本条 @】请出一份对接文档' }), BLOCK, '并进来的补充也看')
+      assert.equal(buildDocAskBlock({ text: '【本条 @】改下 SSR 地址\n\n【同主题补充 2026-10-29T04:25】请出一份对接文档，@相关同学' }), BLOCK, '补充是纯正文也看')
+      assert.equal(buildDocAskBlock({ text: '【本条 @】改下 SSR 地址\n\n【补料】\n再出一份反馈文档' }), BLOCK, '续跑补料也看')
+      assert.equal(buildDocAskBlock({ text: '请出一份对接文档' }), BLOCK, '没有【本条 @】看首行')
+      assert.equal(buildDocAskBlock({ text: '【本条 @】改下地址\n\n【群里这条之前的消息】\nEncone：请出一份对接文档' }), '', '前文里别人说的不算')
+      assert.equal(buildDocAskBlock(null), '')
+      const ctx = { projectId: 'PR-99999', projectName: 't', projectDocs: [], cwd: '/tmp/repo' }
+      const task = (deliverable) => ({ id: 't', attachments: [], chatId: 'oc', text: '【本条 @】请出一份对接文档', contract: { v: 1, deliverable, readOnly: deliverable === 'answer', expectsCode: deliverable === 'change' }, intake: { classification: { decision: 'requirement' } } })
+      assert.deepEqual(['change', 'answer', 'verification'].map((d) => buildTaskPromptParts(ctx, task(d), 'claude', { ruleContext: { text: '', sources: [] } }).user.includes(BLOCK)), [true, false, false])
     }],
     ['buildEnvProbeRule：只认非空字符串地址；一个都没有就说明没配环境地址；只放开登录 POST（aven 11-04）', () => {
       assert.match(buildEnvProbeRule({ test: 'https://test.example.com', pre: ' ', uat: 5, online: null }), /上下文说哪个环境就测哪个：test https:\/\/test\.example\.com；只打上面这些地址.*只发 GET，唯一例外是为拿登录态（token \/ cookie）登录，含验证码登录（发登录码 \+ 用码登录）；不注册（发注册码也算）、不上传、不下单、不改任何数据，要写数据的那步写明卡在哪、请谁手动做。$/)
