@@ -29,9 +29,9 @@
     ]
   },
   "bugs": {
-    "at": "2026-11-03T15:55:06.304Z",
-    "tableRecords": 1458,
-    "viewRecords": 245,
+    "at": "2026-11-04T10:52:49.419Z",
+    "tableRecords": 1478,
+    "viewRecords": 261,
     "mentionedBugIds": 153,
     "missingBugIds": [
       "bug-4969"
@@ -43,14 +43,45 @@
       "MSacrVAwBeo3ejckTeElsuiugHf",
       "WtEsruG0detI2JcFXfblfM8qgNb"
     ],
-    "records": 153,
-    "fetched": 4,
-    "cached": 149,
+    "records": 261,
+    "fetched": 0,
+    "cached": 261,
     "failed": [],
     "shots": {
-      "records": 7,
-      "files": 15,
-      "failed": []
+      "records": 219,
+      "files": 308,
+      "failed": [
+        {
+          "recordId": "reczz28QoBclusZv",
+          "fileToken": "IN4tbFgsAoU78nxiFmflKGpLgVe",
+          "reason": "API call failed: Post \"https://open.larksuite.com/open-apis/base/v3/bases/Ixkubcbqna9I1Esbq2rlWg6xgGe/tables/tblbJYjrxZsPe40V/get_attachments\": remote error: tls: internal error"
+        },
+        {
+          "recordId": "reczz28RwPjCrQJ4",
+          "fileToken": "M134bh8zVo2sNKxEOxWlVmSiglb",
+          "reason": "API call failed: Post \"https://open.larksuite.com/open-apis/base/v3/bases/Ixkubcbqna9I1Esbq2rlWg6xgGe/tables/tblbJYjrxZsPe40V/get_attachments\": remote error: tls: internal error"
+        },
+        {
+          "recordId": "reczz28SHGo0iCLQ",
+          "fileToken": "F0LMbIzLBo8hAsxgEr5llBIGgdb",
+          "reason": "API call failed: Post \"https://open.larksuite.com/open-apis/base/v3/bases/Ixkubcbqna9I1Esbq2rlWg6xgGe/tables/tblbJYjrxZsPe40V/get_attachments\": remote error: tls: internal error"
+        },
+        {
+          "recordId": "reczz28SKH79L9Vd",
+          "fileToken": "NpvObBABtoVw5txeSOmlOzArgNe",
+          "reason": "API call failed: Post \"https://open.larksuite.com/open-apis/base/v3/bases/Ixkubcbqna9I1Esbq2rlWg6xgGe/tables/tblbJYjrxZsPe40V/get_attachments\": remote error: tls: internal error"
+        },
+        {
+          "recordId": "reczz28SmUp7MDPK",
+          "fileToken": "RaGDbjKEJo8LPExWM2Elui7Qg3f",
+          "reason": "API call failed: Post \"https://open.larksuite.com/open-apis/base/v3/bases/Ixkubcbqna9I1Esbq2rlWg6xgGe/tables/tblbJYjrxZsPe40V/get_attachments\": remote error: tls: internal error"
+        },
+        {
+          "recordId": "reczz28Tdo1dVTBV",
+          "fileToken": "K0gCb620zobxswxFzltl4LDxg7g",
+          "reason": "API call failed: Post \"https://open.larksuite.com/open-apis/base/v3/bases/Ixkubcbqna9I1Esbq2rlWg6xgGe/tables/tblbJYjrxZsPe40V/get_attachments\": remote error: tls: internal error"
+        }
+      ]
     }
   },
   "expanded": {
