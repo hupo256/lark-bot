@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, describe, it } from 'node:test'
 
-import { runSteps } from './support/steps.mjs'
+import { eachCase, runSteps } from './support/steps.mjs'
 
 const dir = mkdtempSync(join(tmpdir(), 'lark-control-'))
 const bin = join(dir, 'lark-cli')
@@ -30,9 +30,9 @@ process.env.LARK_CLI_BIN = bin
 process.env.LARK_RUNTIME_DIR = join(dir, 'runtime')
 process.env.LARK_OUTBOX_DIR = join(dir, 'outbox')
 process.env.LARK_OBLIGATIONS_DIR = join(dir, 'obligations')
-const { handleResume, isProgressPing, maybeHandleControlChannel, maybeHandleControlDirective } = await import('../lib/lark-control-channel.mjs')
+const { handleResume, implicitResumeVerdict, isProgressPing, isSocialChatter, maybeHandleControlChannel, maybeHandleControlDirective } = await import('../lib/lark-control-channel.mjs')
 const { fetchReferencedContext } = await import('../lib/lark-cli.mjs')
-const { listOutbox } = await import('../lib/lark-outbox.mjs')
+const { listOutbox, recordOutbox } = await import('../lib/lark-outbox.mjs')
 const { getObligation, noteAck } = await import('../lib/lark-reply-obligation.mjs')
 const { createTaskStore } = await import('../lib/lark-task-store.mjs')
 
@@ -172,6 +172,50 @@ describe('任务控制通道（真出口 + 假 lark-cli）', () => {
       assert.deepEqual([store.get(mine.id).status, store.get(mine.id).text], ['queued', '原文二\n\n【补料】\n按方案 B'])
       assert.equal(said(chatId)[1], '好，收到补充，接着做「登录页报错」。')
     })],
+    ['隐式续跑门槛（11-04 falive 回放）：回挂起卡没 @ bot——@ 了别人 / 旁人搭话 → 放行带锚点不续跑、抄送寒暄 → 静默；@ bot / 附件 / 链接 / 提单人 / 负责人 / bot @ 过的人 → 续跑', () => quiet(async () => {
+      const chatId = 'oc_g1'
+      const cfg = { ...config, botOpenId: 'ou_bot', botAppId: 'cli_bot' }
+      const arthur = { id: 'ou_arthur', key: '@_user_2', name: 'Arthur' }
+      const cases = [
+        { name: 'aven @Arthur 让他补', text: '麻烦在这里补信息吧', extra: { senderOpenId: 'ou_aven', mentions: [arthur] }, out: 'pass' },
+        { name: 'cc @同事', text: 'cc', extra: { senderOpenId: 'ou_aven', mentions: [{ id: 'ou_enc', name: 'Encone' }] }, out: 'ignore' },
+        { name: '旁人没 @ 谁的搭话', text: '用邮件注册会更流畅些', extra: { senderOpenId: 'ou_qz' }, out: 'pass' },
+        { name: '旁人发表情', text: '[赞]', extra: { senderOpenId: 'ou_qz' }, out: 'ignore' },
+        { name: '旁人 @bot（open_id）', text: '字段叫 avatar', extra: { senderOpenId: 'ou_qz', mentions: [{ id: 'ou_bot', name: 'Aven.Bot' }, arthur] }, out: 'resume' },
+        { name: '旁人 @bot（应用 id，补拉形态）', text: '字段叫 avatar', extra: { senderOpenId: 'ou_qz', mentions: [{ id: 'cli_bot' }] }, out: 'resume' },
+        { name: '@ 了别人但带截图', text: '你看这个', extra: { senderOpenId: 'ou_qz', mentions: [arthur], attachments: [{ type: 'image', imageKey: 'img_g' }] }, out: 'resume' },
+        { name: '旁人贴文档链接', text: '文档 https://x.feishu.cn/docx/abc', extra: { senderOpenId: 'ou_qz' }, out: 'resume' },
+        { name: '提单人没 @ 谁', text: '账号是 508', extra: { senderOpenId: 'ou_qa' }, out: 'resume' },
+        { name: '负责人没 @ 谁', text: '按方案 B', extra: { senderOpenId: 'ou_aven' }, out: 'resume' },
+        { name: 'bot 为这条 @ 过的人', text: '加好了', extra: { senderOpenId: 'ou_be' }, asked: ['ou_be'], out: 'resume' },
+        { name: '被 @ 的是别的任务 / 拦下没发的', text: '加好了', extra: { senderOpenId: 'ou_bf' }, asked: [], otherAsk: 'ou_bf', out: 'pass' },
+      ]
+      return eachCase(cases, async ({ text, extra, asked = [], otherAsk = null, out }) => {
+        const t = task(chatId, { status: 'waiting_confirmation', text: '原文' })
+        if (asked.length) recordOutbox({ chatId, taskId: t.id, phase: 'blocked_ask', mentions: asked, text: `要 ${t.id}` })
+        if (otherAsk) {
+          recordOutbox({ chatId, taskId: 'om_other', phase: 'blocked_ask', mentions: [otherAsk], text: `别的 ${t.id}` })
+          recordOutbox({ chatId, taskId: t.id, phase: 'blocked_ask', mentions: [otherAsk], text: `拦下 ${t.id}`, gated: '同内容' })
+          recordOutbox({ chatId: 'oc_elsewhere', taskId: t.id, phase: 'blocked_ask', mentions: [otherAsk], text: `别群 ${t.id}` })
+        }
+        const before = said(chatId).length
+        const m = msg(chatId, text, { replyToDirect: t.id, ...extra })
+        assert.equal(implicitResumeVerdict({ msg: m, config: cfg, task: t }), out)
+        const result = await maybeHandleControlChannel({ msg: m, config: cfg, store })
+        assert.deepEqual(result, out === 'pass' ? { handled: false, anchorTaskId: t.id } : { handled: true, anchorTaskId: t.id })
+        assert.equal(store.get(t.id).status, out === 'resume' ? 'queued' : 'waiting_confirmation')
+        assert.equal(said(chatId).length - before, out === 'resume' ? 1 : 0, '不续跑就不说话')
+      }).then(() => {
+        const verdict = (m) => implicitResumeVerdict({ msg: { chatType: 'group', mentions: [], attachments: [], senderOpenId: 'ou_qz', ...m }, config: cfg, task: { id: 'om_x', chatId, operator: 'ou_qa' } })
+        assert.deepEqual([verdict({ chatType: 'p2p', text: '随便' }), verdict({ text: '随便' }), verdict({ senderOpenId: undefined, text: '随便' }), verdict({ text: 'http 不是链接' })], ['resume', 'pass', 'pass', 'pass'])
+        assert.equal(implicitResumeVerdict({ msg: { chatType: 'group', mentions: [{ id: 'ou_x' }], attachments: [], senderOpenId: 'ou_qz', text: '字段' }, config: {}, task: { id: 'om_x', chatId } }), 'pass', '没配 bot id：@ 谁都不算 @ bot')
+        assert.deepEqual([
+          ['cc', 'CC ', '抄送', '收到，谢谢', '好的辛苦了', '👍', '[赞]', '+1', '谢谢啦～', 'ok 收到', '嗯嗯', ''].map((text) => isSocialChatter({ text })),
+          ['麻烦在这里补信息吧', '1', '字段叫 avatar', '收到了，我看下', 'cc 一下', '[赞] 但是按钮错位'].map((text) => isSocialChatter({ text })),
+          [isSocialChatter({ text: '👍', attachments: [{ type: 'image' }] }), isSocialChatter({ text: '@Encone cc', mentions: [{ name: 'Encone' }] }), isSocialChatter({})],
+        ], [Array(12).fill(true), Array(6).fill(false), [false, true, true]])
+      })
+    })],
     ['显式「继续任务 <id>」：负责人单发 = 放行；带补充按补充；别人不带补充 → 要材料；不在等材料 / 没这条 → 回话不动；确认扩大范围 → 回话带放行的文件', () => quiet(async () => {
       const chatId = 'oc_r2'
       const resume = (t, supplementText, extra = {}) => handleResume({ msg: msg(chatId, `继续任务 ${t?.id || 'om_zz'} ${supplementText}`.trim(), extra), config, store, resumeDirective: { taskId: t?.id || 'om_zz', supplementText }, parentTask: { taskId: t?.id || 'om_zz', task: t, explicit: true } })
@@ -207,6 +251,7 @@ describe('任务控制通道（真出口 + 假 lark-cli）', () => {
       assert.equal(once.attachments.length, 1)
       assert.deepEqual(once.suspectedSupplements.map((s) => s.operator), ['ou_qa'])
       assert.deepEqual(said(chatId), ['记下了，这条还得 aven 确认一下再做。'])
+      recordOutbox({ chatId, taskId: t.id, phase: 'blocked_ask', mentions: ['ou_qb'], text: '需要你们帮忙' }) // bot 为这条 @ 过 ou_qb：他没 @ 谁回的也算补料
       await maybeHandleControlChannel({ msg: msg(chatId, '再补一句', { replyToDirect: t.id, senderOpenId: 'ou_qb' }), config, store })
       const twice = store.get(t.id)
       assert.deepEqual(twice.suspectedSupplements.map((s) => s.operator), ['ou_qa', 'ou_qb'])
