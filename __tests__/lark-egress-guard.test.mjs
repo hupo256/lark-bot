@@ -291,8 +291,8 @@ describe('代答 / 实测出网范围（命令层）', () => {
       assert.match(checkEgressRequest(policy, { method: 'POST', url: 'https://www.falive.com/api/Square/addPost' }).reason, /建测试数据只放开 falivepre\.fdsser\.com/)
       assert.equal(createBlockedPath('/api/model/addPost'), null, '按词切，model 不算 del')
       await eachCase([
-        ['创建最新的帖子 进行测试', true], ['写脚本在 pre 造帖', true], ['在 pre 造几条测试帖', true], ['发几条新帖测一下', true], ['帮我造一些测试数据', true],
-        ['能不能创建帖子', false], ['测试 帖子多语言翻译 以及 AI识图 功能 ！', false], ['测试的tid 发出来', false], ['创建帖子失败了，测试下', false], ['新建帖子页面样式不对', false], ['造帖失败', false],
+        ['创建最新的帖子 进行测试', true], ['写脚本在 pre 造帖', true], ['在 pre 造几条测试帖', true], ['发几条新帖测一下', true], ['帮我造一些测试数据', true], ['你自己写一个脚本，批量调用发帖API 生产一些数据吧', true], ['生产几条帖子测一下', true],
+        ['能不能创建帖子', false], ['测试 帖子多语言翻译 以及 AI识图 功能 ！', false], ['测试的tid 发出来', false], ['创建帖子失败了，测试下', false], ['新建帖子页面样式不对', false], ['造帖失败', false], ['生产数据有问题', false], ['生产环境数据不对', false],
       ], ([text, want]) => assert.equal(requestsTestData(text), want, text))
       const contract = (deliverable, text) => deriveContract({ text: `@Aven.Bot ${text}`, intake: { classification: { decision: 'question', deliverable } } })
       assert.equal(contract('verification', '创建最新的帖子 进行测试').testData, true)

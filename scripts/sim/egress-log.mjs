@@ -119,7 +119,9 @@ export const blockedWrite = ({ method, url, purpose = null }) => {
 export const BLOCK_NOTE = '回放环境禁止往真实环境写数据（只放行只读请求和登录）：这一步没有执行。'
 // 本单放开了造测试数据（线上出网核对会放行这次创建，lib/lark-egress-policy testDataDomains），回放照样不写真实环境（11-04 事故）：
 // 说清楚是回放拦的、线上会用测试号执行，bot 照实报「回放拦截」，不当成环境报错或权限不足。
-export const TESTDATA_BLOCK_NOTE = '回放：真实写入已拦截（线上会用测试号执行）。这一步没有执行，结论里照实写「回放拦截、未创建」，不编 id。'
+// b4 ep-1020-17dd90 0c91bdcd：只说「照实写」时会话把拦截当成卡点，判 blocked、群里 @ 后端「需要你们帮忙」，和上一轮「bot 环境禁止写」两种说法打架：
+// 写明这不是卡点、不找人，结论一处说清回放拦截与本来要建什么。
+export const TESTDATA_BLOCK_NOTE = '回放：真实写入已拦截（线上会用测试号执行）。这一步没有执行：这不是卡点，不判阻塞、不找人补、不换写法重试；结论里只在一处照实写「回放拦截、未创建」和本来要建的内容（几条、什么），不编 id，也别说成环境禁止 / 权限不足。'
 export const simBlockNote = ({ method, url, env = process.env }) => {
   const policy = env[EGRESS_GUARD_ENV] ? parseEgressPolicy(env[EGRESS_GUARD_ENV]) : null
   return policy?.testDataDomains?.length && checkEgressRequest(policy, { method, url }).ok ? TESTDATA_BLOCK_NOTE : BLOCK_NOTE
