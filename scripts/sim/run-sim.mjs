@@ -4,6 +4,11 @@
  * lark-cli 换成 scripts/sim/lark-cli（时间线供数、发件落 outbox），Date 换成虚拟时钟，按时间线逐条喂事件，每条等系统空闲再喂下一条。
  *   node scripts/sim/run-sim.mjs --sim day1020 --from 2026-10-20T08:00+04:00 --to 2026-10-20T20:00+04:00 [--reset] [--effort medium] [--intent-effort high]
  *        [--max-wait-min 30] [--settle-sec 25] [--dry]（只准备目录与事件，不起进程）[--no-ai-cache]（关掉 claude 调用缓存，全部真调）
+ *   按事件组跑（design-v2 §2 / P0-d，scripts/sim/run-episodes.mjs 调）：--sim <轮>/<组> --episode <组 id> --from --to [--tail-to <ISO>] [--tail-hours 5]
+ *        只喂本组的 case（组里 caseIds 落在 [from, to) 的）；同群其它真人消息、别的组的 case 都只是上下文（假 CLI 按虚拟时钟从时间线供）；
+ *        falive 对本组 case 说过的话（episodes.json 的 faliveBotIds）不供，组外的 bot 话照供（meta.json hideBotIds，见 fake-lark-cli hideFaliveBot）。
+ *        跨天的组由 run-episodes 按天多次调本脚本、共用一个 sim 目录（每天重钉业务仓基线，同 run-days）；虚拟时钟只进不退，
+ *        --tail-to 给下一段第一条 case 的时刻：收尾时钟往前走不超过它。
  * 产物：runtime/falive-replay/sim/<sim>/ 下 outbox.jsonl（bot 发了什么）、runtime/（任务 / 审计 / 发件簿 / 义务）、gateway.log / worker.log、events.ndjson。
  * claude 调用缓存（§6 改法 2）：LARK_CLAUDE_BIN 指到 scripts/sim/claude（claude-cache.mjs），只读调用（分类 / 分诊 / 分析 / 代答 / 实测）
  *   按规范化后的完整输入复用上次输出，可写调用与续会话直通；每次调用记 SIM_DIR/ai-cache.log，收尾在 sim.log 打本次 hit / miss / bypass 计数。
@@ -15,7 +20,8 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { AVEN_OPEN_ID, BOT_APP_ID, GROUPS, datasetDir, rawDir, replayRoot, resolveRaw, toSimEvent } from './falive-data.mjs'
+import { AVEN_OPEN_ID, BOT_APP_ID, GROUPS, casesDir, datasetDir, rawDir, replayRoot, resolveRaw, toSimEvent } from './falive-data.mjs'
+import { startSampler } from './proc-sampler.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const larkBotRoot = dirname(dirname(here))
@@ -31,6 +37,9 @@ const settleMs = Number(value('--settle-sec', 25)) * 1000
 const port = Number(value('--port', 3105))
 const dry = flag('--dry')
 const aiCache = flag('--ai-cache') // 默认关：只跑一次完整确认时用不上，缓存脚本也没测完（11-03）
+const episodeId = value('--episode', null)
+const tailToMs = value('--tail-to', null) ? Date.parse(value('--tail-to', null)) : Infinity
+const tailMs = Number(value('--tail-hours', 5)) * 3600_000
 const BOT_OPEN_ID = 'ou_e331d79d4491e64b7bba89bb4e3b5e43'
 const FALIVE_REPO = join(homedir(), 'github', 'falive-react')
 const FALIVE_BRANCH = 'feature/phase-6-ol'
@@ -56,18 +65,33 @@ for (const m of timeline) for (const r of m.resources || []) if (r.localPath) re
 const extraResourcesPath = join(rawDir, 'resources-extra.json')
 if (existsSync(extraResourcesPath)) for (const [k, p] of Object.entries(JSON.parse(readFileSync(extraResourcesPath, 'utf8')).resources || {})) resources[k] = resolveRaw(p)
 writeFileSync(join(simDir, 'resources.json'), JSON.stringify(resources))
-if (!existsSync(join(simDir, 'meta.json'))) writeFileSync(join(simDir, 'meta.json'), JSON.stringify({ simStartMs: fromMs, createdAt: new Date().toISOString() }))
-const events = timeline.filter((m) => m.atMs >= fromMs && m.atMs < toMs && !m.ownBot && !m.deleted && m.senderType === 'user' && (m.text || m.resources?.length))
+// 按事件组跑：只喂本组的 case；按天跑（旧）：窗口内全部真人消息（网关自己丢掉不触发 bot 的）。
+const episode = episodeId ? (JSON.parse(readFileSync(join(casesDir, 'episodes.json'), 'utf8')).groups || []).find((g) => g.id === episodeId) : null
+if (episodeId && !episode) throw new Error(`episodes.json 里没有 ${episodeId}`)
+const metaPath = join(simDir, 'meta.json')
+const meta = existsSync(metaPath) ? JSON.parse(readFileSync(metaPath, 'utf8')) : null
+if (meta && (meta.episode || null) !== (episodeId || null)) throw new Error(`${simDir} 是 ${meta.episode || '按天跑'} 的目录，不是 ${episodeId || '按天跑'}`)
+if (!meta) writeFileSync(metaPath, JSON.stringify({ simStartMs: fromMs, createdAt: new Date().toISOString(), ...(episode ? { episode: episode.id, caseIds: episode.caseIds, hideBotIds: episode.faliveBotIds || [] } : {}) }))
+const caseSet = episode ? new Set(episode.caseIds) : null
+const events = episode
+  ? timeline.filter((m) => caseSet.has(m.id) && m.atMs >= fromMs && m.atMs < toMs)
+  : timeline.filter((m) => m.atMs >= fromMs && m.atMs < toMs && !m.ownBot && !m.deleted && m.senderType === 'user' && (m.text || m.resources?.length))
 const fedPath = join(simDir, 'fed.json')
 const fed = new Set(existsSync(fedPath) ? JSON.parse(readFileSync(fedPath, 'utf8')) : [])
-log(`窗口 ${new Date(fromMs).toISOString()} → ${new Date(toMs).toISOString()}：${events.length} 条真人消息（已喂 ${fed.size}）`)
+log(`窗口 ${new Date(fromMs).toISOString()} → ${new Date(toMs).toISOString()}：${events.length} 条${episode ? `本组（${episode.id}）case` : '真人消息'}（已喂 ${fed.size}）`)
 
 // —— 业务仓基线：钉到窗口起点当时的提交 ——
 const git = (cmd, cwd = FALIVE_REPO) => spawnSync('git', cmd, { cwd, encoding: 'utf8' })
 const baseSha = git(['rev-list', '-1', `--before=${new Date(fromMs).toISOString()}`, FALIVE_BRANCH]).stdout.trim()
 if (!baseSha) throw new Error(`falive-react 在 ${new Date(fromMs).toISOString()} 之前没有 ${FALIVE_BRANCH} 提交`)
-const baseBranch = `sim-base-${new Date(fromMs).toISOString().slice(0, 10)}`
-git(['branch', '-f', baseBranch, baseSha])
+// 分支名带提交号：按组跑时同一天不同组的窗口起点不同、基线提交可能不同，只按日期命名会被并行的组互相 -f 改掉（拿到别组的「未来」提交）
+const baseBranch = `sim-base-${new Date(fromMs).toISOString().slice(0, 10)}-${baseSha.slice(0, 8)}`
+// 并行的组可能同时改主仓的 ref（锁冲突就失败）：重试到分支确实指向基线为止
+for (let i = 0; git(['rev-parse', '--verify', '--quiet', `refs/heads/${baseBranch}`]).stdout.trim() !== baseSha; i += 1) {
+  if (i >= 10) throw new Error(`建不了基线分支 ${baseBranch}`)
+  git(['branch', '-f', baseBranch, baseSha])
+  if (git(['rev-parse', '--verify', '--quiet', `refs/heads/${baseBranch}`]).stdout.trim() !== baseSha) spawnSync('sleep', [String(0.2 + Math.random())])
+}
 // 业务仓副本：每个 sim 一份 `git clone --shared`（对象共享、分支 / worktree 各自独立——任务分支名 hotfix/adhoc-<id> 按任务 id 定死，
 // 多个 sim 共用一个仓会互相撞分支：11-03 full-a 的造数任务因为 smoke 留下的同名分支「已有提交但不包含本次基线」直接 failed），
 // 检出到基线提交；只读答疑在这里跑，临时 hotfix worktree 从这里派生。node_modules 软链主仓的（版本略有漂移，可接受）。
@@ -207,10 +231,16 @@ const env = {
   SIM_ORIG_TOTAL_MS: process.env.LARK_WORKER_AI_TIMEOUT_MS || '1800000',
   ...aiCacheEnv,
   ...(aiCache ? { SIM_REAL_CLAUDE: join(here, 'claude-q') } : {}),
+  // 出网审计（design-v2 §8 前置 7）：curl / wget / lark-cli 壳放 PATH 最前（claude 的 Bash 工具保留这个 PATH，11-04 实测），
+  // node 子进程全部预载 egress-hook 记 fetch / http(s)；都落 SIM_DIR/egress.log，egress-audit.mjs 归类。
+  PATH: `${join(here, 'egress')}:${process.env.PATH || ''}`,
+  NODE_OPTIONS: `${process.env.NODE_OPTIONS ? `${process.env.NODE_OPTIONS} ` : ''}--import ${join(here, 'egress-hook.mjs')}`,
 }
 const clockPath = join(simDir, 'clock.json')
 const setClock = (virtualMs) => writeFileSync(clockPath, JSON.stringify({ virtualMs, realMs: Date.now() }))
-let virtualNow = fromMs
+// 虚拟时钟只进不退：同一 sim 目录跨天续跑时，上一段收尾可能已经走过了这一段的 --from
+const prevVirtual = (() => { try { return Number(JSON.parse(readFileSync(clockPath, 'utf8')).virtualMs) || 0 } catch { return 0 } })()
+let virtualNow = Math.max(fromMs, prevVirtual)
 setClock(virtualNow)
 // 撞额度暂停期间冻住虚拟时钟（各进程每 200ms 读一次 clock.json）：等额度的真实时间不算虚拟时间，义务 / 催办 / 「收到」巡检都不往前走。
 const { pausedUntil } = await import('./claude-quota.mjs')
@@ -246,6 +276,8 @@ for (let i = 0; i < 60 && !(await health()); i += 1) await sleep(500)
 if (!(await health())) throw new Error('网关没起来，看 gateway.log')
 const worker = spawnNode('worker', join(larkBotRoot, 'runtime', 'lark-worker.mjs'))
 log(`网关 :${port} 与 worker 已起（基线 origin/${baseBranch}）`)
+// 本实例进程树的内存 + 出网连接采样（P0-e / 前置 7）：mem.jsonl、mem-peak.json、egress.log（via sock）
+const sampler = startSampler({ simDir, rootPid: process.pid, intervalMs: Number(value('--sample-sec', 5)) * 1000 })
 
 const ACTIVE = new Set(['received', 'queued', 'running', 'verifying', 'result_pending_receipt', 'done_pending_writeback'])
 const listTasks = async () => {
@@ -281,6 +313,7 @@ const shutdown = () => {
   gateway.kill('SIGTERM')
 }
 process.on('SIGINT', () => { shutdown(); process.exit(130) })
+process.on('SIGTERM', () => { shutdown(); process.exit(143) }) // 守卫按 pid / pkill 停 run-sim 时把网关、worker 一起带走
 
 // 喂事件的节奏（11-03 改）：系统有任务在跑时虚拟时间按真实速度走，到下一条消息的时刻就喂（当时群里的人就是在 bot 干活时接着说话的，
 // 会被并入 / 进上下文）；系统空闲就直接跳到下一条。原来每条都等完全空闲才喂下一条，既慢又把并发的对话串成了先后。
@@ -336,10 +369,14 @@ for (const [index, m] of events.entries()) {
 }
 log('事件喂完；再等一轮空闲后收尾')
 await waitIdle('final')
-// 让虚拟时间再走 5 小时：逾期义务 / 催办巡检有机会跑到（parked 15 分钟一轮、ack 15 秒一轮）
-virtualNow += 5 * 60 * 60_000
+// 让虚拟时间再走 5 小时：逾期义务 / 催办巡检有机会跑到（parked 15 分钟一轮、ack 15 秒一轮）。
+// 跨天的组中间那段：不超过下一段第一条 case（--tail-to），时钟只进不退，下一段不会倒着走。
+virtualNow = Math.max(clockNow(), Math.min(clockNow() + tailMs, tailToMs))
 setClock(virtualNow)
 await sleep(20_000)
+if (episode) await waitIdle('tail', 5000) // 巡检起的单（催办 / 义务）跑完再收：组是最小断点单位，收尾不能截断在飞任务
+const peak = sampler.stop()
+log(`进程树内存峰值 ${peak.rssMb}MB（${peak.at || '-'}，${peak.procs || 0} 个进程：${Object.entries(peak.byCommMb || {}).map(([k, v]) => `${k} ${v}`).join('、')}）`)
 shutdown()
 await sleep(2000)
 log(`claude 调用缓存：${aiCache ? aiCacheSummary() : '关'}`)

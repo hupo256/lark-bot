@@ -2,7 +2,8 @@
 /**
  * 假 lark-cli（离线模拟器，docs/falive-replay-plan-2026-11-03.md §2 L2）：LARK_CLI_BIN 指到 scripts/sim/lark-cli（壳脚本 exec 本文件）。
  * 从 SIM_DIR 供数 / 记账：
- *   timeline.json   数据集时间线（真人消息 + 模拟开始前 falive bot 的消息）
+ *   timeline.json   数据集时间线（真人消息 + falive bot 的消息；哪些 bot 话不供见 hideFaliveBot）
+ *   meta.json       simStartMs；按事件组跑时另有 episode / hideBotIds
  *   clock.json      虚拟时钟（只回「现在」以前的消息）
  *   events.ndjson   编排器按时间追加的长连接事件；`event consume im.message.receive_v1` 从 consume.offset 起 tail 输出
  *   sent.json       模拟 bot 发出的消息（send / reply），也参与列消息 / mget / 话题（后续消息的上下文）
@@ -101,6 +102,8 @@ const expandedContent = (id) => {
 }
 
 const BOT_APP_ID = 'cli_c08abc1da138d00f'
+const AVEN_OPEN_ID = 'ou_91861d6da6cf6822e08045ba1868241e'
+const WEBHOOK_CHAT_ID = 'oc_21a29d687ecfcd6d6776cac669a4c5d3'
 const readJson = (name, fallback) => {
   try {
     return JSON.parse(readFileSync(join(simDir, name), 'utf8'))
@@ -116,9 +119,11 @@ const CHATS = readJson('chats.json', [])
 const chatName = (chatId) => CHATS.find((c) => c.chat_id === chatId)?.name || ''
 
 // 消息视图（与 +chat-messages-list 输出同形）。时间线条目 → list item；模拟发出的消息已是 list item。
+// webhook 群（falive 的负责人控制台，只有 aven）= lark-bot 的负责人私信：run-sim 把 aven 在那里说的话喂成 chat_id = aven open_id 的 p2p，
+// 这里把那个群的历史（aven 的话 + falive 当时私信过去的卡）也按同一个 chat_id 供，私信里读「之前的消息」才对得上（P0-d 冒烟发现：原来私信历史是空的）。
 const toListItem = (m) => ({
   message_id: m.id,
-  chat_id: m.chatId,
+  chat_id: m.chatId === WEBHOOK_CHAT_ID ? AVEN_OPEN_ID : m.chatId,
   msg_type: m.msgType,
   content: expandedContent(m.id)?.content ?? m.cliText ?? m.text, // bot 看到的 = 真 lark-cli 的渲染
   create_time: String(m.atMs),
@@ -129,14 +134,25 @@ const toListItem = (m) => ({
   ...(m.rootId ? { root_id: m.rootId } : {}),
   ...(m.parentId ? { parent_id: m.parentId } : {}),
 })
+// falive bot 当时的话哪些不供（模拟 bot 自己会说话，供了就是一件事回两遍）：
+// · 按事件组跑（meta.hideBotIds，run-sim --episode 写）：只藏 falive 对本组 case 说的那些（episodes.json 的 faliveBotIds：回复链 / 话题 /
+//   卡 → case / 私信卡 → 任务），组外的 bot 话照供——群里的人后面的话是在回应那句（design-v2 §2）。
+// · 按天跑（旧）：模拟窗口内的一律不供，窗口前的留作历史。
+// 按 id 点名取（被引用 / 被回复的那条）不受这条限制，见 byIdAny。
+let hiddenBot = null
+const hideFaliveBot = (id, atMs) => {
+  if (!hiddenBot) {
+    const meta = readJson('meta.json', {})
+    hiddenBot = Array.isArray(meta.hideBotIds) ? { ids: new Set(meta.hideBotIds) } : { simStart: Number(meta.simStartMs || 0) }
+  }
+  return hiddenBot.ids ? hiddenBot.ids.has(id) : atMs >= hiddenBot.simStart
+}
 let allMessages = null
 const messages = () => {
   if (allMessages) return allMessages
   const cutoff = nowMs()
-  const simStart = Number(readJson('meta.json', {}).simStartMs || 0)
   const timeline = readJson('timeline.json', [])
-    // 模拟窗口内 falive bot 真实发过的消息不供数（模拟 bot 自己会说话）；窗口前的留作历史。
-    .filter((m) => !(m.ownBot && m.atMs >= simStart))
+    .filter((m) => !(m.ownBot && hideFaliveBot(m.id, m.atMs)))
     .map(toListItem)
   const sent = readJson('sent.json', [])
   allMessages = [...timeline, ...sent].filter((m) => Number(m.create_time) <= cutoff).sort((a, b) => Number(a.create_time) - Number(b.create_time))
@@ -197,6 +213,19 @@ const threadItems = () => {
     threadCache.byThread.set(record.threadId, list)
   }
   return threadCache
+}
+
+// 列群消息只给主消息流：话题里的回复真 CLI 列群消息拿不到（只有 +threads-messages-list 给），时间线里却并进了 1793 条话题回复
+//（P0-d 冒烟核对出来：bot 的【群里这条之前的消息】里混进了别的话题的回复，线上看不到）。真列表里本来就有的（raw/<群>.api.json，
+// 「同时发到群」的那十来条）照给；模拟 bot 发在话题里的同口径不给。
+let listedIds = null
+const inMainStream = (m) => {
+  if (!(m.thread_id && m.parent_id)) return true
+  if (!listedIds) {
+    listedIds = new Set()
+    for (const key of ['php-group', 'tech-group', 'webhook-group']) for (const item of readRaw(`${key}.api.json`)?.data?.items || []) listedIds.add(item.message_id)
+  }
+  return listedIds.has(m.message_id)
 }
 
 // 发件：分配 om_sim id，落 sent.json（下次列消息能看到）与 outbox.jsonl（对照）。
@@ -304,7 +333,7 @@ if (domain === 'event' && command === 'consume') {
   const chatId = opts['chat-id']
   const start = opts.start ? Number(opts.start) * 1000 : 0
   const end = opts.end ? Number(opts.end) * 1000 : Infinity
-  const list = messages().filter((m) => m.chat_id === chatId && Number(m.create_time) >= start && Number(m.create_time) <= end)
+  const list = messages().filter((m) => m.chat_id === chatId && Number(m.create_time) >= start && Number(m.create_time) <= end && inMainStream(m))
   out({ ok: true, data: page(list, { order: opts.order || 'desc', pageSize: Number(opts['page-size'] || 50), pageToken: opts['page-token'] }) })
 } else if (domain === 'im' && command === '+messages-mget') {
   const ids = String(opts['message-ids'] || '').split(',').filter(Boolean)
@@ -321,10 +350,9 @@ if (domain === 'event' && command === 'consume') {
     process.exit(1)
   }
   // 话题根不在结果里（真 CLI 同口径）：时间线里带 thread_id 的都是根；模拟 bot 发的话题内回复、缓存的话题回复都有 parent_id。
-  // 窗口内 falive bot 自己在话题里说的不给（模拟 bot 自己会说话），同列群消息。
+  // falive bot 自己在话题里说的按 hideFaliveBot 藏（同列群消息）。
   const cutoff = nowMs()
-  const simStart = Number(readJson('meta.json', {}).simStartMs || 0)
-  const cached = (threadItems().byThread.get(threadId) || []).filter((m) => Number(m.create_time) <= cutoff && !(m.ownBot && Number(m.create_time) >= simStart))
+  const cached = (threadItems().byThread.get(threadId) || []).filter((m) => Number(m.create_time) <= cutoff && !(m.ownBot && hideFaliveBot(m.message_id, Number(m.create_time))))
   const seen = new Set(cached.map((m) => m.message_id))
   const list = [...cached, ...messages().filter((m) => m.thread_id === threadId && m.parent_id && !seen.has(m.message_id))]
     .map(({ ownBot, ...m }) => m)

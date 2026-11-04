@@ -74,7 +74,7 @@ lines.push(`## 数据：${count.cases} 条 case；查了附件 ${count.attachmen
 // —— 代码 ——
 const head = git('rev-parse', '--short', 'HEAD').stdout.trim()
 const branch = git('rev-parse', '--abbrev-ref', 'HEAD').stdout.trim()
-const dirty = git('status', '--porcelain', '--', 'lib', 'lark-gateway.mjs', 'lark-worker.mjs', 'runtime/lark-worker.mjs', 'scripts/sim').stdout.trim()
+const dirty = git('status', '--porcelain', '--', 'lib', 'lark-gateway.mjs', 'lark-worker.mjs', 'runtime/lark-worker.mjs', 'tools', 'scripts/sim', 'replay/falive/dataset', 'replay/falive/raw', 'replay/falive/episodes.json').stdout.trim()
 if (dirty) fails.push(`代码：工作区有没提交的改动（这一轮跑的不是任何一个提交）：${dirty.split('\n').slice(0, 5).join('；')}`)
 const behind = git('rev-list', '--count', 'HEAD..fameex-stable').stdout.trim()
 if (behind !== '0') fails.push(`代码：比运行分支 fameex-stable 少 ${behind} 个提交（不是最新）：${git('log', '--oneline', 'HEAD..fameex-stable').stdout.trim().split('\n').slice(0, 5).join('；')}`)
@@ -85,7 +85,7 @@ if (existsSync(join(replayRoot, 'quota-pause.json'))) {
   const p = JSON.parse(readFileSync(join(replayRoot, 'quota-pause.json'), 'utf8'))
   if (p.until > Date.now()) fails.push(`环境：Claude 额度暂停中，到 ${p.untilIso}`)
 }
-if (round && spawnSync('pgrep', ['-f', `run-sim.mjs --sim ${round}-`]).status === 0) fails.push(`环境：${round} 已经有段在跑`)
+if (round && [`run-sim.mjs --sim ${round}-`, `run-sim.mjs --sim ${round}/`].some((p) => spawnSync('pgrep', ['-f', p]).status === 0)) fails.push(`环境：${round} 已经有段 / 组在跑`)
 
 lines.push('', `## 结论：${fails.length ? `不通过（${fails.length} 处）` : '通过'}；已知缺口 ${known.length} 处（拉取时就拿不到，裁判时注意）`, '')
 if (fails.length) lines.push('### 不通过', ...fails.slice(0, 200).map((f) => `- ${f}`), '')

@@ -1,4 +1,5 @@
 #!/bin/bash
+# 【旧跑法，11-04 起由 scripts/sim/run-episodes.mjs 按事件组跑取代（design-v2 §2 / P0-d）；保留给旧轮次复现，新轮次别用】
 # 中断后再跑同一条命令 = 断点续跑：跑完的段跳过、没跑完的从最近的「一天结束」存档点接着跑（run-days.sh）。
 # 一轮完整回放（docs/falive-replay-plan-2026-11-03.md 39）：falive 10-14 → 11-03 切 8 段并行，每段先热身前一个工作日（bot 照常干活、
 # 留下跨天的任务 / 义务 / 发件状态，不计分），再跑计分窗口；每段跑完立刻 judge-sim --all --score-from 计分起点。
