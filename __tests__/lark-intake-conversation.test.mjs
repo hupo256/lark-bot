@@ -12,7 +12,7 @@ import { OWN_EXPAND_CHARS, OWN_EXPAND_MAX, clipText, expandOwnBotMessages, parse
 import { ACTIVITY_WINDOW_MS, ANCHOR_WINDOW_MS, buildConversationData, renderActivityBlock, renderAnchorBlock, renderCandidateBlock, resolveDefaultAnchor } from '../lib/lark-conversation.mjs'
 import { toEpochMs } from '../lib/lark-message.mjs'
 import { hashText, listOutbox, localHHMM, pruneOutbox, recordOutbox, shouldSend } from '../lib/lark-outbox.mjs'
-import { describePerson, loadPeople, loadPersona, notePerson, peopleBlock, personaBlock } from '../lib/lark-persona.mjs'
+import { describePerson, personName, loadPeople, loadPersona, notePerson, peopleBlock, personaBlock } from '../lib/lark-persona.mjs'
 import { buildQuotedBotBlock, findQuotedBotMessages, quoteCandidates } from '../lib/lark-quote-lookup.mjs'
 import { clearHeldDraft, getObligation, heldDraftFor, listOverdueObligations, markAnsweredFromOutbox, markOverdueNotified, noteAck, noteAnswer, noteHeld, noteOwed, obligationIdFor, OVERDUE_AFTER_MS } from '../lib/lark-reply-obligation.mjs'
 import { eachCase, runSteps } from './support/steps.mjs'
@@ -508,6 +508,15 @@ describe('对话层：锚点、上下文、对话包、发件簿、义务、pers
       assert.equal(describePerson('ou_z', { memberRoles: { ou_z: { name: '老张' } } }), '老张')
       assert.equal(describePerson('ou_z', { ownerMap: { 产品: 'ou_z' } }), '未登记成员（ou_z）', 'ownerMap 只给角色、没名字')
       assert.equal(describePerson('ou_z', { people: { ou_z: { name: '老张' } }, ownerMap: { 产品: 'ou_z' } }), '老张（产品）')
+      // personName（11-05：任务上记 operatorName）：画像名 > memberRoles 名 > ownerMap 键；都没有 / 没 open_id → null
+      assert.deepEqual([
+        personName('ou_z', { people: { ou_z: { name: '老张' } }, memberRoles: { ou_z: { name: '张三' } }, ownerMap: { Zed: 'ou_z' } }),
+        personName('ou_z', { people: { ou_z: { role: 'QA' } }, memberRoles: { ou_z: { name: '张三' } }, ownerMap: { Zed: 'ou_z' } }),
+        personName('ou_z', { memberRoles: { ou_z: '前端' }, ownerMap: { Zed: 'ou_z' } }),
+        personName('ou_z', { ownerMap: { Zed: 'ou_y' } }),
+        personName(null, { ownerMap: { Zed: null } }),
+        personName('ou_z'),
+      ], ['老张', '张三', 'Zed', null, null, null])
       assert.equal(describePerson('ou_none'), '未登记成员（ou_none）')
       assert.equal(describePerson(''), '未登记成员（?）')
       assert.equal(peopleBlock({ openIds: ['ou_u', 'ou_u', 'ou_v', 'ou_none', null], people }), '【这些人的画像（自动累积）】\n- 小王（QA）：找过 bot 13 次，最近聊过：主题10 / 主题9 / 主题8')

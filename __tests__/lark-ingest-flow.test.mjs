@@ -85,6 +85,10 @@ describe('摄入链路 / 上下文包 / 入群事件（真 store + 假 lark-cli�
       assert.deepEqual([task.addressedToBot, task.fromPrincipal, task.quotedOwnCard, task.commandType, task.commandTypeSource], [true, false, false, null, null])
       assert.deepEqual(task.replyTarget, { messageId: event.message_id, inThread: false })
       assert.equal(task.threadRootId, null)
+      assert.equal(task.operatorName, null, '没登记的人不编名字')
+      const named = atBot('看下注册页', { sender: 'ou_qn' })
+      await quiet(() => ingestLarkEvent({ raw: named, config: { ...config, ownerMap: { William: 'ou_qn' } }, store }))
+      assert.equal(store.get(named.message_id).operatorName, 'William', '按 ownerMap 记提问人名（11-05）')
       assert.deepEqual([task.intake.required, task.intake.trigger, task.intake.lane, task.intake.mentionedOpenIds, task.intake.anchorTaskId], [true, 'bot_mention', 'fast', [], null])
       // 快道不等（慢道要等 60 秒）：两个时间戳分别取当前时间，机器忙时相差几百毫秒（11-02 排空重启自检在负载下红过一次），只要远小于慢道等待就算
       assert.ok(Date.parse(task.intake.notBefore) - Date.parse(task.intake.receivedAt) < 5_000, '快道不等')
