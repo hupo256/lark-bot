@@ -260,3 +260,7 @@
    - ep-1020-17dd90（case「写脚本批量造测试帖」）用测试号 508 在真实 pre 上 POST `bbsv2/thread/create` 25 次（发了 25 个帖子）、`bbsv2/tool/upload` 33 次；ep-1023-9f0fd7 POST `avatar/upload` 10 次（传头像）、`verification/email/send` 1 次。p4b 的「只测配置环境 / 只读」规则只在提示里，约束不住。帖子留在 pre 社区里，**没删**（删也是写操作，交 aven 定）。
    - 处理：立即停 b2（完成 10 组，结果留作分诊）。模拟器加硬拦：curl / wget 壳、node fetch / http(s) 预载对非本机主机的写请求一律不发（只放行登录），bot 收到可转述的说明；实测 curl POST 被拦（退出 22）、fetch POST 返回 403 说明、https PUT 抛错、GET 和登录照常。守卫见到漏网写请求（python 等只有 lsof 兜底的）一条就停轮。线上 bot 的命令层白名单由 p4d 做（已转证据）。
    - 下一轮基线 b3 等这一波修复（fix-merge / fix-control / fix-apireply / fix-cost / p4d / fix-judge）合完一起起。
+60. **11-04 19:38 合并波 1 → 基线 b3**：会话中断（5 小时额度）后八个分支都已提交，验证轮被打断（只有两组跑完）——不再逐个补跑，直接合并：cal、fix-judge（裁判 v3）、fix-dup、p4d（命令层出网拦截）、fix-apireply、fix-control、fix-cost、fix-merge → lark/falive-next → fast-forward 进 latest（7d538c1）。
+   冲突手解：测试棘轮取大；round-guard 取「只看带方法的出网记录」版；mutation-accepted 两边都留；executor 的 spawn env = 出网护栏 env ∪ 分类精简 env；ingest import 并集、续跑门槛在前。
+   全量 645 绿、提示回放规则不丢 / 系统层 1 种、回归集 56/56、live 6/6；变异 301 个抓 288、豁免 4、存活 9（都是测试缺口，子代理在 lark/falive-mut 补测试，不动 lib，不影响回放指纹）。
+   **b3 起跑**：指纹 a3c505dddbaa，并发 8（内存闸实际控制），录放开，裁判 v3。
