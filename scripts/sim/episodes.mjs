@@ -107,7 +107,7 @@ for (const card of timeline) {
   let owner = completedBefore(card, true)
   let how = '审计完成时间'
   if (!owner) {
-    owner = cases.filter((c) => c.msg?.chatId === card.chatId && c.atMs < card.atMs && card.atMs - c.atMs < 6 * 3600_000 && c.msg?.senderId && card.text.includes(c.msg.senderId)).at(-1)?.id || null
+    owner = cases.filter((c) => c.msg?.chatId === card.chatId && c.atMs < card.atMs && card.atMs - c.atMs < 6 * 3600_000 && c.msg?.senderId && (card.cliText ?? card.text).includes(c.msg.senderId)).at(-1)?.id || null
     how = '卡里 @ 了发话人'
   }
   if (!owner) continue
@@ -227,6 +227,30 @@ for (let i = 0; i < codeTasks.length; i += 1) {
 }
 stage('规则 4 同天改同一批代码文件')
 
+// —— falive 当时对组内 case 说的话（P0-d：组内 case 由模拟 bot 自己回，falive 的原话不再供给 bot，免得一件事回两遍；组外的 bot 话照供）。
+// 只记归属、不并组（组不因此变）。群里：和 case 同一个并查集分量的 bot 消息（回复链 / 话题 / 上面「bot 卡 → case」那几条）。
+// 私信（webhook 群 = 负责人私聊）：卡里写了 case 的任务 id 就归它；「收到，当作…」「这句没对上任务」回执归它之前 10 分钟内最近一条私聊 case；
+// 再按审计完成时间（3 分钟内）；开始 / 结论 / 停下卡最后按 draftOwner（之前最近一张「🛠 开始做」卡的群里最近一条 case）。
+// 对不上任何 case 的（bugpoll、日报、体检、部署通知……）不归任何组，照常当历史供给。
+// 不属于任何一单的私信广播（bug 表轮询、日报、体检、部署 / 复测通知、逾期提醒）：不按时间就近归到 case 上（11-04 实测会误归一串 bugpoll）。
+const DM_BROADCAST_RE = /^<card(?: title="[^"]*")?>\s*(?:\[bugpoll\]|日报|🩺|pre 已部署|✅ pre 复测|⏰|⚠ lark-bot|\*\*Falive Web)|^<card title=/
+const botOwner = new Map() // bot 消息 id → case id（私信）或分量根（群里）
+for (const m of timeline) {
+  if (!m.ownBot) continue
+  if (m.chatKey !== 'webhook-group') {
+    const r = find(`m:${m.id}`)
+    if (caseCount.get(r) > 0) botOwner.set(m.id, { root: r, how: 'group' })
+    continue
+  }
+  if (DM_BROADCAST_RE.test(m.text)) continue
+  const named = (String(m.cliText ?? m.text).match(OM_RE) || []).find((id) => caseById.has(id)) || null
+  const owner = named
+    || (/^<card>\s*(?:收到，当作|这句没对上)/.test(m.text) ? dmCases.filter((c) => c.atMs <= m.atMs && m.atMs - c.atMs < 10 * 60_000).at(-1)?.id || null : null)
+    || completedBefore(m, false)
+    || (/^<card>\s*(?:🛠 开始做|✅|⏸|⛔|ℹ️)/.test(m.text) ? draftOwner(m) : null)
+  if (owner && caseById.has(owner)) botOwner.set(m.id, { root: find(`m:${owner}`), how: 'dm' })
+}
+
 // —— 出组
 const members = new Map()
 for (const c of cases) { const r = find(`m:${c.id}`); if (!members.has(r)) members.set(r, []); members.get(r).push(c) }
@@ -249,6 +273,7 @@ const groups = [...members.entries()].map(([root, list]) => {
     chats: [...new Set(list.map((c) => c.chat))],
     kinds,
     caseIds: list.map((c) => c.id),
+    faliveBotIds: timeline.filter((m) => botOwner.get(m.id)?.root === root).map((m) => m.id),
     unions: (unionsByRoot.get(root) || []).map((u) => ({ rule: u.rule, a: label(u.a), b: label(u.b), detail: u.detail })),
   }
 }).sort((a, b) => a.firstAt.localeCompare(b.firstAt))
@@ -270,7 +295,8 @@ const out = {
   stats: {
     cases: cases.length, groups: groups.length, maxSize: Math.max(...groups.map((g) => g.size)), crossDayGroups: crossDay.length,
     stages, effectiveUnions: tally, faliveEdges: faliveEdges.length, faliveCheck, faliveLogLinesWithoutCase: unmatched,
-    draftReplies: draftLinks, botCardsLinked: cardOwners.length, codeTasks: codeTasks.length, codePairs: codePairs.length, histogram: hist, kindMix,
+    draftReplies: draftLinks, botCardsLinked: cardOwners.length,
+    faliveBotAttribution: { botMessages: timeline.filter((m) => m.ownBot).length, group: [...botOwner.values()].filter((x) => x.how === 'group').length, dm: [...botOwner.values()].filter((x) => x.how === 'dm').length }, codeTasks: codeTasks.length, codePairs: codePairs.length, histogram: hist, kindMix,
   },
   groups,
 }
