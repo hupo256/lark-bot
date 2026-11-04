@@ -9,6 +9,8 @@ round=${1:?round name}
 port=${2:-3180}
 cd "$(dirname "$0")/../.."
 root="$HOME/github/lark-bot/runtime/falive-replay/sim"
+# 防睡眠（design-v2 §8 前置 8）：本脚本活着期间系统、磁盘、显示都不睡
+caffeinate -dims -w $$ &
 # 起跑预检：数据（285 条 case 的上下文齐不齐）/ 代码（干净、含 fameex-stable 全部提交）/ 环境，不过就不跑（docs/falive-replay-plan-2026-11-03.md 43）
 mkdir -p "replay/falive/rounds/$round"
 node scripts/sim/preflight.mjs --round "$round" --md "replay/falive/rounds/$round/preflight.md" || { echo "PREFLIGHT-FAIL ${round}（见 replay/falive/rounds/${round}/preflight.md）"; exit 1; }
