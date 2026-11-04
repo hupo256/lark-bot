@@ -229,3 +229,5 @@
    合并时假 CLI 两边口径合并：按组藏 falive 对本组说的话（p0d）+ 校准用的 hiddenIds / keepOwnBotIds（p0h）；列群消息一律不带话题回复（真 CLI 口径）；--start/--end 认 ISO。
    **p0h 查出的业务仓基线分支偏差已修**：run-sim 原来一律钉 feature/phase-6-ol，falive 当时按时间用的是 origin/feature/phase-4-page（10-21 12:33Z 前）→ phase-4-api → phase-5-test（10-26 06:40Z 起）→ phase-6-ol（10-30 19:35Z 起），取自 falive 网关启动日志；dry 核过四个日子的基线。
    P1：`scripts/sim/calibrate.mjs` 选 20 组（10-23 12:00Z 之后为主、不跨本地 23:59、2–8 条按类型轮转，不够补 1 条的），并发 3，结果进 `replay/falive/calibration/`，汇总 summary.md。
+51. **11-04 13:54 校准出网事故（已止住）**：P1 校准 ep-1024 里 falive 的 claude 会话在 Bash 里直接敲 `lark-cli`，run-sim-falive 漏了 run-sim 有的 PATH 壳，调到了真 lark-cli，用 aven 身份**只读**了真实 bug 表 4 次（record-list ×3、record-get ×1；无写、无发消息）。出网审计当场记下，我停掉了校准。
+   修：run-sim-falive 补 PATH 壳 + egress-hook；**两个跑法都把 LARKSUITE_CLI_CONFIG_DIR 指到空目录**（实测真 lark-cli user / bot 都 not configured，绕过壳也读写不了）；run-sim-falive 出网命中即停。ep-1024 的结果作废，校准重跑。
