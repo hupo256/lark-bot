@@ -628,6 +628,13 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
           { name: '别人在跑的答疑、另一个人追问：另起并行答，不排在后面', task: me({ deliverable: 'answer', decision: 'question', continues: 'om_ans', operator: 'ou_b' }), want: null },
           { name: '同一个人在跑时改口：并入（下一轮按改过的问题答）', task: me({ deliverable: 'answer', decision: 'question', continues: 'om_ans', operator: 'ou_a' }), want: 'om_ans' },
           { name: '别人在跑的改码单、另一个人报同一问题：照交付物并入', task: me({ deliverable: 'change', decision: 'bug', continues: 'om_fix', operator: 'ou_b' }), want: 'om_fix' },
+          // b2 ep-1014-d74f19 c9dd67b1：直接回复 R6 卡（锚点 = 卡的任务），分类器 continues 指同话题别人的复测单 → 不并过去
+          { name: '回复某张卡、continues 指别的任务、卡已了结：另起', task: { ...me({ deliverable: 'verification', continues: 'om_ver', anchor: 'om_qa', operator: 'ou_b', envTargets: ['uat'] }), quotedOwnCard: true }, want: null },
+          { name: '回复某张卡、continues 指别的任务、卡在跑的改码单收补料：并进卡的任务', task: { ...me({ deliverable: 'change', decision: 'bug', continues: 'om_park', anchor: 'om_fix' }), quotedOwnCard: true }, want: 'om_fix' },
+          { name: '回复某张卡、continues 指别的任务、卡在跑但本条是提问：另起（提问不凭锚点并）', task: { ...me({ deliverable: 'change', decision: 'question', continues: 'om_park', anchor: 'om_fix' }), quotedOwnCard: true }, want: null },
+          { name: '回复某张卡、continues 指别的任务、卡在跑的改码单但本条要实测：另起', task: { ...me({ deliverable: 'verification', decision: 'bug', continues: 'om_park', anchor: 'om_fix' }), quotedOwnCard: true }, want: null },
+          { name: '回复某张卡、continues 就是卡的任务：照常', task: { ...me({ deliverable: 'answer', decision: 'question', continues: 'om_qa', anchor: 'om_qa', operator: 'ou_b' }), quotedOwnCard: true }, want: 'om_qa' },
+          { name: '没回复卡（只在话题里）、continues 指别的任务：照 continues', task: me({ deliverable: 'verification', continues: 'om_ver', anchor: 'om_qa', operator: 'ou_b', envTargets: ['uat'] }), want: 'om_ver' },
         ], ({ task, want }) => assert.equal(resolveMergeTarget({ task, store })?.id ?? null, want))
       } finally {
         console.log = quiet
