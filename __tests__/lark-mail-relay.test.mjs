@@ -94,21 +94,26 @@ describe('审批邮件转群：OL 评分、路由、转发、引擎、拆分接�
       assert.equal(result.riskNoRollback, true)
       const text = renderOlScore(result, { subject })
       assert.match(text, /类别：运维操作单/)
-      assert.deepEqual([result.max, result.tier], [11, 'D'], '撮合重启只几行字：运维单格式也是 D')
-      // 11-04 Rou：补 K 线按往常运维单格式写就算 A（bryn 原件，此前按 9 段模板判 7/16 D）
+      assert.deepEqual([result.max, result.tier], [16, 'D'], '撮合重启没有样本：仍按 9 段模板')
+      // 11-04 Rou：补 K 线按往常格式写就算 A、bryn / Brad 发的是 A 档范本。规则从收件箱 23 封 OL 补 K 线首封归纳（旧口径 bryn 原件 7/16 D）
       const kline = '【HQEX】【CHAINUP】【OL】 合约部分币对补K线 (数据源 20261030)【20261103】'
-      const klineBody = '在ONLINE环境： PS： 单个命令执行耗时大概10-20分钟。需要确定执行成功。 服务器名称： chainup-gcp-ol-futures-chmatch-new09 git仓库位置： fcex-go/kline-migrate.git 分支/tag： v3.0 执行操作如下： cd kline-migrate && ./kline-migrate > kline_migrate_prod.log'
-      const ops = scoreOlMail({ subject: kline, body: klineBody, to: STD_TO, cc: STD_CC })
-      assert.deepEqual([ops.score, ops.max, ops.tier, ops.kind], [11, 11, 'A', 'ops'])
-      assert.match(renderOlScore(ops, { subject: kline }), /- 主题 2\/2 ✓\n- 正文 6\/6 ✓\n- 收件 3\/3 ✓\n评分口径：运维单格式 主题 2 \+ 正文 6 \+ 收件 3，共 11 项；≥10 标准/)
-      const opsCut = (body, cc = STD_CC) => scoreOlMail({ subject: kline, body, to: STD_TO, cc }).tier
-      assert.deepEqual([opsCut(klineBody.replace('分支/tag： v3.0', '')), opsCut(klineBody.replace(/PS：.*?成功。|> kline_migrate_prod.log|分支\/tag： v3\.0/g, '')), opsCut(klineBody.replace(/服务器名称.*?v3\.0/, ''))], ['A', 'B', 'C'], '缺 1 → A、缺 2 → B、缺 3 → C')
+      const direct = '在ONLINE环境： PS： 单个命令执行耗时大概10-20分钟。需要确定执行成功。 服务器名称： chainup-gcp-ol-futures-chmatch-new09 git仓库位置： fcex-go/kline-migrate.git 分支/tag： v3.0 执行操作如下： cd kline-migrate && chmod a+x ./kline-migrate 1. 修 2个 nohup ./kline-migrate -runenv=prod > kline_migrate_prod.log 2>&1 &'
+      const batch = '在ONLINE环境： PS： 命令执行耗时大概 30-60 分钟。需要观察 确定命令已执行完。 服务器名称： chainup-gcp-ol-futures-chmatch-new09 git仓库位置： fcex-go/kline-migrate.git 分支/tag： v3.0 1. 执行前检查程序并赋予脚本执行权限： chmod +x ./repair_kline_batch_0905.sh 2. 后台启动真实修复： nohup env DRY_RUN=0 ./repair_kline_batch_0905.sh --all & 3. 查看本次新生成的日志 断开终端前，确认本次日志已出现: SUMMARY ... failed=0 exit_code=0'
+      const spot = '操作步骤 在ONLINE环境 Spot-kline-online 的 terminal 执行请求 1. 执行修复提交 nohup env DRY_RUN=0 ./repair_spot_kline_batch_1013.sh & 2. 看进度和结果 执行阶段成功判断 日志出现 SUMMARY，其中 exit_code=0'
+      const spotCurl = '在ONLINE环境 Spot-kline-online 的 terminal 执行 http 请求 1. 修 1 个 curl --location \'127.0.0.1:8080/v1/repairKline\''
+      const k = (body, subject = kline) => scoreOlMail({ subject, body, to: STD_TO, cc: STD_CC })
+      const spotSubject = '【HQEX】【CHAINUP】【ONLINE】现货部分币对补K线 (数据源20261101-1102) 【20261102】'
+      const brad = '【HQEX】【chainup】【OL】 合约修补所有币对K线（数据源从04-13 1点起 ）【2026-04-13】'
+      const pick = (r) => [r.score, r.max, r.tier, r.kind]
+      assert.deepEqual([k(direct), k(batch), k(spot, spotSubject), k(spotCurl, spotSubject), k(direct, brad)].map(pick), [[9, 9, 'A', 'kline'], [9, 9, 'A', 'kline'], [9, 9, 'A', 'kline'], [8, 9, 'A', 'kline'], [8, 9, 'A', 'kline']], '合约直接命令 / 批处理 / 现货 terminal 满分；只贴 curl、Brad「修补」+ 横线日期各缺 1 仍 A')
+      assert.match(renderOlScore(k(direct), { subject: kline }), /类别：补 K 线申请[\s\S]*- 主题 3\/3 ✓\n- 正文 3\/3 ✓\n- 收件 3\/3 ✓\n评分口径：补 K 线格式 主题 3 \+ 正文 3 \+ 收件 3，共 9 项；≥8 标准/)
+      assert.deepEqual([k(direct.replace(/PS：.*?成功。/, ''), kline.replace(' (数据源 20261030)', '')).tier, k('在ONLINE环境 请执行补 K 线').tier, scoreOlMail({ subject: kline, body: '请执行' }).tier], ['B', 'C', 'D'], '缺 2 → B；正文全无、主题收件齐 6 → C；收件也没有 → D')
       assert.match(text, /⚠️ 含 SQL \/ redis \/ 重启 \/ 删数据类操作，但没写回滚方式/)
       assert.match(text, /结尾 8 位日期【YYYYMMDD】（现在写的是【202601027】）/)
       assert.match(renderOlScore(scoreOlMail({ subject: '【HQEX】【ONLINE】x', body: '' }), { subject: '【HQEX】【ONLINE】x' }), /（没写日期）/)
       const quoted = scoreOlMail({ subject: `Re: ${STD_SUBJECT}`, body: `进行 Alec <a@x> 于2026年10月23日周五 16:14写道： ${FULL_BODY}`, to: STD_TO, cc: STD_CC })
       assert.equal(quoted.score, 16, '回复里引用的原申请照样按原文打分')
-      assert.deepEqual(['falive', 'hichat', 'ops', 'hqex'], ['【Falive 直播站】', '【嗨聊】', '补K线', '【HQEX】'].map(classifyOlKind))
+      assert.deepEqual(['falive', 'hichat', 'kline', 'ops', 'hqex'], ['【Falive 直播站】', '【嗨聊】', '补K线', '撮合 重启', '【HQEX】'].map(classifyOlKind))
       const ok = (body, key) => scoreOlMail({ subject: STD_SUBJECT, body }).items.find((item) => item.key === key).ok
       assert.deepEqual([ok('更新内容 类型 描述', 'bodyContent'), ok('开发者 @a', 'bodyContent'), ok('更新内容 开发者 @a', 'bodyContent')], [false, false, true])
       assert.deepEqual([ok('上线参与人及职责 负责人', 'bodyPeople'), ok('QA 验收 @a', 'bodyPeople'), ok('上线参与人及职责 QA 验收 @a', 'bodyPeople')], [false, false, true])
