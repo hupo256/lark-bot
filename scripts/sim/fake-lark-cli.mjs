@@ -10,7 +10,9 @@
  *   outbox.jsonl    每次发送的完整记录（对照用）
  *   cli-calls.log   每次调用的 argv（排错用）
  * 子命令：im +chat-list / +chat-messages-list / +messages-mget / +threads-messages-list / +messages-send / +messages-reply /
- * +messages-resources-download；event consume；docs +create / drive permission.public（记账）。
+ * +messages-resources-download；event consume；docs +create / docs +update / drive permission.public（记账）。
+ * meta.json 的 hiddenIds / keepOwnBotIds：按事件组跑时隐藏组外触发消息、照供组外 bot 原话（见 messages() 上方）；threadRepliesInList=false：列群消息不含话题回复。
+ * chats.json 条目可带 botOpenId：自家 bot 消息的 sender.open_bot_id（真 CLI 是本群自定义机器人的 open_id）。
  * 上下文缓存（scripts/sim/build-context-cache.mjs 用 aven 身份只读拉好，落 replay/falive/raw/（仓库里跟版本），都是「拉取时」的版本）：
  *   docs +fetch                       raw/docs/<token>.json 的原始 stdout（sim 自己建的 simdoc 从 SIM_DIR/docs 读）
  *   base +record-list / +record-share-link-create / +record-get / +record-download-attachment   raw/bug-records/（tools/read-bug-record.mjs 的读法）
@@ -116,6 +118,9 @@ const nowMs = () => {
   return clock && Number.isFinite(clock.virtualMs) ? clock.virtualMs + (Date.now() - clock.realMs) : Date.now()
 }
 const CHATS = readJson('chats.json', [])
+// 自家 bot 消息的 sender.open_bot_id：真 CLI 给的是本群自定义机器人的 open_id（falive 靠它认「bot，我们自己」）。
+// chats.json 条目带 botOpenId 就用它（run-sim-falive 写），没有就是原来的应用 id。
+const ownBotId = (chatId) => CHATS.find((c) => c.chat_id === chatId)?.botOpenId || BOT_APP_ID
 const chatName = (chatId) => CHATS.find((c) => c.chat_id === chatId)?.name || ''
 
 // 消息视图（与 +chat-messages-list 输出同形）。时间线条目 → list item；模拟发出的消息已是 list item。
@@ -128,7 +133,7 @@ const toListItem = (m) => ({
   content: expandedContent(m.id)?.content ?? m.cliText ?? m.text, // bot 看到的 = 真 lark-cli 的渲染
   create_time: String(m.atMs),
   deleted: m.deleted,
-  sender: { id: m.senderType === 'app' ? BOT_APP_ID : m.senderId, id_type: m.senderType === 'app' ? 'app_id' : 'open_id', sender_type: m.senderType, name: m.senderName, ...(m.ownBot ? { open_bot_id: BOT_APP_ID } : {}) },
+  sender: { id: m.senderType === 'app' ? BOT_APP_ID : m.senderId, id_type: m.senderType === 'app' ? 'app_id' : 'open_id', sender_type: m.senderType, name: m.senderName, ...(m.ownBot ? { open_bot_id: ownBotId(m.chatId) } : {}) },
   mentions: m.mentions || [],
   ...(m.threadId ? { thread_id: m.threadId } : {}),
   ...(m.rootId ? { root_id: m.rootId } : {}),
@@ -147,12 +152,18 @@ const hideFaliveBot = (id, atMs) => {
   }
   return hiddenBot.ids ? hiddenBot.ids.has(id) : atMs >= hiddenBot.simStart
 }
+// run-sim-falive（P0-h，falive 代码校准）另用 meta.json 两项：hiddenIds 组外的触发消息哪儿都不供（falive 靠轮询收消息，看得见的 @bot 都会被接走）；
+// keepOwnBotIds 窗口内 falive bot 的消息照供原话（组外的、bugpoll 这类不归被测代码产出的）。
+const META = readJson('meta.json', {})
+const HIDDEN = new Set(META.hiddenIds || [])
+const KEEP_OWN = new Set(META.keepOwnBotIds || [])
+const hideOwnBot = (id, atMs) => hideFaliveBot(id, atMs) && !KEEP_OWN.has(id)
 let allMessages = null
 const messages = () => {
   if (allMessages) return allMessages
   const cutoff = nowMs()
   const timeline = readJson('timeline.json', [])
-    .filter((m) => !(m.ownBot && hideFaliveBot(m.id, m.atMs)))
+    .filter((m) => !HIDDEN.has(m.id) && !(m.ownBot && hideOwnBot(m.id, m.atMs)))
     .map(toListItem)
   const sent = readJson('sent.json', [])
   allMessages = [...timeline, ...sent].filter((m) => Number(m.create_time) <= cutoff).sort((a, b) => Number(a.create_time) - Number(b.create_time))
@@ -162,6 +173,7 @@ const byId = (id) => messages().find((m) => m.message_id === id) || null
 // 按 id 点名取（被引用 / 被回复的那条）：窗口内 falive bot 当时发的卡片也给——人回复的正是它，拉不到引用分类器就看不到上文
 //（11-03 fix7 定位：「已關閉沒推流的直播間」回复的是 falive bot 请关房的卡，模拟里引用拉不到判了 ignore）。列消息时仍隐藏。
 const byIdAny = (id) => byId(id) || (() => {
+  if (HIDDEN.has(id)) return null
   const m = readJson('timeline.json', []).find((x) => x.id === id && x.atMs <= nowMs())
   if (m) return toListItem(m)
   const t = threadItems().byId.get(id)
@@ -200,7 +212,7 @@ const threadItems = () => {
         content: typeof view.content === 'string' ? view.content : String(it.body?.content || ''),
         create_time: String(it.create_time),
         deleted: Boolean(it.deleted),
-        sender: { id: it.sender?.id, id_type: app ? 'app_id' : 'open_id', sender_type: it.sender?.sender_type, name: view.sender?.name || it.sender?.id, ...(app && it.sender?.id === BOT_APP_ID ? { open_bot_id: BOT_APP_ID } : {}) },
+        sender: { id: it.sender?.id, id_type: app ? 'app_id' : 'open_id', sender_type: it.sender?.sender_type, name: view.sender?.name || it.sender?.id, ...(app && it.sender?.id === BOT_APP_ID ? { open_bot_id: ownBotId(it.chat_id) } : {}) },
         mentions: (it.mentions || []).map((x) => ({ id: x.id, key: x.key, name: x.name })),
         thread_id: it.thread_id || record.threadId,
         ...(it.root_id ? { root_id: it.root_id } : {}),
@@ -266,7 +278,7 @@ const record = ({ kind, chatId, parentId = null, text, msgType, inThread = false
     content: text,
     create_time: String(at),
     deleted: false,
-    sender: { id: BOT_APP_ID, id_type: 'app_id', sender_type: 'app', name: 'Aven.Bot', open_bot_id: BOT_APP_ID },
+    sender: { id: BOT_APP_ID, id_type: 'app_id', sender_type: 'app', name: 'Aven.Bot', open_bot_id: ownBotId(chatId) },
     mentions: [],
     ...(threadId ? { thread_id: threadId } : {}),
     ...(parentId ? { parent_id: parentId, root_id: parent?.root_id || parentId } : {}),
@@ -331,8 +343,10 @@ if (domain === 'event' && command === 'consume') {
   out({ ok: true, data: { chats: CHATS, has_more: false, page_token: '' } })
 } else if (domain === 'im' && command === '+chat-messages-list') {
   const chatId = opts['chat-id']
-  const start = opts.start ? Number(opts.start) * 1000 : 0
-  const end = opts.end ? Number(opts.end) * 1000 : Infinity
+  // 真 CLI 的 --start / --end 是 ISO 8601（falive 的轮询就这么传）；纯数字仍按秒
+  const toMs = (v) => (/^\d+$/.test(String(v)) ? Number(v) * 1000 : Date.parse(String(v)))
+  const start = opts.start ? toMs(opts.start) : 0
+  const end = opts.end ? toMs(opts.end) : Infinity
   const list = messages().filter((m) => m.chat_id === chatId && Number(m.create_time) >= start && Number(m.create_time) <= end && inMainStream(m))
   out({ ok: true, data: page(list, { order: opts.order || 'desc', pageSize: Number(opts['page-size'] || 50), pageToken: opts['page-token'] }) })
 } else if (domain === 'im' && command === '+messages-mget') {
@@ -352,7 +366,7 @@ if (domain === 'event' && command === 'consume') {
   // 话题根不在结果里（真 CLI 同口径）：时间线里带 thread_id 的都是根；模拟 bot 发的话题内回复、缓存的话题回复都有 parent_id。
   // falive bot 自己在话题里说的按 hideFaliveBot 藏（同列群消息）。
   const cutoff = nowMs()
-  const cached = (threadItems().byThread.get(threadId) || []).filter((m) => Number(m.create_time) <= cutoff && !(m.ownBot && hideFaliveBot(m.message_id, Number(m.create_time))))
+  const cached = (threadItems().byThread.get(threadId) || []).filter((m) => Number(m.create_time) <= cutoff && !HIDDEN.has(m.message_id) && !(m.ownBot && hideOwnBot(m.message_id, Number(m.create_time))))
   const seen = new Set(cached.map((m) => m.message_id))
   const list = [...cached, ...messages().filter((m) => m.thread_id === threadId && m.parent_id && !seen.has(m.message_id))]
     .map(({ ownBot, ...m }) => m)
@@ -464,6 +478,16 @@ if (domain === 'event' && command === 'consume') {
   mkdirSync(join(simDir, 'docs'), { recursive: true })
   writeFileSync(join(simDir, 'docs', `${docId}.md`), `# ${opts.title || ''}\n\n${content}`)
   out({ ok: true, data: { document: { document_id: docId, url: `https://sim.local/docx/${docId}`, title: opts.title || '' } } })
+} else if (domain === 'docs' && command === '+update') {
+  // 整篇覆盖已有文档（falive 的待确认清单按主题复用同一份）：正文落 SIM_DIR/docs/<id>.md，覆盖记 docs-updates.log
+  const docId = String(opts.doc || '').replace(/[^\w-]/g, '_')
+  if (!docId) fail('docs +update 缺 --doc')
+  const raw = String(opts.content || '')
+  const content = raw.startsWith('@') ? (existsSync(join(process.cwd(), raw.slice(1))) ? readFileSync(join(process.cwd(), raw.slice(1)), 'utf8') : '') : raw
+  mkdirSync(join(simDir, 'docs'), { recursive: true })
+  writeFileSync(join(simDir, 'docs', `${docId}.md`), content)
+  appendFileSync(join(simDir, 'docs-updates.log'), `${new Date(nowMs()).toISOString()} ${docId} ${opts.command || ''} ${content.length}\n`)
+  out({ ok: true, data: { document: { document_id: docId, revision_id: 2 } } })
 } else if (domain === 'drive' && command === 'permission.public') {
   out({ ok: true, data: {} })
 } else if (domain === 'im' && command === 'chats' && rest[0] === 'get') {
