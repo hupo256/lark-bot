@@ -181,6 +181,13 @@ describe('worker 侧对话层：outcome / 契约映射 / 群回复补写 / 模�
       assert.equal(envTargetLine({ targets: ['online', 'uat'], envSites: sites }), '本任务点名的环境：online（https://www.fameex.com）、uat。只在点名的环境测 / 查，结论只说这个环境；别的环境的结果不能顶替，要对比就单列一条写明是哪个环境；report.subject 写明环境名。')
       assert.deepEqual(touchedEnvs({ hosts: ['www.azmgb.com', 'cmsadmin.azmgb.com', 'api.example.com', 'www.fameex.com'], envSites: sites }), ['pre', 'online'])
       assert.deepEqual(touchedEnvs(), [])
+      // 几个环境共用主域（falive：pre / uat 都在 fdsser.com 下）只认整个主机名（11-04 b2 ep-1031-35935b：查的 UAT 被认成 pre，结论开头误警告）
+      const shared = { pre: 'https://falivepre.fdsser.com', uat: 'https://faliveuat.fdsser.com', online: 'https://www.falive.com' }
+      assert.deepEqual(touchedEnvs({ hosts: ['faliveuat.fdsser.com'], envSites: shared }), ['uat'])
+      assert.deepEqual(touchedEnvs({ hosts: ['api.falivepre.fdsser.com', 'other.fdsser.com', 'm.falive.com', 'FALIVEUAT.fdsser.com'], envSites: shared }), ['pre', 'online', 'uat'], '共用主域的别的子域不归任何环境；独占主域的子域照旧')
+      assert.deepEqual(checkEnvTarget({ targets: ['uat'], envSites: shared, evidence: { hosts: ['faliveuat.fdsser.com', 'www.falive.com'] } }), { ok: true, mismatch: false, targets: ['uat'], touched: ['uat', 'online'] })
+      assert.deepEqual(resolveEnvTargets({ texts: ['https://faliveuat.fdsser.com/square 打不开'], envSites: shared }), ['uat'])
+      assert.deepEqual(resolveEnvTargets({ texts: ['fdsser.com 上'], envSites: shared }), [], '只写共用主域认不出是哪个环境')
       await eachCase([
         { name: '点名 online 只打了 pre → 不匹配', targets: ['online'], hosts: ['www.azmgb.com'], want: { ok: false, mismatch: true, touched: ['pre'] } },
         { name: '点名 online 打了 online（顺带打 pre 对比）→ 匹配', targets: ['online'], hosts: ['www.azmgb.com', 'www.fameex.com'], want: { ok: true, mismatch: false, touched: ['pre', 'online'] } },
