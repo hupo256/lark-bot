@@ -188,10 +188,10 @@ describe('群 / 私信唯一出口', () => {
       assert.deepEqual(await keepGroupTextShort({ text: '短', title: 't', publish: async () => { throw new Error('不该调') } }), { text: '短', docUrl: null, overflowed: false })
       assert.deepEqual(await keepGroupTextShort({ text: 'ab', title: 't', max: 2, publish: async () => { throw new Error('不该调') } }), { text: 'ab', docUrl: null, overflowed: false }, '恰好等于上限不转')
       assert.deepEqual(await keepGroupTextShort({ text: 'abc', title: 't', max: 2, publish: async () => ({ ok: true, url: null }) }), { text: 'abc', docUrl: null, overflowed: true })
-      // keepLeading（改码 done 带复测条目，11-04 b3）：开头整行放得下就留（链接留 120 字），恰好放得下也留；空行不算；不开就只留第一行
+      // keepLeading（改码 done 带复测条目，11-04 b3）：开头整行放得下就留（链接留 80 字），恰好放得下也留；空行不算；不开就只留第一行
       const doc = async () => ({ ok: true, url: 'https://doc/k' })
-      const lines = ['a'.repeat(100), '', 'b'.repeat(100), 'c'.repeat(178), 'd', 'e'.repeat(200)]
-      assert.deepEqual(await keepGroupTextShort({ text: lines.join('\n'), title: 't', publish: doc, keepLeading: true }), { text: `${'a'.repeat(100)}\n${'b'.repeat(100)}\n${'c'.repeat(178)}\n完整内容：https://doc/k`, docUrl: 'https://doc/k', overflowed: true })
+      const lines = ['a'.repeat(100), '', 'b'.repeat(100), 'c'.repeat(218), 'd', 'e'.repeat(200)]
+      assert.deepEqual(await keepGroupTextShort({ text: lines.join('\n'), title: 't', publish: doc, keepLeading: true }), { text: `${'a'.repeat(100)}\n${'b'.repeat(100)}\n${'c'.repeat(218)}\n完整内容：https://doc/k`, docUrl: 'https://doc/k', overflowed: true })
       assert.equal((await keepGroupTextShort({ text: lines.join('\n'), title: 't', publish: doc })).text, `${'a'.repeat(100)}\n完整内容：https://doc/k`)
       assert.equal((await keepGroupTextShort({ text: ['x'.repeat(600), 'y'].join('\n'), title: 't', publish: doc, keepLeading: true })).text, `${'x'.repeat(600)}\n完整内容：https://doc/k`, '第一行本身超长也留着（不截）')
       assert.deepEqual(await publishMarkdownDoc({ title: 't', markdown: '<at user_id="ou_a">A</at> 看 <at id=ou_b></at>x', create: async ({ file, identity, dir }) => ({ ok: readFileSync(join(dir, file), 'utf8') === 'A 看 x' && identity === 'user', url: 'u' }) }), { ok: true, url: 'u', reason: null })
