@@ -1,0 +1,5 @@
+#!/bin/sh
+# 回放出网审计壳：claude 会话里直接敲 lark-cli（不走 LARK_CLI_BIN）也只会落到假 CLI，绝不碰真飞书；记一笔「裸调用」到 $SIM_DIR/egress.log。
+here=$(cd "$(dirname "$0")" && pwd)
+node "$here/../egress-log.mjs" lark-cli "$@" 2>/dev/null
+exec "$here/../lark-cli" "$@"
