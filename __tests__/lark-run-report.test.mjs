@@ -241,14 +241,14 @@ describe('worker 侧对话层：outcome / 契约映射 / 群回复补写 / 模�
       })
     }],
     ['buildEnvProbeRule：只认非空字符串地址；一个都没有就说明没配环境地址；只放开登录 POST（aven 11-04）', () => {
-      assert.match(buildEnvProbeRule({ test: 'https://test.example.com', pre: ' ', uat: 5, online: null }), /上下文说哪个环境就测哪个：test https:\/\/test\.example\.com；只打上面这些地址.*只发 GET，唯一例外是为拿登录态（token \/ cookie）发登录 POST；不注册、不下单、不改任何数据。$/)
-      assert.match(buildEnvProbeRule({ test: 'https://t', pre: 'https://p' }), /test https:\/\/t、pre https:\/\/p；只打上面这些地址（含同主域子站），上游 \/ 合作方的域名（如 hichat 后端）不打，它们的状态只转述上下文并写明出处和日期。不拿别的环境/)
+      assert.match(buildEnvProbeRule({ test: 'https://test.example.com', pre: ' ', uat: 5, online: null }), /上下文说哪个环境就测哪个：test https:\/\/test\.example\.com；只打上面这些地址.*只发 GET，唯一例外是为拿登录态（token \/ cookie）登录，含验证码登录（发登录码 \+ 用码登录）；不注册（发注册码也算）、不上传、不下单、不改任何数据，要写数据的那步写明卡在哪、请谁手动做。$/)
+      assert.match(buildEnvProbeRule({ test: 'https://t', pre: 'https://p' }), /test https:\/\/t、pre https:\/\/p；只打上面这些地址（含同主域子站），上游 \/ 合作方 \/ 第三方的域名（如 hichat 后端、Google 登录）不打，它们的状态只转述上下文并写明出处和日期；第三方组件看本环境页面怎么引用它 \+ 读代码。命令层会拦范围外地址（报「\[lark-egress\] 已拦截」），拦了就按转述写，不换写法重试。不拿别的环境/)
       for (const sites of [null, {}, { pre: 7 }, { pre: '  ' }]) assert.match(buildEnvProbeRule(sites), /^环境实测：本仓没有配环境地址/)
     }],
     // 11-04 falive 回放 ep-1029-f09207：代答把引用里 10-28 的「实测握手 404」照抄成现状，没复测
     ['buildAnswerEnvRule：代答说环境现状也以本轮实测为准、旧结论不当现状；只放开 GET；进代答块不进实测块', () => {
       const rule = buildAnswerEnvRule({ pre: 'https://p', uat: ' ', online: null })
-      assert.match(rule, /^环境现状：.*现在能不能用 \/ 有没有数据 \/ 报不报错.*引用消息.*上一单.*更早的实测结论.*先本轮只读打一下该环境（pre https:\/\/p；只打上面这些地址（含同主域子站），上游 \/ 合作方的域名（如 hichat 后端）不打，它们的状态只转述上下文并写明出处和日期），curl GET，WebSocket 看握手，以本轮结果为准；测不了就写明那是哪天谁的结论、这次没复测，不当现状说。$/)
+      assert.match(rule, /^环境现状：.*现在能不能用 \/ 有没有数据 \/ 报不报错.*引用消息.*上一单.*更早的实测结论.*先本轮只读打一下该环境（pre https:\/\/p；只打上面这些地址（含同主域子站），上游 \/ 合作方 \/ 第三方的域名（如 hichat 后端、Google 登录）不打，它们的状态只转述上下文并写明出处和日期；第三方组件看本环境页面怎么引用它 \+ 读代码。命令层会拦范围外地址（报「\[lark-egress\] 已拦截」），拦了就按转述写，不换写法重试），curl GET，WebSocket 看握手，以本轮结果为准；测不了就写明那是哪天谁的结论、这次没复测，不当现状说。$/)
       assert.doesNotMatch(rule, /POST/)
       // 没配环境地址：一个地址都不打，只转述（aven 11-04 出网范围）
       for (const sites of [null, {}, { pre: ' ' }]) assert.equal(buildAnswerEnvRule(sites), '环境现状：answer 里要说某个环境现在能不能用 / 有没有数据 / 报不报错，包括复述引用消息、上下文、文档或上一单里更早的实测结论，本仓没有配环境地址，不去打任何地址；写明那是哪天谁的结论、这次没复测，不当现状说。')

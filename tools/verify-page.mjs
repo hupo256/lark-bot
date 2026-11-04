@@ -40,6 +40,7 @@ import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
+import { withoutEgressGuard } from '../lib/lark-egress-policy.mjs'
 import { larkLocalConfigPath } from '../lib/lark-paths.mjs'
 
 const STATE_ROOT = process.env.VERIFY_STATE_DIR || '/tmp/lark-verify'
@@ -207,14 +208,15 @@ const ensureServer = async ({ cwd, wait, fixedPort = null }) => {
   }
   if (!existsSync(join(cwd, 'node_modules'))) {
     console.log('工作区还没装依赖，先装（pnpm install --frozen-lockfile --prefer-offline）…')
-    const installed = spawnSync('pnpm', ['install', '--frozen-lockfile', '--prefer-offline'], { cwd, encoding: 'utf8', timeout: 300_000 })
+    // 装依赖 / dev 服务是应用自己的流量（npm 源、dev 代理到后端），不受代答 / 实测会话的出网核对（lib/lark-egress-policy）
+    const installed = spawnSync('pnpm', ['install', '--frozen-lockfile', '--prefer-offline'], { cwd, encoding: 'utf8', timeout: 300_000, env: withoutEgressGuard(process.env) })
     if (installed.status !== 0) throw new Error(`装依赖失败：${(installed.stderr || installed.stdout || '').trim().slice(-600)}`)
   }
   const port = fixedPort || (await pickPort(cwd))
   const [devBin, ...devArgs] = CONFIG.localDev
   writeFileSync(log, `--- ${new Date().toISOString()} ${CONFIG.localDev.join(' ')} --port ${port}（${cwd}）\n`)
   const fd = openSync(log, 'a')
-  const child = spawn(devBin, [...devArgs, '--port', String(port)], { cwd, detached: true, stdio: ['ignore', fd, fd], env: { ...process.env, PORT: String(port) } })
+  const child = spawn(devBin, [...devArgs, '--port', String(port)], { cwd, detached: true, stdio: ['ignore', fd, fd], env: { ...withoutEgressGuard(process.env), PORT: String(port) } })
   closeSync(fd)
   child.unref()
   const next = { pid: child.pid, port, cwd, startedAt: new Date().toISOString(), warmed: false }

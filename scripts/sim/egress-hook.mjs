@@ -8,11 +8,12 @@ import http from 'node:http'
 import https from 'node:https'
 import { syncBuiltinESMExports } from 'node:module'
 
+import { CODE_SEND_PATH_RE, codePurposeOf } from '../../lib/lark-egress-policy.mjs'
 import { BLOCK_NOTE, LOCAL_HOST_RE, blockedWrite, noteEgress } from './egress-log.mjs'
 
 if (process.env.SIM_DIR) {
   const seenLocal = new Set()
-  const note = (via, method, url) => {
+  const note = (via, method, url, purpose = null) => {
     try {
       const u = new URL(url)
       const host = u.hostname.replace(/^\[|\]$/g, '')
@@ -21,7 +22,7 @@ if (process.env.SIM_DIR) {
         if (seenLocal.has(key)) return
         seenLocal.add(key)
       }
-      noteEgress({ via, method, url: `${u.protocol}//${u.host}${u.pathname}` })
+      noteEgress({ via, method, url: `${u.protocol}//${u.host}${u.pathname}`, purpose })
     } catch {
       noteEgress({ via, method, url: String(url) })
     }
@@ -32,8 +33,12 @@ if (process.env.SIM_DIR) {
       try {
         const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input?.url
         const method = init?.method || input?.method || 'GET'
-        note('fetch', method, url)
-        const why = blockedWrite({ method, url })
+        const body = init?.body
+        const purpose = String(method).toUpperCase() !== 'GET' && CODE_SEND_PATH_RE.test(String(url))
+          ? codePurposeOf({ bodies: body == null ? [] : typeof body === 'string' || body instanceof URLSearchParams ? [String(body)] : undefined, query: new URL(String(url)).search })
+          : null
+        note('fetch', method, url, purpose)
+        const why = blockedWrite({ method, url, purpose })
         if (why) return Promise.resolve(new Response(JSON.stringify({ code: 403, msg: `${BLOCK_NOTE}（${why}）`, sim_blocked: true }), { status: 403, headers: { 'content-type': 'application/json' } }))
       } catch { /* 记不下也放行 */ }
       return origFetch.apply(this, arguments)
