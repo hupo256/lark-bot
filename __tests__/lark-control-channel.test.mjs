@@ -221,6 +221,11 @@ describe('任务控制通道（真出口 + 假 lark-cli）', () => {
         { name: '旁人 @bot（应用 id，补拉形态）', text: '字段叫 avatar', extra: { senderOpenId: 'ou_qz', mentions: [{ id: 'cli_bot' }] }, out: 'resume' },
         { name: '@ 了别人但带截图', text: '你看这个', extra: { senderOpenId: 'ou_qz', mentions: [arthur], attachments: [{ type: 'image', imageKey: 'img_g' }] }, out: 'resume' },
         { name: '旁人贴文档链接', text: '文档 https://x.feishu.cn/docx/abc', extra: { senderOpenId: 'ou_qz' }, out: 'resume' },
+        { name: '@ 了别人的提问：照旧静默', text: '这个是不是你改的', extra: { senderOpenId: 'ou_aven', mentions: [arthur] }, out: 'ignore' },
+        { name: '带截图的提问：先过分类', text: '这个能用吗', extra: { senderOpenId: 'ou_qa', attachments: [{ type: 'image', imageKey: 'img_q' }] }, out: 'pass' },
+        // 11-05 b3 ep-1023-9f0fd7：负责人在挂起的头像单话题里 @bot 问「是谁负责对接的」，被当补料续跑——问题先过分类。
+        { name: '负责人 @bot 提问：先过分类', text: '这里涉及到的是哪个功能模块，是谁负责对接的', extra: { senderOpenId: 'ou_aven', mentions: [{ id: 'ou_bot', name: 'Aven.Bot' }] }, out: 'pass' },
+        { name: '提单人没 @ 谁提问：先过分类', text: '这个账号能用吗', extra: { senderOpenId: 'ou_qa' }, out: 'pass' },
         { name: '提单人没 @ 谁', text: '账号是 508', extra: { senderOpenId: 'ou_qa' }, out: 'resume' },
         { name: '负责人没 @ 谁', text: '按方案 B', extra: { senderOpenId: 'ou_aven' }, out: 'resume' },
         { name: 'bot 为这条 @ 过的人', text: '加好了', extra: { senderOpenId: 'ou_be' }, asked: ['ou_be'], out: 'resume' },

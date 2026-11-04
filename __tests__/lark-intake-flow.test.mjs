@@ -731,6 +731,9 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
         // 11-03 合入前 review：「test 环境 xx 按钮错位」改码单在跑，「pre 也有这个问题」continues 指它 → 改的是同一处代码，照交付物规则并入
         { name: '都是改码、点名环境不相交：照交付物并入', task: { ...me('change'), envTargets: ['pre'] }, target: { ...target('running', 'change'), envTargets: ['test'] }, want: true },
         { name: '等补料：并进去', task: me('change'), target: target('waiting_confirmation', 'answer'), want: true },
+        { name: '提问不并进挂起的改码单：另起代答（11-05 b3 ep-1021-d4e64d）', task: me('answer'), target: target('waiting_confirmation', 'change'), want: false },
+        { name: '提问不并进挂起的实测单', task: me('answer'), target: target('blocked', 'verification'), want: false },
+        { name: '提问并进挂起的答疑', task: me('answer'), target: target('waiting_confirmation', 'answer'), want: true },
         { name: '追问 → 原答疑', task: me('answer'), target: target('answered', 'answer'), want: true },
         { name: '补料 → 在跑的改码单', task: me('change'), target: target('running', 'change'), want: true },
         { name: '答完的清单 + 新交办：另起', task: me('change'), target: target('answered', 'answer'), want: false },
@@ -764,7 +767,9 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
           { name: '没判延续、锚点已了结：另起（不重开）', task: me({ deliverable: 'verification', anchor: 'om_pwd', envTargets: ['online'] }), want: null },
           { name: '没判延续、锚点已失败：另起', task: me({ deliverable: 'change', decision: 'bug', anchor: 'om_failed' }), want: null },
           { name: '没判延续、锚点是在跑的改码单、本条补料：并入（跑完带补充再跑）', task: me({ deliverable: 'change', decision: 'bug', anchor: 'om_fix', operator: 'ou_other' }), want: 'om_fix' },
-          { name: '没判延续、锚点在等补料：什么都并', task: me({ deliverable: 'answer', anchor: 'om_park' }), want: 'om_park' },
+          { name: '没判延续、锚点在等补料：交办 / 实测都并', task: me({ deliverable: 'verification', anchor: 'om_park' }), want: 'om_park' },
+          // 11-05 b3 ep-1021-d4e64d：问「x9 有没有这个功能、api ready 没」并进挂起的开播改码单，一直没答
+          { name: '没判延续、锚点在等补料的改码单、本条是提问：另起代答', task: me({ deliverable: 'answer', anchor: 'om_park' }), want: null },
           { name: '没判延续、锚点在跑的改码单、本条要实测：另起', task: me({ deliverable: 'verification', anchor: 'om_fix' }), want: null },
           { name: '没判延续、锚点排队中的实测、点名环境不相交：另起', task: me({ deliverable: 'verification', anchor: 'om_ver', envTargets: ['online'], operator: 'ou_a' }), want: null },
           { name: '没判延续、锚点排队中的实测、同环境：并入', task: me({ deliverable: 'verification', anchor: 'om_ver', envTargets: ['uat'], operator: 'ou_b' }), want: 'om_ver' },

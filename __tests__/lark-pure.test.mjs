@@ -33,6 +33,7 @@ import { rotateLogIfLarge } from '../lib/lark-log-rotate.mjs'
 import { sweepAttachments } from '../lib/lark-retention.mjs'
 import { listBotChats, messageSendRecipientArgs, parseSentChatId, runLarkCliRetrying, parseSentMessageId, pickChatIdByProject, resolveDeliveryChatId, formatLarkCliError, isTransientLarkError, runLarkCliWithRetry, sendChatMessage } from '../lib/lark-cli.mjs'
 import {
+  asksQuestion,
   classifyClosureIntent,
   classifyCommandType,
   classifyPauseIntent,
@@ -807,6 +808,12 @@ describe('parseCommandType', () => {
     }
     assert.equal(classifyPauseIntent('先暂停一下'), true)
     assert.equal(classifyPauseIntent('不用继续做了'), false)
+  })
+
+  it('在问问题（asksQuestion，11-05 b3：挂起任务话题里的提问先过分类）', () => {
+    const asks = ['这里涉及到的是哪个功能模块，是谁负责对接的', '这个账号能用吗', '能用吗。', '好了呢', '为啥 404', '为什么没生效', '怎么配', '如何复测', '能不能先打包', '可不可以跳过', '是不是后端的', '有没有接口', '要传多少', '用哪些字段', '哪里配置', '那边哪位跟', '字段叫啥？', 'ready?', '1. x9 有没有这个功能 2. api 是不是 ready 了', '这是什么']
+    const says = ['字段叫 avatar', '账号是 508', '按方案 B', '加好了', '吗啡', '呢子大衣到了', '']
+    assert.deepEqual([asks.map(asksQuestion), says.map(asksQuestion)], [asks.map(() => true), says.map(() => false)])
   })
 
   it('结单夹带新的缺陷/修改请求时保留残余请求，不静默吞掉', () => {
