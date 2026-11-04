@@ -336,6 +336,20 @@ describe('任务的人话出口', () => {
       assert.deepEqual([group()[0].markdown, group()[0].idempotencyKey], [`<at user_id="ou_w">William</at> 「${H}，看一下」需要你们帮忙：\n- 要 William 给接口返回示例`, 'om_1-e1-ask'])
       assert.deepEqual([getObligation(t).state, store.get('om_1').receipts.map((r) => r.kind)], ['answered', ['blocked_ask']])
       sent.length = 0
+      // 负责人私信里点名续跑的这一代（resumeAsk.epoch = 当前代次）：群里 @ 人要了材料，私信里也给他一句（b3 ep-1030-167d28）；代次过了 / 别人续的不发
+      const asked = task({ id: 'om_6', messageId: 'om_6', epoch: 3, resumeAsk: { by: 'ou_aven', epoch: 3 }, outcome: out({ blockers: ['要 William 给 online 抓包'] }) })
+      await deliverOutcome({ config, store, task: asked, status: 'blocked', deps })
+      assert.deepEqual([group().length, dm()], [1, [`⏸ 接着做的「${H}，看一下」又停下了（${G}），已在群里找人要材料\n要：要 William 给 online 抓包`]])
+      assert.equal(store.get('om_6').receipts.at(-1).kind, 'resumed')
+      sent.length = 0
+      const doneAsked = task({ id: 'om_7', messageId: 'om_7', epoch: 2, resumeAsk: { by: 'ou_aven', epoch: 2 }, outcome: out({ summary: '前端不用改，后端核对绑定' }) })
+      await deliverOutcome({ config, store, task: doneAsked, status: 'no_change_needed', deps })
+      assert.deepEqual(dm(), [`📨 接着做的「${H}，看一下」有结论了（${G}），群里已回：看过了，这个不用改前端：前端不用改，后端核对绑定`])
+      sent.length = 0
+      const stale = task({ id: 'om_8', messageId: 'om_8', epoch: 4, resumeAsk: { by: 'ou_aven', epoch: 3 }, outcome: out({ blockers: ['要 William 给 uat 抓包'] }) })
+      await deliverOutcome({ config, store, task: stale, status: 'blocked', deps })
+      assert.deepEqual([group().length, dm()], [1, []])
+      sent.length = 0
       const waits = task({ id: 'om_2', messageId: 'om_2', waitsFor: '后端给字段', outcome: out({ blockers: ['要 William 给接口返回示例'] }) })
       noteAck({ task: waits, text: '收到。' })
       assert.equal((await deliverOutcome({ config, store, task: waits, status: 'blocked', deps })).ok, true)

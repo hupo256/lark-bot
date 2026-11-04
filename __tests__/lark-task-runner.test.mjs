@@ -494,7 +494,7 @@ describe('createTaskRunner 运行期控制流（deps 注入）', () => {
       assert.equal(r.calls.inspectWorkingTreeFingerprint, undefined)
       assert.equal(r.audit.record.status, 'failed')
     })],
-    ['范围契约（只对会改代码的任务）：越界挂起 waiting_confirmation 带待批准请求、不提交；超行数按 numstat 口径也拦；expectsCode=false 不核；实施阶段自停的 blockers 转待批准请求', async () => {
+    ['范围契约（只对会改代码的任务）：越界挂起 waiting_confirmation 带待批准请求、不提交；超行数按 numstat 口径只提醒不拦（11-04）；expectsCode=false 不核；实施阶段自停的 blockers 转待批准请求', async () => {
       const out = await run({ deps: { runAI: async () => aiRun(aiResult(), { scope: { targets: [{ path: 'src/b.ts' }] } }) } })
       assert.deepEqual(out.statuses, ['running', 'waiting_confirmation'])
       assert.deepEqual(pick(out.last, ['executor', 'owner']), { executor: 'claude', owner: null })
@@ -507,9 +507,10 @@ describe('createTaskRunner 运行期控制流（deps 注入）', () => {
       assert.equal(out.calls.finalizeTempWorktree[0][0].allowCommit, false)
       assert.equal(out.calls.inspectWorkingTreeFingerprint, undefined)
       assert.ok(logged('error', '范围契约核对不通过，未提交，挂起待人工确认扩大范围'))
-      const over = await run({ task: baseTask({ scopeApprovals: [{ paths: ['src/x.ts'] }] }), deps: { runAI: async () => aiRun(aiResult()), gitAt: (cwd, args) => ({ status: 0, stdout: args[1] === '--numstat' ? '500\t0\tsrc/a.ts\n' : args[1] === '--name-only' ? 'src/a.ts\n' : '' }) } })
-      assert.deepEqual(over.statuses, ['running', 'waiting_confirmation'])
+      const over = await doneRun({ task: baseTask({ scopeApprovals: [{ paths: ['src/x.ts'] }] }), deps: { runAI: async () => aiRun(aiResult()), gitAt: (cwd, args) => ({ status: 0, stdout: args[1] === '--numstat' ? '500\t0\tsrc/a.ts\n' : args[1] === '--name-only' ? 'src/a.ts\n' : '' }) } })
+      assert.deepEqual(over.statuses, ['running', 'done'])
       assert.deepEqual(over.audit.record.scopeCheck.overBudget, { limit: 120, actual: 500 })
+      assert.match(over.last.result, /改动 500 行，超过缺陷修复参考规模 120 行（不含 lockfile 与文案 json），请重点复核/)
       assert.deepEqual(over.audit.record.scopeApprovals, [{ paths: ['src/x.ts'] }])
       const noCode = await doneRun({ task: baseTask({ contract: { deliverable: 'change', expectsCode: false, readOnly: false } }), deps: { runAI: async () => aiRun(aiResult(), { scope: null }) } })
       assert.deepEqual(noCode.statuses, ['running', 'done'])

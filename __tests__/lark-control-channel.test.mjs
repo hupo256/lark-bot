@@ -258,7 +258,9 @@ describe('任务控制通道（真出口 + 假 lark-cli）', () => {
       const a = task(chatId, { status: 'waiting_confirmation', text: '原文' })
       await resume(a, '', { senderOpenId: 'ou_aven' })
       assert.deepEqual([store.get(a.id).status, store.get(a.id).text], ['queued', '原文\n\n【补料】\n负责人放行：按原消息开工'])
-      assert.equal(said(chatId)[0], '好，收到补充，接着做「登录页报错」。')
+      // 单发放行没有补充可收（b3 ep-1023-9f0fd7）；群里续的不记 resumeAsk（结论本就回在群里）
+      assert.equal(said(chatId)[0], '好，接着做「登录页报错」。')
+      assert.equal(store.get(a.id).resumeAsk, undefined)
       const b = task(chatId, { status: 'waiting_confirmation', text: '原文二' })
       await resume(b, '做 x', { senderOpenId: 'ou_aven' })
       assert.equal(store.get(b.id).text, '原文二\n\n【补料】\n做 x')
@@ -276,6 +278,14 @@ describe('任务控制通道（真出口 + 假 lark-cli）', () => {
       await resume(scoped, '确认扩大范围', { senderOpenId: 'ou_qe' })
       assert.deepEqual([store.get(scoped.id).status, store.get(scoped.id).scopeApprovals.length, store.get(scoped.id).scopeRequest], ['queued', 1, null])
       assert.equal(said(chatId)[5], '好，确认可以改 apps/web/src/a.ts、package.json，接着做「登录页报错」。')
+      // 负责人私信里点名续跑：记下这一代（出口在群里回完也私信他一句，b3 ep-1030-167d28）；别人私信续的不记
+      const dmAsked = task(chatId, { status: 'blocked', text: '原文四' })
+      await resume(dmAsked, '自己登录进去看看', { senderOpenId: 'ou_aven', chatType: 'p2p', chatId: 'oc_dm' })
+      const asked = store.get(dmAsked.id).resumeAsk
+      assert.deepEqual([asked.by, asked.epoch], ['ou_aven', store.get(dmAsked.id).epoch])
+      const otherDm = task(chatId, { status: 'blocked', text: '原文五', resumeAsk: { by: 'ou_aven', epoch: 1 } })
+      await resume(otherDm, '补一句', { senderOpenId: 'ou_qf', chatType: 'p2p', chatId: 'oc_dm2' })
+      assert.equal(store.get(otherDm.id).resumeAsk, undefined)
     })],
     ['疑似单：别人的补充只追加正文（带时刻、附件保留、记操作人，累计）、任务继续等、回「还得 aven 确认」；负责人放行才开工', () => quiet(async () => {
       const chatId = 'oc_s1'

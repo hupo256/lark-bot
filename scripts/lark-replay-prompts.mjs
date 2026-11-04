@@ -30,6 +30,10 @@ const REWRITES = [
   [/Worker 已把本任务命中的 L3 规则原文与指纹放在上方 TRUSTED_RULE_CONTEXT/, /放在 user 消息的 TRUSTED_RULE_CONTEXT/],
   [/^（如需像素级预览，同目录下有 preview-\*\.png。请在 checks 中注明已读取的 spec\.md。）$/, /层级关系与整体观感看同目录的 preview-\*\.png/],
   [/^请在 .+ 中完成任务，并遵守以下文档：$/, /请在 .+ 中完成任务，并遵守以下文档：/],
+  // 11-04 b3 stuck：evidence 释义里重复的「禁止补偿手法」清单去重，原文仍在「缺陷根因分诊」；行数上限改成只提醒的参考规模。
+  [/^- evidence：\*\*rootCauseLayer 为 backend-/, /^(?=[^]*严禁用其它字段加减反推权威值)[^]*- evidence：[^]*禁止的补偿手法见「缺陷根因分诊」/],
+  [/改动行数上限/, /改动行数参考 \d+ 行/],
+  [/^- \*\*能不动代码就不动：/, /- \*\*能不动代码就不动：[^]*绝不允许为了凑 diff 而新增\/修改测试文件或其它无关文件（会被当不可信降级）。[^]*或 awaiting_owner_fix \/ blocked（待对应端修）。\*\*/],
 ]
 const norm = (line) => line.replace(/\s+/g, ' ').trim()
 

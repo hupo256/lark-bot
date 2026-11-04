@@ -325,7 +325,7 @@ describe('checkScopeContract', () => {
     assert.deepEqual(check.outOfScope, [])
   })
 
-  it('超行数：bugfix 上限 120，配置可覆盖', () => {
+  it('超行数：bugfix 参考 120，配置可覆盖；只提醒不阻断（11-04 aven：需求定边界，b3 ep-1023-9f0fd7 585 行被挂起三天）', () => {
     const args = {
       scope: scopeOf([target('apps/web/src/a.ts')]),
       actualChangedFiles: ['apps/web/src/a.ts'],
@@ -333,9 +333,18 @@ describe('checkScopeContract', () => {
       workKind: WORK_KINDS.bugfix,
     }
     const check = checkScopeContract(args)
-    assert.equal(check.ok, false)
+    assert.equal(check.ok, true)
     assert.deepEqual(check.overBudget, { limit: 120, actual: 121 })
-    assert.equal(checkScopeContract({ ...args, budgets: { bugfix: 200 } }).ok, true)
+    assert.equal(checkScopeContract({ ...args, budgets: { bugfix: 200 } }).overBudget, null)
+    const gate = resolveScopeGate({ task: { id: 't' }, ...args })
+    assert.equal(gate.blockedText, null)
+    assert.deepEqual(gate.warnNotes, ['改动 121 行，超过缺陷修复参考规模 120 行（不含 lockfile 与文案 json），请重点复核'])
+    // 平铺布局 src/locales/<lang>.json（falive-react）：声明一种语言，其它语言自动放行、不计行数；README 不算
+    const flat = scopeOf([target('src/locales/zh-CN.json'), target('src/a.ts')])
+    assert.deepEqual(autoAllowedPaths(flat, ['src/locales/en.json', 'src/locales/README.md', 'other/locales/en.json']).map((item) => [item.path, item.reason]), [['src/locales/en.json', '已声明 文案文件 的其它语言（en）']])
+    assert.equal(countBudgetLines(parseNumstat('5\t1\tsrc/locales/en.json\n2\t0\tsrc/a.ts\n')), 2)
+    const flatCheck = checkScopeContract({ scope: flat, actualChangedFiles: ['src/a.ts', 'src/locales/zh-CN.json', 'src/locales/en.json'], workKind: WORK_KINDS.requirement })
+    assert.deepEqual([flatCheck.ok, flatCheck.outOfScope], [true, []])
     // numstat 未传入时不判行数。
     assert.equal(checkScopeContract({ ...args, numstat: null }).overBudget, null)
   })
@@ -412,7 +421,8 @@ describe('formatScopeSection / buildScopeBlockedResult', () => {
     assert.match(text, /任务：名称列显示错误；/)
     assert.match(text, /契约外的文件：apps\/web\/src\/neighbor\.ts/)
     assert.match(text, /package\.json（依赖清单 package\.json）/)
-    assert.match(text, /改动 200 行，超出缺陷修复上限 120 行/)
+    assert.doesNotMatch(text, /不通过项：[^]*改动 200 行/, '行数不算不通过项')
+    assert.match(formatScopeSection({ scope: scopeOf([target('apps/web/src/a.ts')]), check }), /改动行数：200 行，超出缺陷修复参考规模 120 行（不拦，请重点复核）/)
     assert.match(text, /回复本卡片「确认扩大范围」/)
     assert.match(text, /继续任务 t1 确认扩大范围/)
     assert.match(text, /不要改 X，只改 Y/)
@@ -488,7 +498,7 @@ describe('人工确认扩大范围（scopeRequest → scopeApprovals）', () => 
   it('超行数 / 集合型缺兄弟清单的批准：allowOverBudget / waiveSiblings 解除对应阻断', () => {
     const numstat = numstatOf([[300, 0, 'apps/web/src/a.ts']])
     const blocked = checkScopeContract({ scope, actualChangedFiles: ['apps/web/src/a.ts'], numstat, workKind: WORK_KINDS.bugfix, taskText: '统一改为余额' })
-    assert.ok(blocked.overBudget && blocked.siblingsRequired)
+    assert.ok(blocked.overBudget && blocked.siblingsRequired && !blocked.ok)
     const approval = resolveScopeApproval({ request: buildScopeRequest({ check: blocked, actualChangedFiles: ['apps/web/src/a.ts'] }), supplementText: '确认放行' })
     assert.deepEqual({ allowOverBudget: approval.allowOverBudget, waiveSiblings: approval.waiveSiblings }, { allowOverBudget: true, waiveSiblings: true })
     const passed = checkScopeContract({ scope, actualChangedFiles: ['apps/web/src/a.ts'], numstat, workKind: WORK_KINDS.bugfix, taskText: '统一改为余额', approvals: [approval] })
@@ -535,3 +545,4 @@ describe('人工确认扩大范围（scopeRequest → scopeApprovals）', () => 
     assert.match(gate.warnNotes[0], /疑似漏改.*b\.ts/)
   })
 })
+

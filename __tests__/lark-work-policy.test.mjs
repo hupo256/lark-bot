@@ -158,8 +158,32 @@ describe('classifyBlocker', () => {
     assert.equal(classifyBlocker(''), BLOCKER_CLASSES.hard)
   })
 
-  it('hard 优先于 process：一条同时提到范围不清与缺 PRD 的 blocker 必须停', () => {
+  it('hard 优先于 process：一条同时提到范围不清与缺 PRD 的 blocker 必须停；ownership / size 单列（11-04 aven：不按模块归属卡改动，行数不是需求边界）且同条还在要账号 / 环境的仍按原口径，新需求也不因它们停', async () => {
     assert.equal(classifyBlocker('缺少 PRD，且无法定位要改哪个页面'), BLOCKER_CLASSES.hard)
+    // b3 ep-1023-9f0fd7 / ep-1021-d4e64d 分析阶段真实的停机理由（原先未命中任何类 → hard 停机）
+    const owned = '负责人：换头像按 phase1-feature-table.md 的分工归 henry，仓库规则不允许改别人负责的功能，需要 aven 或 henry 确认：交给 henry 做，还是授权 aven 侧代改。'
+    const owned2 = '改动归属不对：头像设置前端负责人是 henry。按仓库的「按负责人改代码」规则，不能替 henry 接接口；如果 aven 确定要助手代做，需要明确点名授权。'
+    const unassigned = '没有负责人：开播功能在功能表里没有指定前端负责人，需要 aven 或产品指派。'
+    const big = '改动量远超上限：本单上限是 120 行，x9 的开播功能约 2780 行。请 aven 同意拆期，或明确允许这一单超过上限。'
+    const big2 = '迁移超出临时修复的范围：x9 开播功能共约 2780 行，远超单次 120 行上限，需要单独开功能任务分批做。'
+    await eachCase([
+      [owned, BLOCKER_CLASSES.ownership], [owned2, BLOCKER_CLASSES.ownership], [unassigned, BLOCKER_CLASSES.ownership],
+      [big, BLOCKER_CLASSES.size], [big2, BLOCKER_CLASSES.size],
+      ['缺 pre 测试账号，归 henry 负责的模块也要账号', BLOCKER_CLASSES.hard],
+      ['改动量超出上限，而且缺测试环境访问权限', BLOCKER_CLASSES.hard],
+      ['需要后端负责人给出接口路径和字段名', BLOCKER_CLASSES.hard],
+      ['需要产品负责人确认交互', BLOCKER_CLASSES.decision],
+      ['需要拆分组件', BLOCKER_CLASSES.hard],
+      ['按钮间距超出设计稿 4px', BLOCKER_CLASSES.hard],
+      ['交互口径没定：点了跳哪里还是弹窗', BLOCKER_CLASSES.decision],
+    ], ([text, expected]) => assert.equal(classifyBlocker(text), expected, text))
+    const gate = resolveAnalysisGate({ task: larkTask({ text: '加个导出功能', intake: { classification: { decision: 'requirement' } } }), analysis: blocked([owned, big]) })
+    assert.equal(gate.analysis.status, 'ready')
+    assert.deepEqual(gate.analysis.blockers, [])
+    assert.match(gate.assumptions[0], /^归属只作知会：.*完成说明的 followUps 写明知会该负责人$/)
+    assert.match(gate.assumptions[1], /^改动规模大：.*不因行数停下或请人拆期，按需求整体做完/)
+    const mixed = resolveAnalysisGate({ task: larkTask({ text: '导出点了没反应' }), analysis: blocked([owned, '缺少测试环境登录账号，无法复现']) })
+    assert.deepEqual([mixed.analysis.status, mixed.analysis.blockers], ['blocked', ['缺少测试环境登录账号，无法复现']])
   })
 })
 
