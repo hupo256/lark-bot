@@ -20,7 +20,7 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { AVEN_OPEN_ID, BOT_APP_ID, GROUPS, casesDir, datasetDir, faliveRuntimeDir, rawDir, replayRoot, resolveRaw, toSimEvent } from './falive-data.mjs'
+import { AVEN_OPEN_ID, BOT_APP_ID, GROUPS, casesDir, datasetDir, faliveRuntimeDir, pickRemapTarget, rawDir, replayRoot, resolveRaw, toSimEvent } from './falive-data.mjs'
 import { startSampler } from './proc-sampler.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -127,6 +127,24 @@ for (const ref of git(['for-each-ref', '--format=%(refname)', 'refs/remotes/orig
   if (git(['update-ref', ref, sha], repoLink).status === 0) pinnedBranches += 1
 }
 git(['config', 'remote.origin.fetch', `+refs/heads/${baseBranch}:refs/remotes/origin/${baseBranch}`], repoLink)
+// origin 指到本模拟自己的钉版远端（裸仓，对象借主仓、引用只有基线 + 上面钉回的分支）：原先 origin 仍是主仓，会话里显式
+// `git fetch origin pre` 照样拉到窗口之后的提交（b4 ep-1023-9f0fd7 ba997d95 / e39f13a4：拿到 10-26 之后的 sha，`git show` 出未来的对接文档，
+// 答复日期写成 10-27、和 bot 自己 07:00 的说法打架）。钉版远端上 fetch 什么分支都只到窗口起点。
+const pinnedOrigin = join(simDir, 'repos', 'falive-origin.git')
+if (!existsSync(pinnedOrigin)) {
+  const init = git(['init', '--quiet', '--bare', pinnedOrigin])
+  if (init.status !== 0) throw new Error(`建钉版远端失败：${init.stderr.slice(0, 300)}`)
+  const commonDir = git(['rev-parse', '--path-format=absolute', '--git-common-dir']).stdout.trim()
+  writeFileSync(join(pinnedOrigin, 'objects', 'info', 'alternates'), `${join(commonDir, 'objects')}\n`)
+}
+for (const ref of git(['for-each-ref', '--format=%(refname)', 'refs/heads'], pinnedOrigin).stdout.split('\n').filter(Boolean)) git(['update-ref', '-d', ref], pinnedOrigin)
+for (const line of git(['for-each-ref', '--format=%(refname) %(objectname)', 'refs/remotes/origin'], repoLink).stdout.split('\n').filter(Boolean)) {
+  const [ref, sha] = line.split(' ')
+  if (ref === 'refs/remotes/origin/HEAD') continue
+  git(['update-ref', `refs/heads/${ref.slice('refs/remotes/origin/'.length)}`, sha], pinnedOrigin)
+}
+git(['symbolic-ref', 'HEAD', `refs/heads/${baseBranch}`], pinnedOrigin)
+git(['remote', 'set-url', 'origin', pinnedOrigin], repoLink)
 if (git(['rev-parse', 'HEAD'], repoLink).stdout.trim() !== baseSha) {
   const out = git(['checkout', '--quiet', '--detach', baseSha], repoLink)
   if (out.status !== 0) throw new Error(`checkout 基线失败：${out.stderr.slice(0, 300)}`)
@@ -460,9 +478,17 @@ for (const [index, m] of events.entries()) {
     // 被回复的 falive 卡按 id 照供（假 CLI byIdAny 不受隐藏限制），bot 看到的引用就是人当时看到的那张卡，不编一个别人的锚点；
     // 没 @ 的仍接最近一句（原样喂网关认不出是回复 bot，整条丢掉；组内 24 条这样的多是「好」「cc @x」，也有「发布到 pre 了，方便测一下吗」）。
     const ownCase = event.chat_type === 'p2p' ? null : caseOfFaliveCard(m.parentId)
-    const latest = visible.filter((s) => (s.parent_id ? caseSet.has(s.parent_id) : event.chat_type === 'p2p')).at(-1)
-    const sameCase = ownCase ? visible.filter((s) => s.parent_id === ownCase).at(-1) : null
-    const target = event.chat_type === 'p2p' ? latest : sameCase || (m.atBot ? null : latest)
+    // 那条 case 在模拟里被并进了哪单（supersededBy / mergedInto，沿链走几步）、在哪个话题：模拟 bot 对那单 / 那个话题说的也算对它说的
+    const caseIds = []
+    let caseThread = null
+    for (let id = ownCase, hops = 0; id && hops < 4; hops += 1) {
+      let stored = null
+      try { stored = JSON.parse(readFileSync(join(runtimeDir, 'lark-tasks', `${id}.json`), 'utf8')) } catch { stored = null }
+      caseThread ||= stored?.threadRootId || null
+      id = stored?.supersededBy || stored?.mergedInto || null
+      if (id) caseIds.push(id)
+    }
+    const target = pickRemapTarget({ visible, isP2p: event.chat_type === 'p2p', ownCase, caseIds, caseThread, caseSet, atBot: m.atBot })
     if (!target && event.chat_type !== 'p2p') {
       appendFileSync(join(simDir, 'remap.jsonl'), `${JSON.stringify({ caseId: m.id, faliveParent: m.parentId, simParent: null, faliveCase: ownCase, reason: ownCase ? 'sim_bot_silent_on_case' : 'card_not_for_group_case' })}\n`)
       log(`${m.id} 回复的 falive 卡 ${m.parentId}${ownCase ? `是对 ${ownCase} 说的，模拟 bot 还没对它说过话` : '不是对组内 case 说的'}：原样喂（引用照供 falive 原卡）`)

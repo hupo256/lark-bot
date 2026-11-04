@@ -284,6 +284,18 @@ export const auditSummary = (entry) => {
 
 // 时间线消息 → 模拟器 / L1 回放喂给 ingest 的事件：不同群里 @bot 的 open_id 统一改写成配置的 botOpenId；
 // webhook 群（falive 控制台，只有 aven）里 aven 说的话映射成负责人私信（p2p，chat_id = aven open_id）。
+// 组内的人回复 falive 对组内 case 说的话时，改接模拟 bot 的哪一句（run-sim 喂事件时用；返回 sent.json 里的一条或 null = 原样喂）。
+// 私信：最近一句。群里认出了是对哪条 case（ownCase）说的：只接模拟 bot 对它（或它被并进的那单 caseIds）说的话，再不然同话题（caseThread）
+// 里的最近一句；都没有就原样喂，不退到全群最近一句（b4 ep-1023-9f0fd7 6ed961e2：头像单的「收到」被出口闸并掉了、模拟 bot 没直接回过它，
+//「新接口文档，是这个么？」被接到全群最近一句——兑换 Bug-4988 那张卡，bot 照引用答了兑换）。认不出 case：@ 了 bot 的原样喂，没 @ 的接最近一句。
+export const pickRemapTarget = ({ visible = [], isP2p = false, ownCase = null, caseIds = [], caseThread = null, caseSet = new Set(), atBot = false }) => {
+  const latest = visible.filter((s) => (s.parent_id ? caseSet.has(s.parent_id) : isP2p)).at(-1) || null
+  if (isP2p) return latest
+  if (!ownCase) return atBot ? null : latest
+  const ids = new Set([ownCase, ...caseIds.filter(Boolean)])
+  return visible.filter((s) => ids.has(s.parent_id)).at(-1) || (caseThread ? visible.filter((s) => s.thread_id === caseThread).at(-1) : null) || null
+}
+
 export const toSimEvent = (m, { botOpenId }) => {
   const event = toEvent(m)
   event.mentions = event.mentions.map((x) => (BOT_MENTION_IDS.has(x.id) ? { ...x, id: botOpenId } : x))

@@ -10,6 +10,7 @@ import { normalizeRouting, routingLines } from '../scripts/sim/falive-calibratio
 import { ownRootsToKeep, privateOnlyAt, privateOnlyEvidence, sweepForSim, taskStubsFromAudits } from '../scripts/sim/falive-restore.mjs'
 import { keepParagraphsAsOf, replayMemoryEvents } from '../scripts/sim/memory-asof.mjs'
 import { parseCodeStarts, pickConfigBackup, runningCodeAt } from '../scripts/sim/falive-code-pin.mjs'
+import { pickRemapTarget } from '../scripts/sim/falive-data.mjs'
 import { runSteps } from './support/steps.mjs'
 
 const LOG = [
@@ -134,4 +135,24 @@ describe('falive 校准：代码 / 配置钉版与路由比对', () => {
       assert.equal(replayMemoryEvents([], 10).known, false)
     }],
   ]))
+})
+
+describe('回放喂事件：回复 falive 卡改接模拟 bot 的哪一句', () => {
+  it('认出 case 只接对它 / 它并进的单 / 同话题说的，不退到全群最近一句（b4 ep-1023-9f0fd7 6ed961e2）', () => {
+    const caseSet = new Set(['c_avatar', 'c_host', 'c_redeem'])
+    const visible = [
+      { message_id: 's1', parent_id: 'c_host', thread_id: 't_avatar' },
+      { message_id: 's2', parent_id: 'c_redeem', thread_id: null },
+      { message_id: 's3', parent_id: null, thread_id: null },
+    ]
+    const pick = (extra) => pickRemapTarget({ visible, caseSet, ...extra })?.message_id ?? null
+    assert.equal(pick({ ownCase: 'c_avatar', caseIds: ['c_host'] }), 's1', '并进的那单')
+    assert.equal(pick({ ownCase: 'c_avatar', caseThread: 't_avatar' }), 's1', '同话题')
+    assert.equal(pick({ ownCase: 'c_avatar' }), null, '对它没说过话：原样喂，不接兑换那张')
+    assert.equal(pick({ ownCase: 'c_redeem' }), 's2')
+    assert.equal(pick({ ownCase: null }), 's2', '认不出 case、没 @：接最近一句')
+    assert.equal(pick({ ownCase: null, atBot: true }), null, '认不出 case、@ 了 bot：原样喂')
+    assert.equal(pick({ isP2p: true }), 's3', '私信接最近一句')
+    assert.equal(pickRemapTarget({}), null)
+  })
 })
