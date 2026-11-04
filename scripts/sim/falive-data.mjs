@@ -64,6 +64,14 @@ const renderRawContent = (msgType, rawContent, mentions = []) => {
   return typeof rawContent === 'string' ? rawContent : ''
 }
 
+// 卡片（interactive）的渲染版文本：+chat-messages-list 把卡片里的 @ 渲染成「@名字(ou_xxx)」，人在群里看到的只是「@名字」。
+// 11-04 核对（docs/falive-replay-design-v2.md §8 前置 5）：渲染版与 raw API 卡片 JSON（title / text / at / a / img / note）逐项比，
+// 字段、列表项、链接都在（falive 的卡片只有 markdown / div / note，没有按钮），唯一的偏差就是这个 open_id 后缀，这里去掉。
+// 只动 app 发的卡片；真人消息的文本原样不动。
+const CARD_AT_RE = /@([^@()\n]+?)\((ou_[0-9A-Za-z]+)\)/g // 名字里可能有空格（「@Williamwang HT(ou_…)」）
+export const cardDisplayText = (text) => String(text || '').replace(CARD_AT_RE, '@$1')
+const displayText = ({ msgType, senderType, text }) => (msgType === 'interactive' && senderType === 'app' ? cardDisplayText(text) : text)
+
 // 话题回复（raw/threads/<omt>.json，build-context-cache.mjs 拉的）：按群拉历史只拿到每个话题的第一条，回复全漏
 //（11-03：漏 1781 条，其中真人 @bot 54 条、falive 当时分类过的 121 条）。同一格式（api 一份 + 渲染版一份），按 chat_id 并进各群。
 const loadThreadReplies = () => {
@@ -113,9 +121,12 @@ export const loadTimeline = () => {
       const senderId = item.sender?.id || view?.sender?.id || ''
       const ownBot = senderType === 'app' && (senderId === BOT_APP_ID || BOT_NAMES.has(view?.sender?.name))
       const recalled = view?.content === '[Invalid text JSON]' || /^This message was recalled$/.test(String(item.body?.content || ''))
-      const text = recalled ? '' : typeof view?.content === 'string' ? view.content : renderRawContent(item.msg_type, item.body?.content, mentions)
+      const shown = recalled ? '' : typeof view?.content === 'string' ? view.content : renderRawContent(item.msg_type, item.body?.content, mentions)
+      const text = displayText({ msgType: item.msg_type, senderType, text: shown })
+      const cliText = text !== shown ? shown : undefined // 真 lark-cli 给 bot 看的就是带 (ou_xxx) 的版本：假 CLI 供数用它，裁判 / 清单用 text
       messages.set(item.message_id, {
         id: item.message_id,
+        ...(cliText ? { cliText } : {}),
         chatId: group.chatId,
         chatKey: group.key,
         chatName: group.name,
@@ -146,7 +157,8 @@ export const loadTimeline = () => {
       messages.set(id, {
         id, chatId: group.chatId, chatKey: group.key, chatName: group.name, atMs: Date.parse(String(view.create_time).replace(' ', 'T')) || 0,
         msgType: view.msg_type, senderType, senderId: view.sender?.id || '', senderName: view.sender?.name || '', ownBot, isAven: view.sender?.id === AVEN_OPEN_ID,
-        text: typeof view.content === 'string' ? view.content : '', rawContent: null, mentions, parentId: null, rootId: null, threadId: view.thread_id || null,
+        text: displayText({ msgType: view.msg_type, senderType, text: typeof view.content === 'string' ? view.content : '' }),
+        ...(typeof view.content === 'string' && displayText({ msgType: view.msg_type, senderType, text: view.content }) !== view.content ? { cliText: view.content } : {}), rawContent: null, mentions, parentId: null, rootId: null, threadId: view.thread_id || null,
         deleted: Boolean(view.deleted), resources: (view.resources || []).map((r) => ({ key: r.key, type: r.type, localPath: r.local_path || null })),
         atBot: mentions.some((m) => BOT_MENTION_IDS.has(m.id) || BOT_NAMES.has(m.name)),
       })
@@ -163,7 +175,7 @@ export const toEvent = (m) => ({
   message_type: m.msgType,
   sender_type: m.senderType === 'app' ? 'bot' : m.senderType || 'user',
   sender_id: m.senderId,
-  content: m.text,
+  content: m.cliText ?? m.text, // 假 CLI / 分类回放给 bot 看的 = 真 lark-cli 的渲染（卡片里 @名字(ou_xxx)）
   mentions: m.mentions,
   create_time: String(m.atMs),
   ...(m.parentId ? { reply_to: m.parentId } : {}),

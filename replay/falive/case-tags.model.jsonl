@@ -1,0 +1,205 @@
+{"id":"om_x100b63c7ed480d34ed3cf1c73c631b0","fp":"1babb5c05d4d","model":"claude-opus-5-5","effort":"low","kind":"record","risk":[],"pending":false,"why":"后端告知 pre 首次部署 golang，需等部署完成"}
+{"id":"om_x100b63c1069d4d38eed37a703b333e0","fp":"d6c4d0907ea6","model":"claude-opus-5-5","effort":"low","kind":"change","risk":["permission"],"pending":false,"why":"分配注册登录与 token 封装开发，并更新负责人"}
+{"id":"om_x100b63c3bf2a40a4eed9ba88ff3a009","fp":"f6c1feb90903","model":"claude-opus-5-5","effort":"low","kind":"change","risk":["permission"],"pending":false,"why":"给了 pre 域名，要求把账号服务接到 pre"}
+{"id":"om_x100b63cc5c39e0a0ed31980b0ddb87b","fp":"1b2afa2b112a","model":"claude-opus-5-5","effort":"low","kind":"ops","risk":[],"pending":false,"why":"要求机器人自己处理问题、别往群里发"}
+{"id":"om_x100b63cc51db8ca0ed5dce4e2f1baef","fp":"c579d785941d","model":"claude-opus-5-5","effort":"low","kind":"change","risk":["permission"],"pending":false,"why":"注册接口与 live 不同，重读文档后改对接"}
+{"id":"om_x100b63cc6de408a0ed31aa98199476e","fp":"0b1749dadfb6","model":"claude-opus-5-5","effort":"low","kind":"change","risk":["permission"],"pending":false,"why":"全量读 PM-3217 账号文档，开工登录注册对接"}
+{"id":"om_x100b63cdd475cd34ed595c19ea63bdc","fp":"711cd81b43ec","model":"claude-opus-5-5","effort":"low","kind":"question","risk":[],"pending":false,"why":"让机器人结合上下文回答接口地址对不对"}
+{"id":"om_x100b63ce4212e8a0ed61e8de30f766f","fp":"34ac74a79cb1","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":["permission"],"pending":false,"why":"运维配好转发，要求复测 auth 接口"}
+{"id":"om_x100b63ce3f15b0a0ed58c61f363a595","fp":"98674f8c607b","model":"claude-opus-5-5","effort":"low","kind":"question","risk":[],"pending":false,"why":"问 +8 时区几点调了嗨聊哪个接口"}
+{"id":"om_x100b623d2d4944a4ed585d3ecf68877","fp":"800bddc20bdb","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":["permission"],"pending":false,"why":"要求重新测试 hichat_token 调嗨聊接口"}
+{"id":"om_x100b623dff9100a0ed5b406740b02a2","fp":"dc29b2162d98","model":"claude-opus-5-5","effort":"low","kind":"ops","risk":["permission"],"pending":false,"why":"处理机器人读 Lark 文档的权限和授权入口"}
+{"id":"om_x100b623d8ec2f0a8ed31cea27893f85","fp":"c3df052ed799","model":"claude-opus-5-5","effort":"low","kind":"record","risk":[],"pending":false,"why":"要求记下预约改版只用 live_id 并提醒"}
+{"id":"om_x100b623e4981b8aced3d91ddb15b8a9","fp":"8f7a1a20b967","model":"claude-opus-5-5","effort":"low","kind":"question","risk":["permission"],"pending":false,"why":"后端要 hichat_token 那次复测的请求时间、请求头、参数和 URL"}
+{"id":"om_x100b623e546b64a0ed4bec43a64bbe2","fp":"bb429d01a74e","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":["permission"],"pending":false,"why":"要求重跑 hichat_token 调 profile/my 接口"}
+{"id":"om_x100b623e0e9fc0a4ed50c7a4e19c97e","fp":"5c8c66e6c040","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":["permission"],"pending":false,"why":"回复卡片要求用测试号重跑 profile/my"}
+{"id":"om_x100b623e1cd0f130eed7897c2972153","fp":"38f9b0982b6a","model":"claude-opus-5-5","effort":"low","kind":"ops","risk":["permission","irreversible"],"pending":false,"why":"任务控制：把完整 token 和时间直接发群，不用私发"}
+{"id":"om_x100b62381e451ca0eed282b1ba1af28","fp":"dfc6ce4b22fb","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":["permission"],"pending":false,"why":"后端说 Google 登录好了，aven 让在 pre 复测并报告"}
+{"id":"om_x100b6238ca5c6ca0ed605c2972530f1","fp":"9c4f5c69cfef","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":["permission"],"pending":false,"why":"同一条：复测 Google 登录，结果报回群"}
+{"id":"om_x100b6239044a5ca4ed558fb7378c768","fp":"19cd848de8a7","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":["permission","status"],"pending":false,"why":"后端说 profile/my 已打通，请更新状态或复测"}
+{"id":"om_x100b623a8c26b0a4eedf7e62c2c9c2f","fp":"5f43afa10e92","model":"claude-opus-5-5","effort":"low","kind":"question","risk":[],"pending":false,"why":"父消息为空，只是让帮忙看看，内容不明"}
+{"id":"om_x100b622437dc8ca0ed504d5fb9cb0e5","fp":"fcf0f54782aa","model":"claude-opus-5-5","effort":"low","kind":"ops","risk":["irreversible"],"pending":false,"why":"aven 让把今天的日报发到群里"}
+{"id":"om_x100b62299880a0b0ed64863c9dd67b1","fp":"f1e35c4111c8","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":[],"pending":false,"why":"后端改了直播预告重复问题，请再复测"}
+{"id":"om_x100b6229924f98a4ed3a2bc4e5d8f14","fp":"09c60297b335","model":"claude-opus-5-5","effort":"low","kind":"question","risk":[],"pending":false,"why":"问机器人能做什么"}
+{"id":"om_x100b62178e3ad8a0ed483161cc92d35","fp":"9dff2310098c","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":["permission","status"],"pending":false,"why":"后端修好手机号注册失败，要求复测并记录"}
+{"id":"om_x100b6203969ad4a8ed45109b8cbbda8","fp":"c152df899c78","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":[],"pending":false,"why":"让 bot 实测 pre 各服务是否正常并列出异常"}
+{"id":"om_x100b626abd29e0a0ed33cb23a57332a","fp":"454707777ad3","model":"claude-opus-5-5","effort":"low","kind":"question","risk":[],"pending":false,"why":"问坏头像来自哪个接口"}
+{"id":"om_x100b626ab34880a0eedf4014fa8af7e","fp":"4f5c57e6ed3d","model":"claude-opus-5-5","effort":"low","kind":"change","risk":[],"pending":false,"why":"确认图片兜底，没有就让前端补默认图"}
+{"id":"om_x100b626b32e1e138ed5761b85a77a16","fp":"e88114282b48","model":"claude-opus-5-5","effort":"low","kind":"change","risk":[],"pending":false,"why":"读后端阻塞回复文档，按答复适配并复测"}
+{"id":"om_x100b62544e019930ed50b034149c2d6","fp":"475a3eda6ca0","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":[],"pending":true,"why":"社区后端发布后 bot 复测并在群里发结果"}
+{"id":"om_x100b62542db740a8ed5f7f295e6dfdc","fp":"d405318c7d01","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":[],"pending":false,"why":"按后端回复同步对接并复测各项"}
+{"id":"om_x100b6254315ef0aced628b6280519b4","fp":"6504cebec04a","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":[],"pending":false,"why":"拉流属正常，要求其余几项再复测"}
+{"id":"om_x100b62549e9854a4ed4b78b63111390","fp":"50ed2c018be7","model":"claude-opus-5-5","effort":"low","kind":"chat","risk":[],"pending":false,"why":"Henry 问 Encone，不是让 bot 做事"}
+{"id":"om_x100b62549c854ca4ed361762594f0a1","fp":"c1a9a3cfffd4","model":"claude-opus-5-5","effort":"low","kind":"chat","risk":[],"pending":false,"why":"Encone 回 Henry 稍等，不用 bot 做事"}
+{"id":"om_x100b62570720f0a0ed338a1fc7c1687","fp":"63bdfd4cbc3e","model":"claude-opus-5-5","effort":"low","kind":"record","risk":[],"pending":false,"why":"请 bot 读 Go 后端的答复并记下结论"}
+{"id":"om_x100b625ad97feca4ff931080a437502","fp":"95c3336dad74","model":"claude-opus-5-5","effort":"low","kind":"question","risk":[],"pending":false,"why":"问直播间聊天室现状、还缺什么、能否提测"}
+{"id":"om_x100b6244b36b58a4ff9b85f8c404fe6","fp":"582d8c703efd","model":"claude-opus-5-5","effort":"low","kind":"ops","risk":[],"pending":false,"why":"对机器人的任务控制：继续自测任务、测控制台连通"}
+{"id":"om_x100b6246c2b198a4ed65ae1a717dd90","fp":"5f36bd4d9ccf","model":"claude-opus-5-5","effort":"low","kind":"question","risk":[],"pending":false,"why":"后端要 API 待处理问题清单"}
+{"id":"om_x100b6246d44a48a8ed4b2711c9ab83e","fp":"c2627f43e78f","model":"claude-opus-5-5","effort":"low","kind":"record","risk":[],"pending":false,"why":"后端答复嗨聊头确认不需要，记下结论"}
+{"id":"om_x100b6246ece5f8a0ed5fc6d0c91bdcd","fp":"c2285e6a353f","model":"claude-opus-5-5","effort":"low","kind":"change","risk":["irreversible"],"pending":false,"why":"写脚本批量调发帖 API，在共享 pre 造数据"}
+{"id":"om_x100b624085f970a4ffbea0d4a51a1b2","fp":"a49c31230e14","model":"claude-opus-5-5","effort":"low","kind":"change","risk":["irreversible"],"pending":false,"why":"写脚本在 pre 批量发帖造数据"}
+{"id":"om_x100b6241474ca8a0ed4c160651afca0","fp":"5ae6222c0cc3","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":[],"pending":false,"why":"后端说 pre 已更新，要复测 preload；不是 aven 发起的部署链路"}
+{"id":"om_x100b62424685bca0ed461916fb21df1","fp":"64c75e0041b9","model":"claude-opus-5-5","effort":"low","kind":"chat","risk":[],"pending":false,"why":"仅 cc 后端同事，无需机器人动作"}
+{"id":"om_x100b6242df874ca0ed4b5a1e05b783d","fp":"106fcbfec560","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":[],"pending":false,"why":"让 bot 自己在 pre 浏览器滚到底验证续拉"}
+{"id":"om_x100b62b1e892b8a8ed51cf17d8cca5c","fp":"f77292b11d3c","model":"claude-opus-5-5","effort":"low","kind":"question","risk":["permission"],"pending":false,"why":"要测试号昵称，回复会带出账号信息"}
+{"id":"om_x100b62b253af08a4ed34e93a02a6dec","fp":"a47ccfb1fc63","model":"claude-opus-5-5","effort":"low","kind":"change","risk":[],"pending":false,"why":"按文档 1.10 接帖子图片解密"}
+{"id":"om_x100b62b2b9a09934ed4340aa2a74bb7","fp":"15570f8e2194","model":"claude-opus-5-5","effort":"low","kind":"question","risk":[],"pending":false,"why":"只 @ 了机器人，从回复看是在问接口用途"}
+{"id":"om_x100b62b34bff54a4ed5a4c972ceeda3","fp":"526302ac9da8","model":"claude-opus-5-5","effort":"low","kind":"question","risk":[],"pending":false,"why":"要前端对接待处理事项清单"}
+{"id":"om_x100b62bf64a154a0ed565d704d2cded","fp":"bf527728616d","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":[],"pending":false,"why":"后端说已补资产路径配置，机器人去 pre 复测 profile/my"}
+{"id":"om_x100b62bf076ed8a4eeda2824304bbb6","fp":"3b7fb782e7f9","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":["permission","irreversible"],"pending":false,"why":"要在 pre 新注册测试号再复测，注册属于共享环境写数据"}
+{"id":"om_x100b62bf122eeca4ed568b18a333b7f","fp":"cebd4442c14e","model":"claude-opus-5-5","effort":"low","kind":"record","risk":[],"pending":false,"why":"后端结论：老号跳过不补，记下即可"}
+{"id":"om_x100b62bf2e3008a4eed0d68c40299b7","fp":"1370ca69a5fd","model":"claude-opus-5-5","effort":"low","kind":"record","risk":[],"pending":false,"why":"告知 404 不修，已改走 golang 接口并实测通过"}
+{"id":"om_x100b62bf2792c534ffc8b1360a68564","fp":"1dea28d0b4cc","model":"claude-opus-5-5","effort":"low","kind":"record","risk":[],"pending":false,"why":"aven 明确只记录后端答复，不是任务"}
+{"id":"om_x100b62bfe791b938ed33a677fa977f9","fp":"50547928c3ec","model":"claude-opus-5-5","effort":"low","kind":"question","risk":[],"pending":false,"why":"问 profile/my 接口在什么业务里调用"}
+{"id":"om_x100b62ba34067ca0fe1835bd9e10a02","fp":"b14ff3f27ba3","model":"claude-opus-5-5","effort":"low","kind":"change","risk":[],"pending":false,"why":"按后端口径把关注改回只调 php 接口"}
+{"id":"om_x100b62ae1294cca0fe08427680cd575","fp":"bf1bfc5026aa","model":"claude-opus-5-5","effort":"low","kind":"change","risk":["money"],"pending":false,"why":"礼物（钻石送礼）需求变更，要同步改前端"}
+{"id":"om_x100b62aebd09d938fe2ca710c1c7ab2","fp":"b7f8fb8c774e","model":"claude-opus-5-5","effort":"low","kind":"change","risk":["money"],"pending":false,"why":"关掉直播间礼物入口，改由服务端开关控制"}
+{"id":"om_x100b62af064f40a4ffdce77cb95226c","fp":"9140f2811ac1","model":"claude-opus-5-5","effort":"low","kind":"ops","risk":[],"pending":false,"why":"任务控制：确认扩大修改范围继续跑"}
+{"id":"om_x100b62afc01140a8eedfe4b5faec9b0","fp":"0576509f18fd","model":"claude-opus-5-5","effort":"low","kind":"question","risk":[],"pending":false,"why":"后端要签到 bug 的复现 curl"}
+{"id":"om_x100b62afb784c0a0ff7d09433f0f00c","fp":"1b7d259c8c64","model":"claude-opus-5-5","effort":"low","kind":"ops","risk":[],"pending":false,"why":"控制任务：确认扩大范围后继续跑新闻详情任务"}
+{"id":"om_x100b62a8040fbca0ff5678cd5dbb4c4","fp":"8b2a6fa93d18","model":"claude-opus-5-5","effort":"low","kind":"change","risk":[],"pending":false,"why":"aven 交办按话题结论隐藏直播间礼物入口"}
+{"id":"om_x100b62abe7d478a4eedeab72b0063a6","fp":"685aedcc9dc1","model":"claude-opus-5-5","effort":"low","kind":"change","risk":[],"pending":false,"why":"后端通知 symbol/list 改走 hichat，前端改调用路径"}
+{"id":"om_x100b6294662c00a0ed398da108fd4fd","fp":"f757033ff25f","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":[],"pending":false,"why":"让查 pre 部署的前端是否最新、接口是否已走 hichat"}
+{"id":"om_x100b6295662664b4ffdafa10a063d79","fp":"127fd897815a","model":"claude-opus-5-5","effort":"low","kind":"ops","risk":["permission"],"pending":false,"why":"确认继续 Bug-4927 复测，问题是登录失败"}
+{"id":"om_x100b6296715848a8eedf3480308f79a","fp":"fd2be374ce17","model":"claude-opus-5-5","effort":"low","kind":"change","risk":["permission"],"pending":false,"why":"主播角色账号看不到「我要开播」入口，需前端补功能"}
+{"id":"om_x100b62962d598ca0ed670076360a71e","fp":"7f85653a79c8","model":"claude-opus-5-5","effort":"low","kind":"question","risk":[],"pending":false,"why":"要 bot 确认 x9 有没有开播功能、API 是否 ready"}
+{"id":"om_x100b629629fde934eed5dcbe32c8388","fp":"f2d719b7dc80","model":"claude-opus-5-5","effort":"low","kind":"record","risk":[],"pending":false,"why":"后端告知 live 侧开播 API 已有"}
+{"id":"om_x100b6296c06434a4ed52d4f73a4c676","fp":"d7d369728356","model":"claude-opus-5-5","effort":"low","kind":"change","risk":[],"pending":false,"why":"截图报广场发帖功能未接上，需前端补齐"}
+{"id":"om_x100b6296897fe8a4ffb760099cadc79","fp":"c19722557b65","model":"claude-opus-5-5","effort":"low","kind":"ops","risk":["permission"],"pending":false,"why":"确认继续用旧账号复测登录 bug"}
+{"id":"om_x100b629683845ca0eed43bf0bf876b7","fp":"bdb16ed4a75c","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":["permission"],"pending":false,"why":"提供嗨聊老账号密码，用于复测登录 bug"}
+{"id":"om_x100b6297496514a0eedb2d40802ce55","fp":"ebae2249fc6f","model":"claude-opus-5-5","effort":"low","kind":"question","risk":[],"pending":false,"why":"后端索要签到接口报错的复现 curl"}
+{"id":"om_x100b62975d6504a4eed050088a10b7c","fp":"78d8f6410df3","model":"claude-opus-5-5","effort":"low","kind":"record","risk":[],"pending":false,"why":"设计告知开播/预约开播 Figma 稿已适配"}
+{"id":"om_x100b629759a0d0a8fe208a1497f5662","fp":"15dbede3d0e4","model":"claude-opus-5-5","effort":"low","kind":"ops","risk":[],"pending":false,"why":"确认扩大开播迁移范围，并让评估放行文件、要不要出稿"}
+{"id":"om_x100b62977f14b0a0ed61ecb9b818aa4","fp":"587f99137530","model":"claude-opus-5-5","effort":"low","kind":"record","risk":[],"pending":false,"why":"告知功能表从一开始就漏了开播功能，cc 产品"}
+{"id":"om_x100b62971fb870a0ff9a2628d689a4e","fp":"e4aa137d70d2","model":"claude-opus-5-5","effort":"low","kind":"change","risk":[],"pending":false,"why":"产品定口径：介绍限 200 字符、最多两行、超出省略，要前端照做"}
+{"id":"om_x100b62906c0d78a0ed578dd434794fb","fp":"f4e4a8c9fb08","model":"claude-opus-5-5","effort":"low","kind":"chat","risk":[],"pending":false,"why":"只 @ 了一下，没写具体诉求"}
+{"id":"om_x100b6284492c8534ed43097d036cd87","fp":"dfda9ff26dc7","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":[],"pending":false,"why":"报 pre 不能发帖评论，要去环境查原因"}
+{"id":"om_x100b6284c03b3ca8ed4944bad0b66c5","fp":"ce702ea97949","model":"claude-opus-5-5","effort":"low","kind":"record","risk":[],"pending":false,"why":"后端答复不给语言参数，前端写死中英两项并显示国旗"}
+{"id":"om_x100b6285479f04a0ffe0160347de965","fp":"08aa86ae4c62","model":"claude-opus-5-5","effort":"low","kind":"chat","risk":[],"pending":false,"why":"只 @ 了一下，父消息是空的"}
+{"id":"om_x100b62857ac6a4a4fe12fda92d313e9","fp":"ce8383a7c4e5","model":"claude-opus-5-5","effort":"low","kind":"change","risk":[],"pending":false,"why":"交办从 x9 迁移社区的发帖、评论功能，接口已就绪"}
+{"id":"om_x100b628755fb14a4ed5b0e078f6c6cc","fp":"99af92052029","model":"claude-opus-5-5","effort":"low","kind":"change","risk":[],"pending":false,"why":"web 开播 createRoom 500，属于前端缺陷要修"}
+{"id":"om_x100b628067d6fca0ed56131249a8f8d","fp":"340dcfe59200","model":"claude-opus-5-5","effort":"low","kind":"chat","risk":[],"pending":false,"why":"只 @ 打个招呼，没有新诉求"}
+{"id":"om_x100b6283e1512ca0eed52b48098f8fa","fp":"5473061d32f7","model":"claude-opus-5-5","effort":"low","kind":"question","risk":["money"],"pending":false,"why":"让 bot 说明读帖积分任务的判定口径和依据"}
+{"id":"om_x100b62f0d51c94a0ffc88e81df34b24","fp":"9495cbbfd914","model":"claude-opus-5-5","effort":"low","kind":"record","risk":[],"pending":false,"why":"定下 bugpoll 规则：空单直接忽略、跳过就行"}
+{"id":"om_x100b62f35ff42ca4ed3f669c7b22368","fp":"2db87ad06b00","model":"claude-opus-5-5","effort":"low","kind":"change","risk":[],"pending":false,"why":"后端已正常，页面仍异常，请前端排查修复"}
+{"id":"om_x100b62fc7a2060a4eed44f2ab9ebe13","fp":"c195532ede7d","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":[],"pending":true,"why":"后端处理后要求在 pre 复测 Bug-4942 并报结果"}
+{"id":"om_x100b62fc1a1084a0ed416521b0dee2d","fp":"f52bde0899e2","model":"claude-opus-5-5","effort":"low","kind":"question","risk":[],"pending":false,"why":"质疑复测结论，问存读一致有什么问题"}
+{"id":"om_x100b62f883ab54a0eedc53d11baac66","fp":"75d9104e875f","model":"claude-opus-5-5","effort":"low","kind":"question","risk":[],"pending":false,"why":"问转义问题到底算不算 bug"}
+{"id":"om_x100b62f94d494ca0ed461fca3e5b201","fp":"dd4e02f51c63","model":"claude-opus-5-5","effort":"low","kind":"question","risk":[],"pending":false,"why":"要测试用的帖子 tid"}
+{"id":"om_x100b62f9593808a0ed42e0a526186a4","fp":"96da2f125bfd","model":"claude-opus-5-5","effort":"low","kind":"question","risk":[],"pending":false,"why":"空 @，延续索要测试 tid"}
+{"id":"om_x100b62f96be7f8a4ed44dbc6f75d5a1","fp":"3222a4acafe3","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":["irreversible"],"pending":false,"why":"在 pre 新发帖重测翻译/识图，共享环境写数据"}
+{"id":"om_x100b62db3fbded30ed373bf1a606e43","fp":"edc61e64cc3a","model":"claude-opus-5-5","effort":"low","kind":"question","risk":[],"pending":false,"why":"问接口属于哪个模块、谁负责对接"}
+{"id":"om_x100b62db3bbb04a0ed69b84a9ab46d8","fp":"57c0df1eb9e1","model":"claude-opus-5-5","effort":"low","kind":"change","risk":[],"pending":false,"why":"按新文档对接换头像接口并出反馈"}
+{"id":"om_x100b62db36249130ed4b169e5c8eaa0","fp":"4d05dde9a9a7","model":"claude-opus-5-5","effort":"low","kind":"question","risk":["money"],"pending":false,"why":"问兑换是否应先调兑换 API 再跳转"}
+{"id":"om_x100b62db3152c8a0ed37073f09ac193","fp":"cae1891fe669","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":["money","permission"],"pending":false,"why":"给账号密码复测商城兑换 Bug-4988"}
+{"id":"om_x100b62dbcb730ca0ed653e2cfafed2f","fp":"4e21f4b046b9","model":"claude-opus-5-5","effort":"low","kind":"chat","risk":[],"pending":false,"why":"仅 cc Arthur，无需机器人做事"}
+{"id":"om_x100b62dbc28b94bceed70d5e345b030","fp":"f48e544fa230","model":"claude-opus-5-5","effort":"low","kind":"change","risk":[],"pending":false,"why":"后端要求 web 换头像改调 Go 新接口"}
+{"id":"om_x100b62dbc1c2c0a0ffb48844b3bb166","fp":"dd87b32f9752","model":"claude-opus-5-5","effort":"low","kind":"record","risk":[],"pending":false,"why":"只贴了一张图（新接口文档截图），供参考"}
+{"id":"om_x100b62dbc11060d8eede7ac6ed961e2","fp":"bf1255c26452","model":"claude-opus-5-5","effort":"low","kind":"question","risk":[],"pending":false,"why":"问后端这份是不是新接口文档"}
+{"id":"om_x100b62dbde9300a0ed4bce2d8ac2dfa","fp":"61115a93b369","model":"claude-opus-5-5","effort":"low","kind":"record","risk":[],"pending":false,"why":"后端确认文档就是这份"}
+{"id":"om_x100b62dbda4348b0ed4c4abb604e67d","fp":"494e81494193","model":"claude-opus-5-5","effort":"low","kind":"record","risk":[],"pending":false,"why":"告知该模块由 Henry 跟进，是分工信息"}
+{"id":"om_x100b62c4314b9ca8eeda32f4dbbbffd","fp":"44154a0fd043","model":"claude-opus-5-5","effort":"low","kind":"change","risk":[],"pending":false,"why":"头像功能改由 aven 负责，按文档开始对接"}
+{"id":"om_x100b62c5538774a4ed567924b67b34c","fp":"a68cca3a6eb9","model":"claude-opus-5-5","effort":"low","kind":"change","risk":[],"pending":false,"why":"侧栏和正在直播里标签 icon 显示不一致，要修"}
+{"id":"om_x100b62c568e290a0ed4048931e27fa4","fp":"a290dc077696","model":"claude-opus-5-5","effort":"low","kind":"change","risk":[],"pending":false,"why":"symbol/list 换了新地址，前端要改用新地址"}
+{"id":"om_x100b62c5e706f0a0ed6d18be6350ff1","fp":"9cee38272717","model":"claude-opus-5-5","effort":"low","kind":"change","risk":[],"pending":false,"why":"threadsCount 帖子封面图要补上图片解密"}
+{"id":"om_x100b62c5b37208a4ed4f70429e7ed15","fp":"72199e227fbd","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":["permission"],"pending":false,"why":"在 pre 上测真实验证码，涉及注册登录"}
+{"id":"om_x100b62c6d4aad4a0ed3d2b27cc325da","fp":"895f91828aa2","model":"claude-opus-5-5","effort":"low","kind":"change","risk":[],"pending":false,"why":"后端催接入 Go 头像新接口，接完通知他"}
+{"id":"om_x100b62c6e207a8a0eed0d0117df3ac3","fp":"8c4eda7b023b","model":"claude-opus-5-5","effort":"low","kind":"record","risk":[],"pending":false,"why":"说明前端已接好、接口报 404，cc 后端"}
+{"id":"om_x100b62c6e32628a8ed4683279553ea1","fp":"e935352c9862","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":["irreversible"],"pending":false,"why":"后端已发布，让 bot 重新对接复测头像上传（会在 pre 写数据）"}
+{"id":"om_x100b62c6fe08e4a0ed6cbbb32f08e18","fp":"4979b3f9748f","model":"claude-opus-5-5","effort":"low","kind":"record","risk":[],"pending":false,"why":"aven 告知 Arthur 这类问题直接找 bot，属于分工口径"}
+{"id":"om_x100b62c6b7ab18a0ed6691de39f13a4","fp":"e3431da6cbbf","model":"claude-opus-5-5","effort":"low","kind":"question","risk":[],"pending":false,"why":"问 bot 说的文档链接在哪"}
+{"id":"om_x100b62c785b43ca4fe0ac414c4f9abc","fp":"f5542523c8ff","model":"claude-opus-5-5","effort":"low","kind":"ops","risk":["status"],"pending":true,"why":"aven 说已部署，触发 pre 复测并把待推版改成已推版"}
+{"id":"om_x100b62c03aa350a0ed37e263c480cd1","fp":"9471d36f9f24","model":"claude-opus-5-5","effort":"low","kind":"chat","risk":[],"pending":false,"why":"只是 cc 后端，不需要 bot 做事"}
+{"id":"om_x100b62c03b9a34aced5babdbb308158","fp":"a52291f46aba","model":"claude-opus-5-5","effort":"low","kind":"chat","risk":[],"pending":false,"why":"后端回复正在处理，属于确认收到"}
+{"id":"om_x100b62c1ec5ee0a4ed6ade7eaab85db","fp":"0f7791e54a99","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":[],"pending":false,"why":"空 @ 接着上次的事，让 bot 复测行情列表接口"}
+{"id":"om_x100b613162deaca4ffca709b163a6f3","fp":"c6fef48efa37","model":"claude-opus-5-5","effort":"low","kind":"ops","risk":["status"],"pending":true,"why":"已发布等同于已部署，走复测和改 bug 状态"}
+{"id":"om_x100b61317d91a8a8ffaf85949d657d4","fp":"2a3f2c17ebcc","model":"claude-opus-5-5","effort":"low","kind":"ops","risk":["status"],"pending":true,"why":"已部署，触发 pre 复测并改已推版"}
+{"id":"om_x100b61338791e0a8ed3719e16d756ea","fp":"86c0908f9e58","model":"claude-opus-5-5","effort":"low","kind":"question","risk":["permission"],"pending":false,"why":"要 Bug-4970 旧账号登录的复现 curl"}
+{"id":"om_x100b6133904a8ca0eedb2ac2b7bcc4c","fp":"0fc1566e8e68","model":"claude-opus-5-5","effort":"low","kind":"question","risk":[],"pending":false,"why":"问卡片里说的文档链接在哪"}
+{"id":"om_x100b613c0dcc3538fe17a86835e6172","fp":"25b18633a5f7","model":"claude-opus-5-5","effort":"low","kind":"change","risk":[],"pending":false,"why":"按 Figma 走查标注改 UI，打不开就要权限"}
+{"id":"om_x100b613d351128a0ff6f5e3c76e06d2","fp":"954db427a654","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":["permission"],"pending":false,"why":"后端已把508设为主播，要在pre复测主播身份和流程"}
+{"id":"om_x100b613dceea2cacff9a53996da700f","fp":"343c67f818c2","model":"claude-opus-5-5","effort":"low","kind":"question","risk":["permission"],"pending":false,"why":"后端要发帖 500 的账号去查日志，涉及账号密码"}
+{"id":"om_x100b613dc0f008a0ffd4010dda62627","fp":"76c9f3227da1","model":"claude-opus-5-5","effort":"low","kind":"record","risk":[],"pending":false,"why":"后端答复 AI 识图是服务端功能，web 不用对接"}
+{"id":"om_x100b612dd319d0a0ed650450a70632a","fp":"6e76fec40b76","model":"claude-opus-5-5","effort":"low","kind":"record","risk":[],"pending":false,"why":"告知未配+84区号，暂不支持，记下即可"}
+{"id":"om_x100b612f9e03f8a0fe2bf3f6e03cd66","fp":"f30e1b73e148","model":"claude-opus-5-5","effort":"low","kind":"ops","risk":["status"],"pending":true,"why":"已部署，复测本次提交并改已推版"}
+{"id":"om_x100b61282147e8a0fe1645ba2896f5c","fp":"9b6e4d271466","model":"claude-opus-5-5","effort":"low","kind":"question","risk":["irreversible"],"pending":false,"why":"要bot给出bug详情并在群里@相关人"}
+{"id":"om_x100b6128e240eca0ffd8360fc5e55ec","fp":"e948907a14b4","model":"claude-opus-5-5","effort":"low","kind":"ops","risk":["status"],"pending":true,"why":"已部署，重新复测并改已推版"}
+{"id":"om_x100b61292d1cb0a0fe10cefbcde0e47","fp":"beb60f3080b8","model":"claude-opus-5-5","effort":"low","kind":"ops","risk":["status"],"pending":true,"why":"已部署，记部署状态并把待推版改成已推版"}
+{"id":"om_x100b611a54a5a0a4ffd705496c948a3","fp":"ec8788c3fac6","model":"claude-opus-5-5","effort":"low","kind":"question","risk":[],"pending":false,"why":"问Ache能否现在给信息，不能就先按已有部分发"}
+{"id":"om_x100b611a6e8c04a0ff5684b98c56364","fp":"25a8c81d65d7","model":"claude-opus-5-5","effort":"low","kind":"record","risk":[],"pending":false,"why":"Ache给出UAT和OL前台域名"}
+{"id":"om_x100b611a6fdb94a0ff5c2ea0ff2d468","fp":"02222de54408","model":"claude-opus-5-5","effort":"low","kind":"record","risk":[],"pending":false,"why":"告知PRE内网请求还要等后面再试"}
+{"id":"om_x100b611a6a330934fff811834dd0cef","fp":"d8eda70bba2e","model":"claude-opus-5-5","effort":"low","kind":"chat","risk":[],"pending":false,"why":"确认收到，嘱咐有更新再同步"}
+{"id":"om_x100b611a695494a4ff9e2b5cfc5cfd8","fp":"377da6452814","model":"claude-opus-5-5","effort":"low","kind":"record","risk":[],"pending":false,"why":"Ache 告知先跟运维对 pre 内网配置，弄好再通知改"}
+{"id":"om_x100b611aa5e028b4ffb1a3e4ef09207","fp":"d510e0400803","model":"claude-opus-5-5","effort":"low","kind":"question","risk":[],"pending":false,"why":"让 bot 详细解答 /hc-ws 反代用途和连接方式"}
+{"id":"om_x100b611b4eb6d0a0fe1607007fb4451","fp":"d11a74fa8503","model":"claude-opus-5-5","effort":"low","kind":"chat","risk":[],"pending":false,"why":"只是 cc Encone"}
+{"id":"om_x100b611bef3ef13cffe06f1976200ab","fp":"a1c6c2b30861","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":[],"pending":true,"why":"aven 说 web 已更新到 uat，触发复测"}
+{"id":"om_x100b610597c584a0ed9a085c0b02070","fp":"f88fae3d1317","model":"claude-opus-5-5","effort":"low","kind":"ops","risk":["status"],"pending":true,"why":"约定 Go 上 pre 后回复，bot 去复测并改已推版"}
+{"id":"om_x100b61059212b4a0ed0ae3d4168702a","fp":"90e6b4d47f4c","model":"claude-opus-5-5","effort":"low","kind":"chat","risk":[],"pending":false,"why":"mainly @Arthur 催办，bot 无事可做"}
+{"id":"om_x100b6106d6a944a4ed8e9ef8fa5fdd3","fp":"fadd240bad97","model":"claude-opus-5-5","effort":"low","kind":"chat","risk":[],"pending":false,"why":"只是 cc World"}
+{"id":"om_x100b6106d0ec84a4ed8b98727d62b5b","fp":"6c410ac31ee7","model":"claude-opus-5-5","effort":"low","kind":"chat","risk":[],"pending":false,"why":"cc Arthur 催 P0 bug，不需要 bot 做事"}
+{"id":"om_x100b6106d02e00a0eda8bbdc737319c","fp":"3ee368ce8ef7","model":"claude-opus-5-5","effort":"low","kind":"record","risk":[],"pending":false,"why":"告知前端已改好"}
+{"id":"om_x100b6106826fa930edaab4fef79e798","fp":"3f27a49b800c","model":"claude-opus-5-5","effort":"low","kind":"question","risk":["permission"],"pending":false,"why":"Arthur 问注册登录时要不要返回游客 token"}
+{"id":"om_x100b61069ac3a4a4ed0ae1fe204b421","fp":"843c84638cbc","model":"claude-opus-5-5","effort":"low","kind":"question","risk":["permission"],"pending":false,"why":"aven 让 bot 详细回答 guest_token 转发问题"}
+{"id":"om_x100b610691d304a4ed95864a91d2327","fp":"daed2c9425a2","model":"claude-opus-5-5","effort":"low","kind":"record","risk":[],"pending":false,"why":"mainly 向 Arthur 说明 guest_token 传法并附文档"}
+{"id":"om_x100b6106aec7b4a4eee2c43a46a1719","fp":"f0af371c72ad","model":"claude-opus-5-5","effort":"low","kind":"chat","risk":[],"pending":false,"why":"Arthur 只回了个「好」，表示收到 Go 侧要做的事"}
+{"id":"om_x100b610761429caced08f8652f7b0e2","fp":"983e1d844210","model":"claude-opus-5-5","effort":"low","kind":"question","risk":[],"pending":false,"why":"请 bot 解释 uat 发验证码为什么调 php 老接口"}
+{"id":"om_x100b61070eeae4a8edab9343306731d","fp":"431ba971f1a6","model":"claude-opus-5-5","effort":"low","kind":"change","risk":["permission"],"pending":false,"why":"要在 uat 前端打开 Go 登录注册，涉及登录链路"}
+{"id":"om_x100b61070fb0c8a4ed03a9ead703ed4","fp":"c71fab69d63a","model":"claude-opus-5-5","effort":"low","kind":"chat","risk":[],"pending":false,"why":"只是要求做完后同步，没有新任务"}
+{"id":"om_x100b61070cdea4a8eee938196845649","fp":"dd986705d013","model":"claude-opus-5-5","effort":"low","kind":"chat","risk":[],"pending":false,"why":"对方说自己再测一下，机器人不用做事"}
+{"id":"om_x100b6107c4a7e8a0eda2415781b1b74","fp":"619e8bf59937","model":"claude-opus-5-5","effort":"low","kind":"question","risk":[],"pending":false,"why":"追问线上为什么没有 bbsv2 请求"}
+{"id":"om_x100b6107c46f88a4eda1bb42ed77784","fp":"b5209d4f04ae","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":["status"],"pending":false,"why":"核实 web 有没有调直播任务完成上报接口"}
+{"id":"om_x100b6107eb2048a0ed0bb4926531c41","fp":"8f1fc038935c","model":"claude-opus-5-5","effort":"low","kind":"change","risk":["permission"],"pending":false,"why":"反馈 uat 登录接口和 pre 不一致，要求修好"}
+{"id":"om_x100b61004626ccb8ed05e4428317895","fp":"8e4645e9f949","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":["permission","irreversible"],"pending":true,"why":"Go 修复已发 pre，请复测游客注册后聊天是否转到新号"}
+{"id":"om_x100b6100d5fcb0a4ed81b29ea358b2d","fp":"00735aa39d65","model":"claude-opus-5-5","effort":"low","kind":"question","risk":["permission"],"pending":false,"why":"问注册验证码现在去哪看，一直注册不成功"}
+{"id":"om_x100b6100d304b0a8eeea95385d24939","fp":"a39a6b589427","model":"claude-opus-5-5","effort":"low","kind":"record","risk":[],"pending":false,"why":"回复 Bug-5022 说可能没有记录，只是告知"}
+{"id":"om_x100b6100ecd75ca4ed8b97e70c2f1f4","fp":"727b3e0f3913","model":"claude-opus-5-5","effort":"low","kind":"chat","risk":[],"pending":false,"why":"HTStone 在问 mainly 邮箱注册成没成功，不是问 bot"}
+{"id":"om_x100b6100e093b8a4eeefb1d94527e7a","fp":"b02cbc47920c","model":"claude-opus-5-5","effort":"low","kind":"record","risk":["permission"],"pending":false,"why":"mainly 告诉 HTStone 后台看不到邮箱验证码，是在反馈事实，不是要 bot 动手"}
+{"id":"om_x100b6100febfd0a0ed9d20cbe79294d","fp":"7a8586587eed","model":"claude-opus-5-5","effort":"low","kind":"record","risk":["permission"],"pending":false,"why":"HTStone 说明拿不到验证码，可以用临时邮箱直接收信"}
+{"id":"om_x100b6100fe7488a0eda2e493b11bfc6","fp":"b39ed23aec2f","model":"claude-opus-5-5","effort":"low","kind":"record","risk":["permission"],"pending":false,"why":"HTStone 说明这一步实测过，能收到验证码邮件"}
+{"id":"om_x100b6100fd7040a0ed0d68b26c9c800","fp":"1710d910a796","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":[],"pending":false,"why":"后端说 OL 的 host 改了，bot 去核对接口通不通"}
+{"id":"om_x100b6100fa96b8a0ed9f239e1a5022b","fp":"d43ca8ca8b79","model":"claude-opus-5-5","effort":"low","kind":"record","risk":["permission"],"pending":false,"why":"aven 建议复测时用邮箱注册，更顺"}
+{"id":"om_x100b6102276478a0eee7b4b8465c62b","fp":"3496e16bf4af","model":"claude-opus-5-5","effort":"low","kind":"question","risk":["permission"],"pending":false,"why":"问 Google 登录按钮为什么是空的"}
+{"id":"om_x100b6102eca214a0ed9f5fdfca61464","fp":"4d4143886b99","model":"claude-opus-5-5","effort":"low","kind":"change","risk":["permission"],"pending":false,"why":"把 uat/OL 的 Google 登录 client_id 换成新值"}
+{"id":"om_x100b6102e415dca0ed9cc434d72df9f","fp":"8eeff8a84ccd","model":"claude-opus-5-5","effort":"low","kind":"change","risk":["permission"],"pending":false,"why":"交办更新 client_id，并改成按环境配置、方便以后切换"}
+{"id":"om_x100b61029a506380edade28e6a3b130","fp":"46c291ca75a9","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":["permission"],"pending":false,"why":"后端说授权来源已加，bot 去核对 Google 登录能不能用"}
+{"id":"om_x100b6177d8a13cacff5fc67ecb864a1","fp":"be29d5aa0510","model":"claude-opus-5-5","effort":"low","kind":"ops","risk":["irreversible"],"pending":false,"why":"要求把全部功能打包部署到 uat 和 OL"}
+{"id":"om_x100b617786100ca0ff6b1db92350c34","fp":"7f40caedc44d","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":[],"pending":false,"why":"后端说 nginx 已补上 /hc-ws 转发，要去 uat 复测行情推送"}
+{"id":"om_x100b617784d30ca0ffcef5a90e4c409","fp":"4c2948486fd8","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":[],"pending":false,"why":"William 让再测一下 uat 的 /hc-ws 行情推送"}
+{"id":"om_x100b61709e7ea8a0fff406216b67dde","fp":"4d28dbb12f8c","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":[],"pending":false,"why":"William 请 bot 在 OL 复测 /hc-ws 握手，不是部署后自动复测"}
+{"id":"om_x100b617297b1f8a8ed91ec58d04e660","fp":"76c1b4bb1e7c","model":"claude-opus-5-5","effort":"low","kind":"question","risk":["permission"],"pending":false,"why":"问注册带 guest_token 的前端代码是否已在 uat"}
+{"id":"om_x100b617ee9cc04a4eeef84e99337e3d","fp":"f49dc7024317","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":[],"pending":false,"why":"要 bot 看 OL member/info 接口返回"}
+{"id":"om_x100b617eff5ea4a4ed04600bc21fcd8","fp":"f56dd22187d9","model":"claude-opus-5-5","effort":"low","kind":"chat","risk":[],"pending":false,"why":"aven 贴图并 @ 后端、cc 相关人，bot 不用做事"}
+{"id":"om_x100b617ef5885ca0ed87e0a531e4598","fp":"557cc8fdf57c","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":["permission"],"pending":false,"why":"需登录账号后看 OL 个人资料接口返回"}
+{"id":"om_x100b617f63ee0ca0ff60005c7683910","fp":"23cd0ff7d5ed","model":"claude-opus-5-5","effort":"low","kind":"chat","risk":[],"pending":false,"why":"只回了一张截图，没有要 bot 做的事"}
+{"id":"om_x100b617f7f0644a0eda2a9a8d16c959","fp":"28568884a19a","model":"claude-opus-5-5","effort":"low","kind":"chat","risk":[],"pending":false,"why":"@ 后端、cc 相关人，转给后端处理"}
+{"id":"om_x100b6179153170a0fff1b7b426297ed","fp":"b29fd4b44821","model":"claude-opus-5-5","effort":"low","kind":"question","risk":["money"],"pending":false,"why":"让 bot 结合补充信息整体分析任务积分问题"}
+{"id":"om_x100b61793eec0ca0ffb1ef2c13d396a","fp":"976dd778b4c9","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":["permission"],"pending":false,"why":"给了账号密码，让机器人登录 online 查任务接口"}
+{"id":"om_x100b6179e91a04a0fe0fbe736d1a652","fp":"19a019f6e5c5","model":"claude-opus-5-5","effort":"low","kind":"chat","risk":[],"pending":false,"why":"请后端看接口，bot 不用做事"}
+{"id":"om_x100b616e8f20a0a8ff785f8bff8065f","fp":"4b75834d97e6","model":"claude-opus-5-5","effort":"low","kind":"question","risk":["permission"],"pending":false,"why":"查 online 的 Google 登录加载失败，并问 pre/uat 之前怎么解决的"}
+{"id":"om_x100b616e823424a0fe2395cf3fe4f73","fp":"f5b29b277806","model":"claude-opus-5-5","effort":"low","kind":"change","risk":["money","status"],"pending":false,"why":"前端改资料成功后要调任务完成接口拿积分"}
+{"id":"om_x100b616e9d6170a8fe1f7fa18a5f09d","fp":"b793a4391c20","model":"claude-opus-5-5","effort":"low","kind":"chat","risk":[],"pending":false,"why":"只是 cc Kaiser，不需要机器人做事"}
+{"id":"om_x100b616e961fc8a8ffe88c4e6f6a4b8","fp":"733f8ac137f8","model":"claude-opus-5-5","effort":"low","kind":"change","risk":["status"],"pending":false,"why":"要求前端在资料修改成功后调用任务完成接口"}
+{"id":"om_x100b616e925610a4ffbb7d386182f72","fp":"5fcd1adc9425","model":"claude-opus-5-5","effort":"low","kind":"record","risk":[],"pending":false,"why":"补发接口截图，回应机器人缺的信息"}
+{"id":"om_x100b616e90ca7ca0ffc339b5f998b23","fp":"c1237b207c61","model":"claude-opus-5-5","effort":"low","kind":"chat","risk":[],"pending":false,"why":"请 Arthur 补信息，是对人说的"}
+{"id":"om_x100b616e9106eca0fe1fb4f074bdc08","fp":"0be581c95a7f","model":"claude-opus-5-5","effort":"low","kind":"chat","risk":[],"pending":false,"why":"半句话，没有可执行的内容"}
+{"id":"om_x100b616eaece7ca0ff7dfb82fd7b6fb","fp":"9a719528428a","model":"claude-opus-5-5","effort":"low","kind":"change","risk":["status","money"],"pending":false,"why":"定了完善资料任务的完成上报时机，关系到积分"}
+{"id":"om_x100b616eae17cca0ffae11afca46628","fp":"1486ef71f3f6","model":"claude-opus-5-5","effort":"low","kind":"chat","risk":[],"pending":false,"why":"只 @ 了人和机器人，没有内容"}
+{"id":"om_x100b616eacec1ca4ff72fccddf22ca8","fp":"f2b4d7c43f9c","model":"claude-opus-5-5","effort":"low","kind":"chat","risk":[],"pending":false,"why":"让大家联系 Adrian，是对人说的"}
+{"id":"om_x100b616ebe4e00a8ff6ddc83b1b0427","fp":"83ace94e28e7","model":"claude-opus-5-5","effort":"low","kind":"chat","risk":[],"pending":false,"why":"Adrian 请 Arthur 描述清楚，是人与人之间的沟通"}
+{"id":"om_x100b616ebcd6fca0ff791afc31a1f8e","fp":"6fd73e5d55f5","model":"claude-opus-5-5","effort":"low","kind":"record","risk":["status"],"pending":false,"why":"重复说明任务完成上报的触发规则"}
+{"id":"om_x100b616ebdfe24a0fe2070c0b9f71be","fp":"317c1d1b132b","model":"claude-opus-5-5","effort":"low","kind":"chat","risk":[],"pending":false,"why":"只 @ 了 Adrian"}
+{"id":"om_x100b616f84f74ca0eee30d95ed4c87f","fp":"f9bb2775a1bd","model":"claude-opus-5-5","effort":"low","kind":"question","risk":[],"pending":false,"why":"问 UAT 上回复评论走的是哪个后端接口"}
+{"id":"om_x100b61681e074cb4eda05c6e7c9eab7","fp":"601fdd199698","model":"claude-opus-5-5","effort":"low","kind":"ops","risk":["status"],"pending":false,"why":"任务控制：线下对接好就让 bot 不再刷新这条 bug 的状态和备注"}
+{"id":"om_x100b616b132e9ca0ed8872eec5b73f2","fp":"c806150698ae","model":"claude-opus-5-5","effort":"low","kind":"ops","risk":["permission"],"pending":false,"why":"要机器人把测试账号密码发给他"}
+{"id":"om_x100b616bff6088a0eda274a63f5e917","fp":"b09afda728d0","model":"claude-opus-5-5","effort":"low","kind":"record","risk":[],"pending":false,"why":"后端告知日志里查不到该请求 ID、链路正常，记下结论"}
+{"id":"om_x100b6154619dcca4fe1bc93461061e6","fp":"b9bff85676eb","model":"claude-opus-5-5","effort":"low","kind":"ops","risk":["irreversible"],"pending":true,"why":"核对改动已合进 online 后直接部署 online"}
+{"id":"om_x100b61543053d8a4ff5156d6feda8fc","fp":"d6ce32a262f6","model":"claude-opus-5-5","effort":"low","kind":"ops","risk":["irreversible"],"pending":true,"why":"让机器人把部署复测结果发到群里"}
+{"id":"om_x100b6154d2778938ffcb84cf086171d","fp":"0a3a1eed8547","model":"claude-opus-5-5","effort":"low","kind":"question","risk":[],"pending":true,"why":"问 online 复测结果有没有发到群里"}
+{"id":"om_x100b6154e914e4a4ffbf75be6e461b7","fp":"35e97c33cf49","model":"claude-opus-5-5","effort":"low","kind":"question","risk":[],"pending":true,"why":"追问部署复测结果为何没发PHP后端群，属复测结果发群链路的问询"}
+{"id":"om_x100b6154885f40a0ed09cb636bcf1d9","fp":"5e8ed564c276","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":["money","irreversible"],"pending":false,"why":"要在生产测评论任务完成和积分到账，需在生产做写操作"}
+{"id":"om_x100b61b68d9d18a4edaadea92c63787","fp":"ec3519c3ca23","model":"claude-opus-5-5","effort":"low","kind":"record","risk":[],"pending":false,"why":"后端告知代码已修并给出技术文档链接"}
+{"id":"om_x100b61b30a7938a4ed9bd39aa9319b3","fp":"47a19d810983","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":["money","irreversible"],"pending":false,"why":"后端说已更新到 OL，请在生产验证评论任务和积分到账"}
+{"id":"om_x100b61bf09846ca4ed00ed593326837","fp":"a3e7db192a38","model":"claude-opus-5-5","effort":"low","kind":"ops","risk":[],"pending":false,"why":"项目已上线，暂停生成和发送日报"}
+{"id":"om_x100b62414346c0a8ff5d3c81421b3a8","fp":"769fffb721e5","model":"claude-opus-5-5","effort":"low","kind":"verification","risk":[],"pending":false,"why":"确认接手 pre 更新后复测 preload 问题"}
+{"id":"om_x100b62947cee14a8ffe0dd0cb660733","fp":"e8eb638112ca","model":"claude-opus-5-5","effort":"low","kind":"ops","risk":[],"pending":false,"why":"控制任务：确认继续跑马灯接口任务"}
+{"id":"om_x100b612916b3c8a0ed3b215e1ee9885","fp":"9d8a2633c723","model":"claude-opus-5-5","effort":"low","kind":"question","risk":["money"],"pending":false,"why":"问权益兑换接口的请求头里有没有带 X-Hc-Uid"}
