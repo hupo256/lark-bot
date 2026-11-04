@@ -17,7 +17,7 @@ writeFileSync(join(dir, 'runtime', 'persona', 'aven.md'), '# 口吻\n\n短句、
 process.env.LARK_RUNTIME_DIR = join(dir, 'runtime')
 const { buildOutcome, detailDocOf, mapStatusForContract, outcomeFromWorkerFailure, outcomeHeadline, runEvidenceFor } = await import('../lib/lark-run-report.mjs')
 const { buildGroupReplyPassPrompt, owesGroupReply, runGroupReplyPass } = await import('../lib/lark-group-reply-pass.mjs')
-const { ANSWER_MODE_BLOCK, DELIVER_NOW_RULE, VERIFICATION_MODE_BLOCK, buildCarryOverBlock, buildEnvProbeRule } = await import('../lib/lark-worker-modes.mjs')
+const { ANSWER_MODE_BLOCK, DELIVER_NOW_RULE, VERIFICATION_MODE_BLOCK, buildAnswerEnvRule, buildCarryOverBlock, buildEnvProbeRule } = await import('../lib/lark-worker-modes.mjs')
 const { buildTaskPromptParts } = await import('../lib/lark-worker-prompts.mjs')
 const { applyEnvCheck, checkEnvTarget, envTargetLine, hostOf, resolveEnvTargets, touchedEnvs } = await import('../lib/lark-env-target.mjs')
 const { buildIntentClassificationPrompt, describeSender, formatTaskAttachments, readPersona } = await import('../lib/lark-classify-prompt.mjs')
@@ -241,9 +241,19 @@ describe('worker 侧对话层：outcome / 契约映射 / 群回复补写 / 模�
       })
     }],
     ['buildEnvProbeRule：只认非空字符串地址；一个都没有就说明没配环境地址；只放开登录 POST（aven 11-04）', () => {
-      assert.match(buildEnvProbeRule({ test: 'https://test.example.com', pre: ' ', uat: 5, online: null }), /上下文说哪个环境就测哪个：test https:\/\/test\.example\.com。.*只发 GET，唯一例外是为拿登录态（token \/ cookie）发登录 POST；不注册、不下单、不改任何数据。$/)
-      assert.match(buildEnvProbeRule({ test: 'https://t', pre: 'https://p' }), /test https:\/\/t、pre https:\/\/p/)
+      assert.match(buildEnvProbeRule({ test: 'https://test.example.com', pre: ' ', uat: 5, online: null }), /上下文说哪个环境就测哪个：test https:\/\/test\.example\.com；只打上面这些地址.*只发 GET，唯一例外是为拿登录态（token \/ cookie）发登录 POST；不注册、不下单、不改任何数据。$/)
+      assert.match(buildEnvProbeRule({ test: 'https://t', pre: 'https://p' }), /test https:\/\/t、pre https:\/\/p；只打上面这些地址（含同主域子站），上游 \/ 合作方的域名（如 hichat 后端）不打，它们的状态只转述上下文并写明出处和日期。不拿别的环境/)
       for (const sites of [null, {}, { pre: 7 }, { pre: '  ' }]) assert.match(buildEnvProbeRule(sites), /^环境实测：本仓没有配环境地址/)
+    }],
+    // 11-04 falive 回放 ep-1029-f09207：代答把引用里 10-28 的「实测握手 404」照抄成现状，没复测
+    ['buildAnswerEnvRule：代答说环境现状也以本轮实测为准、旧结论不当现状；只放开 GET；进代答块不进实测块', () => {
+      const rule = buildAnswerEnvRule({ pre: 'https://p', uat: ' ', online: null })
+      assert.match(rule, /^环境现状：.*现在能不能用 \/ 有没有数据 \/ 报不报错.*引用消息.*上一单.*更早的实测结论.*先本轮只读打一下该环境（pre https:\/\/p；只打上面这些地址（含同主域子站），上游 \/ 合作方的域名（如 hichat 后端）不打，它们的状态只转述上下文并写明出处和日期），curl GET，WebSocket 看握手，以本轮结果为准；测不了就写明那是哪天谁的结论、这次没复测，不当现状说。$/)
+      assert.doesNotMatch(rule, /POST/)
+      // 没配环境地址：一个地址都不打，只转述（aven 11-04 出网范围）
+      for (const sites of [null, {}, { pre: ' ' }]) assert.equal(buildAnswerEnvRule(sites), '环境现状：answer 里要说某个环境现在能不能用 / 有没有数据 / 报不报错，包括复述引用消息、上下文、文档或上一单里更早的实测结论，本仓没有配环境地址，不去打任何地址；写明那是哪天谁的结论、这次没复测，不当现状说。')
+      assert.ok(ANSWER_MODE_BLOCK({}, { envSites: { pre: 'https://p' } }).includes(`不改任何文件、不装依赖、不起服务；问的是机器人自己能做什么就按本提示的能力说明答。\n${rule}\n2. `))
+      assert.equal(VERIFICATION_MODE_BLOCK({}, { envSites: { pre: 'https://p' } }).includes('环境现状：'), false)
     }],
     ['分类提示的数据块：附件行、发送人（本人 / ownerMap 反查 + 角色 / 未登记）、persona 文件、锚点 / 活动 / 候选块、正文', () => {
       assert.equal(formatTaskAttachments({ attachments: [{ type: 'image', fileName: 'a.png', width: 10, height: 20, origin: '引用消息' }, { localPath: '/p', width: 10 }, { type: 'file', imageKey: 'img_1', downloadError: '403' }] }), '1. image「a.png」；来源：引用消息；尺寸：10x20\n2. attachment；本地路径：/p\n3. file；Lark image_key：img_1；下载状态：403')
@@ -288,7 +298,7 @@ describe('worker 侧对话层：outcome / 契约映射 / 群回复补写 / 模�
       calls.length = 0
       await runAI({ localConfig: { envSites: { test: 'https://test.example.com' } } }, { ...base, text: '看看 test 能不能注册', contract: { deliverable: 'verification', readOnly: true, expectsCode: false } }, ctx, null, undefined, { exec, snapshot: () => ({ status: '', diff: '' }) })
       assert.equal(calls.length, 1, '实测单趟')
-      assert.match(calls[0].promptText, /上下文说哪个环境就测哪个：test https:\/\/test\.example\.com。/)
+      assert.match(calls[0].promptText, /上下文说哪个环境就测哪个：test https:\/\/test\.example\.com；只打上面这些地址/)
       assert.match(calls[0].promptText, /没有配页面工具/)
     }],
     ['classifyTaskIntent：分类提示带 persona 与本机配置（发送人按 notifyOpenId / ownerMap 识别）；localConfig 缺省不炸', async () => {

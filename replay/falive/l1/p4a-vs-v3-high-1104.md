@@ -1,0 +1,254 @@
+# 分类链路改动前后 old vs new（v3-high-0a7054d / p4a-1ac907c）
+
+两边都有 285 条；新版改走确定路由（不判）29；判得一样 194，不一样 62；耗时中位 old 9.5s / new 9.3s
+
+**分歧裁判（62 条，effort high）：old 更对 7，new 更对 46，一样 8，都不对 1**
+
+- **new** 10-19 12:29 HQUCEncone：稍等，我给你一份
+  - old：ignore/medium → 落地 ignored；回复「好，等你的，发来我对一下手机号密码登录那项。」（理由：只是说稍后给答复，还没有内容可以接）
+  - new：ignore/medium → 落地 ignored；群里不回话（理由：只是说稍后给资料，像在接 Henry 的问题，没有交办）
+  - 这句是 HQUCEncone 回 Henry 12:28 的提问，不是对 bot 说的；old 插话还编出「手机号密码登录」，属于扰民又对不上前文；理想：ignore → ignored，群里不回话
+- **new** 10-19 12:28 Henry：@HQUCEncone 用户中心相关的数据哪些是要换接口或者数据格式的？
+  - old：question/medium·answer → 落地 actionable；回复「Henry，我对着后端回复文档理一下用户中心要换接口 / 格式的项，稍后发你」（理由：Henry 直接问对接现状，查回复文档和代码能答）
+  - new：ignore/high → 落地 ignored；群里不回话（理由：Henry @ 的是 Encone、问后端，没在跟机器人说话）
+  - Henry 只 @ 了 Encone，问的是后端要换哪些接口和格式。按「只处理 @bot / 私信 / 回复 bot」的口径，这条应该不处理；old 自己接过来答是在抢话。；理想：ignore → ignored，群里不回
+- **new** 10-20 14:30 Aven.tong：well done [赞] cc @HQUCEncone
+  - old：ignore/high → 落地 ignored；回复「好嘞，/lives 续拉这条就算结了」（理由：负责人对已完成的复测点赞，没有新动作）
+  - new：ignore/high → 落地 ignored；群里不回话（理由：夸一句并抄送同事，没 @ bot，也没有新交办）
+  - 这是 aven 本人在夸复测结果，同时抄送后端。没有 @bot，也没有交代新的事，bot 再在群里插一句「好嘞」就是扰民，不出声更合适；理想：ignore → ignored，群里不回话
+- **old** 10-14 13:09 Aven.tong：@Aven.Bot 你要的 部署域名 来了，暂时只有 pre 环境的，你看看能不能先用这个 将 pre 环境接上，其他环境后续会补上。如果不行，在群里问 @HQ
+  - old：api_reply/high·change → 落地 actionable；回复「收到 pre 域名，我先拿它把 pre 接上试试，不通再去群里要新版 PM-3217 文档」（理由：转来了之前卡住时在等的部署域名，并交代先接上 pre）
+  - new：requirement/high·change → 落地 actionable；回复「收到域名，我先拿它把 pre 接上试试，不行就去群里要新版 PM-3217 文档」（理由：负责人给了之前缺的域名，交办先接上 pre）
+  - 两版都落地 actionable，回复也几乎一样；但这条是 aven 转来后端给的 pre 域名，正好解掉之前卡住的那一项，判 api_reply 更准，new 判成新需求容易另开一单。；理想：api_reply·change，接着登录/注册任务做，actionable 先接上 pre
+- **new** 10-20 13:02 Aven.tong：就这样回，哪里拿不准了
+  - old：ignore/low → 落地 ignored；回复「好，就按这个回。不过我这边没看到前面那条，你说的是哪条？我对一下再说哪里没把握」（理由：指向 bot 上一句，但上下文缺失，没法安全判断）
+  - new：question/medium·answer → 落地 actionable；回复「好，就按这个回。我把上一条拿不准的地方翻出来，跟你逐条说清楚」（理由：负责人追问 bot 上一条判断里的不确定点）
+  - aven 是让 bot 把 13:00 那段没发的草稿照原样发到群里，再说清楚哪里拿不准。old 判 ignore，还说看不到前文，可前文明明在，判错了。new 去做了，回复也接得上，只是归成 question，没点明要把草稿发到群里。；理想：api_reply 指示，接着 12:57 front/lives 那条：actionable，把草稿发到群里，再用一句话说明当时哪里拿不准
+- **new** 10-20 12:37 Aven.tong：cc @HQUCEncone
+  - old：ignore/medium → 落地 ignored；回复「好，结论都在上面了。前端失败后停拉那块要改的话跟我说一声。」（理由：只回 cc 是知会抄送，没有明确交办）
+  - new：ignore/high → 落地 ignored；群里不回话（理由：回复 bot 卡片但只 cc 后端同事，没 @ 机器人）
+  - aven 本人只是把 bot 的结论抄送给后端同事，不是交办；old 在群里对 aven 本人回话还问「要改跟我说」，扰民又别扭；理想：ignore → ignored，群里不回话
+- **new** 10-15 09:21 Aven.tong：@Aven.Bot 是没有访问 lark 文档的权限吗，用 lark-cli 试试，或者你给我个入口，我给你授权
+  - old：question/medium·answer → 落地 actionable；回复「我先用 lark-cli 重读一下那篇文档，还是读不了的话再跟你要授权入口。」（理由：aven 在问 bot 读文档失败的原因，并让它换 lark-cli 再试）
+  - new：question/medium·verification → 落地 actionable；回复「好，我先用 lark-cli 再读一次那篇文档，还是读不了就把卡在哪、要授权的入口发你」（理由：aven 问 bot 读文档失败的原因，并让它用 lark-cli 重试）
+  - 两版都判对了要去做、回复也都自然。new 把交付物定为实测，和回复里答应的「再用 lark-cli 读一次」对得上；old 定为答复，可能只回一句话、不真去重试。；理想：question·实测→actionable：用 lark-cli 重读文档；读不了就说明是链接拼坏了还是缺权限，并给出授权入口
+- **old** 10-21 12:40 Arthur.a：@Aven.Bot 测试账号已经添加了资产路径
+  - old：api_reply/medium·verification → 落地 actionable；回复「好的 Arthur，我拿测试号去看下资产那块现在能不能正常显示。」（理由：后端 @bot 告知测试号资产配置已补好，按惯例先复测）
+  - new：ignore/medium → 落地 ignored；回复「好的 Arthur，测试账号加了资产路径，记下了。」（理由：纯配置通知，前文没有我方在等这件事）
+  - 后端专门 @bot 说测试号已补资产路径，意思就是让我方验证；当时实测也确实查出字段缺失和 404。new 判 ignore 会漏掉这次验证。；理想：api_reply·verification → actionable，去 pre 复测 profile/my 的 fameExAssetsPath，再报结果
+- **same** 10-22 10:12 Aven.tong：<forwarded_messages> [2026-10-22T14:04:33+04:00] mainly: ![Image](img_v3_0216n_4
+  - old：requirement/medium·change → 落地 actionable；回复「好，聊天图片走加密地址，前端解密后再显示。我先看下 klive 是怎么解的」（理由：aven 转来对接记录，已定走加密，交办前端接入）
+  - new：bug/medium·change → 落地 actionable；回复「好，聊天图片按加密走，我先看下 klive 是怎么解的，缺 key 再找 mainly 要」（理由：图片不显示，aven 已定按加密接入，转发给 bot 就是交办）
+  - 两版都判 actionable 改代码，回复都对得上「走加密」的结论；bug 和 requirement 都说得通，new 预判缺 key 只是小加分；理想：bug 或 requirement/change → actionable：接入 .bnc 解密显示，缺 key 就找 mainly 要
+- **new** 10-22 16:00 Aven.tong：我看了下功能表 [https://qfglxo2m3dc.sg.larksuite.com/wiki/ZWZnwOfWJiBDzpkU78dlqMQKghf?b
+  - old：requirement/medium·change → 落地 actionable；回复「收到，原来是功能表一开始就漏了。我照 x9 迁过来，UI 按 Ace 的 Figma 稿兼容，把开播补上。」（理由：负责人确认功能表漏了，话题里已明确让补上）
+  - new：ignore/high → 落地 ignored；群里不回话（理由：@ 的是产品和后端，没 @ bot，也没交办活）
+  - 这条是 aven 向产品和后端说明功能表漏了这个功能，没有 @bot；15:17 和 15:57 已经交办过这个开播任务。old 会重复建任务，还会在群里插话。；理想：ignore：不回话；有任务库时可并入已有的开播任务，只记一笔
+- **same** 10-22 13:36 HQUCWilliam.m：复测Bug-4927 嗨聊既有帳號登入FALIVE失敗 @Aven.Bot
+  - old：api_reply/medium·verification → 落地 actionable；回复「William 收到，我去复测下 Bug-4927 嗨聊老账号登录 Falive，测完回你结果」（理由：后端让复测 Bug-4927，应该已经处理过了，要去环境实测）
+  - new：bug/medium·verification → 落地 actionable；回复「William 收到，我拿嗨聊既有账号去 pre 登一下 Falive，复测完报结果。」（理由：后端点名让复测一个具体的登录 bug，只需要实测结论）
+  - 两版都是后端点名要复测 Bug-4927，都建实测任务，回复也都自然；归 api_reply 还是 bug 不影响落地。old 回复带了 bug 号，略好一点；理想：bug（复测）/verification → actionable；去 pre 实测，没有账号就追问要
+- **same** 10-22 15:19 HQUCWilliam.m：复测Bug-4927 嗨聊既有帳號登入FALIVE失敗 ，直接测试 ！ @Aven.Bot
+  - old：api_reply/medium·verification → 落地 actionable；回复「好，这就去 pre 复测 4927。手上还缺嗨聊老账号，方便的话发我一个」（理由：负责的后端催复测，要的是实测结论）
+  - new：bug/medium·verification → 落地 actionable；回复「好，我直接去 pre 复测 Bug-4927。有嗨聊老账号的话也给我一个，方便测这个场景」（理由：负责 RD 再次催复测，要求直接测，交付实测结论）
+  - 两版都判成去 pre 实测并建任务，回复都自然，也都跟人要嗨聊老账号。bug 和 api_reply 只是标签不同，实际处理方式一样。；理想：bug·verification → actionable：去 pre 复测 4927，跟人要嗨聊老账号
+- **old** 10-22 15:06 HQUCEncone：嗯，live 这边api 有得 ![Image](img_v3_0216n_3df3bfc6-ae83-4515-af95-0c1d7607c7ix)
+  - old：api_reply/medium·change → 落地 actionable；回复「收到，live 这边开播接口是现成的，我先对一下 x9 那边怎么调的。」（理由：后端在答复 bot 卡点里「开播 API 是否 ready」这个问题）
+  - new：api_reply/medium → 落地 recordOnly；回复「收到，live 开播接口已有，x9 开播设置截图也看到了，我同步给 aven 定做法。」（理由：后端答复我方卡点里问的 API 是否 ready）
+  - aven 已定下「从 x9 迁移」，并让 bot 确认两件事。这条回复只答了第 2 件（API 有），所以还得接着核对 x9。new 判只记一笔会停工，还说看到了 x9 截图，属于没有根据的说法。；理想：api_reply，并入 aven 15:05 的任务：记下 live 开播 API 已有，继续核对 x9 开播功能，再报给 aven
+- **new** 10-26 06:51 Aven.tong：cc @Arthur.a
+  - old：ignore/medium → 落地 ignored；回复「收到，头像接 Go 新接口这块先等 Henry 给排期。」（理由：只回了个 cc 抄送知会，没有新的交办或提问）
+  - new：ignore/high → 落地 ignored；群里不回话（理由：回复 bot 卡片只 @Arthur 抄送，不是在跟 bot 说话）
+  - 这条是 aven 本人把 bot 的头像排查结果抄送给 Arthur，不是在跟 bot 说话，不该处理。old 也判了 ignore，却还在群里替 aven 接话，属于扰民。new 不回话，处理是对的。；理想：ignore → ignored，群里不回话（aven 本人只是抄送转给 Arthur）
+- **old** 10-24 15:18 HQUCWilliam.m：@Aven.Bot 测试 帖子多语言翻译 以及 AI识图 功能 ！
+  - old：api_reply/medium·verification → 落地 actionable；回复「好，帖子多语言翻译和 AI 识图我先在 pre 上走一遍，要是该在 test 测就跟我说一声，测完回你」（理由：后端 @bot 交办测这两个功能，是新话题，交付实测结论）
+  - new：question/medium·verification → 落地 actionable；回复「好，我先在 pre 上把帖子多语言翻译和 AI 识图走一遍，要测 test 的话跟我说下，测完回你。」（理由：@bot 让去测两个功能，要的是实测结论，不改代码）
+  - 两版都建任务去实测，回复也差不多。但这条是 PHP 后端交过来测功能，相当于告诉前端后端接口好了，api_reply 对得上；它不是提问，new 判成 question 不对。；理想：api_reply·verification→actionable：先查 web 有没有接，再去 pre 实测这两个功能后回复
+- **new** 10-26 06:55 Aven.tong：这个模块麻烦 @Henry 跟一下哈
+  - old：requirement/medium·change → 落地 actionable；回复「好，web 换头像改接 Go 新接口这块我来跟，先对着新接口文档看下改动范围。」（理由：负责人把 Arthur 要求的换新接口模块交给 bot 跟进）
+  - new：ignore/high → 落地 ignored；群里不回话（理由：回复 bot 卡片但 @ 的是 Henry，在给同事派活）
+  - aven 本人 @Henry 把换头像改接 Go 接口这件事交给 Henry 跟，不是派给 bot。old 说「我来跟」，等于把 Henry 的活揽到自己身上，越权又扰民；new 不处理、群里不回话，是对的。；理想：ignore（aven 派活给 Henry），不回话；最多记一笔「web 头像接口改造由 Henry 跟进」
+- **both_wrong** 10-23 07:45 HQUCEncone：@Aven.Bot
+  - old：api_reply/medium·change → 落地 actionable；回复「收到 Encone，我先读下这份社区 API 文档，对一下发帖和评论的接口」（理由：后端发来接口文档，aven 已在话题里交办迁移）
+  - new：ignore/medium → 落地 ignored；回复「收到 PM-2954 的对接文档，记下了，前端对接时会照这份看」（理由：只转发 App 对接文档，没有提问或交办）
+  - old 编出「aven 已交办」和「发帖评论」，没人布置就开工；new 直接不处理，回复却说「记下了」，说的和做的对不上，文档也没留存；理想：api_reply·recordOnly：记下这份文档，回「收到，等 aven 定对接范围」
+- **new** 10-26 06:53 Arthur.a：是的
+  - old：ignore/medium → 落地 ignored；回复「好的 Arthur，web 换头像改接 Go 上传这块已经交给 Henry 跟了，排期等他回复。」（理由：只是确认 bot 的结论，活已经派给 Henry，没有新的交办）
+  - new：api_reply/medium·change → 落地 actionable（理由：后端确认 aven 问的接口文档，附带要 web 换新接口）
+  - 「是的」是在回答 aven 本人问的「新接口文档是这个么」，不是在确认 bot 的结论。old 理解错了对象，还要接话插嘴；new 判对了是 api_reply，接着改 web 头像。；理想：api_reply·change：并入「web 头像改接 Go」任务（没有候选时按 actionable），不回话
+- **new** 10-26 12:27 Aven.tong：cc @Arthur.a
+  - old：ignore/high → 落地 ignored；回复「好，Arthur 那边已经在处理了，我先记着，等他回复。」（理由：只是 cc 知会，答复已发出，后端在处理）
+  - new：ignore/high → 落地 ignored；群里不回话（理由：回复 bot 卡片只 cc @Arthur.a，是抄送给同事，不是对 bot 说）
+  - 这是 aven 本人在 bot 的答复后 cc Arthur 提醒他看，不是对 bot 说话。old 在外部群里接话属于扰民，「Arthur 已在处理」也是编出来的；new 不出声，做对了。；理想：ignore → ignored，群里不回话
+- **new** 10-26 10:21 Arthur.a：@Aven.tong 这个接口接入完成麻烦说一下，有bug的话我尽快修复
+  - old：ignore/high → 落地 ignored；回复「好，记下了。这块是 Henry 在接，接完会跟你说，有问题再找你。」（理由：后端只是请我们接完后通知他，没有新的变更或问题）
+  - new：ignore/high → 落地 ignored；群里不回话（理由：@ 的是 Aven.tong，没对机器人说，只是让接完后告诉他）
+  - 这条只 @ 了 Aven.tong，没有 @ 机器人。按规则这类消息不送分类处理，所以 new 不在群里回话是对的。old 替 aven 回了一句，属于扰民。；理想：ignore → ignored，群里不回话
+- **new** 10-26 10:26 Aven.tong：看起来已经接了，报 404 cc @Arthur.a
+  - old：api_reply/medium·verification → 落地 actionable；回复「好，Arthur 说 404 已经处理了，我在 pre 上把修改头像重新走一遍，测完回结果。」（理由：话题里后端答复 404 已处理，要我们复测）
+  - new：ignore/high → 落地 ignored；群里不回话（理由：@ 的是 Arthur.a，在跟后端说，不是对机器人说）
+  - 这是 aven 本人在给后端 Arthur 报 404，没有 @bot。old 把它误读成“后端说 404 已处理”，还要替 aven 回话、去复测，内容和前文对不上，属于扰民。；理想：ignore：aven 本人在跟后端说话，不建任务，群里不回
+- **new** 10-26 06:52 Arthur.a：web也换一下新接口吧@Aven.tong
+  - old：requirement/medium·change → 落地 ignored；回复「收到，web 换头像改接 Go 新接口这块是 Henry 在跟，接好了在这里跟你说。」（理由：后端要求 web 切换头像新接口，aven 已指派 Henry 跟）
+  - new：ignore/medium → 落地 ignored；群里不回话（理由：只@负责人、没@bot，是催进度/排期，留给人定）
+  - 消息只 @ 了 Aven.tong，没 @bot，按口径不处理；old 替人承诺「Henry 在跟、接好了说」，可 Henry 并没认领排期，而且落地是 ignored 却回了话，前后矛盾；理想：ignore → ignored，不回话，留给 aven 本人回应排期
+- **new** 10-26 10:27 Aven.tong：是的，这类问题你直接给 bot
+  - old：api_reply/medium·verification → 落地 actionable；回复「好，修改头像这条我在 pre 上重新接一遍，测完把结果回给 Arthur。」（理由：后端说 404 已修，aven 让 bot 接手复测）
+  - new：ignore/medium → 落地 ignored；群里不回话（理由：aven 在回同事、讲分工，不是对 bot 交办）
+  - aven 是在跟 Arthur 讲分工（这类问题直接找 bot），没有交代 bot 做事；复测是 Arthur 那条 @bot 交办的，old 再建一个任务就重复了；理想：ignore → ignored，群里不回；复测由 Arthur 那条 @bot 消息去建任务
+- **new** 10-29 06:03 Aven.tong：![Image](img_v3_0216u_17a0bc5b-8ddb-4141-a0ce-057fb3a707hu) 这个信息，现在能给出吗？不然，我先按上面
+  - old：ignore/medium → 落地 ignored；回复「这几项得 Ache、Arthur 那边给，我先记着，有了就更新到对接文档」（理由：aven 在催后端给信息、问要不要先发，前端这边没有活要做）
+  - new：ignore/high → 落地 ignored；群里不回话（理由：aven @ 的是 Ache、在催对方给信息，不是对 bot 说的）
+  - 这条是 aven 本人 @Ache 催信息，不是在跟 bot 说话。bot 不该插话，old 回的那句是替 aven 抢话，属于扰民；new 不回话是对的。；理想：ignore → ignored，群里不回话
+- **same** 10-28 10:23 HQUCWilliam.m：@Aven.Bot Bug-5048 通知前端隐藏 “勋章” tab
+  - old：requirement/high·change → 落地 actionable；回复「好的 William，Bug-5048 我去看下，把个人中心的勋章 tab 隐藏掉」（理由：产品已拍板删掉勋章，后端转交前端隐藏 tab）
+  - new：bug/high·change → 落地 actionable；回复「好的 William，Bug-5048 我这边去把个人中心的勋章 tab 隐藏掉，弄完回你」（理由：bug 单交办，产品已确认前端隐藏勋章 tab）
+  - 产品已拍板删掉勋章，William 用 Bug 单号转给前端隐藏 tab。两版都判成改代码并建任务，回的那句也都对得上前文。bug 和 requirement 只是标签不同，不影响怎么处理。；理想：bug·change → actionable，回一句「去隐藏个人中心勋章 tab」；需要的话核一下负责人
+- **new** 10-28 11:09 Aven.tong：同步对接一下，并生成反馈文档@Aven.Bot
+  - old：bug/medium·verification → 落地 actionable；回复「好，我先在 pre 上把这几条的现状再核一遍，整理成反馈文档给你过目」（理由：负责人交办：复核这几条 bug 并出反馈文档，不改代码）
+  - new：requirement/medium·verification → 落地 actionable；回复「好，我按 Henry 这份清单逐条核一下现状，再整理成反馈文档给你看」（理由：负责人直接交办：对接清单并产出反馈文档）
+  - 两版落地都是 actionable·核实，不改代码。new 判为 aven 交办的对接任务，比判 bug 准确；回复点名 Henry 的清单，和前文对得上。old 回复里的「再核」没有根据。；理想：requirement·verification → actionable：逐条核 Henry 的清单，出反馈文档后对接后端和产品
+- **same** 10-27 12:24 HQUCEncone：| C1 | 某账号发帖回 HTTP 500（Bug-4994） | 10-26 核对：live uid 19650 的 `member/info` / `me
+  - old：api_reply/medium·answer → 落地 actionable；回复「Encone，失败的是 live uid 19650，附件 aid 8630/8631，10-26 11:55（+04）左右发的，508 同参数正常」（理由：后端在对接文档 C1 条目下答复，要我们补失败账户信息）
+  - new：question/high·answer → 落地 actionable；回复「Encone，发帖失败的是 live uid 19650，附件 aid 8630/8631，10-26 11:55（+04）左右发的」（理由：后端要失败账号信息，对接文档里已经写了，直接答）
+  - 两版都直接给出了 uid 19650、附件 aid 8630/8631 和失败时间，答的就是对方要的东西。old 多带一句「508 同参数正常」，new 的 question 分类更贴切，各有一点优势。两版都落成 actionable，略重于实际需要。；理想：question → selfAnswer：直接回 uid 19650、aid 8630/8631、10-26 11:55(+04)，然后等后端查日志
+- **old** 10-29 06:06 .Ache.l：好的 PRE上 [http://php-swoole.internal](http://php-swoole.internal/) 这先改 我要跟运维对 可以会
+  - old：api_reply/medium → 落地 recordOnly；回复「好的，PRE 这边已经改成 php-swoole.internal 了，等你和运维把配置对完通知我，再改 uat/online」（理由：后端答复对接问题，PRE 已改好，其余要等对方配置）
+  - new：api_reply/medium·change → 落地 actionable；回复「好，pre 先按 php-swoole.internal 走，等你跟运维对好配置再改 uat/online」（理由：后端答复对接卡片：pre 先这么改，其余配置待他统一通知）
+  - 卡片显示 pre 已改成 php-swoole.internal，uat/online 要等 Ache 通知，aven 也回过「好的」了。new 再开改代码任务属于重复劳动；old 只记一笔是对的，那句回复其实也可以省掉。；理想：api_reply → recordOnly：记下 uat/online 等 Ache 通知，不用再回
+- **new** 10-29 07:04 Aven.tong：cc @HQUCEncone
+  - old：ignore/medium → 落地 ignored；回复「收到，这条 /hc-ws 的说明记下了，uat / online 的反代就等运维那边配。」（理由：只写了 cc，是转发知会，没有新的提问或交办）
+  - new：ignore/high → 落地 ignored；群里不回话（理由：aven 只是 cc 同事，没在对机器人说话）
+  - aven 只是把机器人刚才的说明 cc 给 Encone，不是在对机器人说话。old 在群里接一句「收到」是多余的扰民；new 不处理也不回话，更对。；理想：ignore → ignored，群里不回话
+- **new** 10-28 09:57 Aven.tong：请给出详细信息，@相关人员 @Aven.Bot
+  - old：ignore/low → 落地 ignored；回复「要哪条的详情？4927、5048 还是 5051？说一声我就把详情整理出来，再 @ 对应的人」（理由：话题里有多条 bug，没说要哪条的详情，有歧义）
+  - new：question/low·answer → 落地 askBack；回复「好，我先查下 Bug-5048 勋章那块前端调的是哪个接口，理清楚再回」（理由：aven 让 bot 就话题里最后找他确认的 5048 给出详细信息）
+  - new 认对了是 5048，回的那句也自然；落地成 askBack 不对，应建任务。old 判 ignore，还拿出编的歧义追问，等于漏单；理想：bug/question·答复→actionable：查 5048 勋章接口现状，整理详情并 @Henry 等人
+- **new** 10-29 07:47 Aven.tong：web 端已经更新到 uat 了
+  - old：api_reply/medium·verification → 落地 actionable；回复「好，我去 uat 上看下 SSR 现在拿的还是不是 pre 的数据，看完跟你说」（理由：负责人告知 uat 已更新，正好对应卡片里待核对的 uat 项，默认去复测）
+  - new：ignore/medium → 落地 ignored；回复「好，记下了，web 端已经上 uat。」（理由：只是同步部署进度，没明确要查或要改）
+  - 这条是 aven 本人在群里同步 uat 已部署。按口径，「已部署」后的自动复测暂不做，old 主动去 uat 复测越过了需求边界；new 不处理更对。；理想：ignore 或 recordOnly：记一笔 uat 已部署，不复测、不回话
+- **new** 10-29 10:19 mainly：@Arthur.a 靠你了
+  - old：api_reply/high·verification → 落地 actionable；回复「好，我去 pre 走一遍：游客先和 James 聊，再用邮箱注册，看新号私聊列表，结果回这里。」（理由：Go 修复已上 pre，mainly 注册卡住，转交 bot 复测）
+  - new：ignore/high → 落地 ignored；群里不回话（理由：@ 的是 Arthur，是在催同事，不是跟 bot 说话）
+  - mainly 只是把 Go 的改动交给 Arthur，并没有说已经上 pre。old 却当成修好了去复测，属于扰民；new 判断不处理是对的。；理想：ignore → ignored，群里不回话（等 Arthur 回复已上 pre 再复测）
+- **new** 10-29 11:09 Aven.tong：cc @World
+  - old：api_reply/medium·verification → 落地 actionable；回复「好，Arthur 说 Go 已经上 pre 了，我去 pre 走一遍游客聊天后注册复测，有结果在这里回」（理由：后端回复已上 pre，aven cc 让 bot 按约定复测）
+  - new：ignore/high → 落地 ignored；群里不回话（理由：只是 cc 抄送同事，@ 的是 World，不是对机器人说）
+  - aven 这条只是把消息抄送给 World，没有 @ 机器人。再说「已部署后自动复测」按 11-04 口径暂时不做，old 去建复测任务属于扰民。；理想：ignore → ignored，群里不回话
+- **new** 10-29 11:11 World：@Arthur.a 还有这个P0bug哈 ![Image](img_v3_0216u_471f9c78-53c6-4dea-bfb4-4fa390cc18hu)
+  - old：bug/medium·verification → 落地 actionable；回复「收到，Bug-5022 Arthur 说 Go 已经上 pre 了，我这就去 pre 复测，有结果在话题里说」（理由：Go 已上 pre，有人追这条 P0，bot 之前答应过复测）
+  - new：ignore/high → 落地 ignored；群里不回话（理由：@ 的是 Arthur，在催后端改，不是对机器人说）
+  - World 是在 @Arthur 催后端修另一个 P0（「还有这个」），没有对机器人说话；old 误当成 Bug-5022 已上 pre，要去复测，接错了任务，而且已部署后的自动复测目前暂不做；理想：ignore，落地 ignored，群里不回话
+- **new** 10-29 11:25 Aven.tong：帮忙回复一下，详细一点 @Aven.Bot
+  - old：api_reply/medium·verification → 落地 actionable；回复「好，我先去 pre 用邮箱注册把 Bug-5022 复测一遍，测完在话题里详细回 Arthur 和 mainly。」（理由：后端答复已上 pre，aven 让据此复测并详细回复）
+  - new：question/high·answer → 落地 actionable；回复「好，我对着 mainly 的文档把 Go 这边要做的事整理清楚，详细回一下 Arthur」（理由：aven 让 bot 详细回答 Arthur 关于 Go 侧对接的提问）
+  - aven 让 bot 详细回复 Arthur 11:23 问的 Go 要不要返回游客 token。new 判成答疑，接对了上下文。old 判成复测，答非所问，而且已部署后的自动复测暂时不做。；理想：question·answer → actionable：按 mainly 的文档详细回复 Arthur，Go 不用返回游客 token，只需把 guest_token 原样转给 issueToken，并带上 is_register=1
+- **new** 10-29 10:18 Aven.tong：go 这块儿改好上 pre 请记得在这里回复一下哈。bot 会去复测和改 bug 状态为 已推版 @mainly
+  - old：bug/medium·verification → 落地 actionable；回复「好，Arthur 说 Go 已上 pre，我用邮箱注册复测 Bug-5022，测完在这回」（理由：负责人交代 Go 上 pre 后由 bot 复测并改 bug 状态）
+  - new：ignore/high → 落地 ignored；群里不回话（理由：aven @mainly 交代后续，不是对机器人说的）
+  - 这条是 aven 叮嘱 mainly 等 Go 上 pre 后在群里说一声，Go 其实还没上 pre。old 把它当成「Arthur 说已上 pre」，会马上去复测还回一句和事实不符的话。new 不回话、不动手，是对的。；理想：ignore 或 recordOnly：记一笔「等 Go 上 pre 的回复再复测 Bug-5022」，群里不回话
+- **new** 10-29 11:11 World：目前前端已经改好了
+  - old：api_reply/medium·verification → 落地 actionable；回复「好的，Arthur 说 Go 那边也上 pre 了，我去 pre 走一遍游客聊天后注册，看聊天有没有转到新号。」（理由：我们一直在等前端和 Go 都改好，现在都齐了，该去复测）
+  - new：ignore/medium → 落地 ignored；回复「嗯，Web 这边已经带上 guest_token 了，等 Go 改好上 pre 我再复测。」（理由：同步前端进度，没提新问题，也没交办事）
+  - World 是在跟 Arthur 同步另一个 P0 的进度，没 @bot；old 硬接成 5022 去复测，接错了任务，而且已部署后的自动复测本来就暂不做。new 判 ignore 是对的；理想：ignore → ignored，不回复（同事间同步其他 P0 进度，未@bot）
+- **same** 10-29 12:14 Arthur.a：@Aven.Bot @Aven.tong 辛苦核实一下现在API
+  - old：bug/medium·verification → 落地 actionable；回复「好，我去线上看一下登录和社区现在实际请求的是哪套接口，看完回你。」（理由：紧接线上登录走 live、没有 bbsv2 请求的问题，请我们核实）
+  - new：question/medium·verification → 落地 actionable；回复「好，我去线上看下现在登录和社区接口实际打的是哪套，看完回你」（理由：Arthur 让我们核实线上现在打的是哪套 API，要实测结论）
+  - 两版都判为实测核实（verification）并建任务去做，回复几乎一样，也都对上了线上登录和社区两件事；old 标 bug、new 标 question，只是标签不同，不影响落地；理想：bug·verification → actionable：实测线上登录和社区实际走哪套 API 后回复
+- **new** 10-29 11:28 mainly：@Arthur.a 前端给你了一个 guest_token 你再原样交给 /api/internal/issueToken 接口就行了，文档在这里: [http
+  - old：api_reply/medium·verification → 落地 actionable；回复「好，就是 Go 把前端给的 guest_token 原样转给 issueToken。Arthur 上 pre 后我去复测」（理由：mainly 给 bot 补对接口径和文档，前端已改完，只剩复测）
+  - new：ignore/high → 落地 ignored；群里不回话（理由：@ 的是 Arthur，在答同事的问题，不是对 bot 说）
+  - mainly @ 的是 Arthur，跟 bot 无关。old 把这句当成对 bot 的交代，回话对不上，还开了一个部署后复测任务，按口径这类复测暂不做。new 不处理更合适；理想：ignore/recordOnly（可作为上下文并入 11:25 的详细答复任务），群里不回
+- **new** 10-29 13:27 HQUCEncone：不知道，是不是没有这个记录
+  - old：ignore/medium → 落地 ignored；回复「好，记下了，验证码后台看不到的话就先按邮箱注册来测」（理由：回复 mainly 的验证码疑问，不确定的答复，没给我方交办）
+  - new：ignore/medium → 落地 ignored；群里不回话（理由：在回同事 mainly 的提问，不是对机器人说）
+  - 这条是 HQUCEncone 在回 mainly 问的验证码去向，没提 aven 也没提机器人。old 已经判了不处理还要回一句，内容还是自己编的「先按邮箱注册来测」，属于扰民。new 不处理、也不回话，判得对。；理想：ignore → ignored，群里不回话
+- **new** 10-29 13:32 HTStone.z：@mainly 沒有~可以用暫時郵箱直接收信
+  - old：api_reply/medium·verification → 落地 actionable；回复「好，那我用临时邮箱在 pre 走一遍游客聊天后注册，复测完回你」（理由：对方答复验证码拿不到的问题，给了复测要用的注册方式）
+  - new：ignore/high → 落地 ignored；群里不回话（理由：@ 的是 mainly，在答同事验证码问题，不是对 bot 说）
+  - 这条是 HTStone.z 回 mainly 验证码的事，没 @bot 也没找 aven；old 自己建了复测任务，还插话，属于扰民，也越过了「部署后自动复测暂不做」的口径；理想：ignore → ignored，群里不回
+- **same** 10-29 12:14 HQUCEncone：@Aven.Bot
+  - old：question/medium·answer → 落地 actionable；回复「看到了，OL 登录还走 live 的 NewMailLogin、没走 go-api，我对一下线上那版配置再回你」（理由：@bot 追问 OL 登录走 live 不走 Go 的原因，查代码配置可答）
+  - new：bug/medium·verification → 落地 actionable；回复「好，我去看下 OL 登录为啥还走 live 接口、待发的那版有没有切到 go，再回你」（理由：空 @ 承接本人上条：OL 登录走 live 接口登录不了）
+  - 两版都接住了 HQUCEncone 的空 @（OL 登录还走 live、没走 go），都建了任务去查，回复也都对得上；old 判成答疑、new 判成 bug 加核实，最后都得落到核对 OL 版本和配置再回话。；理想：question·answer → actionable：核对 OL 包的登录和社区配置，说明待发版是否已切到 go
+- **new** 10-29 13:27 mainly：![Image](img_v3_0216u_94435bb5-4ce4-41cf-8875-65bc80733eix) ![Image](img_v3_0216
+  - old：question/medium·answer → 落地 actionable；回复「后台现在查不到验证码记录，得后端看一下；HTStone 说用临时邮箱注册能收到信，可以先这么试」（理由：@bot 问验证码在哪看，属于问环境/测试方法）
+  - new：ignore/high → 落地 ignored；群里不回话（理由：@ 的是 HQUCEncone，在问后台验证码的事，不是对 bot 说）
+  - mainly 这条 @ 的是 HQUCEncone，问的是后台验证码去哪了，没对 bot 说。old 抢答属于扰民，「HTStone 说临时邮箱」这句在前文里也找不到出处。；理想：ignore → ignored，不是对 bot 说的，群里不回话
+- **new** 10-29 11:23 Arthur.a：<p>我这边是需要登录注册的时候返回一个游客token是不是这样@Aven.tong @mainly</p>
+  - old：question/high·answer → 落地 actionable；回复「不是返回，是前端注册时带上 guest_token，Go 建号后原样转给 issueToken、带 is_register=1」（理由：Arthur 在问接口对接口径，看 mainly 的文档和 bot 之前的说明就能答）
+  - new：ignore/medium → 落地 ignored；群里不回话（理由：@ 的是 aven 和 mainly，在找他们确认方案，不是对 bot 说）
+  - Arthur 只 @ 了 Aven.tong 本人和 mainly，问的是对接口径，要他们拍板，不是在跟 bot 说话。按 aven 11-02 定的规矩，只 @ 本人的消息 bot 不接；old 替 aven 抢答，属于越位。；理想：ignore → ignored，群里不回话，留给 aven / mainly 答
+- **new** 10-29 13:32 mainly：@HTStone.z 邮箱验证码后台也看不到了 ![Image](img_v3_0216u_3a6f3310-7389-4d78-8252-4babc078df
+  - old：ignore/medium → 落地 ignored；回复「收到。验证码记录在后台那边，Go 发的邮件好像没写进去，要后端看一下；先按 HTStone 说的用临时邮箱收信注册」（理由：后台查不到验证码记录，根因在后端，前端没要做的）
+  - new：ignore/high → 落地 ignored；群里不回话（理由：@HTStone.z 回答同事追问，后台验证码记录非前端事）
+  - 这条是 mainly @HTStone.z 问后台验证码记录，属于后端的事，也没有 @bot。old 判了 ignore 却仍在群里插话，还编了「HTStone 说用临时邮箱」这句没人说过的话。new 不出声，更对。；理想：ignore → ignored，群里不回话（后端/后台验证码问题，与前端无关）
+- **new** 10-29 13:29 HTStone.z：目前應該沒這紀錄 @mainly 你郵箱註冊有成功嗎?
+  - old：question/medium·verification → 落地 actionable；回复「好，后台看不到验证码我就用临时邮箱在 pre 走一遍游客注册，看 5022 好了没，测完回你」（理由：问 bot 邮箱注册成没成功，Go 已上 pre，等实测结果）
+  - new：ignore/high → 落地 ignored；群里不回话（理由：@的是mainly，接的是同事的话，不是对机器人说的）
+  - HTStone.z 是 @mainly 问他邮箱注册成没成功，接的是 HQUCEncone 那句，不是问机器人。old 当成在问 bot，还自己揽下实测，属于扰民。new 判不处理是对的。；理想：ignore → ignored，群里不回话
+- **new** 10-29 13:33 Aven.tong：用邮件注册，会更流畅些
+  - old：api_reply/high·verification → 落地 actionable；回复「好，我在 pre 用邮箱注册复测 Bug-5022，看游客聊天有没有转到新号」（理由：Go 端已上 pre，aven 指定用邮箱注册方式复测）
+  - new：ignore/medium → 落地 ignored；群里不回话（理由：这是接 mainly 和 HTStone 的话给测试建议，不是对 bot 说的）
+  - 这是 aven 本人在注册讨论里给 mainly 的建议，没有 @bot，不是派给 bot 的任务；old 自己编出一个复测 Bug-5022 的任务，属于扰民；理想：ignore → ignored，群里不回话
+- **new** 10-30 15:08 Aven.tong：[Image: img_v3_0216v_c34eb065-1c58-435f-a802-9209dc0defhu]
+  - old：ignore/medium → 落地 ignored；回复「截图收到，聊天页没数据和 myPoints 500 的结论我记下了，等 Go 后端查完日志再跟。」（理由：只有截图没有正文，内容是已有的分析结论，根因在后端，没有交办）
+  - new：ignore/medium → 落地 ignored；群里不回话（理由：只有截图、没 @ bot，是在给同事同步分析）
+  - 这条是 aven 本人发的纯截图，没有 @bot，也没交办任何事，不回话是对的。old 在群里回 aven 本人，还凭空猜了截图内容，属于扰民。；理想：ignore → ignored，群里不回话
+- **new** 10-30 14:35 Aven.tong：![Image](img_v3_0216v_91843cae-335a-438d-ac4c-50f08c6a27hu) @Arthur.a @HQUCEncon
+  - old：ignore/high → 落地 ignored；回复「记下了，等 Ache / William 那边配好白名单和助手，我再去 online 复测。」（理由：负责人补截图 cc 后端，属知会，没有交办前端）
+  - new：ignore/high → 落地 ignored；群里不回话（理由：aven 在抄送同事，没 @ 机器人，不是对 bot 说）
+  - 这条是 aven 本人发截图 @后端、抄送同事，没 @机器人，应该不回。old 判了不处理，却在群里替 aven 回了一句，说的还是 Ache/William 白名单的事，对不上这条消息，属于扰民。new 不出声，是对的。；理想：ignore → ignored；群里不回话
+- **new** 10-30 15:09 Aven.tong：@Arthur.a cc @Kaiser @HQUCEncone
+  - old：ignore/medium → 落地 ignored；回复「记下了，这两个 500 得等 Arthur 他们查日志，有回音我再去复测。」（理由：只是 cc 催后端，没有新问题，也没交办事）
+  - new：ignore/high → 落地 ignored；群里不回话（理由：aven 只是 cc 同事跟进后端问题，没 @ bot）
+  - 这条是 aven 本人在催 Arthur 跟进 500 问题，没有 @bot。old 已经判了不处理，却还在群里接话，多余；而且承诺「回音后复测」不符合「已部署后自动复测暂不做」的口径。；理想：ignore → 落地 ignored，群里不回话
+- **new** 10-30 17:57 Aven.tong：麻烦后台同学看看这个上面提到的接口呢 @Arthur.a cc @Kaiser
+  - old：ignore/high → 落地 ignored；回复「好，记下了。等后端查完 task 8 的回调和积分记录，我再接着跟。」（理由：aven 在催后端排查根因，前端这边暂时没有活）
+  - new：ignore/high → 落地 ignored；群里不回话（理由：aven @Arthur 和 Kaiser 催后端查，没对 bot 说）
+  - 这条是 aven 本人 @Arthur 催后端排查，并不是对 bot 说的。两版都判 ignore，但 old 在群里接一句「好，记下了」属于插话扰民；new 不回话，更合适。；理想：ignore → ignored，群里不回；有任务库时可作为卡点进展记到原任务
+- **new** 10-30 17:42 Aven.tong：自己登录进去看看，这个是账号： [734343862@qq.com](mailto:734343862@qq.com) Test1234
+  - old：ignore/low → 落地 ignored；回复「账号收到了。要看哪个页面、哪个问题？test 还是 pre？告诉我我就登进去看。」（理由：只给了账号，没上下文，不知道看什么、在哪个环境）
+  - new：api_reply/medium·verification → 落地 actionable；回复「收到账号，我登录进去看一下，看完跟你说结果。」（理由：负责人补了账号，让 bot 自己登录核实）
+  - 17:39 bot 在同话题卡在「缺 online 账号的实际返回」，aven 随后补了账号，就是解这个卡点。new 判成登录实测、去做，是对的；old 判成不处理还反问看哪个页面，属于漏做，也没接上前文。；理想：api_reply·verification→actionable，续任务中心按钮任务，用该账号登 online 查 task/list
+- **new** 10-31 08:56 Aven.tong：cc @Kaiser
+  - old：ignore/high → 落地 ignored；回复「好，等 Kaiser 换网络再试，还不行就把 gsi/client 请求截图发过来。」（理由：只是把 bot 的结论 cc 给同事知会，没有新问题也没交办事情）
+  - new：ignore/high → 落地 ignored；群里不回话（理由：aven 在 bot 卡片下 cc Kaiser，是抄送给同事，不是在跟 bot 说话）
+  - aven 本人在 bot 卡片下面 cc Kaiser，是把结论抄送给同事，不是在对 bot 说话。old 还回了一句复述自己结论的话，在群里显得多余，打扰人；new 不出声更对。；理想：ignore → ignored，群里不回话
+- **new** 10-31 08:59 Aven.tong：@Arthur.a 麻烦在这里补信息吧
+  - old：api_reply/medium·change → 落地 actionable；回复「Arthur 已经在话题里回了：updateInfo 和 avatar/upload 任一个成功就调完成接口。我照这个口径去接一下。」（理由：Arthur 在话题里答了 bot 问的上报时机，等于交办接入）
+  - new：ignore/high → 落地 ignored；群里不回话（理由：@ 的是 Arthur，在催他补料，不是对 bot 说）
+  - 这是 aven 本人在催 Arthur 到话题里补资料，不是对 bot 说的；Arthur 也还没回。old 编了一句 Arthur 已答复，还据此建任务去接，属于凭空捏造。；理想：ignore → ignored，不回话，等 Arthur 补资料
+- **new** 10-31 08:59 Aven.tong：如果不方便补信息,
+  - old：ignore/medium → 落地 ignored；回复「好，补料的事找 Adrian，我记下了。」（理由：本条是 aven 把 Arthur 引到 Adrian 那边，属于知会，不是交办）
+  - new：ignore/medium → 落地 ignored；群里不回话（理由：aven 在话题里催 Arthur 补料，话没说完，不是对 bot 说的）
+  - 这条是 aven 跟 Arthur 说补料的事，话还没说完，也不是对 bot 说的，不该回。old 编出「找 Adrian」，前文对不上，属于扰民。；理想：ignore → ignored，群里不回话
+- **new** 10-31 09:00 Aven.tong：<p>如果不方便补信息，请给 @Adrian 打个电话，他会跟这个模块</p>
+  - old：ignore/medium → 落地 ignored；回复「好的。Arthur 已经在话题里补了：updateInfo 或 avatar/upload 任一成功就调完成，这块 Adrian 在跟。」（理由：aven 在协调沟通方式，没有交办任务；这块已交给 Adrian）
+  - new：ignore/high → 落地 ignored；群里不回话（理由：这条是 @Adrian、对同事说的，没在接 bot 的话）
+  - 这条是 aven 本人在群里接着上一句说完，交代 Arthur 找 Adrian。bot 在群里回一句「好的」，又复述 Arthur 的话，属于扰民；new 不回话是对的。；理想：ignore → ignored，群里不回话（aven 本人在协调，已交给 Adrian）
+- **new** 10-31 09:05 Adrian：OK
+  - old：ignore/high → 落地 ignored；回复「好，Arthur 说了 updateInfo 或 avatar/upload 有一个成功就调完成接口，这块你来接。」（理由：Adrian 只是回 OK 表示接手，我们这边不用接活）
+  - new：ignore/high → 落地 ignored；群里不回话（理由：这句 OK 是回 Arthur 的答复，不是对 bot 说的）
+  - Adrian 回 OK 是在回 Arthur，不是在跟 bot 说话。两版判 ignore 都对，但 old 落地成 ignored 却还在群里复述 09:00 说过的规则，属于扰民；new 不出声，符合 aven 的利益。；理想：ignore → ignored，群里不回话
+- **new** 10-31 09:04 Adrian：@Arthur.a 你帮忙完整的描述一下，具体是调哪个接口的时候上报
+  - old：question/high·answer → 落地 actionable；回复「Adrian，updateInfo 或 avatar/upload 任一成功就调完成接口，细节我整理给你」（理由：Adrian @bot 要求说明调哪个接口时上报，问的是对接信息）
+  - new：ignore/high → 落地 ignored；群里不回话（理由：@ 的是 Arthur，在问同事要信息，没跟 bot 说）
+  - 这条只 @ 了 Arthur，是 Adrian 向同事要信息，没找 bot；bot 已经把这块转给 Adrian 了。old 说成 Adrian @bot，还建了任务、抢着替 Arthur 回话，属于扰民。；理想：ignore → ignored，群里不回话
+- **new** 10-31 09:04 Arthur.a：@Adrian
+  - old：api_reply/medium·change → 落地 ignored；回复「收到 Arthur，规则清楚了：updateInfo 和 avatar/upload 任一成功就调完成接口，这块 Adrian 在跟。」（理由：Arthur 在话题里答复了 bot 问的上报时机，空 @ 是催跟进）
+  - new：ignore/high → 落地 ignored；群里不回话（理由：只 @ Adrian 没写话，是在跟同事交接，不是对 bot 说）
+  - 空 @Adrian 是 Arthur 在跟 Adrian 交接，不是对 bot 说的；bot 在 09:00 已经说过「规则清楚、转给 Adrian」，old 再回一遍属于重复扰民；理想：ignore → 落地 ignored，群里不回话
+- **old** 10-31 08:58 Aven.tong：[Image: img_v3_02170_d08e1b58-b8de-4569-ae27-a7da2bdf64hu]
+  - old：api_reply/medium·change → 落地 actionable；回复「好，Arthur 说了 updateInfo 或 avatar/upload 成功任一项就调 task/complete，我照这个接上去」（理由：Arthur 已在话题里补上 bot 卡片问的口径，aven 转来让接入）
+  - new：requirement/medium·change → 落地 actionable；回复「收到，看了话题，那句确实没附图；我先按改资料成功后调 complete 理一下，等流程说明再对细节。」（理由：aven 截话题补料，回应 bot 缺图追问，接入交办仍在推进）
+  - aven 贴图是在补 bot 刚追问的接口截图，按 api_reply 接着接入是对的；new 回「确实没附图」和补料的动作对不上，「等流程说明」也含糊；理想：api_reply·change → actionable，按截图里的口径把资料修改接口接上 task/complete
+- **same** 10-31 15:42 Arthur.a：@Aven.Bot 测试一下生产环境社区帖子评论任务是否能正常完成和积分到账
+  - old：bug/medium·verification → 落地 actionable；回复「好，我用生产测试号评论一次帖子，看任务有没有完成、积分到没到账，看完把结果回你。」（理由：让 bot 去生产复测 Bug-5139 链路，延续之前卡片里说的复测）
+  - new：question/high·verification → 落地 actionable；回复「好，我去生产走一遍社区帖子评论任务，看任务完成和积分到账，结果回你。」（理由：让 bot 去生产实测链路，接着之前「上线后生产再测」的承诺）
+  - 两版都判对了：这是让 bot 去生产实测，建实测任务，回复也对得上之前「上线后生产再测」的承诺。old 归 bug 更贴切，但许诺「评论一次」会说过头；new 归 question 不准确，但措辞更稳。整体打平。；理想：bug·verification→actionable，去生产实测 Bug-5139 评论任务和积分到账
+- **old** 10-31 15:34 Aven.tong：为什么不发到PHp后端群？
+  - old：question/medium·answer → 落地 actionable；回复「我现在不能自己往别的群发消息，我先查下刚才那条是怎么处理的，再回你」（理由：负责人私信问 bot 自己的处理行为，属提问）
+  - new：question/medium·answer → 落地 selfAnswer；回复「我只能在 @ 我的地方或私信里回话，没法主动往别的群发消息。PHP 后端群那边得你转一下」（理由：负责人问机器人自身行为，按能力清单就能答）
+  - aven 15:23 已要求发群通知，现在追问为什么没发，原因要去查（groupReply 为空、规则只私信）。而且 bot 之前在 PHP 后端群回复过。new 一句「没法发、你转一下」既不准确又推给 aven；old 会去查，接近 falive 的做法。；理想：question → actionable：查清没发 PHP 后端群的原因并答复，需要的话补发

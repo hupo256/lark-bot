@@ -347,7 +347,11 @@ if (domain === 'event' && command === 'consume') {
   const toMs = (v) => (/^\d+$/.test(String(v)) ? Number(v) * 1000 : Date.parse(String(v)))
   const start = opts.start ? toMs(opts.start) : 0
   const end = opts.end ? toMs(opts.end) : Infinity
-  const list = messages().filter((m) => m.chat_id === chatId && Number(m.create_time) >= start && Number(m.create_time) <= end && inMainStream(m))
+  // falive 按 webhook 群的群号轮询它（负责人控制台）；时间线里那个群已按 lark-bot 的口径归成「aven 的私信」（chat_id = aven open_id），
+  // 这里按私信取、再把 chat_id 还原成请求的群号（11-04 校准：p0d 改了口径后 falive 一条都拉不到，私聊群的 case 全没接）。lark-bot 不按这个群号拉，不受影响。
+  const want = chatId === WEBHOOK_CHAT_ID ? AVEN_OPEN_ID : chatId
+  const list = messages().filter((m) => (m.chat_id === want || m.chat_id === chatId) && Number(m.create_time) >= start && Number(m.create_time) <= end && inMainStream(m))
+    .map((m) => (want === chatId ? m : { ...m, chat_id: chatId }))
   out({ ok: true, data: page(list, { order: opts.order || 'desc', pageSize: Number(opts['page-size'] || 50), pageToken: opts['page-token'] }) })
 } else if (domain === 'im' && command === '+messages-mget') {
   const ids = String(opts['message-ids'] || '').split(',').filter(Boolean)

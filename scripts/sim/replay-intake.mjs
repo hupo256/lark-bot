@@ -3,7 +3,7 @@
  * L1 分类 / 接单层回放（docs/falive-replay-plan-2026-11-03.md §2）：falive 群里每条触发 bot 的消息，用 lark-bot 现在的代码
  * 拼上下文包（buildConversationBundle，拉取函数改成从时间线取）→ 真跑分类器（classifyTaskIntent）→ 落地规则（applyIntakeClassification），
  * 与 falive 当时的分类 / 落地对照。不碰真实 Lark，不写任务仓；结果追加到 runtime/falive-replay/l1/<run>/results.jsonl（可续跑）。
- *   node scripts/sim/replay-intake.mjs --run base [--conc 6] [--limit n] [--only id,id] [--intent-model m] [--intent-effort e] [--dry]
+ *   node scripts/sim/replay-intake.mjs --run base [--conc 6] [--limit n] [--only id,id] [--intent-model m] [--intent-effort e] [--dry] [--dump]
  * 先 node scripts/sim/build-dataset.mjs。对照汇总：node scripts/sim/compare-intake.mjs --run base
  */
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs'
@@ -22,7 +22,11 @@ process.env.LARK_OBLIGATIONS_DIR = join(replayRoot, 'l1', 'empty-obligations')
 const { parseFetchedMessage, pickRecentContext, pickThreadContext } = await import('../../lib/lark-chat-context.mjs')
 const { buildConversationBundle } = await import('../../lib/lark-conversation-bundle.mjs')
 const { applyIntakeClassification } = await import('../../lib/lark-intake-resolve.mjs')
-const { normalizeMessage, parseCommandType, resolveMessageTrigger, summarize, textForParse } = await import('../../lib/lark-message.mjs')
+const { mentionsBot, normalizeMessage, parseCommandType, parseControlDirective, parseResumeDirective, resolveMessageTrigger, summarize, textForParse } = await import('../../lib/lark-message.mjs')
+const { OPS_COMMAND_TYPE, resolveOpsCommandType } = await import('../../lib/lark-ops-task.mjs')
+const { parseDailyDirective } = await import('../../lib/lark-daily-schedule.mjs')
+const { parseRetentionDirective } = await import('../../lib/lark-chat-retention.mjs')
+const { isDeployNotice } = await import('../../lib/lark-principal-channel.mjs')
 const { classifyTaskIntent } = await import('../../lib/lark-worker-run.mjs')
 
 const args = process.argv.slice(2)
@@ -33,6 +37,7 @@ const concurrency = Number(value('--conc', 6))
 const limit = Number(value('--limit', 0))
 const only = value('--only', '') ? new Set(value('--only', '').split(',')) : null
 const dry = flag('--dry')
+const dump = flag('--dump') // 只拼任务（正文 + intake + 附件）落进 results.jsonl、不分类：拿真实上下文做定向 fixture
 
 const mainConfigPath = join(process.env.LARK_RUNTIME_DIR, 'lark-bot.local.json')
 const mainConfig = existsSync(mainConfigPath) ? JSON.parse(readFileSync(mainConfigPath, 'utf8')) : {}
@@ -73,8 +78,10 @@ const botIds = [BOT_OPEN_ID, BOT_APP_ID, ...BOT_MENTION_IDS]
 // 不同群里 @bot 的 open_id 不同：统一改写成配置的 botOpenId，resolveMessageTrigger 才认得出「叫的是机器人」。
 const eventOf = (m) => toSimEvent(m, { botOpenId: BOT_OPEN_ID })
 
-// 时间线供数的四个拉取桩（签名同 lib/lark-cli）。
-const deps = {
+// 时间线供数的四个拉取桩（签名同 lib/lark-cli）。atMs = 本条的发出时刻：线上上下文包在收到时就拼好，话题里之后的回复还不存在。
+// 11-04 修：话题回复原来不按时间截，285 条里 85 条看得到「未来」的回复（10-29 aven 叮嘱「Go 上 pre 后回复」被判成「Arthur 说已上 pre」
+// 立刻复测，其实 Arthur 2.5 小时后才说；10-31「@Arthur 麻烦补信息」被判成「Arthur 已补」）——是回放漏了未来，不是分类器编的。
+const depsFor = (atMs) => ({
   fetchReferencedContext: async (messageId) => {
     const ref = byId.get(messageId)
     if (!ref) return null
@@ -84,7 +91,7 @@ const deps = {
     const anchor = byId.get(anchorId)
     const threadId = anchor?.threadId || null
     if (!threadId) return []
-    const items = (byChat.get(anchor.chatId) || []).filter((m) => m.threadId === threadId && !m.deleted).map(toListItem)
+    const items = (byChat.get(anchor.chatId) || []).filter((m) => m.threadId === threadId && !m.deleted && m.atMs < atMs).map(toListItem)
     return pickThreadContext(items, { excludeIds, botOpenIds: botIds, limit })
   },
   fetchRecentChatContext: async ({ chatId, beforeMs, excludeIds = [], limit = 20 }) => {
@@ -102,10 +109,25 @@ const deps = {
       return path ? { ...a, localPath: path } : { ...a, downloadError: '存档里没有这份附件' }
     })
   },
-}
+})
 const extraResourcesPath = join(rawDir, 'resources-extra.json')
 const extraResources = existsSync(extraResourcesPath) ? JSON.parse(readFileSync(extraResourcesPath, 'utf8')).resources || {} : {}
 const emptyStore = { list: () => [], listRecentForChat: () => [], findTaskByAnyReceipt: () => null, findByReceiptMessageId: () => null, has: () => false }
+
+// ingest 在分类之前按原话确定处理、不过模型的几条路（顺序同 lib/lark-ingest：控制指令 → 日报 / 退群 → 运维 → 部署知会 → 续跑指令）。
+// 回放不建这些任务、也不分类，记 route（11-04：「继续任务 <id>」「结单 <id>」「推 pre」原来都送了分类器，判 ignore 算成 lark-bot 漏做，线上根本到不了分类器）。
+// 只认不看任务库的；要看任务库的（私信锚到上一条通知、回复 bot 卡片的控制通道）回放没有库，照旧分类。
+const deterministicRoute = (msg) => {
+  const principalDm = msg.chatType === 'p2p' && msg.senderOpenId === AVEN_OPEN_ID
+  const text = textForParse(msg)
+  if (parseControlDirective(msg.text)) return 'control_directive'
+  if (principalDm && parseDailyDirective(msg.text)) return 'daily_directive'
+  if (principalDm && parseRetentionDirective(msg.text)) return 'retention_directive'
+  if (resolveOpsCommandType({ config, msg, classified: { type: parseCommandType(text), source: 'explicit' } }).type === OPS_COMMAND_TYPE) return 'ops'
+  if (principalDm && isDeployNotice(text)) return 'deploy_notice'
+  if (parseResumeDirective(text)) return 'resume_directive'
+  return null
+}
 
 const buildTask = async (m) => {
   const msg = normalizeMessage(eventOf(m))
@@ -114,7 +136,9 @@ const buildTask = async (m) => {
   const rawTrigger = resolveMessageTrigger({ msg, config, isBotReceiptReply })
   const trigger = rawTrigger === 'task_mention' ? null : rawTrigger
   if (!trigger) return { msg, trigger: null, task: null }
-  const bundle = await buildConversationBundle({ msg, config, store: emptyStore, project: 'FALIVE', deps })
+  const route = deterministicRoute(msg)
+  if (route) return { msg, trigger: rawTrigger, task: null, route }
+  const bundle = await buildConversationBundle({ msg, config, store: emptyStore, project: 'FALIVE', deps: depsFor(m.atMs) })
   const fromPrincipal = msg.senderOpenId === AVEN_OPEN_ID
   const receivedAt = new Date(m.atMs).toISOString()
   const commandType = parseCommandType(textForParse(msg))
@@ -138,7 +162,7 @@ const buildTask = async (m) => {
     fromPrincipal,
     quotedOwnCard: bundle.quotedOwnCard,
     status: 'received',
-    intake: { required: true, trigger: trigger === 'bot_reply' ? 'bot_reply' : msg.chatType === 'p2p' ? 'dm' : 'bot_mention', receivedAt },
+    intake: { required: true, trigger: trigger === 'bot_reply' ? 'bot_reply' : msg.chatType === 'p2p' ? 'dm' : 'bot_mention', mentionedBot: mentionsBot({ msg, config }), receivedAt },
     createdAt: receivedAt,
   }
   return { msg, trigger, task }
@@ -164,10 +188,19 @@ const worker = async () => {
     const m = byId.get(episode.id)
     const startedAt = Date.now()
     try {
-      const { trigger, task } = await buildTask(m)
+      const { trigger, task, route } = await buildTask(m)
+      if (route) {
+        record({ id: m.id, run: runName, trigger, skipped: 'deterministic', route, ms: 0 })
+        console.log(`[l1] ${m.id} 不过分类（${route}）：${String(m.text).slice(0, 40)}`)
+        continue
+      }
       if (!trigger) {
         record({ id: m.id, run: runName, trigger: null, skipped: 'no_trigger', ms: 0 })
         console.log(`[l1] ${m.id} 无触发（${m.senderName}：${String(m.text).slice(0, 40)}）`)
+        continue
+      }
+      if (dump) {
+        record({ id: m.id, run: runName, trigger, dump: true, task: { text: task.text, intake: task.intake, fromPrincipal: task.fromPrincipal, attachments: task.attachments.filter((a) => a.localPath).map((a) => ({ type: a.type, localPath: a.localPath })) }, ms: 0 })
         continue
       }
       if (dry) {

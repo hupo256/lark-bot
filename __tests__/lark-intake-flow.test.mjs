@@ -817,6 +817,18 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       assert.deepEqual(saidNames(), ['notePerson', 'flushPendingAck', 'deliverNoted'], '明确是我的事判不做：不用再私信负责人')
       await run({ ok: true, task: task({ status: 'ignored', fromPrincipal: true }, cls({ decision: 'ignore' })) })
       assert.deepEqual(saidNames(), ['notePerson', 'flushPendingAck', 'deliverNoted'], '负责人自己说的不用处理')
+      // 11-04 falive 回放：bot 卡片下的话题里 aven「cc @Encone」被回「收到，记下了」——回复 bot 没 @ 它、判不是对 bot 说（reply null）：不回、不私信；
+      // 「收到」已按固定句发出去的私信一句；有 reply / @ 了 bot 的照旧回
+      const toOthers = (extra = {}, c = cls({ decision: 'ignore', reply: null })) => task({ status: 'ignored', fromPrincipal: true, intake: { trigger: 'bot_reply', mentionedBot: false, classification: c }, ...extra }, c)
+      await eachCase([
+        { name: '没 @、reply null → 静默', t: toOthers(), want: ['notePerson', 'flushPendingAck'] },
+        { name: '没 @、reply null、「收到」已发 → 私信一句', t: toOthers({ ackedInGroup: true }), want: ['notePerson', 'flushPendingAck', 'deliverIgnoredAfterAck'] },
+        { name: '没 @、有 reply → 照旧回', t: toOthers({}, cls({ decision: 'ignore', reply: '记下了' })), want: ['notePerson', 'flushPendingAck', 'deliverNoted'] },
+        { name: '@ 了 bot、reply null → 照旧回', t: task({ status: 'ignored', fromPrincipal: true, intake: { trigger: 'bot_reply', mentionedBot: true, classification: cls({ decision: 'ignore', reply: null }) } }, cls({ decision: 'ignore', reply: null })), want: ['notePerson', 'flushPendingAck', 'deliverNoted'] },
+      ], async ({ t, want }) => {
+        assert.deepEqual(await run({ ok: true, task: t }), body({ ignored: true }))
+        assert.deepEqual(saidNames(), want)
+      })
       const quiet = task({ status: 'ignored', addressedToBot: false, ackedInGroup: true }, cls({ decision: 'ignore' }))
       assert.deepEqual(await run({ ok: true, task: quiet }), body({ ignored: true }))
       assert.deepEqual(said.slice(1), [['flushPendingAck', { config: cfg, store: st, task: quiet, reply: null, send: false }], ['deliverIgnoredAfterAck', { config: cfg, store: st, task: quiet }]])
@@ -886,6 +898,22 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       ref = { text: '原话', sender: '', attachments: [] }
       const noNote = await bundle({ messageId: 'om_m8', replyTo: 'om_rcpt', text: '' })
       assert.deepEqual([noNote.text, noNote.quotedOwnCard], ['【被引用消息】\n原话\n\n【本条 @】（无附言）', true])
+      // 11-04 falive 回放：正文里的「@名字」归一时剥掉了，「@Arthur 麻烦在这里补信息吧」「cc @Encone」只剩正文——本条 @ 了别人要标给分类器；只 @ bot 不标
+      const arthur = { id: 'ou_a', key: '@_user_1', name: 'Arthur' }
+      const at = async (extra) => (await bundle({ messageId: 'om_m9', ...extra })).text
+      assert.deepEqual([
+        await at({ replyTo: 'om_rcpt', text: '麻烦在这里补信息吧', mentions: [arthur] }),
+        await at({ replyTo: 'om_rcpt', text: '', mentions: [arthur] }),
+        await at({ text: '读一下', mentions: [BOT, arthur, arthur] }),
+        await at({ text: '', mentions: [arthur, { id: 'all', key: '@_all', name: '' }] }),
+        await at({ text: '读一下', mentions: [BOT] }),
+      ], [
+        '【被引用消息】\n原话\n\n【本条 @】麻烦在这里补信息吧（@ 的是 Arthur，没 @ 机器人）',
+        '【被引用消息】\n原话\n\n【本条 @】（无附言）（@ 的是 Arthur，没 @ 机器人）',
+        '读一下（同时 @ 了 Arthur）',
+        '【本条】（无附言）（@ 的是 Arthur、所有人，没 @ 机器人）',
+        '读一下',
+      ])
     }],
     ['ingest：aven 私信 → received / dm / 快道 / 挂「收到」；非消息事件 / 幂等 / bot / 白名单外的不建', async () => {
       const before = Date.now()
@@ -893,7 +921,7 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       const a = store.get('om_dm1')
       assert.deepEqual([a.status, a.chatType, a.chatId, a.operator, a.addressedToBot, a.fromPrincipal, a.quotedOwnCard, a.project, a.projectTitle, a.commandType, a.commandTypeSource, a.text, a.summary, a.threadRootId, a.replyTarget, a.attachments, a.aiExecutor],
         ['received', 'p2p', 'oc_p2p', 'ou_aven', true, true, false, null, undefined, null, null, '有哪些差别', '有哪些差别', null, { messageId: 'om_dm1', inThread: false }, [], 'claude'])
-      assert.deepEqual({ ...a.intake, notBefore: undefined, receivedAt: undefined }, { required: true, trigger: 'dm', mentionedOpenIds: [], lane: 'fast', anchorTaskId: null, notBefore: undefined, receivedAt: undefined })
+      assert.deepEqual({ ...a.intake, notBefore: undefined, receivedAt: undefined }, { required: true, trigger: 'dm', mentionedBot: false, mentionedOpenIds: [], lane: 'fast', anchorTaskId: null, notBefore: undefined, receivedAt: undefined })
       const gapMs = Date.parse(a.intake.notBefore) - Date.parse(a.intake.receivedAt)
       assert.ok(gapMs >= 0 && gapMs < 1000, `快道不等：${gapMs}`)
       assert.ok(Date.parse(a.intake.receivedAt) >= before && a.createdAt === a.intake.receivedAt)
