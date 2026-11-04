@@ -69,6 +69,7 @@ const fakeDeps = (over = {}) => {
     classifyTaskIntent: async () => ({ decision: 'bug' }),
     runAI: async () => ({ executor: 'claude', result: null }),
     runGroupReplyPass: async () => false,
+    runLateMessagesPass: async () => false,
     runPreExecutionGates: async () => false,
     prefetchTaskReferences: () => ({ audit: {}, notes: [], block: null }),
     worktreeState: () => 'clean',
@@ -349,6 +350,9 @@ describe('createTaskRunner 运行期控制流（deps 注入）', () => {
       assert.equal(notAcked.calls.runGroupReplyPass, undefined)
       const noResult = await run({ task: baseTask({ ackedInGroup: true, attachments: [{ type: 'image' }] }) })
       assert.equal(noResult.calls.runGroupReplyPass, undefined)
+      // 回看群里新消息：有结果就过，同一份续会话参数
+      assert.deepEqual(acked.calls.runLateMessagesPass[0][0], args)
+      assert.equal(noResult.calls.runLateMessagesPass, undefined)
     }],
     ['AI 退出没回写结果 → failed 待人工复核；网关已不是 running（取消 / 换代）就不再回写；网关已 done 的遗漏路径走兜底规范闸 + finally 收尾告警', async () => {
       const none = await run()

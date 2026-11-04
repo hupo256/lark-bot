@@ -17,6 +17,7 @@ writeFileSync(join(dir, 'runtime', 'persona', 'aven.md'), '# 口吻\n\n短句、
 process.env.LARK_RUNTIME_DIR = join(dir, 'runtime')
 const { buildOutcome, detailDocOf, mapStatusForContract, outcomeFromWorkerFailure, outcomeHeadline, runEvidenceFor } = await import('../lib/lark-run-report.mjs')
 const { buildGroupReplyPassPrompt, owesGroupReply, runGroupReplyPass } = await import('../lib/lark-group-reply-pass.mjs')
+const { buildLateMessagesPrompt, fetchLateMessages, pickLateMessages, resultAsks, runLateMessagesPass } = await import('../lib/lark-late-messages.mjs')
 const { ANSWER_MODE_BLOCK, CLAIM_EVIDENCE_RULE, DELIVER_NOW_RULE, VERIFICATION_MODE_BLOCK, buildAckPromiseBlock, buildAnswerEnvRule, buildApiReplyRetestBlock, buildCarryOverBlock, buildDocAskBlock, buildEnvLoginRule, buildEnvProbeRule, buildTestDataRule } = await import('../lib/lark-worker-modes.mjs')
 const { buildTaskPromptParts } = await import('../lib/lark-worker-prompts.mjs')
 const { applyEnvCheck, checkEnvTarget, envTargetLine, hostOf, resolveEnvTargets, touchedEnvs } = await import('../lib/lark-env-target.mjs')
@@ -149,6 +150,92 @@ describe('worker 侧对话层：outcome / 契约映射 / 群回复补写 / 模�
       assert.equal(await runGroupReplyPass({ task: { id: 't', ackedInGroup: true }, aiRun: run3, exec: passExec(null).exec }), false)
       assert.equal(await runGroupReplyPass({ task: { id: 't', ackedInGroup: true }, aiRun: run3, exec: passExec(null, { throws: true }).exec }), false)
       assert.deepEqual(run3.result, owedResult())
+    }],
+    ['resultAsks：挂起、blockers 有非空条、待跟进里有非空事项才算在向人要东西；形状不对不抛', () => eachCase([
+      { name: '没结果', result: null, want: false },
+      { name: 'done 什么都没要', result: done(), want: false },
+      { name: 'blocked', result: done({ status: 'blocked' }), want: true },
+      { name: 'waiting_confirmation', result: done({ status: 'waiting_confirmation' }), want: true },
+      { name: 'blockers 有一条', result: done({ blockers: ['', '要账号'] }), want: true },
+      { name: 'blockers 只有空白', result: done({ blockers: ['', '  ', 5] }), want: false },
+      { name: 'blockers 不是数组', result: done({ blockers: '要账号' }), want: false },
+      { name: '待跟进有事项', result: done({ followUps: [{ owner: 'William', items: ['给个嗨聊老账号'] }] }), want: true },
+      { name: '待跟进事项都空', result: done({ followUps: [{ owner: 'William', items: [' '] }, null] }), want: false },
+      { name: '待跟进 items 不是数组', result: done({ followUps: [{ owner: 'William', items: '给账号' }] }), want: false },
+      { name: 'followUps 不是数组', result: done({ followUps: 'x' }), want: false },
+    ], ({ result, want }) => assert.equal(resultAsks(result), want))],
+    ['pickLateMessages / fetchLateMessages：本条之后的真人消息，去掉 bot / 重复 / 已并进的 / 寒暄，按时间留最近 N 条；只拉群；群列表只要没删的真人；话题回复一起拉', async () => {
+      const at = (min) => String(Date.UTC(2026, 9, 22, 11, min))
+      const since = Number(at(19))
+      const row = (id, min, text, extra = {}) => ({ messageId: id, sender: 'Encone', createTime: at(min), text, attachments: [], ...extra })
+      const items = [
+        row('m_old', 19, '在本条同一刻，不算之后'),
+        row('m_acct', 21, 'Account：+86 15661234567 PWD：x'),
+        row('m_acct', 21, '重复的同一条'),
+        row(null, 22, '没 id'),
+        row('m_bot', 22, '机器人的话', { bot: true }),
+        row('m_self', 22, '已并进本单的'),
+        row('m_ack', 23, '收到谢谢！'),
+        row('m_num', 23, '508'),
+        row('m_img', 24, '![Image](img_1)', { sender: '', attachments: [{ type: 'image' }, { type: 'file', fileName: 'a.md' }, { type: 'file' }] }),
+        row('m_empty', 24, '  '),
+        row('m_long', 20, 'x'.repeat(600)),
+      ]
+      const picked = pickLateMessages({ items, sinceMs: since, excludeIds: ['m_self', null] })
+      assert.deepEqual(picked.map((item) => item.messageId), ['m_long', 'm_acct', 'm_num', 'm_img'])
+      assert.equal(picked[0].text, `${'x'.repeat(500)}…`)
+      assert.equal(picked[3].text, '（发了 1 张图） （发了文件：a.md、文件）')
+      assert.deepEqual(pickLateMessages({ items, sinceMs: since, excludeIds: ['m_self'], limit: 2 }).map((item) => item.messageId), ['m_num', 'm_img'])
+      assert.deepEqual(pickLateMessages({ items: [row('m_4', 21, '好的好的')], sinceMs: since }), [], '4 字寒暄不算')
+      assert.equal(pickLateMessages({ items: [row('m_5', 21, '好的好的呀')], sinceMs: since }).length, 1, '5 字就算')
+      assert.equal(buildLateMessagesPrompt({ messages: picked.slice(1, 2).concat(picked.slice(3)) }).split('\n').slice(2, 4).join('\n'), `Encone（${picked[1].time}）：Account：+86 15661234567 PWD：x\n某人（${picked[3].time}）：（发了 1 张图） （发了文件：a.md、文件）`)
+      // 拉取：群里一页（真人、没删的）+ 话题回复；起点是本条时间（秒），排除本条 / 关联消息 / 并进来的
+      const calls = []
+      const raw = (id, min, text, type = 'user', extra = {}) => ({ message_id: id, msg_type: 'text', content: text, create_time: at(min), sender: { id: 'ou_e', name: 'Encone', sender_type: type }, ...extra })
+      const list = async (args) => (calls.push(args), { ok: true, messages: [raw('c3', 23, '账号 508 已开主播'), raw('c2', 22, '机器人卡', 'app'), raw('c1', 21, '删掉的那条', 'user', { deleted: true }), raw('om_task', 19, '本条')] })
+      const fetchThread = async (anchor, options) => (calls.push({ anchor, options }), [row('t1', 22, '话题里给的链接 https://x'), row('om_merged', 22, '并进来的补充'), row('om_link', 22, '记在本单上的消息')])
+      const task = { id: 'om_task', messageId: 'om_task', chatId: 'oc_g', threadRootId: 'omt_1', messageCreatedAt: new Date(since).toISOString(), linkedMessageIds: ['om_link'], mergedFrom: ['om_merged'] }
+      assert.deepEqual((await fetchLateMessages({ task, list, fetchThread })).map((item) => item.messageId), ['t1', 'c3'])
+      assert.deepEqual(calls, [{ chatId: 'oc_g', start: String(since / 1000), pageSize: 50, order: 'desc' }, { anchor: 'omt_1', options: { limit: 50 } }])
+      // 没话题不拉话题；只有 createdAt 也能定起点；私信 / 没时间不拉；拉取抛错 / 失败按没有
+      calls.length = 0
+      assert.deepEqual((await fetchLateMessages({ task: { ...task, threadRootId: null, messageCreatedAt: null, createdAt: new Date(since).toISOString() }, list, fetchThread })).map((item) => item.messageId), ['c3'])
+      assert.equal(calls.length, 1)
+      assert.deepEqual([await fetchLateMessages({ task: { ...task, chatId: 'ou_aven' }, list, fetchThread }), await fetchLateMessages({ task: { ...task, messageCreatedAt: null }, list, fetchThread })], [[], []])
+      assert.equal(calls.length, 1, '私信 / 没时间一次都不拉')
+      const broken = async () => { throw new Error('boom') }
+      assert.deepEqual(await fetchLateMessages({ task, list: broken, fetchThread: broken }), [])
+      assert.deepEqual(await fetchLateMessages({ task: { ...task, threadRootId: null }, list: async () => ({ ok: false, messages: [raw('c9', 23, '不该出现')] }), fetchThread }), [])
+    }],
+    ['runLateMessagesPass（b3 ep-1021-d4e64d 02953573：跑的期间群里给了账号，结论还在要）：不要东西 / 没会话 / 非 claude / 没新消息不续；续上换成新结果、detailDoc 新的优先；新结果不合法或异常原样', async () => {
+      const asking = (extra = {}) => ({ status: 'done', summary: '缺账号', followUps: [{ owner: 'William', items: ['给账号'] }], detailDoc: 'D-old', ...extra })
+      const late = [{ messageId: 'm1', sender: 'Encone', time: '10-22 19:21', text: 'Account：x' }]
+      const fetchLate = async () => late
+      const task = { id: 't', contract: { deliverable: 'verification' } }
+      const skip = passExec(done())
+      for (const aiRunCase of [ackedRun(done()), ackedRun(asking(), { sessionId: null }), ackedRun(asking(), { executor: 'codex' })]) {
+        assert.equal(await runLateMessagesPass({ task, aiRun: aiRunCase, exec: skip.exec, fetchLate }), false)
+      }
+      assert.equal(await runLateMessagesPass({ task, aiRun: ackedRun(asking()), exec: skip.exec, fetchLate: async () => [] }), false)
+      assert.equal(skip.calls.length, 0)
+      const run1 = ackedRun(asking())
+      const used = passExec({ status: 'done', summary: '用 Encone 给的号测过了', followUps: null, detailDoc: null })
+      assert.equal(await runLateMessagesPass({ task, aiRun: run1, exec: used.exec, fetchLate, cwd: '/w', readOnly: false }), true)
+      assert.deepEqual(run1.result, { status: 'done', summary: '用 Encone 给的号测过了', followUps: null, detailDoc: 'D-old' })
+      assert.deepEqual(pick(used.calls[0], ['executor', 'resumeSessionId', 'cwd', 'readOnly', 'egressScope']), { executor: 'claude', resumeSessionId: 'sess-1', cwd: '/w', readOnly: false, egressScope: 'verification' })
+      assert.equal(used.calls[0].promptText, buildLateMessagesPrompt({ messages: late }))
+      const run2 = ackedRun(asking({ status: 'blocked' }))
+      assert.equal(await runLateMessagesPass({ task, aiRun: run2, exec: passExec({ status: 'done', summary: 's', detailDoc: 'D-new' }).exec, fetchLate }), true)
+      assert.equal(run2.result.detailDoc, 'D-new')
+      for (const bad of [{ summary: 's' }, { status: 'done', summary: '  ' }, null]) {
+        const run = ackedRun(asking())
+        assert.equal(await runLateMessagesPass({ task, aiRun: run, exec: passExec(bad).exec, fetchLate }), false)
+        assert.deepEqual(run.result, asking())
+      }
+      const run3 = ackedRun(asking())
+      assert.equal(await runLateMessagesPass({ task, aiRun: run3, exec: passExec(null, { throws: true }).exec, fetchLate }), false)
+      assert.equal(await runLateMessagesPass({ task, aiRun: run3, exec: skip.exec, fetchLate: async () => { throw new Error('x') } }), false)
+      assert.deepEqual(run3.result, asking())
     }],
     ['环境识别与核对（aven 11-02：online 的问题不能拿 pre 复验）：认环境名 / 中文叫法 / 域名；提示点名；本轮打的环境不对就明说、通过的降待验证', async () => {
       const sites = { dev: 'https://www.pfyys.com', test: 'https://www.dvmkgi.vip', pre: 'www.azmgb.com', online: 'https://www.fameex.com', bad: 'http://[' }
