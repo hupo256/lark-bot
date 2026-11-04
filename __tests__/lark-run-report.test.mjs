@@ -237,6 +237,11 @@ describe('worker 侧对话层：outcome / 契约映射 / 群回复补写 / 模�
         // 11-03 第二次 review #8：环境不相交不并入、continues 仍指上一单（uat 的实测结论）——实测模式里它只作背景，环境事实本轮实测
         { name: '实测模式：上一单结论只作背景，不顶替本轮实测', task: { priorConclusion: prior }, verification: true, want: '本条接着任务 om_prev（翻译实测），那单 bot 的结论（以前的记录，只作背景：环境能不能用 / 有没有数据以本轮实测为准，不拿它顶替）：\n- 标题翻译：18726–18742' },
         { name: '两者都有：「收到」在前', task: { priorConclusion: prior, ackReply: '好' }, want: `群里已先回了一句：「好」\n${PRIOR_LINE}` },
+        // 11-05 b3 ep-1027-63a6f3：引用「分享链接为空」那条空 @，分类器读成测 room/271，worker 按引用答了分享链接
+        { name: '原话空 @（只引用）：带分类器读出的要做的事，在最前', task: { text: '【被引用消息】（Eric 10-27 14:02）\n分享链接为空\n\n【本条 @】（无附言）\n\n【话题其它回复】\nHTStone：先用 room/271 验證', ackReply: '收到', intake: { classification: { summary: '去 pre 打开 room/271 看能不能播' } } }, want: '本条原话没写要做什么，按上下文读出的是：「去 pre 打开 room/271 看能不能播」——就做这件，引用的旧消息和前文只是背景。\n群里已先回了一句：「收到」' },
+        { name: '原话只 @ 了机器人：同上', task: { text: '【本条 @】（无附言，只 @ 了机器人）\n\n【群里这条之前的消息】\nEncone：为啥 404', intake: { classification: { summary: '答 Encone 为啥项目里 404' } } }, want: '本条原话没写要做什么，按上下文读出的是：「答 Encone 为啥项目里 404」——就做这件，引用的旧消息和前文只是背景。' },
+        { name: '原话有内容：不带', task: { text: '【本条 @】测一下 room/271', intake: { classification: { summary: '测 271' } } }, want: '' },
+        { name: '原话空但分类没摘要：不带', task: { text: '【本条 @】（无附言）', intake: { classification: { summary: null } } }, want: '' },
         // 11-04 回放 ep-1014-d74f19：引用的 bot 消息出自另一单，「针对这条消息」问的就是那单
         { name: '引用的 bot 消息出自另一单：带那单的结论（在上一单之后）', task: { priorConclusion: prior, quotedConclusion: { taskId: 'om_q', summary: '复测 /go-api', text: '反代通了' } }, want: `${PRIOR_LINE}\n本条引用的 bot 那条消息出自任务 om_q（复测 /go-api），「这条 / 本次」指的就是那单（以前的记录，用前对一下）：\n反代通了` },
       ], ({ task, verification = false, want }) => {
@@ -328,6 +333,8 @@ describe('worker 侧对话层：outcome / 契约映射 / 群回复补写 / 模�
       assert.match(ANSWER_MODE_BLOCK({}, {}), /对方指着前文问（「那两个」「刚才说的」）：从近往远找被指的那句——先对上下文末尾 bot 自己最近发的结论.*answer 开头点明对的是哪条.*以最近的为准.*不硬凑。/)
       assert.doesNotMatch(ANSWER_MODE_BLOCK({}, {}), /记录里是三个/)
       assert.equal(VERIFICATION_MODE_BLOCK({}, {}).includes('对方指着前文问'), false)
+      // 11-05 b3 ep-1020-437502 / ep-1028-ce8964：问现状 / 出反馈对上最近定下的口径，已定的不再写成待拍板
+      assert.match(ANSWER_MODE_BLOCK({}, {}), /不硬凑。\n问现状 \/ 缺什么 \/ 能不能提测、出反馈：先对上话题和前文里最近定下的口径.*不一致的列成缺口，已定的不再写成「待谁拍板」。\n/)
       // 11-04 b3 ep-1031-35935b「测生产评论任务」：有测试号就用它只读查基线、写的那步点名请人做、修复上没上该环境先核
       assert.match(VERIFICATION_MODE_BLOCK({}, {}), /\n账号：固定知识有该环境测试号就登录查只读基线（任务状态、余额 \/ 流水），不说没账号；写数据点名请报问题或有号的人做；复测修复先核上没上该环境（后端的问对方）。\n3\. /)
       assert.equal(ANSWER_MODE_BLOCK({}, {}).includes('账号：固定知识'), false, '代答不带')
