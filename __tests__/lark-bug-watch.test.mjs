@@ -443,7 +443,7 @@ describe('bug 发现两档调度（读通知 + 对账）', () => {
       assert.deepEqual(store, {})
       assert.equal(replies.at(-1), 'BUG-7561 已解除，bot 之后照常处理。')
     }],
-    ['B4 任务正文：验退带 QA 测试 / 返工结果与重开次数（有才写），备注任何时候带且只取最后 800 字，修改范围 owned 加一句', () => {
+    ['B4 任务正文：验退带 QA 测试 / 返工结果与重开次数（有才写），备注任何时候带且只取最后 800 字，不按模块归属限改动（fixScope.modules=owned 已删，aven 11-04）', () => {
       const bug = { ...BUG, rejectedValue: '验退' }
       const fields = { 问题标题: 't', 处理状态: '验退', 项目ID: 'PR-1', 测试结果: '不通过', 返工测试结果: '还是报错', 重开次数: '2', 备注: 'x'.repeat(REMARK_TAIL + 5) + 'END' }
       const text = buildBugText({ record: { record_id: 'r1', fields }, bug })
@@ -456,8 +456,7 @@ describe('bug 发现两档调度（读通知 + 对账）', () => {
       const sparse = buildBugText({ record: { record_id: 'r3', fields: { 问题标题: 't', 处理状态: '验退', 返工测试结果: '仍不对' } }, bug })
       assert.match(sparse, /QA 返工测试结果（本次验退的原因，先看这个）：仍不对$/)
       assert.doesNotMatch(sparse, /QA 测试结果：|重开次数|备注/)
-      assert.match(buildBugText({ record: { record_id: 'r4', fields: { 问题标题: 't' } }, bug: { ...bug, fixScope: { modules: 'owned' } } }), /\n修改范围：只改负责人自己负责的模块/)
-      assert.doesNotMatch(buildBugText({ record: { record_id: 'r4', fields: { 问题标题: 't' } }, bug: { ...bug, fixScope: { modules: 'all' } } }), /修改范围/)
+      for (const modules of ['owned', 'all']) assert.doesNotMatch(buildBugText({ record: { record_id: 'r4', fields: { 问题标题: 't' } }, bug: { ...bug, fixScope: { modules } } }), /修改范围|负责的模块/, `${modules} 不加归属边界`)
       const custom = buildBugText({ record: { record_id: 'r5', fields: { 问题标题: 't', 处理状态: '验退', RT: '自定义列' , RM: '自定义备注' } }, bug: { ...bug, retestResultField: 'RT', remarkField: 'RM' } })
       assert.match(custom, /返工测试结果（本次验退的原因，先看这个）：自定义列\n备注：自定义备注$/)
     }],
