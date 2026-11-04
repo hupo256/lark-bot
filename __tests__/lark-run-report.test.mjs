@@ -17,7 +17,7 @@ writeFileSync(join(dir, 'runtime', 'persona', 'aven.md'), '# 口吻\n\n短句、
 process.env.LARK_RUNTIME_DIR = join(dir, 'runtime')
 const { buildOutcome, detailDocOf, mapStatusForContract, outcomeFromWorkerFailure, outcomeHeadline, runEvidenceFor } = await import('../lib/lark-run-report.mjs')
 const { buildGroupReplyPassPrompt, owesGroupReply, runGroupReplyPass } = await import('../lib/lark-group-reply-pass.mjs')
-const { ANSWER_MODE_BLOCK, DELIVER_NOW_RULE, VERIFICATION_MODE_BLOCK, buildAnswerEnvRule, buildCarryOverBlock, buildEnvProbeRule } = await import('../lib/lark-worker-modes.mjs')
+const { ANSWER_MODE_BLOCK, DELIVER_NOW_RULE, VERIFICATION_MODE_BLOCK, buildAckPromiseBlock, buildAnswerEnvRule, buildCarryOverBlock, buildEnvProbeRule } = await import('../lib/lark-worker-modes.mjs')
 const { buildTaskPromptParts } = await import('../lib/lark-worker-prompts.mjs')
 const { applyEnvCheck, checkEnvTarget, envTargetLine, hostOf, resolveEnvTargets, touchedEnvs } = await import('../lib/lark-env-target.mjs')
 const { buildIntentClassificationPrompt, describeSender, formatTaskAttachments, readPersona } = await import('../lib/lark-classify-prompt.mjs')
@@ -95,9 +95,10 @@ describe('worker 侧对话层：outcome / 契约映射 / 群回复补写 / 模�
       writeFileSync(join(project, 'sess-a.jsonl'), `${event('t1', 'node scripts/probe.mjs health')}\n${event('t2', 'node tools/verify-page.mjs check /login')}\n`)
       writeFileSync(join(project, 'sess-b.jsonl'), `${event('t3', 'node scripts/probe.mjs users')}\n`)
       const aiRun = { sessionId: 'sess-b', analysisSessionId: 'sess-a', implementation: { analysisSessionId: 'sess-a' } }
-      assert.deepEqual(runEvidenceFor({ aiRun, cwd: '/tmp/proj', verify: { probeCommand: 'node scripts/probe.mjs' }, claudeHome: home }), { probeCalls: 2, browserCalls: 1, hosts: [] })
+      // 真发过的请求随证据带出（collectProbeLog，11-04 回放 ep-1014-d74f19）；没有就不带 probes 字段
+      assert.deepEqual(runEvidenceFor({ aiRun, cwd: '/tmp/proj', verify: { probeCommand: 'node scripts/probe.mjs' }, claudeHome: home }), { probeCalls: 2, browserCalls: 1, hosts: [], probes: [{ at: null, command: 'node scripts/probe.mjs health', output: null }, { at: null, command: 'node scripts/probe.mjs users', output: null }] })
       assert.deepEqual(runEvidenceFor({ aiRun, cwd: '/tmp/proj', verify: null, claudeHome: home }), { probeCalls: 0, browserCalls: 1, hosts: [] }, '没配探针脚本就只认 curl / wget 直连')
-      assert.deepEqual(runEvidenceFor({ aiRun, cwd: '/tmp/proj', verify: { probeCommand: 'node scripts/probe.mjs', browserPattern: 'verify-page\\.mjs' }, claudeHome: home }), { probeCalls: 2, browserCalls: 1, hosts: [] })
+      assert.deepEqual(runEvidenceFor({ aiRun, cwd: '/tmp/proj', verify: { probeCommand: 'node scripts/probe.mjs', browserPattern: 'verify-page\\.mjs' }, claudeHome: home }).probeCalls, 2)
       assert.equal(runEvidenceFor({ aiRun: { sessionId: 'missing' }, cwd: '/tmp/proj', claudeHome: home }), null, '一份会话记录都读不到 → 不核')
       assert.equal(outcomeHeadline({ report: { answer: '\n  \n 第一行 \n第二行' }, summary: 'S' }), '第一行')
       assert.equal(outcomeHeadline({ report: { answer: '   ' }, summary: ' 摘要 \n次行' }), '摘要')
@@ -227,6 +228,8 @@ describe('worker 侧对话层：outcome / 契约映射 / 群回复补写 / 模�
         // 11-03 第二次 review #8：环境不相交不并入、continues 仍指上一单（uat 的实测结论）——实测模式里它只作背景，环境事实本轮实测
         { name: '实测模式：上一单结论只作背景，不顶替本轮实测', task: { priorConclusion: prior }, verification: true, want: '本条接着任务 om_prev（翻译实测），那单 bot 的结论（以前的记录，只作背景：环境能不能用 / 有没有数据以本轮实测为准，不拿它顶替）：\n- 标题翻译：18726–18742' },
         { name: '两者都有：「收到」在前', task: { priorConclusion: prior, ackReply: '好' }, want: `群里已先回了一句：「好」\n${PRIOR_LINE}` },
+        // 11-04 回放 ep-1014-d74f19：引用的 bot 消息出自另一单，「针对这条消息」问的就是那单
+        { name: '引用的 bot 消息出自另一单：带那单的结论（在上一单之后）', task: { priorConclusion: prior, quotedConclusion: { taskId: 'om_q', summary: '复测 /go-api', text: '反代通了' } }, want: `${PRIOR_LINE}\n本条引用的 bot 那条消息出自任务 om_q（复测 /go-api），「这条 / 本次」指的就是那单（以前的记录，用前对一下）：\n反代通了` },
       ], ({ task, verification = false, want }) => {
         assert.equal(buildCarryOverBlock(task, { verification }), want)
         const ctx = { projectId: 'PR-99999', projectName: 't', projectDocs: [], cwd: '/tmp/repo' }
@@ -235,7 +238,10 @@ describe('worker 侧对话层：outcome / 契约映射 / 群回复补写 / 模�
           const { user } = buildTaskPromptParts(ctx, { ...full, contract, intake: { ...full.intake, classification: { decision: 'bug', ...full.intake?.classification } } }, 'claude', { ruleContext: { text: '', sources: [] } })
           const block = buildCarryOverBlock(full, { verification: contract.deliverable === 'verification' })
           if (want) assert.equal(user.includes(`\n${block}\n`), carried, `${contract.deliverable}：${carried ? '要带' : '不带'}`)
-          assert.equal(['群里已先回了一句', '本条接着任务', '本单上一轮'].some((line) => user.includes(line)), carried && Boolean(want))
+          assert.equal(['本条接着任务', '本单上一轮', '本条引用的 bot'].some((line) => user.includes(line)), carried && Boolean(task?.priorConclusion || task?.quotedConclusion))
+          // 改码类不带上一单结论，但「收到」里答应的只读事要兑现（buildAckPromiseBlock，11-04 回放 ep-1031-35935b）
+          assert.equal(user.includes('群里已先回了一句'), Boolean(task?.ackReply), `${contract.deliverable}：发过「收到」就带那句`)
+          if (!carried) assert.equal(user.includes('单趟没有下次，不写「测完再回你」'), Boolean(task?.ackReply))
           assert.equal(user.includes('curl GET / 登录 POST'), contract.deliverable === 'verification', '只有实测放开登录 POST（aven 11-04）')
         }
       })
@@ -252,8 +258,21 @@ describe('worker 侧对话层：outcome / 契约映射 / 群回复补写 / 模�
       assert.doesNotMatch(rule, /POST/)
       // 没配环境地址：一个地址都不打，只转述（aven 11-04 出网范围）
       for (const sites of [null, {}, { pre: ' ' }]) assert.equal(buildAnswerEnvRule(sites), '环境现状：answer 里要说某个环境现在能不能用 / 有没有数据 / 报不报错，包括复述引用消息、上下文、文档或上一单里更早的实测结论，本仓没有配环境地址，不去打任何地址；写明那是哪天谁的结论、这次没复测，不当现状说。')
-      assert.ok(ANSWER_MODE_BLOCK({}, { envSites: { pre: 'https://p' } }).includes(`不改任何文件、不装依赖、不起服务；问的是机器人自己能做什么就按本提示的能力说明答。\n${rule}\n2. `))
+      assert.ok(ANSWER_MODE_BLOCK({}, { envSites: { pre: 'https://p' } }).includes(`\n${rule}\n2. `))
       assert.equal(VERIFICATION_MODE_BLOCK({}, { envSites: { pre: 'https://p' } }).includes('环境现状：'), false)
+    }],
+    // 11-04 falive 回放 ep-1031-35935b：改码单没兑现「收到」里答应的 pre 复测，还写「测完把结果回你」
+    ['buildAckPromiseBlock：只在发过「收到」时出现；答应的只读事本轮做、写进 report、不许「测完再回你」；配了环境列地址、只 GET（登录 POST 除外）、上游不打', () => {
+      assert.equal(buildAckPromiseBlock({}), '')
+      assert.equal(buildAckPromiseBlock(null), '')
+      const block = buildAckPromiseBlock({ ackReply: '评论积分我去 pre 再测一下' }, { envSites: { pre: 'https://p', uat: ' ' } })
+      assert.match(block, /^群里已先回了一句：「评论积分我去 pre 再测一下」。里面答应的只读事.*本轮一并做（打 pre https:\/\/p，只发 GET（登录拿态的 POST 除外），上游 \/ 合作方域名不打）.*report.*not_done.*单趟没有下次，不写「测完再回你」。$/)
+      assert.match(buildAckPromiseBlock({ ackReply: '好' }), /本仓没配环境地址，测不了就写明/)
+    }],
+    // 11-04 falive 回放 ep-1021-8cca5c：「404 的接口具体是哪两个」把台账里三支硬凑成两支（「两个」其实指同一接口两个号测）
+    ['代答块：指着前文问先对上被指的那句，对不上直说、不硬凑；实测块不带', () => {
+      assert.match(ANSWER_MODE_BLOCK({}, {}), /对方指着前文问（「那两个」「刚才说的」）：先在上下文里找到被指的那句.*对不上.*就直说记录里是什么，不硬凑。/)
+      assert.equal(VERIFICATION_MODE_BLOCK({}, {}).includes('对方指着前文问'), false)
     }],
     ['分类提示的数据块：附件行、发送人（本人 / ownerMap 反查 + 角色 / 未登记）、persona 文件、锚点 / 活动 / 候选块、正文', () => {
       assert.equal(formatTaskAttachments({ attachments: [{ type: 'image', fileName: 'a.png', width: 10, height: 20, origin: '引用消息' }, { localPath: '/p', width: 10 }, { type: 'file', imageKey: 'img_1', downloadError: '403' }] }), '1. image「a.png」；来源：引用消息；尺寸：10x20\n2. attachment；本地路径：/p\n3. file；Lark image_key：img_1；下载状态：403')

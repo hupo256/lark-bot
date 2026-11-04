@@ -233,5 +233,11 @@
     "code": "const sent = await say.principal({ config, store, text: sayIntakeFailed({ task, chatLabel: chatLabel(task, { chatNames: config.chatNames || {} }) }), taskId: task.id, kind: 'intake_failed' })",
     "op": "|| → &&",
     "reason": "chatNames 缺省与传 {} 对 chatLabel 等价（都查不到群名回落 chatId）；无业务含义"
+  },
+  {
+    "file": "lib/lark-report-render.mjs",
+    "code": "const sign = offset >= 0 ? '+' : '-'",
+    "op": ">= → >",
+    "reason": "只在本机正好是 UTC±0 时有区别（显示成 UTC+0 还是 UTC-0），单测跑在本机时区上测不到；纯展示，时刻本身不变"
   }
 ]
