@@ -42,6 +42,10 @@ const stop = (why) => {
   spawnSync('pkill', ['-f', `sim/${round}/.*lark-bot.local.json`])
   process.exit(2)
 }
+// lsof 兜底记的是「TCP <IP>:443」+ 进程名（extra）。claude CLI 自己连接口（走代理时是 claude.env 的 ANTHROPIC_BASE_URL，11-04 起 www.uniaix.com，
+// IP 轮换、认不出是 Claude）不算写请求：claude 的可执行文件按版本号命名（lsof 进程名「2.1.289」）或就叫 claude。它起的 curl / python 进程名不同，照样拦。
+// 11-04 fixmerge-check2 两组都被这条误停。
+const isClaudeSock = (x) => x.method === 'TCP' && /^(?:\d+\.\d+\.\d+|claude)$/i.test(String(x.extra || ''))
 const once = args.includes('--once') // 只检查一次、只打印不停（验证规则用）
 for (;;) {
   if (!once) await new Promise((r) => setTimeout(r, 5 * 60_000))
@@ -61,7 +65,7 @@ for (;;) {
     if (missing.length) why.push(`${seg} 读取缺口 ${missing.length} 处：${missing[0].slice(0, 160)}`)
     // 真发出去的写请求（没被壳 / 预载拦下的——如 python 直连，只有 lsof 兜底看得到）：一条就停（11-04 b2 在真实 pre 上发帖 / 传图）
     const writes = read('egress.log').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l) } catch { return null } })
-      .filter((x) => x && !['GET', 'HEAD', 'OPTIONS', 'CLI'].includes(x.method) && x.extra !== 'blocked' && x.host && !/^(?:127\.|localhost|::1)/.test(x.host) && !/login/i.test(x.path || '') && !/anthropic|claude\.ai/i.test(x.host))
+      .filter((x) => x && !['GET', 'HEAD', 'OPTIONS', 'CLI'].includes(x.method) && x.extra !== 'blocked' && x.host && !/^(?:127\.|localhost|::1)/.test(x.host) && !/login/i.test(x.path || '') && !/anthropic|claude\.ai/i.test(x.host) && !isClaudeSock(x))
     if (writes.length) why.push(`${seg} 有写请求发到了真实环境：${writes[0].method} ${writes[0].host}${writes[0].path}`)
     const failedIntake = (read('gateway.log').match(/分类失败/g) || []).length
     if (failedIntake >= 3 && !paused) why.push(`${seg} 分类失败 ${failedIntake} 次`)
