@@ -172,7 +172,7 @@ ${contextOf(m) || '（无）'}
 }
 
 const callJudge = async (prompt) => {
-  const child = spawn(join(dirname(fileURLToPath(import.meta.url)), 'claude-q'), ['-p', '--permission-mode', 'plan', '--tools', '', '--model', 'claude-opus-5-5', '--effort', 'high', '--strict-mcp-config', '--setting-sources', 'project', '--no-session-persistence', '--json-schema', schema, '--output-format', 'json', prompt], { cwd: replayRoot, stdio: ['ignore', 'pipe', 'pipe'] })
+  const child = spawn(join(dirname(fileURLToPath(import.meta.url)), 'claude-q'), ['-p', '--permission-mode', 'plan', '--tools', '', '--model', 'claude-opus-5-5', '--effort', 'high', '--strict-mcp-config', '--setting-sources', 'project', '--no-session-persistence', '--json-schema', schema, '--output-format', 'json', prompt], { cwd: replayRoot, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, SIM_ORIG_INTENT_MS: '1800000' } }) // 裁判也是 plan 模式：额度闸别按分类调用的 120 秒超时掐（max 强度要更久）
   let out = ''
   let err = ''
   child.stdout.on('data', (c) => { out += c })

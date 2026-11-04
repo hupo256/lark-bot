@@ -68,7 +68,7 @@ ${contextOf(m) || '（无）'}
 （falive 当时的做法只是参考，不一定对。）
 
 只输出 JSON：better（low / high / same / both_wrong）、reason（一句话 ≤80 字）、ideal（理想的分类 + 落地 ≤40 字）。`
-  const child = spawn(join(here, 'claude-q'), ['-p', '--permission-mode', 'plan', '--tools', '', '--model', 'claude-opus-5-5', '--effort', effort, '--strict-mcp-config', '--setting-sources', 'project', '--no-session-persistence', '--json-schema', schema, '--output-format', 'json', prompt], { cwd: replayRoot, stdio: ['ignore', 'pipe', 'pipe'] })
+  const child = spawn(join(here, 'claude-q'), ['-p', '--permission-mode', 'plan', '--tools', '', '--model', 'claude-opus-5-5', '--effort', effort, '--strict-mcp-config', '--setting-sources', 'project', '--no-session-persistence', '--json-schema', schema, '--output-format', 'json', prompt], { cwd: replayRoot, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, SIM_ORIG_INTENT_MS: '1800000' } }) // 裁判也是 plan 模式：额度闸别按分类调用的 120 秒超时掐（max 强度要更久）
   let out = ''
   let err = ''
   child.stdout.on('data', (c) => { out += c })
