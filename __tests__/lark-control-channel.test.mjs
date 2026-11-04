@@ -226,6 +226,9 @@ describe('任务控制通道（真出口 + 假 lark-cli）', () => {
         // 11-05 b3 ep-1023-9f0fd7：负责人在挂起的头像单话题里 @bot 问「是谁负责对接的」，被当补料续跑——问题先过分类。
         { name: '负责人 @bot 提问：先过分类', text: '这里涉及到的是哪个功能模块，是谁负责对接的', extra: { senderOpenId: 'ou_aven', mentions: [{ id: 'ou_bot', name: 'Aven.Bot' }] }, out: 'pass' },
         { name: '提单人没 @ 谁提问：先过分类', text: '这个账号能用吗', extra: { senderOpenId: 'ou_qa' }, out: 'pass' },
+        // 11-05 b3 ep-1019-57332a：被等的人 @bot 逐项答复另一份待办（≥ 3 行条目），被当补料续跑——清单先过分类；两行的短补料照旧续跑。
+        { name: '@bot 逐项清单：先过分类', text: '10-19 自测新增：\n- S1/S3/S4：运营配\n- S2/S5：按产品撤回\n- S6：属平台配置', extra: { senderOpenId: 'ou_be', mentions: [{ id: 'ou_bot', name: 'Aven.Bot' }] }, asked: ['ou_be'], out: 'pass' },
+        { name: '@bot 两行补料：照旧续跑', text: '账号：\n1. 15661234567\n2. 密码 123qwe', extra: { senderOpenId: 'ou_be', mentions: [{ id: 'ou_bot', name: 'Aven.Bot' }] }, out: 'resume' },
         { name: '提单人没 @ 谁', text: '账号是 508', extra: { senderOpenId: 'ou_qa' }, out: 'resume' },
         { name: '负责人没 @ 谁', text: '按方案 B', extra: { senderOpenId: 'ou_aven' }, out: 'resume' },
         { name: 'bot 为这条 @ 过的人', text: '加好了', extra: { senderOpenId: 'ou_be' }, asked: ['ou_be'], out: 'resume' },

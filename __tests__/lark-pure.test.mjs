@@ -34,6 +34,7 @@ import { sweepAttachments } from '../lib/lark-retention.mjs'
 import { listBotChats, messageSendRecipientArgs, parseSentChatId, runLarkCliRetrying, parseSentMessageId, pickChatIdByProject, resolveDeliveryChatId, formatLarkCliError, isTransientLarkError, runLarkCliWithRetry, sendChatMessage } from '../lib/lark-cli.mjs'
 import {
   asksQuestion,
+  isItemList,
   classifyClosureIntent,
   classifyCommandType,
   classifyPauseIntent,
@@ -823,6 +824,10 @@ describe('parseCommandType', () => {
     const asks = ['这里涉及到的是哪个功能模块，是谁负责对接的', '这个账号能用吗', '能用吗。', '好了呢', '为啥 404', '为什么没生效', '怎么配', '如何复测', '能不能先打包', '可不可以跳过', '是不是后端的', '有没有接口', '要传多少', '用哪些字段', '哪里配置', '那边哪位跟', '字段叫啥？', 'ready?', '1. x9 有没有这个功能 2. api 是不是 ready 了', '这是什么']
     const says = ['字段叫 avatar', '账号是 508', '按方案 B', '加好了', '吗啡', '呢子大衣到了', '']
     assert.deepEqual([asks.map(asksQuestion), says.map(asksQuestion)], [asks.map(() => true), says.map(() => false)])
+    // 逐项清单（isItemList，11-05 b3 ep-1019-57332a）：≥ 3 行条目才算；条目记号后要有内容，「-1」这类不是条目
+    const lists = ['- a\n- b\n- c', '1. a\n2、b\n3) c', '（1）a\n(2) b\n• c', '说明：\n  * a\n  · b\n  - c\n结尾']
+    const notLists = ['- a\n- b', '-1\n-2\n-3', '- \n- \n- ', '账号 508\n密码 x\n环境 pre', '']
+    assert.deepEqual([lists.map((text) => isItemList(text)), notLists.map((text) => isItemList(text)), isItemList('- a\n- b', { min: 2 })], [lists.map(() => true), notLists.map(() => false), true])
   })
 
   it('结单夹带新的缺陷/修改请求时保留残余请求，不静默吞掉', () => {
