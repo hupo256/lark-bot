@@ -6,7 +6,7 @@
  * 一个 it，分段跑；每段用自己的群 id（notice 对同一人同主题 2 分钟只发一次，拦下的只进发件簿不登记回执）。
  */
 import assert from 'node:assert/strict'
-import { chmodSync, existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, describe, it } from 'node:test'
@@ -16,11 +16,13 @@ import { eachCase, runSteps } from './support/steps.mjs'
 const dir = mkdtempSync(join(tmpdir(), 'lark-control-'))
 const bin = join(dir, 'lark-cli')
 const cliLog = join(dir, 'cli.log')
-// 假 lark-cli：每次调用记一行参数；发 / 回消息回一个递增的 message_id；拉被引用消息回一条真人原话。
+// 假 lark-cli：每次调用记一行参数；发 / 回消息回一个递增的 message_id；拉被引用消息回一条真人原话；
+// 拉话题回 thread-<锚点>.json（测试现写，没有就是空话题）。
 writeFileSync(bin, `#!/bin/sh
 printf '%s\\n' "$*" >> "${cliLog}"
 n=$(wc -l < "${cliLog}" | tr -d ' ')
 case "$*" in
+  *+threads-messages-list*) f="${dir}/thread-$(printf '%s' "$*" | sed -n 's/.*--thread \\([^ ]*\\).*/\\1/p').json"; if [ -f "$f" ]; then cat "$f"; else printf '%s' '{"ok":true,"data":{"messages":[]}}'; fi ;;
   *+messages-mget*) printf '%s' '{"ok":true,"data":{"messages":[{"message_id":"om_ref","msg_type":"text","content":"原话","sender":{"id":"ou_k","name":"K"},"create_time":"1700000000000"}]}}' ;;
   *) printf '{"ok":true,"data":{"message_id":"om_f%s"}}' "$n" ;;
 esac
@@ -171,6 +173,26 @@ describe('任务控制通道（真出口 + 假 lark-cli）', () => {
       await maybeHandleControlChannel({ msg: msg(chatId, '按方案 B', { replyToDirect: mine.id, senderOpenId: 'ou_aven' }), config, store })
       assert.deepEqual([store.get(mine.id).status, store.get(mine.id).text], ['queued', '原文二\n\n【补料】\n按方案 B'])
       assert.equal(said(chatId)[1], '好，收到补充，接着做「登录页报错」。')
+      // 话题里唯一挂起那条被 @bot「好了你看看」续跑（控制通道接走的隐式续跑，11-04 变异补测）：带上挂起之后话题里同事贴的材料；
+      // 这单自己的卡、本条之后的不带；按 reply_to（话题根 = 原消息）拉、不按 thread_id。私信不拉；拉话题出错只续本条
+      const cfg = { ...config, botOpenId: 'ou_bot' }
+      const threadOf = (anchor, messages) => writeFileSync(join(dir, `thread-${anchor}.json`), JSON.stringify({ ok: true, data: { messages } }))
+      const say = (id, text, at, sender = { sender_type: 'user', id: 'ou_rou', name: 'Rou' }) => ({ message_id: id, msg_type: 'text', content: text, sender, create_time: String(at) })
+      const pulls = (anchor) => readFileSync(cliLog, 'utf8').split('\n').filter((line) => line.includes(`+threads-messages-list --thread ${anchor} `)).length
+      const parked = task(chatId, { status: 'blocked', text: '原文三', threadRootId: 'omt_cc' })
+      store.recordReceipt(parked.id, { messageId: 'om_card_cc', kind: 'blocked', epoch: 2, chatId })
+      const ping = msg(chatId, '好了你看看', { senderOpenId: 'ou_qz', mentions: [{ id: 'ou_bot', name: 'Aven.Bot' }], replyTo: parked.id, threadId: 'omt_cc', threadRootId: 'omt_cc', createTimeMs: 1793781600000 })
+      threadOf(parked.id, [say('om_late_cc', '更晚的', 1793781600000), say(ping.messageId, '好了你看看', 1793781600000), say('om_paste_cc', '字段叫 avatar_url', 1793781480000), say('om_card_cc', '要字段名', 1793780000000, { sender_type: 'app', id: 'ou_bot', name: 'Aven.Bot' }), say(parked.id, '原文三', 1793779200000, { sender_type: 'user', id: 'ou_qa', name: 'QA' })])
+      assert.deepEqual(await maybeHandleControlChannel({ msg: ping, config: cfg, store }), { handled: true, anchorTaskId: parked.id })
+      assert.deepEqual([store.get(parked.id).status, store.get(parked.id).text, pulls(parked.id), pulls('omt_cc')], ['queued', `原文三\n\n【补料】\n好了你看看\n\n【前一单（${parked.id}）之后话题里的消息——当作本单的补充要求】\nRou：字段叫 avatar_url`, 1, 0])
+      const dmParked = task(chatId, { status: 'blocked', text: '原文四' })
+      threadOf(dmParked.id, [say('om_paste_dm', '私信线程里的话', 1793781480000)])
+      await handleResume({ msg: msg('ou_aven', '按这个做', { chatType: 'p2p', senderOpenId: 'ou_aven', replyTo: dmParked.id }), config: cfg, store, parentTask: { taskId: dmParked.id, task: dmParked, explicit: false } })
+      assert.deepEqual([store.get(dmParked.id).text, pulls(dmParked.id)], ['原文四\n\n【补料】\n按这个做', 0], '私信不拉话题')
+      const broken = task(chatId, { status: 'blocked', text: '原文五' })
+      writeFileSync(join(dir, `thread-${broken.id}.json`), JSON.stringify({ ok: true, data: { messages: {} } }))
+      await handleResume({ msg: msg(chatId, '字段叫 x', { senderOpenId: 'ou_qa', replyTo: broken.id }), config: cfg, store, parentTask: { taskId: broken.id, task: broken, explicit: false } })
+      assert.deepEqual([store.get(broken.id).status, store.get(broken.id).text, pulls(broken.id)], ['queued', '原文五\n\n【补料】\n字段叫 x', 1], '拉话题出错：只续本条')
     })],
     ['隐式续跑门槛（11-04 falive 回放）：回挂起卡没 @ bot——@ 了负责人 / 旁人搭话 → 放行带锚点不续跑、抄送寒暄 / 只 @ 别的同事 → 静默；@ bot / 附件 / 链接 / 提单人 / 负责人 / bot @ 过的人 → 续跑', () => quiet(async () => {
       const chatId = 'oc_g1'

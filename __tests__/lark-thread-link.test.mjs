@@ -18,7 +18,7 @@ process.env.LARK_OUTBOX_DIR = join(dir, 'outbox')
 process.env.LARK_OBLIGATIONS_DIR = join(dir, 'obligations')
 mkdirSync(process.env.LARK_RUNTIME_DIR, { recursive: true })
 
-const { buildResumeSupplement, findThreadPredecessor, renderPredecessorBlock, renderSinceBlock, splitThreadSince } = await import('../lib/lark-thread-link.mjs')
+const { buildResumeSupplement, findThreadPredecessor, renderPredecessorBlock, renderSinceBlock, RESUME_SINCE_MAX_CHARS, splitThreadSince } = await import('../lib/lark-thread-link.mjs')
 const { buildConversationBundle } = await import('../lib/lark-conversation-bundle.mjs')
 const { createTaskStore } = await import('../lib/lark-task-store.mjs')
 
@@ -98,6 +98,18 @@ describe('同话题前一单关联（11-04）', () => {
       assert.equal(buildResumeSupplement({ msg: { text: ' obey order of ROU ' }, task, items }), 'obey order of ROU\n\n【前一单（om_a）之后话题里的消息——当作本单的补充要求】\nRou：bryn 發的可以直接作為a檔的範本')
       assert.equal(buildResumeSupplement({ msg: { text: 'obey' }, task, items: items.slice(0, 1) }), 'obey', '没有新消息只续原话')
       assert.equal(buildResumeSupplement({ msg: { text: '' }, task, items }), '【前一单（om_a）之后话题里的消息——当作本单的补充要求】\nRou：bryn 發的可以直接作為a檔的範本')
+      // 控制通道续跑（11-04 变异补测）：本条及之后按位置切（时间只到分钟挡不住）；这单自己的卡、本条回的那张 bot 卡不带，别的 bot 话照带；本条回的同事消息照带
+      const head = '【前一单（om_a）之后话题里的消息——当作本单的补充要求】'
+      const bot = (messageId, text) => ({ messageId, sender: 'bot（bot，我们自己）', text, bot: true })
+      const thread = [{ messageId: 'om_a', text: '原话' }, bot('om_card', '要字段名'), bot('om_done', '别的单做完了'), bot('om_note', '我去问下'), { messageId: 'om_paste', sender: 'Rou', text: '字段叫 avatar_url' }, { messageId: 'om_me', sender: 'Q', text: '好了你看看' }, { messageId: 'om_late', sender: 'Rou', text: '更晚的' }]
+      const parked = { id: 'om_a', text: '原话', receipts: [{ messageId: 'om_card' }] }
+      assert.equal(buildResumeSupplement({ msg: { messageId: 'om_me', replyTo: 'om_done', text: '好了你看看' }, task: parked, items: thread }), `好了你看看\n\n${head}\nbot（bot，我们自己）：我去问下\nRou：字段叫 avatar_url`)
+      assert.equal(buildResumeSupplement({ msg: { messageId: 'om_me', replyTo: 'om_paste', text: '好了' }, task: parked, items: thread.slice(4) }), `好了\n\n${head}\nRou：字段叫 avatar_url`, '回的是同事贴的材料：照带')
+      assert.equal(buildResumeSupplement({ msg: { messageId: 'om_me', replyTo: 'om_a', text: '好了' }, task: parked, items: thread.slice(5) }), '好了', '本条排第一：之后的都不带')
+      // 字数上限从最新往前留：恰好填满不截、再早的不带；单条超长截到上限
+      const fill = [{ messageId: 'om_c', sender: 'C', text: 'c' }, { messageId: 'om_b', sender: 'B', text: 'b'.repeat(RESUME_SINCE_MAX_CHARS - 1000) }, { messageId: 'om_x', sender: 'X', text: 'x'.repeat(1000) }]
+      assert.equal(buildResumeSupplement({ msg: { messageId: 'om_me', replyTo: 'om_a', text: '' }, task: parked, items: fill }), `${head}\nB：${'b'.repeat(RESUME_SINCE_MAX_CHARS - 1000)}\nX：${'x'.repeat(1000)}`)
+      assert.equal(buildResumeSupplement({ msg: { messageId: 'om_me', replyTo: 'om_a', text: '' }, task: parked, items: [{ messageId: 'om_y', sender: 'Y', text: 'y'.repeat(RESUME_SINCE_MAX_CHARS + 5) }] }), `${head}\nY：${'y'.repeat(RESUME_SINCE_MAX_CHARS)}…`)
     }],
     ['上下文包：只有 thread_id 也按话题拉；前一单之前的进【话题其它回复】，之后的进补充要求块，排在本条后面', () => quiet(async () => {
       const fetched = []
