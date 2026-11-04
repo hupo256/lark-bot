@@ -2,7 +2,7 @@
 /**
  * 验收（docs/falive-replay-design-v2.md §6，aven 11-04 同意）：合进运行分支的门槛，对照金标准判（先跑 gold.mjs compare 出 judge.jsonl）。
  *   node scripts/sim/acceptance.mjs --round <轮> | --sim <名> | --dir <路径> | --judge a.jsonl,b.jsonl
- *        [--prev <上一轮> | --prev-judge x.jsonl,…] [--explained replay/falive/explained.jsonl] [--total 285] [--md out.md]
+ *        [--prev <上一轮> | --prev-judge x.jsonl,…] [--explained replay/falive/explained.jsonl] [--total 285] [--metrics metrics.json] [--md out.md]
  * 检查（全部过才算过，退出码 0；否则 1，并列出违规 case）：
  *   硬线 1  带风险标签（钱 / 状态 / 权限 / 不可逆）的 case 不能有「falive 更好」（都不对的列警告）
  *   硬线 2  不能有重复回复、该回没回、回错人：裁判 larkIssue = duplicate / missed / wrong_target 且判 falive / 都不对；规则预判有完全重复的发件也算
@@ -11,8 +11,11 @@
  *   不回退  上一轮判「一样 / lark-bot 更好」的，这一轮不能变成「falive 更好 / 都不对」（给了 --prev 才查）
  *   覆盖    规则预判里每条计分 case 都要有结论（有 rules.jsonl 才查）
  * 待办不计分（pending）单列，不进任何一项。同一 case 出现多次（旧布局热身重叠）取最差的结论。
+ * --metrics <json>（round-metrics.mjs 出的 metrics.json，§11「更好」三项里的快 / 省）再加三项，在双方都有值的配对 case 上比：
+ *   快 1  首句时延中位数与 P90 都不慢于 falive     快 2  结论时延中位数与 P90 都不慢于 falive
+ *   省    等价花费中位数与合计都不高于 falive（没有配对数据算不过）
  */
-import { existsSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
@@ -62,6 +65,24 @@ export const evaluateAcceptance = ({ current, rules = null, prev = null, explain
   return { pass: checks.every((c) => c.pass), checks, pending, warnings, lowConfidence, scoredCount: scored.length, limit }
 }
 
+const fmtMs = (ms) => (ms == null ? '-' : Math.abs(ms) < 60_000 ? `${Math.round(ms / 1000)}s` : Math.abs(ms) < 3600_000 ? `${(ms / 60_000).toFixed(1)}min` : `${(ms / 3600_000).toFixed(1)}h`)
+const fmtUsd = (v) => (v == null ? '-' : `$${v.toFixed(2)}`)
+
+/** §11 快 / 省（round-metrics.mjs 的 metrics.json）：配对 case 上 lark-bot 不差于 falive。 */
+export const metricsChecks = (metrics) => {
+  const checks = []
+  for (const [key, label] of [['firstMs', '首句'], ['concludeMs', '结论']]) {
+    const p = metrics?.latency?.[key]?.paired
+    const pass = Boolean(p?.n) && p.lark.median <= p.falive.median && p.lark.p90 <= p.falive.p90
+    checks.push({ key: `metrics-${key}`, pass, offending: [],
+      name: `快：${label}时延中位 / P90 不慢于 falive（配对 ${p?.n || 0} 条：lark-bot ${fmtMs(p?.lark?.median)} / ${fmtMs(p?.lark?.p90)}，falive ${fmtMs(p?.falive?.median)} / ${fmtMs(p?.falive?.p90)}）` })
+  }
+  const c = metrics?.cost?.paired
+  checks.push({ key: 'metrics-cost', pass: Boolean(c?.n) && c.lark.median <= c.falive.median && c.lark.total <= c.falive.total, offending: [],
+    name: `省：等价花费中位 / 合计不高于 falive（配对 ${c?.n || 0} 条：lark-bot ${fmtUsd(c?.lark?.median)} / ${fmtUsd(c?.lark?.total)}，falive ${fmtUsd(c?.falive?.median)} / ${fmtUsd(c?.falive?.total)}）` })
+  return checks
+}
+
 const loadLines = ({ selector, files }) => {
   const lines = []
   const rules = new Map()
@@ -88,9 +109,13 @@ const main = () => {
   const total = Number(value('--total', 0)) || readJsonl(join(casesDir, 'cases.jsonl')).length
   const current = collapseVerdicts(lines)
   const result = evaluateAcceptance({ current, rules, prev, explained, riskOf: (id) => tags.get(id)?.risk || [], pendingOf: (id) => Boolean(tags.get(id)?.pending), total })
+  if (value('--metrics', null)) {
+    result.checks.push(...metricsChecks(JSON.parse(readFileSync(value('--metrics', null), 'utf8'))))
+    result.pass = result.checks.every((c) => c.pass)
+  }
   const row = (r) => `  - \`${String(r.id).slice(-8)}\` ${String(r.at || '').slice(5, 16)} ${r.sender || ''}：${String(r.text || '').replace(/\s+/g, ' ').slice(0, 50)}${r.why ? ` —— ${r.why}` : ''}${r.reason ? `（${String(r.reason).slice(0, 60)}）` : ''}${r.risk?.length ? ` [${r.risk.join('/')}]` : ''}`
   const out = [`# 验收（design-v2 §6）：${result.pass ? '通过' : '不通过'}`, '', `计分 ${result.scoredCount} 条（待办不计分 ${result.pending.length}），总数 ${total}；falive 更好上限 ${result.limit}`, '']
-  for (const c of result.checks) { out.push(`- ${c.pass ? '过' : '**不过**'} ${c.name}${c.pass ? '' : `（${c.offending.length} 条）`}`); if (!c.pass) out.push(...c.offending.slice(0, 40).map(row)) }
+  for (const c of result.checks) { out.push(`- ${c.pass ? '过' : '**不过**'} ${c.name}${c.pass || !c.offending.length ? '' : `（${c.offending.length} 条）`}`); if (!c.pass) out.push(...c.offending.slice(0, 40).map(row)) }
   if (result.warnings.length) out.push('', `警告：风险 case 判都不对 ${result.warnings.length} 条`, ...result.warnings.map(row))
   if (result.lowConfidence.length) out.push('', `裁判拿不准（confidence=low）${result.lowConfidence.length} 条：应已进金标准评审`, ...result.lowConfidence.slice(0, 20).map(row))
   if (result.pending.length) out.push('', `待办不计分 ${result.pending.length} 条：${result.pending.map((r) => `\`${r.id.slice(-8)}\``).join(' ')}`)
