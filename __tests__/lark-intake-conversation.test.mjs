@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
-import { clipText, parseFetchedMessage, pickEarlierDoc, pickRecentAttachments, pickRecentContext, pickThreadContext, shortTime, applyRecentWindow, RECENT_CONTEXT_HOURS } from '../lib/lark-chat-context.mjs'
+import { OWN_EXPAND_CHARS, OWN_EXPAND_MAX, clipText, expandOwnBotMessages, parseFetchedMessage, pickEarlierDoc, pickRecentAttachments, pickRecentContext, pickThreadContext, shortTime, applyRecentWindow, RECENT_CONTEXT_HOURS } from '../lib/lark-chat-context.mjs'
 import { ACTIVITY_WINDOW_MS, ANCHOR_WINDOW_MS, buildConversationData, renderActivityBlock, renderAnchorBlock, renderCandidateBlock, resolveDefaultAnchor } from '../lib/lark-conversation.mjs'
 import { toEpochMs } from '../lib/lark-message.mjs'
 import { hashText, listOutbox, localHHMM, pruneOutbox, recordOutbox, shouldSend } from '../lib/lark-outbox.mjs'
@@ -112,6 +112,26 @@ describe('对话层：锚点、上下文、对话包、发件簿、义务、pers
       assert.equal(applyRecentWindow(items, { beforeMs: null }).length, items.length)
       assert.deepEqual(applyRecentWindow(items, { beforeMs: now, windowMs: 6 * H, keepOwnBot: 1, keepSameSender: 0, senderOpenId: 'ou_me' }).map((it) => it.messageId), ['bot-old-4', 'pm-old', 'no-time', 'edge', 'pm-new'])
       assert.deepEqual([applyRecentWindow(null, { beforeMs: now }), RECENT_CONTEXT_HOURS], [[], 4])
+    }],
+    ['expandOwnBotMessages：本 bot 的话按发件簿 fullText 展开（最近 2 条、每条限 1000 字、at 标签换名字、多行缩进）；没 fullText / 闸拦下的 / 别家机器人 / 真人的不动（11-04 b3 ep-1021-8cca5c）', () => {
+      assert.deepEqual([OWN_EXPAND_MAX, OWN_EXPAND_CHARS], [2, 1000])
+      const own = (id) => ({ messageId: id, text: `${id} 第一行 完整内容：https://doc/${id}`, bot: true, ownBot: true })
+      const items = [own('b1'), own('b2'), { messageId: 'h1', text: '人说的', senderOpenId: 'ou_x' }, own('b3'), { messageId: 'o1', text: '别家', bot: true }, own('b4')]
+      const entries = [
+        { messageId: 'b1', fullText: 'b1 全文' }, { messageId: 'b2', fullText: '<at user_id="ou_a">Arthur</at> b2 全文\n- ⚠️ 两个号\n\n  - 第二条  ' },
+        { messageId: 'b3', fullText: 'b3 全文', gated: '同内容已发过' }, { messageId: 'h1', fullText: '不该用' }, { messageId: 'o1', fullText: '不该用' }, { messageId: 'b4' }, { fullText: '没 id' },
+        { messageId: 'b0', fullText: '<at id=ou_b></at> 旧卡写法' },
+      ]
+      const out = expandOwnBotMessages(items, { entries })
+      assert.deepEqual(out.map((it) => it.text), ['b1 全文', '@Arthur b2 全文\n  - ⚠️ 两个号\n  - 第二条', '人说的', 'b3 第一行 完整内容：https://doc/b3', '别家', 'b4 第一行 完整内容：https://doc/b4'], '最近两条有原文的（b2、b1），闸拦下的 b3 和没原文的 b4 不算数')
+      assert.equal(items[1].text, 'b2 第一行 完整内容：https://doc/b2', '不改入参')
+      assert.deepEqual(expandOwnBotMessages(items, { entries, maxMessages: 1 }).map((it) => it.text.slice(0, 2)), ['b1', '@A', '人说', 'b3', '别家', 'b4'])
+      assert.equal(expandOwnBotMessages([own('b0')], { entries }).at(0).text, '旧卡写法')
+      assert.equal(expandOwnBotMessages([own('b1')], { entries: [{ messageId: 'b1', fullText: 'x'.repeat(1001) }] })[0].text, `${'x'.repeat(1000)}…`)
+      assert.equal(expandOwnBotMessages([own('b1')], { entries: [{ messageId: 'b1', fullText: 'x'.repeat(1000) }] })[0].text, 'x'.repeat(1000))
+      assert.deepEqual(expandOwnBotMessages([own('b1')], { entries, maxMessages: 0 }).map((it) => it.text), ['b1 第一行 完整内容：https://doc/b1'])
+      assert.deepEqual(expandOwnBotMessages(), [])
+      assert.deepEqual(expandOwnBotMessages([null, own('b1')], { entries }).map((it) => it?.text ?? null), [null, 'b1 全文'])
     }],
     ['pickThreadContext：本 bot 的话留下、别家 app 跳过、空消息跳过、limit', () => {
       const msgs = [

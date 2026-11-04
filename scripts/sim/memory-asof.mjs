@@ -87,3 +87,16 @@ export const loadMemoryEvents = ({ memoryDir, projectsDir = join(homedir(), '.cl
   }
   return out
 }
+
+/**
+ * 按段落里写的日期近似「当时的样子」（会话记录重放不出来时用；lark-bot 回放给固定知识用，11-04）：段落（空行分隔）里出现的
+ * 「MM-DD」/「YYYY-MM-DD」取最晚的那个，晚于窗口起点那天的整段去掉；没写日期的段落保留。年份没写的按 year 补。纯函数。
+ */
+export const keepParagraphsAsOf = (text, atMs, { year = new Date(atMs).getUTCFullYear() } = {}) => {
+  const day = new Date(atMs).toISOString().slice(0, 10)
+  return String(text || '').split(/\n\s*\n/).filter((para) => {
+    const dates = [...para.matchAll(/(?<![\d.])(?:(\d{4})-)?(1[0-2]|0?[1-9])-(3[01]|[12]\d|0[1-9])(?![\d])/g)]
+      .map(([, y, m, d]) => `${y || year}-${m.padStart(2, '0')}-${d}`)
+    return !dates.length || dates.sort().at(-1) <= day
+  }).join('\n\n')
+}

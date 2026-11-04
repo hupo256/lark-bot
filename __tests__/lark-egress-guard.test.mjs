@@ -10,7 +10,7 @@ import { describe, it } from 'node:test'
 
 import { buildAiExecutorCommand, execAiExecutor } from '../lib/lark-ai-executor.mjs'
 import {
-  EGRESS_DENY_RULES, EGRESS_GUARD_ENV, checkCurlInvocation, checkEgressRequest, egressGuardEnv, egressPolicyFor, egressScopeOf, parseCurlArgs, parseEgressPolicy, withoutEgressGuard,
+  EGRESS_DENY_RULES, EGRESS_GUARD_ENV, SOURCE_HOSTS, checkCurlInvocation, checkEgressRequest, egressGuardEnv, egressPolicyFor, egressScopeOf, gitRemoteHost, hostInScope, parseCurlArgs, parseEgressPolicy, withoutEgressGuard,
 } from '../lib/lark-egress-policy.mjs'
 import { EGRESS_GUARD_BIN_DIR, EGRESS_GUARD_PRELOAD } from '../lib/lark-paths.mjs'
 import { classifyLine } from '../scripts/sim/egress-audit.mjs'
@@ -21,7 +21,7 @@ import { eachCase, runSteps } from './support/steps.mjs'
 const envSites = { pre: 'https://falivepre.fdsser.com', uat: 'https://faliveuat.fdsser.com', online: 'https://www.falive.com' }
 const answer = egressPolicyFor({ scope: 'answer', envSites })
 const verification = egressPolicyFor({ scope: 'verification', envSites, loginCodeTypes: ['3'] })
-const change = egressPolicyFor({ scope: 'change', envSites })
+const change = egressPolicyFor({ scope: 'change', envSites, gitHosts: ['mgit.lgroup.co', null] })
 const guardEnv = (policy, extra = {}) => egressGuardEnv({ policy, env: { PATH: process.env.PATH, ...extra }, binDir: EGRESS_GUARD_BIN_DIR, preloadPath: EGRESS_GUARD_PRELOAD })
 // 本机起一个 302 到 accounts.google.com 的服务：-L / fetch 跟跳转时在建连处拦，测试不出本机。
 const withRedirectServer = async (fn) => {
@@ -45,7 +45,14 @@ describe('代答 / 实测出网范围（命令层）', () => {
   it('范围口径 / curl 参数解析 / 子进程环境 / 命令行 deny / curl 壳与 node 预载真拦', () => runSteps([
     ['范围档：只有代答 / 实测；主机按 envSites 同主域', () => {
       assert.equal(egressPolicyFor({ scope: 'regular', envSites }), null)
-      assert.deepEqual(answer, { scope: 'answer', domains: ['falivepre.fdsser.com', 'faliveuat.fdsser.com', 'falive.com'], loginCodeTypes: [] })
+      assert.deepEqual(answer, { scope: 'answer', domains: ['falivepre.fdsser.com', 'faliveuat.fdsser.com', 'falive.com'], sourceHosts: [], loginCodeTypes: [] })
+      // 11-04 b3 ep-1021-193c03：改码自测 curl 了上游 pre-hailiao——改代码只另许读包 / 源码源 + 业务仓 origin 的 git 主机
+      assert.deepEqual(change.sourceHosts, [...SOURCE_HOSTS, 'mgit.lgroup.co'])
+      assert.deepEqual(egressPolicyFor({ scope: 'verification', envSites, gitHosts: ['mgit.lgroup.co'] }).sourceHosts, [], '代答 / 实测不给包源')
+      assert.deepEqual(egressPolicyFor({ scope: 'change' }).sourceHosts, SOURCE_HOSTS, '没传 git 主机')
+      assert.deepEqual(parseEgressPolicy('{"scope":"change","domains":[]}').sourceHosts, [], '旧格式没有 sourceHosts：只认环境 + 本机')
+      assert.equal(hostInScope(parseEgressPolicy('{"scope":"change","domains":[]}'), 'registry.npmjs.org'), false)
+      for (const [url, host] of [['git@mgit.lgroup.co:hqoi/web/falive-react.git', 'mgit.lgroup.co'], ['http://mgit.lgroup.co/hqoi/web/falive-react.git\n', 'mgit.lgroup.co'], ['ssh://git@G.Y.com:2222/a.git', 'g.y.com'], ['/Users/aven/github/falive-react', null], ['file:///x', null], ['', null], [undefined, null], ['https://', null]]) assert.equal(gitRemoteHost(url), host, String(url))
       assert.deepEqual(verification.loginCodeTypes, ['3'])
       assert.deepEqual(egressPolicyFor({ scope: 'answer' }).domains, [], '没配环境地址：除本机外一律不打')
       assert.deepEqual(parseEgressPolicy(JSON.stringify(answer)), answer)
@@ -70,7 +77,12 @@ describe('代答 / 实测出网范围（命令层）', () => {
       { name: '实测不发路径含 login 的验证码', policy: verification, url: 'https://www.falive.com/login/sendVerificationCode', method: 'POST', ok: false },
       { name: '实测不发 PUT', policy: verification, url: 'https://www.falive.com/api/login', method: 'PUT', ok: false, re: /这一步要写数据/ },
       { name: '改代码自测可读环境外（npm 源）', policy: change, url: 'https://registry.npmjs.org/react', ok: true },
-      { name: '改代码自测不往环境外写', policy: change, url: 'https://api.example.com/x', method: 'POST', ok: false, re: /环境外的 api\.example\.com 写数据/ },
+      { name: '改代码自测可读 GitHub 子域', policy: change, url: 'https://raw.githubusercontent.com/a/b/main/x', ok: true },
+      { name: '改代码自测可读业务仓 git 主机', policy: change, url: 'http://mgit.lgroup.co/hqoi/web/falive-react', ok: true },
+      { name: '改代码自测不打上游（b3 ep-1021-193c03）', policy: change, url: 'https://pre-hailiao.hai-liao-pre.com/api/fameEx/market/symbol/list', ok: false, re: /改代码 \/ 自测只许打配置的环境.*另可读包 \/ 源码源）.*pre-hailiao\.hai-liao-pre\.com 不在范围.*只转述/ },
+      { name: '改代码自测不打第三方', policy: change, url: 'https://accounts.google.com/gsi/client', ok: false },
+      { name: '包源也只读', policy: change, url: 'https://registry.npmjs.org/-/user', method: 'PUT', ok: false, re: /环境外的 registry\.npmjs\.org 写数据/ },
+      { name: '代答不读包源', policy: answer, url: 'https://registry.npmjs.org/react', ok: false },
       { name: '改代码自测不发帖（ep-1020）', policy: change, url: 'https://falivepre.fdsser.com/bbsv2/thread/create', method: 'POST', bodies: ['{"title":"t"}'], ok: false, re: /这一步要写数据/ },
       { name: '改代码自测不传头像（ep-1023）', policy: change, url: 'https://falivepre.fdsser.com/go-api/api/auth/avatar/upload', method: 'POST', bodies: undefined, ok: false, re: /这一步要写数据.*请对接人手动做/ },
       { name: '发登录码：php type 3', policy: verification, url: 'https://falivepre.fdsser.com/api/user/sendVerificationCode', method: 'POST', bodies: ['type=3&mail=x'], ok: true },
@@ -162,6 +174,16 @@ describe('代答 / 实测出网范围（命令层）', () => {
       assert.ok(calls[0].options.env.PATH.startsWith(`${EGRESS_GUARD_BIN_DIR}:`))
       assert.ok(calls[0].args.includes('WebFetch'))
       assert.equal(calls[1].options.env, undefined)
+      // 改代码 / 自测：业务仓 origin 的 git 主机进可读源（11-04 b3 ep-1021-193c03 收紧后装依赖 / 拉源码照常）；不是 git 仓的 cwd 没有这一项
+      const repo = mkdtempSync(join(tmpdir(), 'lark-egress-repo-'))
+      spawnSync('git', ['init', '-q', repo])
+      spawnSync('git', ['-C', repo, 'remote', 'add', 'origin', 'git@mgit.lgroup.co:hqoi/web/falive-react.git'])
+      await execAiExecutor({ executor: 'claude', promptText: 'p', cwd: repo, localConfig: { envSites }, egressScope: 'change', spawnImpl })
+      assert.deepEqual(JSON.parse(calls[2].options.env[EGRESS_GUARD_ENV]).sourceHosts, [...SOURCE_HOSTS, 'mgit.lgroup.co'])
+      await execAiExecutor({ executor: 'claude', promptText: 'p', cwd: tmpdir(), localConfig: { envSites }, egressScope: 'change', spawnImpl })
+      assert.deepEqual(JSON.parse(calls[3].options.env[EGRESS_GUARD_ENV]).sourceHosts, SOURCE_HOSTS)
+      await execAiExecutor({ executor: 'claude', promptText: 'p', cwd: repo, readOnly: true, localConfig: { envSites }, egressScope: 'verification', spawnImpl })
+      assert.deepEqual(JSON.parse(calls[4].options.env[EGRESS_GUARD_ENV]).sourceHosts, [], '实测不给包源')
     }],
     ['curl 壳：范围外不起真 curl；范围内带 -q --proxy 交给 PATH 后面的真 curl；没开核对原样透传', () => {
       const fakeDir = mkdtempSync(join(tmpdir(), 'lark-egress-fake-'))
