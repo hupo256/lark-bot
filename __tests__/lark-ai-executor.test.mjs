@@ -436,7 +436,9 @@ describe('task-mention intent classification', () => {
       attachments: [{ type: 'image', localPath: '/tmp/screenshot.png' }],
     })
     assert.match(prompt, /UNTRUSTED_LARK_MESSAGE/)
-    assert.match(prompt, /有歧义时必须 decision=ignore/)
+    assert.match(prompt, /有歧义判 ignore/)
+    // 告知环境限制 / 提醒、没叫我们现在做（11-05 b3「内部请求等等PRE也要试下」「现在 pre 还不能发帖、评论」）：记一笔，不开实测
+    assert.match(prompt, /告知环境限制 \/ 提醒（「pre 还不能发帖」「等等 pre 也要试」）没叫我们现在做的也填 null/)
     assert.match(prompt, /\/tmp\/screenshot\.png/)
     // 仓名读配置 repoLabel（falive 回放 11-03）：没配沿用 fameex-web
     assert.match(prompt, /只做 fameex-web 前端仓的事/)
