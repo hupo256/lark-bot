@@ -12,7 +12,7 @@ import net from 'node:net'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { EGRESS_BLOCK_EXIT, EGRESS_GUARD_ENV, blockedHostReason, checkCurlInvocation, checkEgressRequest, hostInScope, parseEgressPolicy } from '../../lib/lark-egress-policy.mjs'
+import { EGRESS_BLOCK_EXIT, EGRESS_GUARD_ENV, blockedHostReason, checkCurlInvocation, hostInScope, parseEgressPolicy } from '../../lib/lark-egress-policy.mjs'
 
 const binDir = join(dirname(fileURLToPath(import.meta.url)), 'bin')
 const real = (path) => { try { return realpathSync(path) } catch { return path } }
@@ -43,8 +43,13 @@ if (!first.ok) {
 }
 
 const deny = (where, reason) => say(`已拦截 ${where}：${reason}`)
+// 代理只核主机（方法 / 请求体已按参数核过；这里兜的是 -L 跳转和参数里没认出来的地址）。
+const hostCheck = (url) => {
+  const host = new URL(url).hostname
+  return hostInScope(policy, host) ? { ok: true } : { ok: false, reason: blockedHostReason(policy, host) }
+}
 const server = http.createServer((req, res) => {
-  const check = checkEgressRequest(policy, { method: req.method, url: req.url })
+  const check = hostCheck(req.url)
   if (!check.ok) {
     deny(`${req.method} ${req.url}`, check.reason)
     res.writeHead(403, { 'X-Lark-Egress': 'blocked' }).end()
@@ -81,7 +86,7 @@ server.on('connect', (req, socket, head) => {
 })
 // ws:// 经代理是 upgrade：核对后把请求头原样转给目标
 server.on('upgrade', (req, socket, head) => {
-  const check = checkEgressRequest(policy, { method: req.method, url: req.url })
+  const check = hostCheck(req.url)
   if (!check.ok) {
     deny(`${req.method} ${req.url}`, check.reason)
     socket.end('HTTP/1.1 403 Forbidden\r\n\r\n')

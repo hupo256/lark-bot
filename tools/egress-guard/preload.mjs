@@ -1,7 +1,7 @@
 /**
  * 代答 / 实测会话里 node 进程的出网核对（NODE_OPTIONS=--import 预载，口径见 lib/lark-egress-policy.mjs）。
  * 只在环境里有 LARK_EGRESS_GUARD 时生效：
- * - fetch / http(s).request / get：按方法 + 地址核对（代答只许读，实测另许登录 POST）；
+ * - fetch / http(s).request / get：按方法 + 地址核对（代答只许读，实测 / 改代码自测另许登录，含发登录验证码——看请求体里的用途）；
  * - net.connect / createConnection、tls.connect：按主机核对——fetch 跟跳转、WebSocket、第三方 http 库最后都走这里。
  * 拦下时 stderr 打一行「[lark-egress] 已拦截 …」（脚本自己吞了错误，会话也看得到），请求以普通网络错误失败，不让进程崩。
  */
@@ -52,8 +52,11 @@ if (policy) {
       let url = null
       try { url = typeof input === 'string' ? input : input instanceof URL ? input.href : input?.url } catch { url = null }
       const method = String(init?.method || (typeof input === 'object' && input?.method) || 'GET').toUpperCase()
+      // 请求体只认字符串 / URLSearchParams（发码时看用途）；没有体 = []；FormData / 流 / Request 自带体读不到 = undefined
+      const body = init?.body ?? (input instanceof Request ? input.body : null)
+      const bodies = body == null ? [] : typeof body === 'string' || body instanceof URLSearchParams ? [String(body)] : undefined
       if (url) {
-        const check = checkEgressRequest(policy, { method, url })
+        const check = checkEgressRequest(policy, { method, url, bodies })
         if (!check.ok) return Promise.reject(new TypeError('fetch failed', { cause: blockError(`${method} ${url}`, check.reason) }))
       }
       return origFetch.apply(this, arguments)
@@ -61,6 +64,7 @@ if (policy) {
   }
 
   // http(s).request(url?, options?, cb?)：拼出方法与地址；不在范围就建好请求立刻 destroy（头还没写出去），以 error 事件失败。
+  // 发验证码的 POST 要看请求体：write / end 先攒着，end 时按体核对，过了再一次写出去。
   const requestTarget = (proto, args) => {
     const [a, b] = args
     const opts = { ...(a && typeof a === 'object' && !(a instanceof URL) ? a : {}), ...(b && typeof b === 'object' ? b : {}) }
@@ -77,7 +81,19 @@ if (policy) {
       try { target = requestTarget(proto, args) } catch { target = null }
       const check = target ? checkEgressRequest(policy, target) : { ok: true }
       const req = origRequest.apply(this, args)
-      if (!check.ok) req.destroy(blockError(`${target.method} ${target.url}`, check.reason))
+      const pendingBody = !check.ok && target && checkEgressRequest(policy, { ...target, bodies: ['scene=login'] }).ok
+      if (pendingBody) {
+        const chunks = []
+        const [write, end] = [req.write, req.end]
+        req.write = (chunk, ...rest) => { if (chunk != null && typeof chunk !== 'function') chunks.push(Buffer.from(chunk)); rest.find((a) => typeof a === 'function')?.(); return true }
+        req.end = (chunk, ...rest) => {
+          if (chunk != null && typeof chunk !== 'function') chunks.push(Buffer.from(chunk))
+          const final = checkEgressRequest(policy, { ...target, bodies: [Buffer.concat(chunks).toString('utf8')] })
+          if (!final.ok) return req.destroy(blockError(`${target.method} ${target.url}`, final.reason))
+          for (const piece of chunks) write.call(req, piece)
+          return end.call(req, ...rest.filter((a) => typeof a === 'function'))
+        }
+      } else if (!check.ok) req.destroy(blockError(`${target.method} ${target.url}`, check.reason))
       return req
     }
     mod.request = guarded

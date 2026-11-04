@@ -160,6 +160,8 @@ const config = {
     ...(fromMs >= Date.parse('2026-10-28T00:00:00Z') ? { uat: 'https://faliveuat.fdsser.com' } : {}),
     ...(fromMs >= Date.parse('2026-10-29T00:00:00Z') ? { online: 'https://www.falive.com' } : {}),
   },
+  // falive php 发验证码 type：1 注册 / 2 找回密码 / 3 登录（falive-react src/modules/auth/data/schema.ts VerificationCodeType）；portal 用 scene=login 不用配
+  egress: { loginCodeTypes: ['3'] },
   dailyReport: { enabled: false },
   // bug 表占位（读 bug 单的工具 tools/read-bug-record.mjs 要它；假 CLI 按 raw/bug-records 缓存供数，appToken 不校验）。bug-watch 不起。
   bugTable: { appToken: 'sim-falive-bugtable', tableId: 'tblbJYjrxZsPe40V', viewId: 'vewvqqPhkD', statusField: '状态', assigneeField: '负责RD', watch: { enabled: false } },

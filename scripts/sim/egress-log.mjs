@@ -11,11 +11,14 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { realpathSync } from 'node:fs'
 
+import { CODE_SEND_PATH_RE, codePurposeOf, parseCurlArgs } from '../../lib/lark-egress-policy.mjs'
+
 const realNow = () => Math.round(performance.timeOrigin + performance.now()) // 不用 Date：gateway / worker 里 Date 是虚拟时钟
 export const LOCAL_HOST_RE = /^(?:127(?:\.\d{1,3}){3}|localhost|::1|\[::1\]|0\.0\.0\.0)$/i
 
 // dir：默认 SIM_DIR（壳 / 预载都在 bot 进程里，继承得到）；run-sim 自己的采样器不在那个环境里，显式传 simDir（P0-d 冒烟漏记的就是这个）。
-export const noteEgress = ({ via, method = 'GET', url, extra = null, dir = process.env.SIM_DIR }) => {
+// purpose：发验证码请求的用途值（scene / type，如 login / 3），只记这一个值、不记请求体，供审计区分登录码与注册码（aven 11-04：验证码登录算登录）。
+export const noteEgress = ({ via, method = 'GET', url, extra = null, purpose = null, dir = process.env.SIM_DIR }) => {
   if (!dir) return
   let u = null
   try { u = new URL(/^[a-z][\w+.-]*:\/\//i.test(url) ? url : `http://${url}`) } catch { u = null }
@@ -29,6 +32,7 @@ export const noteEgress = ({ via, method = 'GET', url, extra = null, dir = proce
     path: u ? u.pathname : null,
     ...(u ? {} : { raw: String(url).slice(0, 200) }),
     ...(extra ? { extra } : {}),
+    ...(purpose != null ? { purpose: String(purpose).slice(0, 40) } : {}),
   }
   try { appendFileSync(join(dir, 'egress.log'), `${JSON.stringify(line)}\n`) } catch { /* 记不下也不挡调用 */ }
 }
@@ -102,7 +106,12 @@ const main = () => {
   const { method, urls } = tool === 'wget' ? parseWget(argv) : parseCurl(argv)
   if (!urls.length && argv.some((a) => /^(?:-V|--version|-h|--help)$/.test(a))) return
   if (!urls.length) noteEgress({ via: tool, method, url: '', extra: '没解析出 URL（如 curl -K 配置文件）' })
-  for (const url of urls) noteEgress({ via: tool, method, url })
+  const bodies = tool === 'curl' ? parseCurlArgs(argv).bodies : undefined
+  for (const url of urls) {
+    let query = ''
+    try { query = new URL(/^[a-z][\w+.-]*:\/\//i.test(url) ? url : `http://${url}`).search } catch { query = '' }
+    noteEgress({ via: tool, method, url, purpose: method !== 'GET' && CODE_SEND_PATH_RE.test(url) ? codePurposeOf({ bodies, query }) : null })
+  }
 }
 // 判是不是被直接执行：argv[1] 不一定是存在的文件（预载进每个 node 子进程，`node -e '…' 参数` 的 argv[1] 就是那个参数），realpath 失败按「不是」算——绝不能让预载把 bot 的子进程弄崩
 const isMain = (() => { try { return Boolean(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)) } catch { return false } })()

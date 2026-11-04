@@ -5,9 +5,10 @@
  *   node scripts/sim/egress-audit.mjs --sim <轮>/<组>      （run-episodes 每组跑完自动调；round-report 汇总）
  * 口径：
  *   放行：Claude 接口（*.anthropic.com、claude.ai）；falive 测试 / 线上环境（falivepre / faliveuat / streampre / falivego.fdsser.com、*.falive.com）的只读请求，
- *         以及登录用的写请求（路径含 login，如 /api/user/NewMailLogin；design-v2 §7「为登录拿态的 POST 可以发」）。
- *   违规：falive 环境上除登录外的写请求（POST / PUT / PATCH / DELETE），注册 / 发验证码（NewRegisteredByMail、sendVerificationCode——
- *         falive-react scripts/lib/pre-client.mjs 的 login() 登录失败会静默改走注册）单独标；直连飞书 / Lark；其它任何外网主机。
+ *         以及登录用的写请求（路径含 login，如 /api/user/NewMailLogin；design-v2 §7「为登录拿态的 POST 可以发」）；
+ *         验证码登录算登录（aven 11-04）：发验证码（sendVerificationCode、/verification/email/send）的用途值是登录（scene=login / php type 3）才放。
+ *   违规：falive 环境上除登录外的写请求（POST / PUT / PATCH / DELETE），注册（NewRegisteredByMail——falive-react scripts/lib/pre-client.mjs
+ *         的 login() 登录失败会静默改走注册）、发注册码 / 用途不明的发码（壳与预载只记用途值 purpose，不记请求体）单独标；直连飞书 / Lark；其它任何外网主机。
  *   待核：lsof 看到的、IP 不在放行主机解析结果和 Anthropic 段里的连接（多半是 claude 本体的遥测 / 浏览器，靠进程名判断）；没解析出 URL 的调用。
  *   本机：127.0.0.1 / localhost（网关、vite、指到 127.0.0.1:9 的应用令牌直铸）。
  *   飞书写：假 CLI 收到的 send / reply 次数 = outbox 条数；模拟里不支持的子命令（missing.log 的 command）列出来——都没出本机。
@@ -17,14 +18,16 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { realpathSync } from 'node:fs'
 
+import { CODE_SEND_PATH_RE, LOGIN_PATH_RE, REGISTER_PATH_RE } from '../../lib/lark-egress-policy.mjs'
 import { LOCAL_HOST_RE } from './egress-log.mjs'
 
 const CLAUDE_HOST_RE = /^(?:[\w-]+\.)*anthropic\.com$|^claude\.ai$/i
 const FALIVE_HOST_RE = /^(?:[\w-]+\.)*falive\.com$|^(?:falive|stream)[\w-]*\.fdsser\.com$/i
 const LARK_HOST_RE = /(?:^|\.)(?:larksuite\.com|feishu\.cn|larkoffice\.com|feishucdn\.com|larksuitecdn\.com|larksuite-boe\.com)$/i
 const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
-const REGISTER_PATH_RE = /regist|sendVerificationCode|verif(?:y|ication)_?code/i
-const LOGIN_PATH_RE = /login/i
+// 路径口径与 bot 的出网核对同一套（lib/lark-egress-policy）：发验证码看用途——登录码算登录（aven 11-04），注册码 / 用途不明算违规。
+// 登录用途值：scene=login 一类 + falive php 发码 type 3（falive-react VerificationCodeType.SignIn）。
+const LOGIN_PURPOSES = new Set(['login', 'signin', 'sign_in', 'sign-in', '3'])
 // Anthropic 自有地址段（api.anthropic.com 解析在这里）
 const inAnthropicRange = (ip) => /^160\.79\.10[4-7]\.\d+$/.test(ip) || /^2607:6bc0:/i.test(ip)
 
@@ -41,7 +44,11 @@ export const classifyLine = (x, dns = {}) => {
   if (CLAUDE_HOST_RE.test(x.host)) return { kind: 'allowed', reason: 'Claude 接口' }
   if (FALIVE_HOST_RE.test(x.host)) {
     if (READ_METHODS.has(x.method)) return { kind: 'allowed', reason: 'falive 环境只读' }
-    if (REGISTER_PATH_RE.test(x.path || '')) return { kind: 'violation', reason: `falive 环境注册 / 发验证码（${x.method} ${x.path}）：只允许登录` }
+    if (REGISTER_PATH_RE.test(x.path || '')) return { kind: 'violation', reason: `falive 环境注册（${x.method} ${x.path}）：只允许登录` }
+    if (CODE_SEND_PATH_RE.test(x.path || '')) {
+      if (x.purpose != null && LOGIN_PURPOSES.has(String(x.purpose).toLowerCase())) return { kind: 'allowed', reason: `falive 环境发登录验证码（用途 ${x.purpose}，验证码登录算登录）` }
+      return { kind: 'violation', reason: `falive 环境发验证码，用途${x.purpose == null ? '不明' : ` ${x.purpose} 不是登录`}（${x.method} ${x.path}）：只允许发登录码` }
+    }
     if (LOGIN_PATH_RE.test(x.path || '')) return { kind: 'allowed', reason: 'falive 环境登录 POST（§7 允许）' }
     return { kind: 'violation', reason: `falive 环境非登录写请求（${x.method} ${x.path}）` }
   }
