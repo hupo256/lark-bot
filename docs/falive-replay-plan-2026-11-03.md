@@ -243,3 +243,5 @@
 54. **11-04 预备合并分支 lark/falive-next（worktree ~/github/lark-bot-next）**：latest + p4a + p4b + p4c + cal 无冲突；全量 642 绿、提示回放规则不丢 / 系统层 1 种、回归集 56/56、变异 50 抓 50。b1 跑完后把 next 合进 latest，再只重跑受影响的组（p4a/p4c 影响接话的组、p4b 影响代答 / 实测的组）。
    p4c：挂起任务卡下隐式续跑加门槛（@bot / 私信 / 附件链接 / 提单人·负责人·bot @ 过的人没 @ 谁 → 续跑；抄送寒暄表情 → 静默；@ 别人或旁人搭话 → 交分类器带锚点）；p4a 与 p4c 要一起合。
    b1 进展：ep-1031-f8065f 出网 6 违规是真的（curl accounts.google.com 的 gsi 脚本，p4b 规则之前的代码）；ep-1031-35935b 的 5 条是审计误判（curl 壳把 grep 输出词粘进主机名），egress-audit 已改归「待核」。
+55. **11-04 b1 被守卫停 → 补 bug 表视图 → 合 next → 基线改 b2**：b1 ep-1024-9ebe13 读取缺口 68（bot 列整张 bug 视图逐条读，只缓存了群里提到的 153 条）。build-context-cache `bugs --all-view` 补齐视图 261 条记录 + 308 张截图（失败 6），bug-records 290M。数据变了指纹变，b1 不能续，于是把 lark/falive-next（p4a / p4b / p4c / cal）合进 latest，全量 642 绿、预检通过，**基线改跑 b2**（指纹 dbcb02121b1c，并发 8，录放开）。b1 作废（只完成 2 组）。
+   P1 校准 20 组跑完；初步汇总只 33% 全对上，但 falive 侧多半没记录（审计 10-27 才有）→ 派子代理重建 falive 侧（时间线原话按卡→case 归属、数据集基线、网关日志），把差异分成模拟偏差 / 抽样 / 还原不了 / 未知，出 calibration/fidelity.md。
