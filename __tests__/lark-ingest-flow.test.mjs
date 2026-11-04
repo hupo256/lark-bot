@@ -26,6 +26,8 @@ case "$*" in
   *+messages-mget*) printf '%s' '{"ok":true,"data":{"messages":[{"message_id":"om_ref","msg_type":"text","content":"原话","sender":{"id":"ou_k","name":"K"},"create_time":"2026-11-01 09:00"}]}}' ;;
   *+chat-list*) printf '%s' '{"ok":true,"data":{"chats":[{"chat_id":"oc_named","name":"[PR-02306] 项目群"},{"chat_id":"oc_g","name":"测试群"},{"chat_id":"oc_bound","name":"绑定群"},{"chat_id":"oc_auto","name":"自动群"}]}}' ;;
   *+threads-messages-list*om_card6*|*+threads-messages-list*om_card7*|*+threads-messages-list*om_card8*) printf '%s' '{"ok":true,"data":{"messages":[{"message_id":"om_rs9","msg_type":"text","content":"更晚的","sender":{"sender_type":"user","id":"ou_rou","name":"Rou"},"create_time":"1793782200000"},{"message_id":"om_rs1","msg_type":"text","content":"字段叫 avatar_url","sender":{"sender_type":"user","id":"ou_rou","name":"Rou"},"create_time":"1793781480000"}]}}' ;;
+  *+threads-messages-list*om_card_hn*) printf '%s' '{"ok":true,"data":{"messages":[{"message_id":"om_hn1","msg_type":"text","content":"@Encone 用户中心哪些要换接口？","sender":{"sender_type":"user","id":"ou_henry","name":"Henry"},"mentions":[{"id":"ou_encone","key":"@_user_1","name":"Encone"}],"create_time":"1761989990000"}]}}' ;;
+  *+threads-messages-list*om_card_hx*) printf '%s' '{"ok":true,"data":{"messages":[{"message_id":"om_hx1","msg_type":"text","content":"@X 用户中心哪些要换接口？","sender":{"sender_type":"user","id":"ou_henry","name":"Henry"},"mentions":[{"id":"ou_x","key":"@_user_1","name":"X"}],"create_time":"1761989990000"}]}}' ;;
   *+threads-messages-list*|*+chat-messages-list*) printf '%s' '{"ok":true,"data":{"messages":[]}}' ;;
   *+messages-resources-download*file_ok*) printf '%s' '{"ok":true,"data":{}}' ;;
   *+messages-resources-download*) printf '%s' '{"ok":false,"error":{"type":"test","message":"no download"}}' ;;
@@ -208,6 +210,21 @@ describe('摄入链路 / 上下文包 / 入群事件（真 store + 假 lark-cli�
       const ping = raw({ text: '怎么样了', reply_to: 'om_ack_run', root_id: 'om_run', sender: 'ou_qg' })
       await ingestLarkEvent({ raw: ping, config, store })
       assert.deepEqual([store.has(ping.message_id), cliCalls('+messages-reply')], [false, outboxBefore + 1], '只问进度：回一句、不建任务')
+    })],
+    ['回 bot 卡片的话题里其实在回同事（11-04 b3 ep-1019-57332a：Henry @Encone 问，Encone 没 @ 谁回「稍等，我给你一份」）→ 不建任务、不回话；上一条 @ 的不是他 → 照旧进分类', () => quiet(async () => {
+      const card = (cardId, taskId) => {
+        store.upsert({ id: taskId, source: 'lark', chatId: 'oc_g', messageId: taskId, operator: 'ou_aven', status: 'done', epoch: 0, summary: '对接复测', text: '对接复测', createdAt: '2026-11-01T00:00:00Z' })
+        store.recordReceipt(taskId, { messageId: cardId, kind: 'done', epoch: 0, chatId: 'oc_g' })
+      }
+      card('om_card_hn', 'om_done_hn')
+      card('om_card_hx', 'om_done_hx')
+      const before = cliCalls('+messages-reply')
+      const toHenry = raw({ text: '稍等，我给你一份', reply_to: 'om_card_hn', sender: 'ou_encone' })
+      await ingestLarkEvent({ raw: toHenry, config, store })
+      assert.deepEqual([store.has(toHenry.message_id), cliCalls('+messages-reply')], [false, before])
+      const notToHim = raw({ text: '稍等，我给你一份', reply_to: 'om_card_hx', sender: 'ou_encone' })
+      await ingestLarkEvent({ raw: notToHim, config, store })
+      assert.equal(store.get(notToHim.message_id)?.intake?.trigger, 'bot_reply')
     })],
     ['回 bot 消息却不是对机器人说的（11-04 省钱，notForBotReason）：抄送 / 只 @ 别的同事 → 不建任务、不并单、不回话；@ 负责人 / 带链接 / 没 @ 谁 → 照旧进分类', () => quiet(async () => {
       const KAISER = { id: 'ou_k', key: '@_user_3', name: 'Kaiser' }

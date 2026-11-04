@@ -367,6 +367,11 @@ describe('任务的人话出口', () => {
       assert.equal((await deliverOutcome({ config, store, task: t, status: 'no_change_needed', deps })).ok, true)
       assert.deepEqual([group()[0].markdown, group()[0].idempotencyKey, dm().length], ['看过了，这个不用改前端：是后端字段没返回。要 后端 看下。', 'om_1-e1-noop', 0])
       sent.length = 0
+      // 11-04 b3：对接答复逐项复测后不用改——归别人跟的（followUps）照样每人一行
+      const followed = task({ id: 'om_nf', messageId: 'om_nf', outcome: out({ summary: '前端不用改', owner: null, followUps: [{ owner: 'William', items: ['配 APK 地址'] }] }) })
+      await deliverOutcome({ config, store, task: followed, status: 'no_change_needed', deps })
+      assert.match(group()[0].markdown, /^看过了，这个不用改前端：前端不用改。\n(?:@William|<at user_id="ou_w">William<\/at>)：配 APK 地址$/)
+      sent.length = 0
       const bare = await deliverOutcome({ config, store, task: task({ id: 'om_0', messageId: 'om_0', outcome: out({ summary: null }) }), status: 'no_change_needed', deps })
       assert.deepEqual([bare.ok, bare.reason, group().length], [false, '没写群回复', 0], '没摘要不发「看过了：」')
       sent.length = 0

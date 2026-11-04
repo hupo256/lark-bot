@@ -140,6 +140,8 @@ const buildTask = async (m) => {
   const route = deterministicRoute(msg) || (trigger === 'bot_reply' && notForBotReason({ msg, config }) ? 'not_for_bot' : null) // 网关同口径（lib/lark-ingest.mjs）
   if (route) return { msg, trigger: rawTrigger, task: null, route }
   const bundle = await buildConversationBundle({ msg, config, store: emptyStore, project: 'FALIVE', deps: depsFor(m.atMs) })
+  // 话题里在回上一条 @ 了他的同事（answeringColleague）：网关同口径静默、不分类（lib/lark-ingest.mjs，11-04 b3）。
+  if (trigger === 'bot_reply' && bundle.answering) return { msg, trigger: rawTrigger, task: null, route: 'answering_colleague' }
   const fromPrincipal = msg.senderOpenId === AVEN_OPEN_ID
   const receivedAt = new Date(m.atMs).toISOString()
   const commandType = parseCommandType(textForParse(msg))

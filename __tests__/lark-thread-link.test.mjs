@@ -18,7 +18,7 @@ process.env.LARK_OUTBOX_DIR = join(dir, 'outbox')
 process.env.LARK_OBLIGATIONS_DIR = join(dir, 'obligations')
 mkdirSync(process.env.LARK_RUNTIME_DIR, { recursive: true })
 
-const { buildResumeSupplement, findThreadPredecessor, renderPredecessorBlock, renderSinceBlock, RESUME_SINCE_MAX_CHARS, splitThreadSince } = await import('../lib/lark-thread-link.mjs')
+const { ANSWERING_WINDOW_MS, answeringColleague, buildResumeSupplement, findThreadPredecessor, renderPredecessorBlock, renderSinceBlock, RESUME_SINCE_MAX_CHARS, splitThreadSince } = await import('../lib/lark-thread-link.mjs')
 const { buildConversationBundle } = await import('../lib/lark-conversation-bundle.mjs')
 const { createTaskStore } = await import('../lib/lark-task-store.mjs')
 
@@ -110,6 +110,33 @@ describe('同话题前一单关联（11-04）', () => {
       const fill = [{ messageId: 'om_c', sender: 'C', text: 'c' }, { messageId: 'om_b', sender: 'B', text: 'b'.repeat(RESUME_SINCE_MAX_CHARS - 1000) }, { messageId: 'om_x', sender: 'X', text: 'x'.repeat(1000) }]
       assert.equal(buildResumeSupplement({ msg: { messageId: 'om_me', replyTo: 'om_a', text: '' }, task: parked, items: fill }), `${head}\nB：${'b'.repeat(RESUME_SINCE_MAX_CHARS - 1000)}\nX：${'x'.repeat(1000)}`)
       assert.equal(buildResumeSupplement({ msg: { messageId: 'om_me', replyTo: 'om_a', text: '' }, task: parked, items: [{ messageId: 'om_y', sender: 'Y', text: 'y'.repeat(RESUME_SINCE_MAX_CHARS + 5) }] }), `${head}\nY：${'y'.repeat(RESUME_SINCE_MAX_CHARS)}…`)
+    }],
+    ['answeringColleague（11-04 b3 ep-1019-57332a）：本条没 @ 谁、没附件，话题里紧挨着的上一条是别人 30 分钟内 @ 了他 → 在回那个人；bot 插过话 / 上一条是他自己 / @ 的不是他 / 太久 → null', () => {
+      const at = Date.parse('2026-10-19T12:29:24Z')
+      const msg = { messageId: 'om_e', senderOpenId: 'ou_encone', text: '稍等，我给你一份', mentions: [], attachments: [], createTimeMs: at }
+      const henry = { messageId: 'om_h', sender: 'Henry', senderOpenId: 'ou_henry', text: '用户中心哪些要换接口？', mentionIds: ['ou_encone'], createTime: String(at - 31_000) }
+      const later = { messageId: 'om_l', sender: 'X', senderOpenId: 'ou_x', text: '更晚', mentionIds: [], createTime: String(at + 60_000) }
+      assert.equal(answeringColleague({ msg, items: [henry, later] }), 'Henry', '本条之后的不算「上一条」')
+      assert.equal(answeringColleague({ msg, items: [henry, { ...msg, createTime: String(at) }] }), 'Henry', '列表里的本条自己跳过')
+      assert.equal(answeringColleague({ msg, items: [{ ...henry, createTime: String(at) }] }), 'Henry', '和本条同一时刻的算之前')
+      assert.equal(answeringColleague({ msg, items: [{ ...henry, sender: '' }] }), 'ou_henry', '没名字给 open_id')
+      assert.equal(answeringColleague({ msg: { ...msg, createTimeMs: 0 }, items: [henry] }), 'Henry', '本条没时间：不按时间截')
+      assert.equal(answeringColleague({ msg, items: [{ ...henry, createTime: '' }] }), 'Henry', '上一条没时间：照认')
+      assert.equal(answeringColleague({ msg, items: [{ ...henry, createTime: String(at - ANSWERING_WINDOW_MS) }] }), 'Henry', '恰好 30 分钟还算')
+      for (const [name, args] of [
+        ['超过 30 分钟', { msg, items: [{ ...henry, createTime: String(at - ANSWERING_WINDOW_MS - 1) }] }],
+        ['bot 在中间插过话', { msg, items: [henry, { messageId: 'om_b', sender: 'Aven.Bot（bot，我们自己）', senderOpenId: '', text: '好', bot: true, createTime: String(at - 1000) }] }],
+        ['上一条是他自己', { msg, items: [{ ...henry, senderOpenId: 'ou_encone' }] }],
+        ['上一条 @ 的不是他', { msg, items: [{ ...henry, mentionIds: ['ou_other'] }] }],
+        ['上一条没 @ 谁', { msg, items: [{ ...henry, mentionIds: undefined }] }],
+        ['上一条没发送人', { msg, items: [{ ...henry, senderOpenId: '' }] }],
+        ['本条 @ 了人（@bot / @ 别人另有判断）', { msg: { ...msg, mentions: [{ id: 'ou_bot' }] }, items: [henry] }],
+        ['本条带附件（可能是给 bot 的材料）', { msg: { ...msg, attachments: [{ type: 'file' }] }, items: [henry] }],
+        ['没发送人', { msg: { ...msg, senderOpenId: '' }, items: [henry] }],
+        ['话题是空的', { msg, items: [] }],
+        ['没给 items', { msg }],
+        ['没给 msg', { items: [henry] }],
+      ]) assert.equal(answeringColleague(args), null, name)
     }],
     ['上下文包：只有 thread_id 也按话题拉；前一单之前的进【话题其它回复】，之后的进补充要求块，排在本条后面', () => quiet(async () => {
       const fetched = []
