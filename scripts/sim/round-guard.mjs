@@ -69,10 +69,11 @@ for (;;) {
     // 是读是写由那条记录判，这里不再重复算（11-04 fixmerge-check2：curl 只读 GET uat 被 lsof 记成「TCP 3.36.151.122」误停）。没记过的照算写请求。
     let dns = {}
     try { dns = JSON.parse(read('egress-dns.json') || '{}') } catch {}
-    // DNS 表只在起跑时解析一次（IP 会轮换）：认不回域名时，同一个工具（lsof 进程名 curl / wget / node ↔ 壳记录的 via）在 ±15 秒内记过请求也算。
+    // DNS 表认不全（只在起跑时解析一次、IP 会轮换；几个域名共用 IP 时只留一个名字——falivepre / falivego 同一组 IP 记成 falivego）：
+    // 同一个工具（lsof 进程名 curl / wget / node ↔ 壳记录的 via）在 ±15 秒内记过请求也算。
     const VIA_OF = { curl: 'curl', wget: 'wget', node: 'fetch' }
     const loggedBy = (x) => egress.some((y) => y.via !== 'sock' && y.host && Math.abs(Date.parse(y.at) - Date.parse(x.at)) <= 15_000
-      && (y.host === x.host || y.host === dns[x.host] || (!dns[x.host] && VIA_OF[String(x.extra || '').toLowerCase()] === y.via)))
+      && (y.host === x.host || y.host === dns[x.host] || VIA_OF[String(x.extra || '').toLowerCase()] === y.via))
     const writes = egress
       .filter((x) => !['GET', 'HEAD', 'OPTIONS', 'CLI'].includes(x.method) && x.extra !== 'blocked' && x.host && !/^(?:127\.|localhost|::1)/.test(x.host) && !/login/i.test(x.path || '') && !/anthropic|claude\.ai/i.test(x.host) && !isClaudeSock(x) && !(x.method === 'TCP' && loggedBy(x)))
     if (writes.length) why.push(`${seg} 有写请求发到了真实环境：${writes[0].method} ${writes[0].host}${writes[0].path}`)
