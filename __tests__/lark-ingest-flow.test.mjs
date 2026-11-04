@@ -216,6 +216,17 @@ describe('摄入链路 / 上下文包 / 入群事件（真 store + 假 lark-cli�
       await ingestLarkEvent({ raw: rooted, config, store })
       assert.deepEqual([store.get(rooted.message_id).replyTarget, store.get(rooted.message_id).threadRootId], [{ messageId: rooted.message_id, inThread: false }, 'om_root2'])
     })],
+    ['同话题前一单（11-04 事故）：话题根不是任务、前一单已人工结单 → 新单记 threadPredecessorId、intake.anchorTaskId 补成前一单、正文带【同话题前一单】；话题按 thread_id 拉（没有 root_id 也拉）；另一个话题的不算', () => quiet(async () => {
+      store.upsert({ id: 'om_first', source: 'lark', chatId: 'oc_g', messageId: 'om_first', operator: 'ou_aven', status: 'superseded', closureReason: 'cancelled', threadRootId: 'omt_ol', summary: '学习这个邮件，它应该被评为 A 档', text: '学习这个邮件', result: '要改 lark-bot 的评分规则，不在 fameex-web', epoch: 1, createdAt: '2026-11-04T08:08:00Z', messageCreatedAt: '2026-11-04T08:08:00Z' })
+      store.upsert({ id: 'om_other', source: 'lark', chatId: 'oc_g', messageId: 'om_other', operator: 'ou_qa', status: 'done', threadRootId: 'omt_else', summary: '别的话题', text: 'x', createdAt: '2026-11-04T08:20:00Z' })
+      const threadCalls = cliCalls('+threads-messages-list --thread omt_ol')
+      const follow = atBot('obey order of ROU', { thread_id: 'omt_ol', sender: 'ou_aven', create_time: String(Date.parse('2026-11-04T08:40:00Z')) })
+      await ingestLarkEvent({ raw: follow, config, store })
+      const task = store.get(follow.message_id)
+      assert.deepEqual([task.threadPredecessorId, task.intake.anchorTaskId, task.threadRootId], ['om_first', 'om_first', 'omt_ol'])
+      assert.ok(task.text.startsWith('obey order of ROU\n\n【同话题前一单】om_first（已人工结单（cancelled））：学习这个邮件，它应该被评为 A 档\n上一轮结果：要改 lark-bot 的评分规则，不在 fameex-web\n'), task.text)
+      assert.equal(cliCalls('+threads-messages-list --thread omt_ol'), threadCalls + 1, '只有 thread_id 也拉话题')
+    })],
     ['项目号：正文唯一项目号 > 绑定表 > 群名；projectTitle 只在是配置主项目时有', () => quiet(async () => {
       // 每条换一个发送人：同一人安静期内连发会并进前一条（去抖），不是本段要测的
       const cases = [
