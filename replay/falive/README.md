@@ -12,6 +12,7 @@ falive bot 10-01 → 11-03 的真实运行数据。用来给 lark-bot 做离线�
 | `raw/lark-im-resources/` + `raw/resources-extra.json` | 消息里的截图 / 文件，`<message_id>/<key>` → 相对 raw/ 的路径 | 同上 |
 | `dataset/timeline.json` | 统一时间线（4152 条，含话题回复；bot 多个 open_id 已归一） | `build-dataset.mjs` |
 | `dataset/episodes.json` | 每条真人消息的 falive 基线：当时的分类、路由日志、回复、人的后续、审计结论（取自 `~/github/lark-bot-falive/runtime` 与 `~/Library/Logs/falive-lark/`） | `build-dataset.mjs` |
+| `episodes.json` / `episodes.md` | **回放事件组**（docs/falive-replay-design-v2.md §2）：每组的 case、首末时间、起跑窗口（首条前 30 分钟）、跨天、群、每次并组的理由；md 是统计。注意和 `dataset/episodes.json`（逐条基线）不是一回事 | `node scripts/sim/episodes.mjs` 生成，别手改 |
 | `rounds/<轮>/` | 每轮完整回放的裁判（`<段>.judge.jsonl`）与总账（`report.md`） | `run-round.sh` 跑完自动拷进来 |
 
 回放产物本身（`sim/<轮>-<段>/`：发件簿、任务、审计、日志，单轮几个 G）可重跑，不进版本，在 `runtime/falive-replay/`（gitignore）。
