@@ -9,11 +9,12 @@ import https from 'node:https'
 import { syncBuiltinESMExports } from 'node:module'
 
 import { CODE_SEND_PATH_RE, codePurposeOf } from '../../lib/lark-egress-policy.mjs'
-import { BLOCK_NOTE, LOCAL_HOST_RE, blockedWrite, noteEgress } from './egress-log.mjs'
+import { LOCAL_HOST_RE, TESTDATA_BLOCK_NOTE, blockedWrite, noteEgress, simBlockNote } from './egress-log.mjs'
 
 if (process.env.SIM_DIR) {
   const seenLocal = new Set()
-  const note = (via, method, url, purpose = null) => {
+  // extra：'blocked' = 本预载拦下了、没发出去（同 curl 壳的记法；止损守卫 / 出网审计按它认「没写到真实环境」）。
+  const note = (via, method, url, purpose = null, extra = null) => {
     try {
       const u = new URL(url)
       const host = u.hostname.replace(/^\[|\]$/g, '')
@@ -22,9 +23,9 @@ if (process.env.SIM_DIR) {
         if (seenLocal.has(key)) return
         seenLocal.add(key)
       }
-      noteEgress({ via, method, url: `${u.protocol}//${u.host}${u.pathname}`, purpose })
+      noteEgress({ via, method, url: `${u.protocol}//${u.host}${u.pathname}`, purpose, extra })
     } catch {
-      noteEgress({ via, method, url: String(url) })
+      noteEgress({ via, method, url: String(url), extra })
     }
   }
   const origFetch = globalThis.fetch
@@ -37,9 +38,12 @@ if (process.env.SIM_DIR) {
         const purpose = String(method).toUpperCase() !== 'GET' && CODE_SEND_PATH_RE.test(String(url))
           ? codePurposeOf({ bodies: body == null ? [] : typeof body === 'string' || body instanceof URLSearchParams ? [String(body)] : undefined, query: new URL(String(url)).search })
           : null
-        note('fetch', method, url, purpose)
         const why = blockedWrite({ method, url, purpose })
-        if (why) return Promise.resolve(new Response(JSON.stringify({ code: 403, msg: `${BLOCK_NOTE}（${why}）`, sim_blocked: true }), { status: 403, headers: { 'content-type': 'application/json' } }))
+        note('fetch', method, url, purpose, why ? 'blocked' : null)
+        if (why) {
+          const blockNote = simBlockNote({ method, url })
+          return Promise.resolve(new Response(JSON.stringify({ code: 403, msg: `${blockNote}（${why}）`, sim_blocked: blockNote === TESTDATA_BLOCK_NOTE ? 'testdata' : true }), { status: 403, headers: { 'content-type': 'application/json' } }))
+        }
       } catch { /* 记不下也放行 */ }
       return origFetch.apply(this, arguments)
     }
@@ -59,9 +63,9 @@ if (process.env.SIM_DIR) {
           const port = opts.port || url?.port || ''
           const href = url && !opts.hostname && !opts.host ? url.href : `${opts.protocol || url?.protocol || proto}//${host}${port ? `:${port}` : ''}${opts.path || url?.pathname || '/'}`
           const method = fn === 'get' ? 'GET' : opts.method || 'GET'
-          note(proto.slice(0, -1), method, href)
           const why = blockedWrite({ method, url: href })
-          if (why) throw Object.assign(new Error(`${BLOCK_NOTE}（${why}）`), { code: 'SIM_BLOCKED_WRITE' })
+          note(proto.slice(0, -1), method, href, null, why ? 'blocked' : null)
+          if (why) throw Object.assign(new Error(`${simBlockNote({ method, url: href })}（${why}）`), { code: 'SIM_BLOCKED_WRITE' })
         } catch (error) { if (error?.code === 'SIM_BLOCKED_WRITE') throw error /* 写拦截要抛出去；别的记不下也放行 */ }
         return orig.apply(this, a)
       }

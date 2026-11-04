@@ -210,6 +210,10 @@ describe('回放裁判链路（P0-g）', () => {
       assert.deepEqual(flags(msg(id(13), T0, 'oc_php', { text: '复测一下' })), ['sim_limit_memory'])
       assert.deepEqual(flags(msg(id(18), T0, 'oc_php', { text: '看下' }), { lark: { output: '见 ~/.lark-bugpoll/snapshot.json', lines: [] } }), ['sim_limit_memory'])
       assert.deepEqual(flags(msg(id(19), T0, 'oc_php', { text: '普通一句' })), [])
+      // 原话明确要造测试数据（b3 ep-1024「创建最新的帖子 进行测试」）：软旗标，判过程
+      assert.deepEqual(flags(msg(id(12), T0, 'oc_php', { text: '@Aven.Bot 创建最新的帖子 进行测试' })), ['sim_limit_verify', 'sim_limit_testdata'])
+      assert.match(simLimitsOf({ m: msg(id(20), T0, 'oc_php', { text: '写脚本在 pre 造帖' }), sim, data, src })[0].why, /测试号[\s\S]*回放拦了真实写入[\s\S]*判过程/)
+      assert.deepEqual(flags(msg(id(21), T0, 'oc_php', { text: '能不能创建帖子' })), [])
     }],
 
     ['模拟局限不计分：裁判判 sim_limit，或硬旗标（v2 结论一刀切；v3 看过旗标仍归 bot 且变差的照常计分）；软旗标只听裁判；缓存参照接旗标指纹', () => {

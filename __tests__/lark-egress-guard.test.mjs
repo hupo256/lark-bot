@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
 import { EventEmitter } from 'node:events'
-import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -10,11 +10,13 @@ import { describe, it } from 'node:test'
 
 import { buildAiExecutorCommand, execAiExecutor } from '../lib/lark-ai-executor.mjs'
 import {
-  EGRESS_DENY_RULES, EGRESS_GUARD_ENV, SOURCE_HOSTS, checkCurlInvocation, checkEgressRequest, egressGuardEnv, egressPolicyFor, egressScopeOf, gitRemoteHost, hostInScope, parseCurlArgs, parseEgressPolicy, withoutEgressGuard,
+  EGRESS_DENY_RULES, EGRESS_GUARD_ENV, SOURCE_HOSTS, checkCurlInvocation, checkEgressRequest, createBlockedPath, egressGuardEnv, egressPolicyFor, egressScopeOf, egressTestDataEnvsOf, gitRemoteHost, hostInScope, parseCurlArgs, parseEgressPolicy, withoutEgressGuard,
 } from '../lib/lark-egress-policy.mjs'
-import { EGRESS_GUARD_BIN_DIR, EGRESS_GUARD_PRELOAD } from '../lib/lark-paths.mjs'
+import { buildLoginRequest, freshLogin, maskToken, readTestPassword, redactSecrets, resolveTestAccount, validateTestAccess } from '../lib/lark-env-login.mjs'
+import { EGRESS_GUARD_BIN_DIR, EGRESS_GUARD_PRELOAD, ENV_LOGIN_TOOL } from '../lib/lark-paths.mjs'
+import { deriveContract, requestsTestData } from '../lib/lark-task-contract.mjs'
 import { classifyLine } from '../scripts/sim/egress-audit.mjs'
-import { blockedWrite, noteEgress } from '../scripts/sim/egress-log.mjs'
+import { BLOCK_NOTE, TESTDATA_BLOCK_NOTE, blockedWrite, noteEgress, simBlockNote } from '../scripts/sim/egress-log.mjs'
 import { eachCase, runSteps } from './support/steps.mjs'
 
 // 代答 / 实测的出网范围命令层核对（aven 11-04 design-v2 §7；b2 ep-1031-f8065f 代答 curl 了 accounts.google.com/gsi/…）。
@@ -252,6 +254,135 @@ describe('代答 / 实测出网范围（命令层）', () => {
       const [a, b] = readFileSync(join(dir, 'egress.log'), 'utf8').trim().split('\n').map((l) => JSON.parse(l))
       assert.equal(a.purpose, '3')
       assert.equal('purpose' in b, false)
+    }],
+    ['登录工具（b3 ep-1024-9ebe13）：代答里只有 env-login 进程许发登录 POST；注册 / 发码 / 其它写照拦', () => {
+      const tool = { ...answer, loginTool: true }
+      assert.deepEqual(checkEgressRequest(tool, { method: 'POST', url: 'https://falivepre.fdsser.com/api/user/NewMailLogin' }), { ok: true })
+      assert.match(checkEgressRequest(answer, { method: 'POST', url: 'https://falivepre.fdsser.com/api/user/NewMailLogin' }).reason, /代答只许 GET[\s\S]*env-login/)
+      assert.match(checkEgressRequest(tool, { method: 'POST', url: 'https://falivepre.fdsser.com/api/user/NewRegisteredByMail' }).reason, /注册一律不做/)
+      assert.match(checkEgressRequest(tool, { method: 'POST', url: 'https://falivepre.fdsser.com/api/user/sendVerificationCode', bodies: ['type=3'] }).reason, /发验证码的用途是 3/, '代答没配登录码 type，工具也只做密码登录')
+      assert.equal(checkEgressRequest(tool, { method: 'POST', url: 'https://falivepre.fdsser.com/api/Square/addPost' }).ok, false)
+      assert.equal(checkEgressRequest(tool, { method: 'POST', url: 'https://accounts.google.com/login' }).ok, false)
+    }],
+    ['造测试数据：原话明确要造 + 配置 testData.envs 才放开那个环境的创建 POST；删改 / 别的环境 / 代答 / 登录工具里照拦', async () => {
+      const sites = { pre: 'https://falivepre.fdsser.com', online: 'https://www.falive.com' }
+      const config = { envSites: sites, testData: { envs: ['pre', 'online', 'uat'] }, testAccounts: { pre: { mail: 'a' } } }
+      const verify = { contract: { deliverable: 'verification', testData: true } }
+      assert.deepEqual(egressTestDataEnvsOf(verify, config), ['pre'], '没配站点 / 测试号的环境不放')
+      assert.deepEqual(egressTestDataEnvsOf({ contract: { deliverable: 'verification' } }, config), [])
+      assert.deepEqual(egressTestDataEnvsOf({ contract: { deliverable: 'answer', testData: true } }, config), [])
+      assert.deepEqual(egressTestDataEnvsOf(verify, { ...config, testData: { envs: ['pre'], account: 'qa' } }), [], 'account 指的测试号没配')
+      assert.deepEqual(egressTestDataEnvsOf(verify, { envSites: sites }), [])
+      const policy = egressPolicyFor({ scope: 'verification', envSites: sites, testDataEnvs: ['pre'] })
+      assert.deepEqual(policy.testDataDomains, ['falivepre.fdsser.com'])
+      assert.equal('testDataDomains' in egressPolicyFor({ scope: 'answer', envSites: sites, testDataEnvs: ['pre'] }), false)
+      assert.equal('testDataDomains' in verification, false)
+      const both = egressPolicyFor({ scope: 'change', envSites: sites, gitHosts: ['mgit.lgroup.co'], testDataEnvs: ['pre'] })
+      assert.deepEqual([both.sourceHosts, both.testDataDomains], [[...SOURCE_HOSTS, 'mgit.lgroup.co'], ['falivepre.fdsser.com']], '改码单两样都给：包 / 源码源只读 + 测试数据环境的创建')
+      const at = (method, path, p = policy) => checkEgressRequest(p, { method, url: `https://falivepre.fdsser.com${path}` })
+      for (const path of ['/api/Square/addPost', '/bbsv2/tool/upload', '/api/comment/add']) assert.deepEqual(at('POST', path), { ok: true }, path)
+      for (const path of ['/api/Square/delPost', '/api/user/updateInfo', '/api/live/sendGift', '/api/order/create', '/api/user/setNickname']) assert.match(at('POST', path).reason, /只放开用测试号建测试内容/, path)
+      assert.match(at('POST', '/api/user/NewRegisteredByMail').reason, /注册一律不做/)
+      assert.equal(at('PUT', '/api/Square/post').ok, false)
+      assert.equal(at('POST', '/api/Square/addPost', verification).ok, false, '没放开的单照旧拦')
+      assert.equal(at('POST', '/api/Square/addPost', { ...policy, loginTool: true }).ok, false, '登录工具只登录')
+      assert.match(checkEgressRequest(policy, { method: 'POST', url: 'https://www.falive.com/api/Square/addPost' }).reason, /建测试数据只放开 falivepre\.fdsser\.com/)
+      assert.equal(createBlockedPath('/api/model/addPost'), null, '按词切，model 不算 del')
+      await eachCase([
+        ['创建最新的帖子 进行测试', true], ['写脚本在 pre 造帖', true], ['在 pre 造几条测试帖', true], ['发几条新帖测一下', true], ['帮我造一些测试数据', true],
+        ['能不能创建帖子', false], ['测试 帖子多语言翻译 以及 AI识图 功能 ！', false], ['测试的tid 发出来', false], ['创建帖子失败了，测试下', false], ['新建帖子页面样式不对', false], ['造帖失败', false],
+      ], ([text, want]) => assert.equal(requestsTestData(text), want, text))
+      const contract = (deliverable, text) => deriveContract({ text: `@Aven.Bot ${text}`, intake: { classification: { decision: 'question', deliverable } } })
+      assert.equal(contract('verification', '创建最新的帖子 进行测试').testData, true)
+      assert.equal(contract('answer', '创建最新的帖子 进行测试').testData, false, '代答只读')
+      assert.equal(contract('verification', 'Bug-4942 再复测下').testData, false)
+      // 回放：线上会放行的创建照样拦，但说清楚是回放拦的；别的写照旧
+      const guard = { [EGRESS_GUARD_ENV]: JSON.stringify(policy) }
+      assert.equal(simBlockNote({ method: 'POST', url: 'https://falivepre.fdsser.com/api/Square/addPost', env: guard }), TESTDATA_BLOCK_NOTE)
+      assert.match(TESTDATA_BLOCK_NOTE, /^回放：真实写入已拦截（线上会用测试号执行）/)
+      assert.equal(simBlockNote({ method: 'POST', url: 'https://falivepre.fdsser.com/api/Square/delPost', env: guard }), BLOCK_NOTE)
+      assert.equal(simBlockNote({ method: 'POST', url: 'https://falivepre.fdsser.com/api/Square/addPost', env: {} }), BLOCK_NOTE)
+      assert.ok(blockedWrite({ method: 'POST', url: 'https://falivepre.fdsser.com/api/Square/addPost' }), '回放硬拦不变')
+    }],
+    ['回放里放开的造数据：线上核对放行 → 回放预载拦下回「回放：真实写入已拦截」、记 blocked（止损守卫不误停）；没放开的写线上核对先拦、回放不记', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'lark-egress-simtd-'))
+      const policy = egressPolicyFor({ scope: 'verification', envSites: { pre: 'https://falivepre.fdsser.com' }, testDataEnvs: ['pre'] })
+      const env = { PATH: process.env.PATH, SIM_DIR: dir, NODE_OPTIONS: `--import ${join(import.meta.dirname, '..', 'scripts', 'sim', 'egress-hook.mjs')} --import ${EGRESS_GUARD_PRELOAD}`, [EGRESS_GUARD_ENV]: JSON.stringify(policy) }
+      const script = "const post = (p) => fetch('https://falivepre.fdsser.com' + p, { method: 'POST', body: 'a=1' }).then((r) => r.json()).then((j) => j.sim_blocked + ' ' + j.msg, (e) => e.cause?.code); Promise.all([post('/api/Square/addPost'), post('/api/Square/delPost')]).then((v) => console.log(v.join('|')))"
+      const out = await runAsync(process.execPath, ['-e', script], env)
+      const [created, deleted] = out.out.trim().split('\n').pop().split('|')
+      assert.ok(created.startsWith(`testdata ${TESTDATA_BLOCK_NOTE}`), created)
+      assert.equal(deleted, 'ELARKEGRESS')
+      const lines = readFileSync(join(dir, 'egress.log'), 'utf8').trim().split('\n').map((l) => JSON.parse(l))
+      assert.deepEqual(lines.map((l) => [l.method, l.path, l.extra]), [['POST', '/api/Square/addPost', 'blocked']])
+    }],
+    ['测试号配置与登录请求口径（纯函数）', () => {
+      const ok = { envSites: { pre: 'https://pre.x/' }, testAccounts: { pre: { mail: 'qa@x', loginModule: '/m.mjs' } }, testData: { envs: ['pre'] } }
+      assert.deepEqual(validateTestAccess(ok), [])
+      assert.deepEqual(validateTestAccess({}), [])
+      const errors = validateTestAccess({ envSites: {}, testAccounts: { pre: { request: { path: '/l' } }, uat: 'x' }, testData: { envs: ['pre'] } }).join('\n')
+      for (const re of [/testAccounts\.pre\.mail 必填/, /passwordFile 或 passwordEnv/, /testAccounts\.uat 必须是对象/, /testData\.envs 的 pre 不在 envSites/]) assert.match(errors, re)
+      assert.match(validateTestAccess({ testAccounts: { pre: { mail: 'a' } } })[0], /loginModule.*或 request/)
+      assert.match(validateTestAccess({ testData: { envs: 'pre' } })[0], /testData 必须是对象/)
+      assert.deepEqual(validateTestAccess({ envSites: { pre: 'x' }, testData: { envs: ['pre'] } }), ['testData 要用的测试号 testAccounts.pre 没配'])
+      assert.deepEqual(validateTestAccess({ envSites: { pre: 'x' }, testData: { envs: ['pre'], account: 'qa' } }), ['testData 要用的测试号 testAccounts.qa 没配'])
+      assert.deepEqual(resolveTestAccount(ok, 'pre'), { env: 'pre', base: 'https://pre.x', account: ok.testAccounts.pre })
+      assert.equal(resolveTestAccount({ ...ok, testAccounts: { pre: { ...ok.testAccounts.pre, apiBase: 'https://api.pre.x' } } }, 'pre').base, 'https://api.pre.x')
+      assert.match(resolveTestAccount(ok, 'online').error, /online 没有配测试号[\s\S]*已配：pre[\s\S]*不注册新号/)
+      assert.match(resolveTestAccount(ok, null).error, /--env <pre>/)
+      assert.match(resolveTestAccount({ testAccounts: { pre: { mail: 'a' } } }, 'pre').error, /没有站点地址/)
+      assert.equal(readTestPassword({ passwordEnv: 'P', passwordFile: '/f' }, { env: { P: 'from-env' }, readFile: () => 'from-file' }), 'from-env')
+      assert.equal(readTestPassword({ passwordEnv: 'P', passwordFile: '/f' }, { env: {}, readFile: () => 'from-file\nrest' }), 'from-file')
+      assert.equal(readTestPassword({}, { env: {} }), null)
+      assert.equal(readTestPassword({ passwordFile: '/f' }, { env: {} }), null, '没注入读文件就不读')
+      const form = buildLoginRequest({ base: 'https://pre.x', request: { path: 'login', form: true, body: { u: '{mail}', p: '{password}', k: 1 } }, mail: 'm', password: 'p' })
+      assert.deepEqual(form, { url: 'https://pre.x/login', method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'u=m&p=p&k=1' })
+      assert.equal(buildLoginRequest({ base: 'b', request: { path: '/l' }, mail: 'm', password: 'p' }).body, '{"mail":"m","password":"p"}')
+      assert.deepEqual(buildLoginRequest({ base: 'b', request: { path: '/l', headers: { 'x-a': '1' } }, mail: 'm', password: 'p' }).headers, { 'content-type': 'application/json', 'x-a': '1' })
+      assert.equal(maskToken('abcdefghijkl'), 'abcd…kl（12 位）')
+      assert.equal(maskToken('abcdefgh'), '****')
+      assert.equal(maskToken('abcdefghi'), 'abcd…hi（9 位）')
+      assert.equal(redactSecrets('pw=hunter2 tok=abcd1234 k=abcd x=abc', ['hunter2', 'abcd1234', 'abcd', 'abc', null]), 'pw=**** tok=**** k=**** x=abc')
+      const saved = { env: 'pre', mail: 'm', token: 't', at: new Date(1_000_000).toISOString() }
+      assert.equal(freshLogin(saved, { env: 'pre', mail: 'm', now: 1_000_000 + 60_000 }), saved)
+      assert.equal(freshLogin(saved, { env: 'pre', mail: 'm', now: 1_000_000 + 20 * 60_000 }), null)
+      assert.equal(freshLogin(saved, { env: 'uat', mail: 'm', now: 1_000_000 }), null)
+    }],
+    ['env-login 真跑：代答出网核对下登上、token 存 0600 文件只打码打印、密码不出现；会话自己写的脚本发同样的登录照拦；注册路径工具也拦', async () => {
+      const bodies = []
+      const server = createServer((req, res) => { let body = ''; req.on('data', (d) => { body += d }); req.on('end', () => { bodies.push(`${req.url} ${body}`); res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ code: 0, data: { token: 'tok-0123456789abcdef', uid: 508 } })) }) })
+      await new Promise((resolve) => server.listen(0, '::', resolve))
+      try {
+        // ::ffff:127.0.0.1 不算「本机」（本机不限，测不到方法核对），当成配置的环境主机
+        const base = `http://[::ffff:127.0.0.1]:${server.address().port}`
+        const runtime = mkdtempSync(join(tmpdir(), 'lark-env-login-'))
+        const writeConfig = (path) => writeFileSync(join(runtime, 'lark-bot.local.json'), JSON.stringify({ envSites: { pre: base }, testAccounts: { pre: { mail: 'qa@x.test', passwordEnv: 'T_PWD', request: { path, body: { mail: '{mail}', password: '{password}' }, uidPath: 'data.uid' } } } }))
+        writeConfig('/api/user/NewMailLogin')
+        const policy = { scope: 'answer', domains: ['::ffff:7f00:1'], loginCodeTypes: [] }
+        const env = { ...egressGuardEnv({ policy, env: { PATH: process.env.PATH }, binDir: EGRESS_GUARD_BIN_DIR, preloadPath: EGRESS_GUARD_PRELOAD }), LARK_RUNTIME_DIR: runtime, T_PWD: 'pw-secret-42' }
+        const first = await runAsync(process.execPath, [ENV_LOGIN_TOOL, '--env', 'pre'], env)
+        assert.equal(first.status, 0, first.out)
+        assert.match(first.out, /已登录 pre 测试号 qa@x\.test（uid 508）：token tok-…ef（20 位）/)
+        assert.doesNotMatch(first.out, /pw-secret-42|tok-0123456789abcdef/)
+        const state = join(runtime, 'lark-env-login', 'pre.json')
+        assert.equal(statSync(state).mode & 0o777, 0o600)
+        assert.equal(JSON.parse(readFileSync(state, 'utf8')).token, 'tok-0123456789abcdef')
+        const token = await runAsync(process.execPath, [ENV_LOGIN_TOOL, '--env', 'pre', '--token'], env)
+        assert.equal(token.out, 'tok-0123456789abcdef\n')
+        assert.equal(bodies.length, 1, '20 分钟内复用，不重登')
+        assert.equal(bodies[0], '/api/user/NewMailLogin {"mail":"qa@x.test","password":"pw-secret-42"}')
+        const script = await runAsync(process.execPath, ['-e', `fetch(${JSON.stringify(`${base}/api/user/NewMailLogin`)}, { method: 'POST', body: '{}' }).catch((e) => console.log(e.cause?.code))`], env)
+        assert.match(script.out, /代答只许 GET[\s\S]*ELARKEGRESS/)
+        writeConfig('/api/user/NewRegisteredByMail')
+        const register = await runAsync(process.execPath, [ENV_LOGIN_TOOL, '--env', 'pre', '--fresh'], env)
+        assert.equal(register.status, 1)
+        assert.match(register.out, /注册一律不做/)
+        assert.equal(bodies.length, 1, '注册请求一个字节都没发出去')
+        const missing = await runAsync(process.execPath, [ENV_LOGIN_TOOL, '--env', 'online'], env)
+        assert.match(missing.out, /online 没有配测试号/)
+      } finally {
+        server.close()
+      }
     }],
   ]))
 })
