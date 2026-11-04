@@ -398,7 +398,7 @@ describe('task-mention intent classification', () => {
       ['bug', 'requirement', 'api_reply', 'question', 'ignore'].map((decision) => ({ name: decision, decision })),
       ({ decision }) => assert.deepEqual(parseStructuredIntentResult({ decision, confidence: 'medium', summary: '摘要', reason: '理由' }), {
         decision, confidence: 'medium', summary: '摘要', reason: '理由',
-        deliverable: null, forMe: null, selfAnswer: false, reply: null, continues: null, relatedTaskId: null, topic: null, waitsFor: null,
+        deliverable: null, forMe: null, selfAnswer: false, botSelf: false, reply: null, continues: null, relatedTaskId: null, topic: null, waitsFor: null,
       }),
     )],
     ['新字段：合法 deliverable / forMe 原样带出，文本字段去空白并截长，空串归 null', () => {
@@ -411,6 +411,7 @@ describe('task-mention intent classification', () => {
         ['answer', true, true, '我看下。', 't_c', 'om_1', 40, null],
       )
       assert.equal(parseStructuredIntentResult({ decision: 'bug', confidence: 'low', summary: 's', reason: 'r', deliverable: 'change', forMe: false, selfAnswer: 'yes' }).selfAnswer, false, 'selfAnswer 只认布尔 true')
+      assert.deepEqual([true, 'yes', undefined].map((botSelf) => parseStructuredIntentResult({ decision: 'requirement', confidence: 'high', summary: 's', reason: 'r', deliverable: 'change', botSelf }).botSelf), [true, false, false], 'botSelf 只认布尔 true（11-04 改 bot 自己）')
     }],
     ['非法 deliverable / 非布尔 forMe / 未知 decision 拒收', () => {
       const base = { confidence: 'high', summary: 's', reason: 'r' }

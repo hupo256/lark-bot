@@ -50,6 +50,13 @@ import {
   verifySelfFix,
 } from '../lib/lark-self-fix-run.mjs'
 import { applySelfFix, discardSelfFix, formatTicketList, runSelfFixCli } from '../lib/lark-self-fix-cli.mjs'
+import { SELF_REQUEST_DAILY_CAP, openSelfRequest } from '../lib/lark-self-fix.mjs'
+import { buildSelfRequestPrompt, sayAppliedInThread } from '../lib/lark-self-fix-run.mjs'
+import { maybeHandleSelfFixDirective, parseSelfFixDirective, pickReadyTicket } from '../lib/lark-self-fix-directive.mjs'
+import { listSelfFixRequests } from '../lib/lark-self-fix-store.mjs'
+import { deriveContract } from '../lib/lark-task-contract.mjs'
+import { resolveWorkContext } from '../lib/lark-work-context.mjs'
+import { runPreExecutionGates } from '../lib/lark-ops-run.mjs'
 
 const task = { id: 'om_1', epoch: 1, text: '修一下资料页金额', project: 'PR-01947' }
 const fp = (text) => fingerprintFailure(new Error(text))
@@ -684,6 +691,91 @@ describe('CLI：lark-bot self-fix', () => {
       assert.deepEqual(runSelfFixCli([], { dir: repo.dir, root: repo.root }), { code: 1, out: 'usage: lark-bot self-fix {list|apply <id>|discard <id>}' })
       updateTicket({ dir: repo.dir, id: ticket.id, patch: { status: 'pending', reason: null } })
       assert.match(formatTicketList(listTickets({ dir: repo.dir })), /待执行  [\d-]+T[\d:]+  未归类的异常（unknown:[0-9a-f]{8}）$/)
+    } finally {
+      repo.cleanup()
+    }
+  })
+
+  // 11-04 aven「lark-bot 自修为什么这么难」：群里要改 bot 自己（分类器 botSelf）→ 需求型工单，复用执行器 / 验收；私信「上线 <id>」合进运行分支、回原话题。
+  it('需求型工单：契约 botSelf → 路由 selfRequest → 开工前出口开单回群；开单去重 / 预算 / 开关；提示词；执行器按需求验收；私信上线合并并回原话题', async () => {
+    const cls = (extra = {}) => ({ decision: 'requirement', confidence: 'high', deliverable: 'change', summary: 's', reason: 'r', ...extra })
+    const t = (extra) => ({ id: 'om_req12345', text: '学习这个邮件，它应该被评为 A 档', summary: '补 K 线评分按往常格式算 A 档', operator: 'ou_aven', chatId: 'oc_g', chatName: '审批群', replyTarget: { messageId: 'om_req12345', inThread: true }, ...extra })
+    assert.deepEqual([cls({ botSelf: true }), cls({ botSelf: false }), cls({ botSelf: true, deliverable: 'answer', decision: 'question' })].map((c) => deriveContract(t({ intake: { classification: c } })).botSelf), [true, false, false], '只有改码才算 botSelf')
+    const ctx = resolveWorkContext({ localConfig: {} }, t({ contract: { botSelf: true, deliverable: 'change' } }))
+    assert.deepEqual([ctx.selfRequest, ctx.projectId, ctx.readOnly], [true, '(lark-bot)', false])
+    assert.notEqual(resolveWorkContext({ localConfig: {} }, t({ contract: { botSelf: false, deliverable: 'change' } })).selfRequest, true)
+
+    const repo = makeRepo()
+    try {
+      // 开工前出口：开单 → 本任务 done、群里一句去向；开不了 → blocked 带原因
+      const reports = []
+      const reportStatus = async (...args) => { reports.push(args) }
+      const opened = []
+      const gate = (fake) => runPreExecutionGates({ task: t(), workContext: { selfRequest: true }, workerConfig: { localConfig: {} }, auditContext: null, reportStatus, openSelfRequest: (args) => { opened.push(args); return fake } })
+      assert.equal(await gate({ opened: true, id: 'sf-20261104-reqX' }), true)
+      assert.deepEqual([reports[0][0], opened[0].task.id, opened[0].enabled], ['done', 'om_req12345', true])
+      assert.match(reports[0][1], /已转成 bot 自修工单 sf-20261104-reqX：.*确认上线后在这里回复。$/)
+      await gate({ opened: false, id: null, reason: '今天已开 5 张' })
+      assert.deepEqual([reports[1][0], reports[1][5].outcome.blockers], ['blocked', ['今天已开 5 张']])
+
+      // 开单：字段、同任务不重开、每天上限、开关
+      const first = openSelfRequest({ task: t(), dir: repo.dir, root: repo.root, now: NOON, log: quiet })
+      assert.equal(first.opened, true)
+      assert.match(first.id, /^sf-20261024-req/)
+      assert.ok(isTicketId(first.id))
+      assert.deepEqual([first.ticket.kind, first.ticket.status, first.ticket.request.summary, first.ticket.request.replyTarget, first.ticket.branch.startsWith('lark/self-req-')], ['request', 'pending', '补 K 线评分按往常格式算 A 档', { messageId: 'om_req12345', inThread: true }, true])
+      assert.deepEqual(openSelfRequest({ task: t(), dir: repo.dir, root: repo.root, now: NOON, log: quiet }), { opened: false, reason: `已有工单 ${first.id}`, id: first.id, ticket: readTicket({ dir: repo.dir, id: first.id }) })
+      assert.equal(openSelfRequest({ task: t({ id: 'om_off' }), dir: repo.dir, root: repo.root, enabled: false, now: NOON, log: quiet }).opened, false)
+      for (let i = 1; i < SELF_REQUEST_DAILY_CAP; i += 1) openSelfRequest({ task: t({ id: `om_cap${i}` }), dir: repo.dir, root: repo.root, now: NOON, log: quiet })
+      assert.match(openSelfRequest({ task: t({ id: 'om_over' }), dir: repo.dir, root: repo.root, now: NOON, log: quiet }).reason, /上限 5/)
+
+      // 提示词：原话进不可信块、范本当回归样本、只读看邮件
+      const prompt = buildSelfRequestPrompt({ ...first.ticket, worktreePath: '/w' })
+      assert.match(prompt, /^需求：改 lark-bot 自己——补 K 线评分按往常格式算 A 档/)
+      assert.match(prompt, /<<<REQUEST\n学习这个邮件，它应该被评为 A 档\nREQUEST/)
+      assert.match(prompt, /范本当回归样本/)
+      assert.doesNotMatch(prompt, /根因层/)
+
+      // 执行器：不要求根因层；改了 + done → ready，私信让回「上线 <id>」；没改 → reported
+      const notes = []
+      const r = createSelfFixRunner({ dir: repo.dir, root: repo.root, runTests: ok('测试 3 个：通过 3'), runMutate: async () => ({ ok: true, checked: true, summary: '变异存活 0' }), log: quiet, now: () => NOON, notify: async (text) => { notes.push(text) },
+        exec: fakeExec({ summary: '补 K 线另按 9 项打分，23 封范本全 A', files: { 'lib/a.mjs': 'export const a = 2\n' } }) })
+      const ready = await r.runTicket(readTicket({ dir: repo.dir, id: first.id }))
+      assert.deepEqual([ready.status, ready.layer], ['ready', 'harness'])
+      assert.match(notes[0], new RegExp(`^lark-bot 需求型自修工单 ${first.id}：验收通过，等 apply\n需求：补 K 线评分按往常格式算 A 档（审批群，任务 om_req12345）\n做了什么：补 K 线另按 9 项打分`))
+      assert.match(notes[0], new RegExp(`回我「上线 ${first.id}」`))
+      const idle = listTickets({ dir: repo.dir }).find((item) => item.request?.taskId === 'om_cap1')
+      const reported = await createSelfFixRunner({ dir: repo.dir, root: repo.root, log: quiet, now: () => NOON, exec: fakeExec({ status: 'blocked', summary: '样本不够' }) }).runTicket(idle)
+      assert.deepEqual([reported.status, reported.reason], ['reported', 'AI blocked，没改代码'])
+
+      // 私信指令（gateway）：解析 / 选单 / 只认负责人私信 / 落请求不合并；worker 下一轮执行：合并、私信结果、回原话题
+      assert.deepEqual([parseSelfFixDirective('上线'), parseSelfFixDirective(` 上线 ${first.id}。`), parseSelfFixDirective('丢弃 sf-20261024-reqx'), parseSelfFixDirective('上线了吗')], [{ action: 'apply', id: null }, { action: 'apply', id: first.id }, { action: 'discard', id: 'sf-20261024-reqx' }, null])
+      assert.deepEqual([pickReadyTicket({ tickets: [ready, idle] }), pickReadyTicket({ tickets: [ready], id: first.id })], [{ id: first.id }, { id: first.id }])
+      assert.match(pickReadyTicket({ tickets: [ready], id: 'sf-20261024-other' }).error, /不是等上线的工单/)
+      assert.match(pickReadyTicket({ tickets: [] }).error, /没有等上线/)
+      assert.match(pickReadyTicket({ tickets: [ready, { ...ready, id: 'sf-x' }] }).error, /有 2 张等上线的工单/)
+      const sent = []
+      const config = { notifyOpenId: 'ou_aven' }
+      const deps = { sendPrincipalNote: async ({ text }) => { sent.push(text) } }
+      const dm = (text, extra = {}) => ({ chatType: 'p2p', senderOpenId: 'ou_aven', messageId: 'om_dm1', text, ...extra })
+      assert.equal(await maybeHandleSelfFixDirective({ msg: dm('上线', { chatType: 'group' }), config, store: null, dir: repo.dir, deps }), false)
+      assert.equal(await maybeHandleSelfFixDirective({ msg: dm('上线', { senderOpenId: 'ou_rou' }), config, store: null, dir: repo.dir, deps }), false)
+      assert.equal(await maybeHandleSelfFixDirective({ msg: dm('上线'), config, store: null, dir: repo.dir, now: NOON, deps }), true)
+      assert.equal(sent[0], `好，${first.id} 这就合进运行分支，合好告诉你。`)
+      assert.deepEqual(listSelfFixRequests({ dir: repo.dir }).map((req) => [req.id, req.action, req.messageId]), [[first.id, 'apply', 'om_dm1']])
+      assert.equal(readTicket({ dir: repo.dir, id: first.id }).status, 'ready', 'gateway 不合并')
+      const dms = []
+      const threads = []
+      const w = createSelfFixRunner({ dir: repo.dir, root: repo.root, log: quiet, now: () => NOON, apply: applySelfFix, discard: discardSelfFix, notify: async (text) => { dms.push(text) }, replyInThread: async (args) => { threads.push(args); return { ok: true } } })
+      assert.equal(await w.handleRequests(), 1)
+      assert.equal(readTicket({ dir: repo.dir, id: first.id }).status, 'applied')
+      assert.equal(readFileSync(join(repo.root, 'lib/a.mjs'), 'utf8'), 'export const a = 2\n')
+      assert.match(dms[0], /^已把 lark\/self-req-.* 合进 main/)
+      assert.deepEqual(threads, [{ messageId: 'om_req12345', inThread: true, markdown: '已更新上线：补 K 线评分按往常格式算 A 档。之后按新逻辑处理。', logPrefix: 'self-fix', idempotencyKey: `sf-applied-${first.id}`, logTag: '[lark-worker]' }])
+      assert.deepEqual([listSelfFixRequests({ dir: repo.dir }), await w.handleRequests()], [[], 0], '请求处理完就删')
+      await maybeHandleSelfFixDirective({ msg: dm('上线'), config, store: null, dir: repo.dir, deps })
+      assert.match(sent[1], /没有等上线/)
+      assert.equal(sayAppliedInThread({}), '已更新上线：这条要求。之后按新逻辑处理。')
     } finally {
       repo.cleanup()
     }

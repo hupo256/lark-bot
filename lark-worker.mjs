@@ -23,6 +23,7 @@ import { createDrainRestart, drainRestartSwitch } from './lib/lark-drain-restart
 import { startDoctorSchedule } from './lib/lark-doctor.mjs'
 import { selfFixEnabled } from './lib/lark-self-fix.mjs'
 import { createSelfFixRunner } from './lib/lark-self-fix-run.mjs'
+import { applySelfFix, discardSelfFix } from './lib/lark-self-fix-cli.mjs'
 import { sendChatMessage } from './lib/lark-cli.mjs'
 import { larkRuntimeDir } from './lib/lark-repo.mjs'
 import { defaultTaskLeaseMs } from './lib/lark-constants.mjs'
@@ -149,6 +150,8 @@ export async function runLarkWorker({
   const selfFixOn = selfFixEnabled({ localConfig })
   const selfFix = createSelfFixRunner({
     localConfig,
+    apply: applySelfFix,
+    discard: discardSelfFix,
     enabled: selfFixOn,
     signal: shutdownController.signal,
     notify: notifyOpenId
