@@ -20,7 +20,7 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { AVEN_OPEN_ID, BOT_APP_ID, GROUPS, casesDir, datasetDir, rawDir, replayRoot, resolveRaw, toSimEvent } from './falive-data.mjs'
+import { AVEN_OPEN_ID, BOT_APP_ID, GROUPS, casesDir, datasetDir, faliveRuntimeDir, rawDir, replayRoot, resolveRaw, toSimEvent } from './falive-data.mjs'
 import { startSampler } from './proc-sampler.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -376,6 +376,43 @@ const advanceTo = async (targetMs, label, settleMs = 1500) => {
   }
 }
 
+// 人回复的那张 falive 卡是对组内哪条 case 说的（11-04 b2 ep-1014-d74f19 / ep-1031-35935b：原来一律改成回复「模拟 bot 在同群对本组 case 说的最近一句」，
+// Ache 回 R6 复测卡「麻烦再看看」被接到 Arthur 那条 123456 / token 复测的「收到」下面，分类器照引用判 continues，测错了对象；
+// Arthur 回 falive 的「uat 已部署」通知卡，被接到要账号密码那条的回复下面）。认法：卡自己的回复链（最多 5 跳）落到组内 case；
+// 否则按 falive 发件簿（runtime/lark-outbox/<群>.jsonl，带 taskId，10-27 起才有）同群 ±15 秒的那条的 taskId；再不行按卡开头 @ 的人
+// 在卡之前 2 小时内最近一条组内 case。认不出 = 对组外的事 / 无主通知。
+let faliveOutbox = null
+const faliveOutboxOf = (chatId) => {
+  faliveOutbox ??= new Map()
+  if (!faliveOutbox.has(chatId)) {
+    const path = join(faliveRuntimeDir, 'lark-outbox', `${chatId}.jsonl`)
+    let rows = []
+    try { rows = readFileSync(path, 'utf8').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l) } catch { return null } }).filter(Boolean) } catch {}
+    faliveOutbox.set(chatId, rows)
+  }
+  return faliveOutbox.get(chatId)
+}
+const caseOfFaliveCard = (cardId) => {
+  let card = byIdAll.get(cardId) || null
+  for (let hop = 0; card && hop < 5; hop += 1) {
+    const up = card.parentId || null
+    if (up && caseSet.has(up)) return up
+    card = up ? byIdAll.get(up) || null : null
+  }
+  const self = byIdAll.get(cardId)
+  if (!self?.chatId || !Number.isFinite(self.atMs)) return null
+  const near = faliveOutboxOf(self.chatId)
+    .map((o) => ({ taskId: o.taskId, gap: Math.abs(Date.parse(o.at) - self.atMs) }))
+    .filter((o) => o.taskId && caseSet.has(o.taskId) && o.gap <= 15_000)
+    .sort((a, b) => a.gap - b.gap)
+  if (near[0]) return near[0].taskId
+  // 发件簿没有的（10-27 前）：falive 的群卡开头 @ 的是在答谁，取同群、卡之前 2 小时内这个人最近一条组内 case（实测组内对得上的都在 100 分钟内；放到 6 小时会把 Ache 回 R6 卡接到她早上「预约改版」那条）。
+  const firstAt = /@[^(\s]*\((ou_[0-9a-f]+)\)|<at user_id="(ou_[0-9a-f]+)"/.exec(String(self.cliText ?? self.text ?? ''))
+  const to = firstAt ? firstAt[1] || firstAt[2] : null
+  if (!to) return null
+  return timeline.filter((c) => caseSet.has(c.id) && c.chatId === self.chatId && c.senderId === to && c.atMs <= self.atMs && self.atMs - c.atMs <= 2 * 3600_000).at(-1)?.id || null
+}
+
 let jumpedToFirst = false
 for (const [index, m] of events.entries()) {
   if (fed.has(m.id)) continue
@@ -389,12 +426,22 @@ for (const [index, m] of events.entries()) {
   // P0-d 冒烟 ep-1029「cc @HQUCEncone」就这样没接住）：改成回复模拟 bot 在同群（私信）里对本组 case 说的最近一句，记 remap.jsonl。
   if (episode && m.parentId && (meta?.hideBotIds || episode.faliveBotIds || []).includes(m.parentId)) {
     const sent = existsSync(join(simDir, 'sent.json')) ? JSON.parse(readFileSync(join(simDir, 'sent.json'), 'utf8')) : []
-    const target = sent.filter((s) => s.chat_id === event.chat_id && (s.parent_id ? caseSet.has(s.parent_id) : event.chat_type === 'p2p') && Number(s.create_time) <= clockNow()).at(-1)
-    if (target) {
+    const visible = sent.filter((s) => s.chat_id === event.chat_id && Number(s.create_time) <= clockNow())
+    // 私信（负责人私聊）照旧接最近一句；群里先接模拟 bot 对同一条 case 说的话。认不出 / 模拟 bot 没对它说过：@ 了 bot 的原样喂——
+    // 被回复的 falive 卡按 id 照供（假 CLI byIdAny 不受隐藏限制），bot 看到的引用就是人当时看到的那张卡，不编一个别人的锚点；
+    // 没 @ 的仍接最近一句（原样喂网关认不出是回复 bot，整条丢掉；组内 24 条这样的多是「好」「cc @x」，也有「发布到 pre 了，方便测一下吗」）。
+    const ownCase = event.chat_type === 'p2p' ? null : caseOfFaliveCard(m.parentId)
+    const latest = visible.filter((s) => (s.parent_id ? caseSet.has(s.parent_id) : event.chat_type === 'p2p')).at(-1)
+    const sameCase = ownCase ? visible.filter((s) => s.parent_id === ownCase).at(-1) : null
+    const target = event.chat_type === 'p2p' ? latest : sameCase || (m.atBot ? null : latest)
+    if (!target && event.chat_type !== 'p2p') {
+      appendFileSync(join(simDir, 'remap.jsonl'), `${JSON.stringify({ caseId: m.id, faliveParent: m.parentId, simParent: null, faliveCase: ownCase, reason: ownCase ? 'sim_bot_silent_on_case' : 'card_not_for_group_case' })}\n`)
+      log(`${m.id} 回复的 falive 卡 ${m.parentId}${ownCase ? `是对 ${ownCase} 说的，模拟 bot 还没对它说过话` : '不是对组内 case 说的'}：原样喂（引用照供 falive 原卡）`)
+    } else if (target) {
       Object.assign(event, { reply_to: target.message_id, root_id: target.root_id || target.message_id })
       if (target.thread_id) event.thread_id = target.thread_id
       else delete event.thread_id
-      appendFileSync(join(simDir, 'remap.jsonl'), `${JSON.stringify({ caseId: m.id, faliveParent: m.parentId, simParent: target.message_id, simThread: target.thread_id || null })}\n`)
+      appendFileSync(join(simDir, 'remap.jsonl'), `${JSON.stringify({ caseId: m.id, faliveParent: m.parentId, simParent: target.message_id, simThread: target.thread_id || null, faliveCase: ownCase })}\n`)
       log(`${m.id} 回复的是 falive 对组内 case 的原话 ${m.parentId}：改成回复模拟 bot 的 ${target.message_id}`)
     } else log(`${m.id} 回复的是 falive 对组内 case 的原话 ${m.parentId}，模拟 bot 在这里还没说过话：原样喂（多半接不住，裁判标模拟局限）`)
   }
