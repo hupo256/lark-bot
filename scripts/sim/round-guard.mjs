@@ -64,8 +64,17 @@ for (;;) {
     const missing = read('missing.log').split('\n').filter(Boolean)
     if (missing.length) why.push(`${seg} 读取缺口 ${missing.length} 处：${missing[0].slice(0, 160)}`)
     // 真发出去的写请求（没被壳 / 预载拦下的——如 python 直连，只有 lsof 兜底看得到）：一条就停（11-04 b2 在真实 pre 上发帖 / 传图）
-    const writes = read('egress.log').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l) } catch { return null } })
-      .filter((x) => x && !['GET', 'HEAD', 'OPTIONS', 'CLI'].includes(x.method) && x.extra !== 'blocked' && x.host && !/^(?:127\.|localhost|::1)/.test(x.host) && !/login/i.test(x.path || '') && !/anthropic|claude\.ai/i.test(x.host) && !isClaudeSock(x))
+    const egress = read('egress.log').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l) } catch { return null } }).filter(Boolean)
+    // lsof 看到的连接（TCP，没方法）：壳 / 预载在 ±15 秒内记过同一主机（egress-dns.json 把 IP 认回域名）的请求，就是那次请求本身——
+    // 是读是写由那条记录判，这里不再重复算（11-04 fixmerge-check2：curl 只读 GET uat 被 lsof 记成「TCP 3.36.151.122」误停）。没记过的照算写请求。
+    let dns = {}
+    try { dns = JSON.parse(read('egress-dns.json') || '{}') } catch {}
+    // DNS 表只在起跑时解析一次（IP 会轮换）：认不回域名时，同一个工具（lsof 进程名 curl / wget / node ↔ 壳记录的 via）在 ±15 秒内记过请求也算。
+    const VIA_OF = { curl: 'curl', wget: 'wget', node: 'fetch' }
+    const loggedBy = (x) => egress.some((y) => y.via !== 'sock' && y.host && Math.abs(Date.parse(y.at) - Date.parse(x.at)) <= 15_000
+      && (y.host === x.host || y.host === dns[x.host] || (!dns[x.host] && VIA_OF[String(x.extra || '').toLowerCase()] === y.via)))
+    const writes = egress
+      .filter((x) => !['GET', 'HEAD', 'OPTIONS', 'CLI'].includes(x.method) && x.extra !== 'blocked' && x.host && !/^(?:127\.|localhost|::1)/.test(x.host) && !/login/i.test(x.path || '') && !/anthropic|claude\.ai/i.test(x.host) && !isClaudeSock(x) && !(x.method === 'TCP' && loggedBy(x)))
     if (writes.length) why.push(`${seg} 有写请求发到了真实环境：${writes[0].method} ${writes[0].host}${writes[0].path}`)
     const failedIntake = (read('gateway.log').match(/分类失败/g) || []).length
     if (failedIntake >= 3 && !paused) why.push(`${seg} 分类失败 ${failedIntake} 次`)
