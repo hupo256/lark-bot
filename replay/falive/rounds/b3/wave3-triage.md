@@ -10,13 +10,13 @@
 
 | 计 | a | b | c（修了 / 没修） |
 |---|---|---|---|
-| falive 更好（69） | 36 | 9 | 24（16 / 8） |
-| 都不对（7） | 3 | 1 | 3（1 / 2） |
-| 合计 76 | 39 | 10 | 27（17 / 10） |
+| falive 更好（69） | 36 | 9 | 24（20 / 4） |
+| 都不对（7） | 3 | 1 | 3（3 / 0） |
+| 合计 76 | 39 | 10 | 27（23 / 4） |
 
 ## c 根因（按条数）与修复
 
-27 条未覆盖缺陷里 17 条按根因修了（10 组 + 1 条单独的交付缺口），10 条没修（单条判断题 / 口径两可 / 改动面大，见逐条说明）。
+27 条未覆盖缺陷里 23 条按根因修了（波 3：10 组 + 1 条单独的交付缺口；波 3b（`lark/falive-fix-w3b`）：C11–C15 六条），4 条没修、记为已知可接受（单条判断题，见逐条说明）。
 
 | 组 | 根因 | 条 | 修法 | 提交 |
 |---|---|---|---|---|
@@ -31,7 +31,12 @@
 | C9 | 负责人私信「继续任务 <id> 做」走指示任务重开，群里要了材料、私信没下文 | 1：99cadc79 | 私信指示把目标续跑 / 重开的这一代记 `resumeAsk`，出口私信他一句（与 handleResume 同一出口） | 2264add |
 | C10 | 正文中间的 @ 名字被剥掉（「分给 @Aven.tong 做」→「分给 做」） | 1：03b333e0 | 只剥开头结尾那串 @，句中留「@名字」；官方信封占位符先换成名字 | 8e174c5 |
 | — | 改码单原话要「出一份对接文档、@相关同学」，只改了代码 | 1：c2536e7d | 改码单原话（含并进来的补充 / 补料）要文档 / 点名找人 → user 层要求写 detailDoc + followUps | e912205 |
-| 未修 | 见逐条：b0ddb87b、835e6172、13a784cd、0ff2d468、781b1b74、c7683910、8d16c959、e07a8513、02953573、d036cd87 | 10 | — | — |
+| C11 | 跑的期间群里有人给了要的东西（没 @ / 另起了单），结论照旧再要一遍 | 1：02953573 | 交付前回看：结论在向人要东西（挂起 / blockers / 待跟进）时，拉本条之后同群 + 同话题真人新消息（≤ 8 条、去寒暄 / 已并进的），有就续会话一次——给了的用上或在结论里接住，不再重复要（`lib/lark-late-messages.mjs`） | 358171f |
+| C12 | 挂起任务话题里被等的人 @bot 逐项答复另一份待办，被当补料快道续跑 | 1：e07a8513 | 隐式续跑门槛：逐项清单（`isItemList`，≥ 3 行条目）和提问一样先过分类（带锚点，分类器判 continues 照样并进）；短补料快道不变 | d47e083 |
+| C13 | 缺陷单只改了注释 / 文档就说「已修复 / 已补好」 | 1：781b1b74 | 缺陷单报完成、实测 diff 只有整行注释 / 空行 / 文档 → 续会话改口一次：还原、按 no_change_needed 说原因和要谁做；真有运行代码要改再改（`lib/lark-cosmetic-diff.mjs`） | 39d64ec |
+| C14 | 告知环境限制 / 提醒（没叫我们做）被开成实测单 | 2：0ff2d468、d036cd87（都不对） | 分类 deliverable：告知环境限制 / 提醒、没叫我们现在做的填 null（记一笔、回一句）；压措辞保 2600 预算 | 0b70abe |
+| C15 | 阻塞点名的人不在 ownerMap、提单人是负责人本人 → 一个可 @ 的都没有，群里没要 | 1：835e6172 | 上下文里说过话的人（被引用 / 话题 / 群里之前的消息）记 `task.contextPeople`（名字 → open_id）；blocked 待补充里点名（大小写一致）就 @ 他、照常发「需要你们帮忙」，内部名单 / 负责人不 @ | 4c2c694 |
+| 已知可接受 | 见逐条：b0ddb87b、13a784cd、c7683910、8d16c959（单条判断题，改规则会误伤） | 4 | — | — |
 
 ### 验证（11-05）
 
@@ -44,6 +49,17 @@
 - L1 定向（`scripts/sim/replay-intake.mjs --run w3-classify-check`，5 条）：3306731d → requirement·change（原 question）、e345b030 → requirement·change（原 ignore）、28317895 → api_reply·verification（原 ignore）、fb9cb0e5 / 93326837 → daily_directive（不过分类）
 - 没跑回放（按要求）
 
+### 波 3b 验证（11-05，`lark/falive-fix-w3b`，基线 `lark/falive-fix-w3`）
+
+- `node --check` 改动的 .mjs；`node scripts/test-affected.mjs` 各步全绿
+- `node scripts/test-all.mjs`：测试 646 个，通过 646，失败 0；全量 8.0 秒（预算 18 秒）；it 数没涨（新段并进既有 it）；task-runner 576 行（续会话补救收进 lark-runner-steps）
+- `node scripts/mutate.mjs --diff lark/falive-fix-w3`：变异 82 个，抓到 82，存活 0（补测钉住 pickContextPeople 2 个后）
+- `node scripts/lark-replay-prompts.mjs --audits ~/github/lark-bot-falive/runtime/lark-audits --base lark/falive-fix-w3`：169 条真实任务、245 份提示，规则不丢 ✓，系统层 1 种（worker 提示没改，新增的两段续会话提示不进首轮）
+- 分类器规则预算：四种对象块最大 2588 ≤ 2600（压措辞，规则一条不删）
+- `LARK_RUNTIME_DIR=~/github/lark-bot/runtime node scripts/lark-replay-intake.mjs --live`：6/6；`--fixture __tests__/fixtures/intake-regression-1102.json --live`：55/56，挂的 1 条（om_…3361b0f continues=null）单独重跑 4/4 过，属抖动。初版规则写成「→ api_reply + null」时回归集挂 2 条（「已发布」私信判 api_reply、bug list「能不能读到」判 answer），旧提示同两条 6/6、新提示 3/6——改成只定交付（「也填 null」）后 6/6，以此为准
+- L1 定向（`scripts/sim/replay-intake.mjs --run w3b-classify-check3 --intent-effort high`）：0ff2d468 → api_reply·null（原 api_reply·verification）、d036cd87 → api_reply·null（原 ignore·null）、e07a8513（不过控制通道时）→ api_reply·verification 复测 C5、28317895 对照仍 api_reply·verification；781b1b74（w3b-classify-check）仍 bug·change（靠出口改口兜）
+- 没跑回放（按要求）；02953573 / 781b1b74 / 835e6172 的效果要 b4 之后的回放看
+
 ## 逐条
 
 ### falive 更好（69）
@@ -54,10 +70,10 @@
 | 9ea63bdc | ep-1014-d74f19 | a | 「之前实测已通」没据 → 1a3359d 状态断言要有据（分类 reply + stripUnverifiedClaims + CLAIM_EVIDENCE_RULE） |
 | f363a595 | ep-1014-d74f19 | b | 回复的是 falive 那张带 401 调用记录的卡（模拟改挂到模拟 bot 自己的卡，那轮没调嗨聊）；lark-bot 按自己的记录如实答了 |
 | 8ff3a009 | ep-1014-f3a009 | a | 改了 336 行被 120 行上限挂起等确认 → 7a8e732 超行数只提醒 |
-| b0ddb87b | ep-1014-f3a009 | c 未修 | 「API 有问题，能不能自己修了，不用发出来」判成要我们改后端、礼貌推回；本意是让 bot 自己排查对接别刷群。语义两可（「修 API」字面就是后端），改分类规则会误伤「帮忙修下接口」这类真后端诉求，单条不改 |
+| b0ddb87b | ep-1014-f3a009 | c 已知可接受 | 「API 有问题，能不能自己修了，不用发出来」判成要我们改后端、礼貌推回；本意是让 bot 自己排查对接别刷群。语义两可（「修 API」字面就是后端），改分类规则会误伤「帮忙修下接口」这类真后端诉求，单条不改 |
 | fb9cb0e5 | ep-1015-9cb0e5 | c C3（ea4a01c） | 群里 @bot「今天日报发一下」判 ignore |
 | 972530f1 | ep-1015-a1af28 | b | falive 的 Google 按钮 / 授权来源检查是直接打 Google 接口（§7 出网范围不打上游 / 合作方，30ac375 起命令层拦）；lark-bot 能做的只有页面工具，回放没配 |
-| e07a8513 | ep-1019-57332a | c 未修 | Ache 在挂起的默认图单话题里 @bot 逐项答复另一份待办，被当补料续跑。Ache 正是那单在等的人、本条也不是提问，按门槛就是补料；要认出「是另一件事」得让话题里的 @bot 补料都先过分类，会动到「被要材料的人 @bot 补料直接续跑」这条有意的快道，单条不改 |
+| e07a8513 | ep-1019-57332a | c C12（d47e083） | Ache 在挂起的默认图单话题里 @bot 逐项答复另一份待办（7 行条目），被当补料续跑。逐项清单改为先过分类，短补料快道不变；L1 w3b-classify-check3 → api_reply·verification（「C5 我去 pre 复测 discuz_uid，其它几项记下了」） |
 | 85a77a16 | ep-1019-57332a | a | 对接答复判不用改、没复测 → 1a3359d buildApiReplyRetestBlock |
 | 4149c2d6 | ep-1019-57332a | a | 同上（「已经上 pre 了」并进去只报改码） |
 | 2594f0a1 | ep-1019-57332a | a | 回 Henry 的「稍等」→ 1a3359d answeringColleague |
@@ -94,27 +110,27 @@
 | 11baac66 | ep-1024-9ebe13 | a | 没用自己刚测的结果 → 1a3359d + ffe6774 |
 | 6f75d5a1 | ep-1024-9ebe13 | a | 拒发帖 → ffe6774 契约 testData |
 | eaab85db | ep-1026-9769e5 | b（裁判误判） | 裁判说「前文没人提过 404」；上下文里 Encone 17:48 原话「为啥你们的项目里面访问会 404」，lark-bot 答的正是这句 |
-| 835e6172 | ep-1027-5e6172 | c 未修 | Figma 走查判 blocked（02 / 03 没说明、05 / 06 已改等部署），blocker 点名的 Ace 不在 ownerMap、没人可 @ → 只私信 aven。blocked 不往群里发是有意的设计（草稿要 aven 放行）；放开要动出口口径，单条不改，记后续 |
+| 835e6172 | ep-1027-5e6172 | c C15（4c2c694） | Figma 走查判 blocked（02 / 03 没说明、05 / 06 已改等部署），blocker 点名的 Ace 不在 ownerMap、没人可 @ → 只私信 aven。Ace 是被引用那条的发送人：上下文里说过话的人记在任务上，blocked 点名就 @ 他发群（原设计「有人可 @ 才发群」不变，只是多认得一类人；aven 私信照旧） |
 | a408e026 | ep-1027-63a6f3 | c C4（1143784） | 空 @（引用分享链接那条）：分类器读对了「复测 room/271」，worker 按引用答了分享链接 |
 | cdf4c0a9 | ep-1027-63a6f3 | c C4（1143784） | 下游：并进了答偏的那单（标题成了 share_domain），没拉流 |
 | 16d756ea | ep-1027-d756ea | b | Bug-4970 查不到：bug 表 / 记忆模拟局限（软）+ 发出后 7 秒被编辑（硬旗标）|
 | 2b7bcc4c | ep-1027-d756ea | b | 下游：上一条没找到 4970，自然没有 curl 文档可补 |
-| 13a784cd | ep-1028-a784cd | c 未修 | 「footer 运营位内容全部删」删了条目、留了列标题并请产品确认是否连标题去掉——需求口径两可，属判断题；没看页面是回放没配页面工具 |
+| 13a784cd | ep-1028-a784cd | c 已知可接受 | 「footer 运营位内容全部删」删了条目、留了列标题并请产品确认是否连标题去掉——需求口径两可，属判断题；没看页面是回放没配页面工具 |
 | 0ace8964 | ep-1028-ce8964 | c C5（1143784） | 反馈文档说勋章「要 Mateo 一句话定隐藏」，前文已按产品意见定了隐藏 |
 | c2536e7d | ep-1029-8aca6e | c（e912205） | 「出一份对接文档，@相关同学」并进 SSR 改码单只做了地址改动；改码单原话要文档 / 点名找人时 user 层要求写 detailDoc + followUps |
-| 0ff2d468 | ep-1029-8aca6e | c 未修 | Ache「内部请求等等PRE也要试下」（告知）判成 api_reply·verification 去实测、发了两条。语义两可（「也要试下」可读成要我们试），单条不改分类 |
+| 0ff2d468 | ep-1029-8aca6e | c C14（0b70abe） | Ache「内部请求等等PRE也要试下」（告知）判成 api_reply·verification 去实测、发了两条。L1 w3b-classify-check3 → api_reply·null（记一笔，「收到，记下了：内网直连的请求之后在 pre 上也要试一下」） |
 | 52f7b0e2 | ep-1029-8aca6e | c C2（5880dc0） | 重复答复由 3306731d 并入在跑的这单触发（rerun_after_done） |
 | 3306731d | ep-1029-8aca6e | c C2（5880dc0） | 负责人「现在就开，将这个 task 完成」判 question 并进代答单 |
 | 96845649 | ep-1029-8aca6e | a | 判 ignore 仍在群里接话 → 16403cb 回复 bot 没 @ 判不处理的一律不回 |
-| 781b1b74 | ep-1029-8aca6e | c 未修 | 空 @（截图问社区为啥不发请求）判 bug·change，顺手改了注释 / 文档说「已修复」。根因说对了，越界在「改了不该改的」；分类两可（线上包漏配确是前端配置），单条不改 |
+| 781b1b74 | ep-1029-8aca6e | c C13（39d64ec） | 空 @（截图问社区为啥不发请求）判 bug·change，顺手改了注释 / 文档说「已修复」。分类不动（L1 仍 bug·change，线上包漏配确是前端配置两可）；改在出口前：缺陷单 diff 只有注释 / 文档就续会话改口成 no_change_needed（「代码已有，要重新打包发布才生效」） |
 | 85d24939 | ep-1029-8aca6e | a | 同 96845649 |
 | 26c9c800 | ep-1029-8aca6e | c C8（44dca57） | 同一请求原文再发一遍并入重跑，第二条结论与第一条口径矛盾 |
 | 4abde287 | ep-1029-8aca6e | c C7（44dca57） | 把提问的 William 叫成 Encone；「拿事后进展当现状」是回放打今天的 uat（实测类软局限） |
 | 4d72df9f | ep-1029-8aca6e | b（倾向） | 结论说「三个环境实际用的 client_id 不变、仍和 pre 共用」——回放仓库基线 / 本组早先那单已带上 id，falive 当时是从空填起；lark-bot 改了 build/service-hosts.ts 留配置位，群里只说了文档那半句 |
 | e6a3b130 | ep-1029-8aca6e | b | 核对 Google 授权来源要打 Google（§7 不打上游）；OL 那半 lark-bot 没查属实但不是主差异 |
 | c13d396a | ep-1030-167d28 | a | 私信给账号续跑只回「接着做」→ 7a8e732（resumeAsk + 账号自己登录取证） |
-| c7683910 | ep-1030-337e3d | c 未修 | 负责人只回了一张截图（QA 账号那条），判成给账号、重开 member/info 单在后端群要密码。截图本身就是账号信息，判成补料不算错；要不要只私信问 aven 是取舍，单条不改 |
-| 8d16c959 | ep-1030-337e3d | c 未修 | 本条已正确静默；裁判算到它头上的「替你答了」私信是 c7683910 重开那单的结论，同上 |
+| c7683910 | ep-1030-337e3d | c 已知可接受 | 负责人只回了一张截图（QA 账号那条），判成给账号、重开 member/info 单在后端群要密码。截图本身就是账号信息，判成补料不算错；要不要只私信问 aven 是取舍，单条不改 |
+| 8d16c959 | ep-1030-337e3d | c 已知可接受 | 本条已正确静默；裁判算到它头上的「替你答了」私信是 c7683910 重开那单的结论，同上 |
 | bf35935b | ep-1031-35935b | a | 2386e32 + 16403cb（实施阶段带环境、复测条目留群、查重） |
 | 36bcf1d9 | ep-1031-35935b | a | 16403cb（生产测试号知识、只读基线）；fixb3a-check 已判 same |
 | 074bdc08 | ep-1031-f8065f | a | 16403cb；fixb3a-check 已判 same |
@@ -127,7 +143,7 @@
 | ecf68877 | ep-1014-d74f19 | a | 拿不到登录态 → ffe6774 env-login |
 | 8199476e | ep-1014-f3a009 | a | 并进的那单卡行数上限、群里一条没回 → 7a8e732 |
 | 4f7de629 | ep-1021-193c03 | a | 点名的 id 找不到一声不吭 → 1a3359d ask_back「你指的是哪件事？」 |
-| 02953573 | ep-1021-d4e64d | c 未修 | 实测单在跑时 Encone 在群里给了嗨聊老账号（没 @ bot），单趟看不到跑起来之后的群消息，结论还在要账号；falive 也没用。要做得在交付前回看群里新消息，改动面大，记后续 |
-| d036cd87 | ep-1023-50decc | c 未修 | 「现在 pre 还不能发帖、评论 @Aven.Bot」：是告知还是要查，两可（当时 bot 在测介绍写入，Encone 这句更像说明边界）；falive 也没查 |
+| 02953573 | ep-1021-d4e64d | c C11（358171f） | 实测单在跑时 Encone 在群里给了嗨聊老账号（模拟里 @ 了 bot、另起一单；falive 当时没 @），单趟看不到跑起来之后的群消息，结论还在要账号。交付前回看本条之后的群 / 话题新消息，续会话一次用上或接住 |
+| d036cd87 | ep-1023-50decc | c C14（0b70abe） | 「现在 pre 还不能发帖、评论 @Aven.Bot」按告知环境限制处理（当时 bot 在测介绍写入，Encone 这句是说明边界）：L1 → api_reply·null（「记下了：pre 现在还不能发帖、评论，这两块先不在 pre 上测」）；裁判期望去查，按口径不追；falive 也没查 |
 | 28317895 | ep-1029-8aca6e | c C6（5880dc0） | 回 bot 卡片 @mainly @Aven.tong「发布到 pre 了，方便测试一下吗」静默 |
 | 92c63787 | ep-1102-c63787 | b | 回的是 falive 一张不属于组内 case 的卡、没 @ bot：模拟原样喂，网关认不出是回复 bot，整条丢了（喂法局限）；falive 当时也没回 |
