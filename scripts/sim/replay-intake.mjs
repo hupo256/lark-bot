@@ -10,7 +10,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-import { AVEN_OPEN_ID, BOT_APP_ID, BOT_MENTION_IDS, datasetDir, rawDir, replayRoot, resolveRaw, toListItem, toSimEvent } from './falive-data.mjs'
+import { AVEN_OPEN_ID, BOT_APP_ID, BOT_MENTION_IDS, casesDir, datasetDir, rawDir, replayRoot, resolveRaw, toListItem, toSimEvent } from './falive-data.mjs'
 
 // 运行目录指到主仓 runtime：persona、发件簿都在那；附件（raw/lark-im-resources）在它下面，执行器会 --add-dir 放行。
 if (!process.env.LARK_RUNTIME_DIR) process.env.LARK_RUNTIME_DIR = join(homedir(), 'github', 'lark-bot', 'runtime')
@@ -149,7 +149,10 @@ mkdirSync(outDir, { recursive: true })
 const resultsPath = join(outDir, 'results.jsonl')
 const done = new Set(existsSync(resultsPath) ? readFileSync(resultsPath, 'utf8').split('\n').filter(Boolean).map((line) => JSON.parse(line).id) : [])
 
-let queue = episodes.filter((e) => e.inTimeline && !done.has(e.id) && (!only || only.has(e.id)))
+// 默认跑 falive-bot 做过的全部 case（replay/falive/cases.jsonl，285 条；design-v2 §8 前置 1b）；--episodes 退回旧口径（falive 网关基线里的 366 条）
+const caseIds = readFileSync(join(casesDir, 'cases.jsonl'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l).id)
+const pool = args.includes('--episodes') ? episodes.filter((e) => e.inTimeline) : caseIds.map((id) => episodes.find((e) => e.id === id) || { id, inTimeline: true })
+let queue = pool.filter((e) => !done.has(e.id) && (!only || only.has(e.id)))
 if (limit) queue = queue.slice(0, limit)
 console.log(`[l1] run=${runName} 待跑 ${queue.length} 条（已完成 ${done.size}）intent=${config.claudeIntentModel}/${config.claudeIntentEffort}${dry ? ' dry' : ''}`)
 

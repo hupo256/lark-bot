@@ -94,6 +94,10 @@ log(`业务仓基线 ${baseBranch} = ${baseSha.slice(0, 8)}（${git(['log', '-1'
 // —— 运行配置 ——
 const faliveConfig = JSON.parse(readFileSync(join(homedir(), 'github', 'lark-bot-falive', 'runtime', 'lark-bot.local.json'), 'utf8'))
 const repo = faliveConfig.repos?.falive || {}
+// 模型 / 强度与线上 fameex 运行配置对齐（design-v2 §8 前置 1：原来 worker 取 falive 配置或 medium、分类默认 high，线上是 worker high、分类 low——测的不是线上那个 bot）。
+// 只取模型相关字段；仓库、环境地址、群这些项目相关项仍按 falive。--effort / --intent-effort 显式给了才覆盖（L1 两档对照用）。
+const prodConfig = JSON.parse(readFileSync(join(homedir(), 'github', 'lark-bot', 'runtime', 'lark-bot.local.json'), 'utf8'))
+const prodModel = prodConfig.claudeModel || 'claude-opus-5-5'
 const config = {
   project: 'FALIVE',
   title: 'Falive Web',
@@ -106,12 +110,12 @@ const config = {
   ownerMap: repo.ownerMap || {},
   memberRoles: repo.memberRoles || {},
   aiExecutor: 'claude',
-  claudeModel: 'claude-opus-5-5',
-  claudeEffort: value('--effort', repo.claudeEffort || 'medium'),
-  claudeIntentModel: 'claude-opus-5-5',
-  claudeIntentEffort: value('--intent-effort', repo.claudeIntentEffort || 'high'),
-  claudeAnalysisModel: 'claude-opus-5-5',
-  claudeAnalysisEffort: repo.claudeAnalysisEffort || 'high',
+  claudeModel: prodModel,
+  claudeEffort: value('--effort', prodConfig.claudeEffort || 'high'),
+  claudeIntentModel: prodConfig.claudeIntentModel || prodModel,
+  claudeIntentEffort: value('--intent-effort', prodConfig.claudeIntentEffort || prodConfig.claudeEffort || 'high'),
+  ...(prodConfig.claudeAnalysisModel ? { claudeAnalysisModel: prodConfig.claudeAnalysisModel } : {}),
+  ...(prodConfig.claudeAnalysisEffort ? { claudeAnalysisEffort: prodConfig.claudeAnalysisEffort } : {}),
   repoLabel: 'falive-react（Falive Web 前端仓）',
   commitPrefix: 'feat(bot)', // falive-react 的 commit-msg 钩子要求 <type>(<scope>): 主题（falive 当时的 repo profile 同值）
   consumerRoot: repoLink,
