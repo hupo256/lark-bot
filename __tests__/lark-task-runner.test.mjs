@@ -69,6 +69,7 @@ const fakeDeps = (over = {}) => {
     classifyTaskIntent: async () => ({ decision: 'bug' }),
     runAI: async () => ({ executor: 'claude', result: null }),
     runGroupReplyPass: async () => false,
+    runCosmeticFixPass: async () => false,
     runLateMessagesPass: async () => false,
     runPreExecutionGates: async () => false,
     prefetchTaskReferences: () => ({ audit: {}, notes: [], block: null }),
@@ -350,9 +351,18 @@ describe('createTaskRunner 运行期控制流（deps 注入）', () => {
       assert.equal(notAcked.calls.runGroupReplyPass, undefined)
       const noResult = await run({ task: baseTask({ ackedInGroup: true, attachments: [{ type: 'image' }] }) })
       assert.equal(noResult.calls.runGroupReplyPass, undefined)
-      // 回看群里新消息：有结果就过，同一份续会话参数
+      // 只改注释 / 文档的改口、回看群里新消息：有结果就过（改口只在可写工作区）；同一份续会话参数；diffOf 现取 git diff HEAD（先 add -N）
       assert.deepEqual(acked.calls.runLateMessagesPass[0][0], args)
-      assert.equal(noResult.calls.runLateMessagesPass, undefined)
+      const [cosmetic] = acked.calls.runCosmeticFixPass[0]
+      assert.deepEqual(pick(cosmetic, ['task', 'aiRun', 'cwd', 'readOnly']), pick(args, ['task', 'aiRun', 'cwd', 'readOnly']))
+      const gitBefore = acked.calls.gitAt.length
+      assert.equal(cosmetic.diffOf(), '3\t0\tsrc/a.ts\n')
+      assert.deepEqual(acked.calls.gitAt.slice(gitBefore).map(([cwd, gitArgs]) => [cwd, gitArgs.join(' ')]), [[acked.ctx.cwd, 'add -A -N'], [acked.ctx.cwd, 'diff HEAD']])
+      const emptyDiff = await doneRun({ deps: { gitAt: () => ({ status: 0, stdout: '' }) } })
+      assert.equal(emptyDiff.calls.runCosmeticFixPass[0][0].diffOf(), '')
+      assert.deepEqual([noResult.calls.runLateMessagesPass, noResult.calls.runCosmeticFixPass], [undefined, undefined])
+      const ro = await doneRun({ workContext: readOnlyCtx() })
+      assert.deepEqual([ro.calls.runLateMessagesPass?.length, ro.calls.runCosmeticFixPass], [1, undefined], '只读工作区不取 diff、不改口')
     }],
     ['AI 退出没回写结果 → failed 待人工复核；网关已不是 running（取消 / 换代）就不再回写；网关已 done 的遗漏路径走兜底规范闸 + finally 收尾告警', async () => {
       const none = await run()

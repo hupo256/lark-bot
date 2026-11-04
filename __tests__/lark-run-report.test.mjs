@@ -18,6 +18,7 @@ process.env.LARK_RUNTIME_DIR = join(dir, 'runtime')
 const { buildOutcome, detailDocOf, mapStatusForContract, outcomeFromWorkerFailure, outcomeHeadline, runEvidenceFor } = await import('../lib/lark-run-report.mjs')
 const { buildGroupReplyPassPrompt, owesGroupReply, runGroupReplyPass } = await import('../lib/lark-group-reply-pass.mjs')
 const { buildLateMessagesPrompt, fetchLateMessages, pickLateMessages, resultAsks, runLateMessagesPass } = await import('../lib/lark-late-messages.mjs')
+const { buildCosmeticFixPrompt, cosmeticDiff, runCosmeticFixPass } = await import('../lib/lark-cosmetic-diff.mjs')
 const { ANSWER_MODE_BLOCK, CLAIM_EVIDENCE_RULE, DELIVER_NOW_RULE, VERIFICATION_MODE_BLOCK, buildAckPromiseBlock, buildAnswerEnvRule, buildApiReplyRetestBlock, buildCarryOverBlock, buildDocAskBlock, buildEnvLoginRule, buildEnvProbeRule, buildTestDataRule } = await import('../lib/lark-worker-modes.mjs')
 const { buildTaskPromptParts } = await import('../lib/lark-worker-prompts.mjs')
 const { applyEnvCheck, checkEnvTarget, envTargetLine, hostOf, resolveEnvTargets, touchedEnvs } = await import('../lib/lark-env-target.mjs')
@@ -236,6 +237,58 @@ describe('worker 侧对话层：outcome / 契约映射 / 群回复补写 / 模�
       assert.equal(await runLateMessagesPass({ task, aiRun: run3, exec: passExec(null, { throws: true }).exec, fetchLate }), false)
       assert.equal(await runLateMessagesPass({ task, aiRun: run3, exec: skip.exec, fetchLate: async () => { throw new Error('x') } }), false)
       assert.deepEqual(run3.result, asking())
+    }],
+    ['cosmeticDiff：每个文件都只动了文档 / 整行注释 / 空行才算；配置文件一行就算会运行的；二进制 / 改权限 / 改名算会运行的；空 diff 不算', () => {
+      const file = (path, lines, head = '') => `diff --git a/${path} b/${path}\n${head}index 1..2 100644\n--- a/${path}\n+++ b/${path}\n@@ -1,3 +1,3 @@\n ctx\n${lines.join('\n')}\n`
+      const comment = file('src/api.ts', ['-// uat/online 暂无 portal 域名', '+// online 已配 golang', '+', ' const a = 1', '\\ No newline at end of file', '@@ -9 +9 @@', '- * 旧说明', '+ * 新说明', '+{/* jsx 注释 */}'])
+      const doc = file('docs/migration/dev-scripts.md', ['-| online | bbsv2:false |', '+| online | golang |'])
+      assert.deepEqual(cosmeticDiff(`${comment}${doc}`), { cosmetic: true, files: ['src/api.ts', 'docs/migration/dev-scripts.md'] })
+      assert.deepEqual(cosmeticDiff(doc).cosmetic, true)
+      assert.deepEqual(cosmeticDiff(`${doc}${file('src/a.ts', ['+const b = 2'])}`), { cosmetic: false, files: ['docs/migration/dev-scripts.md', 'src/a.ts'] })
+      assert.equal(cosmeticDiff(file('build/hosts.json', ['+// 配置文件里不认注释'])).cosmetic, false)
+      assert.equal(cosmeticDiff(file('src/a.ts', ['+  '])).cosmetic, true, '只加空行')
+      assert.equal(cosmeticDiff(`diff --git a/x.png b/x.png\nBinary files a/x.png and b/x.png differ\n`).cosmetic, false)
+      assert.equal(cosmeticDiff(file('src/a.ts', ['+// x'], 'old mode 100644\nnew mode 100755\n')).cosmetic, false)
+      assert.equal(cosmeticDiff(`diff --git a/a.md b/b.ts\nrename from a.md\nrename to b.ts\n`).cosmetic, false)
+      assert.deepEqual([cosmeticDiff(''), cosmeticDiff(null)], [{ cosmetic: false, files: [] }, { cosmetic: false, files: [] }])
+      assert.equal(cosmeticDiff('index 1..2\n+const stray = 1\n').cosmetic, false, '没有 diff 头的行不算')
+      assert.match(buildCosmeticFixPrompt({ files: ['a.ts', 'b.md'] }), /^这单是报上来的缺陷，但你这轮实际改动只有注释 \/ 文档（a\.ts、b\.md）.*不能说成已修复[\s\S]*git checkout 还原[\s\S]*no_change_needed/)
+    }],
+    ['runCosmeticFixPass（b3 ep-1029-8aca6e 781b1b74：只改了注释 / 文档说「地址已补好」）：只管缺陷单报完成、claude 有会话、diff 只有注释 / 文档；续上换成新结果；不合法 / 异常原样', async () => {
+      const commentOnly = 'diff --git a/src/a.ts b/src/a.ts\n@@ -1 +1 @@\n-// old\n+// new\n'
+      const real = 'diff --git a/src/a.ts b/src/a.ts\n@@ -1 +1 @@\n-a\n+b\n'
+      const defect = { id: 't', contract: { deliverable: 'change', defect: true } }
+      const claimed = (extra = {}) => done({ summary: '地址已补好', detailDoc: 'D-old', ...extra })
+      const skip = passExec(done())
+      let diffCalls = 0
+      const diffOf = (text) => () => (diffCalls += 1, text)
+      for (const [task, aiRun] of [
+        [{ id: 't', contract: { deliverable: 'change', defect: false } }, ackedRun(claimed())],
+        [{ id: 't' }, ackedRun(claimed())],
+        [defect, ackedRun(claimed({ status: 'no_change_needed' }))],
+        [defect, ackedRun(claimed(), { sessionId: null })],
+        [defect, ackedRun(claimed(), { executor: 'codex' })],
+      ]) assert.equal(await runCosmeticFixPass({ task, aiRun, diffOf: diffOf(commentOnly), exec: skip.exec }), false)
+      assert.equal(diffCalls, 0, '前置条件不满足不取 diff')
+      assert.equal(await runCosmeticFixPass({ task: defect, aiRun: ackedRun(claimed()), diffOf: diffOf(real), exec: skip.exec }), false)
+      assert.equal(skip.calls.length, 0)
+      const run1 = ackedRun(claimed({ status: 'done_with_warnings', warnings: ['w'] }))
+      const fixed = passExec({ status: 'no_change_needed', summary: '代码已有，等 online 重新打包', noChangeReason: '等发布', detailDoc: null })
+      assert.equal(await runCosmeticFixPass({ task: defect, aiRun: run1, diffOf: diffOf(commentOnly), exec: fixed.exec, cwd: '/w' }), true)
+      assert.deepEqual(run1.result, { status: 'no_change_needed', summary: '代码已有，等 online 重新打包', noChangeReason: '等发布', detailDoc: 'D-old' })
+      assert.deepEqual(pick(fixed.calls[0], ['executor', 'resumeSessionId', 'cwd', 'egressScope']), { executor: 'claude', resumeSessionId: 'sess-1', cwd: '/w', egressScope: 'change' })
+      assert.equal(fixed.calls[0].promptText, buildCosmeticFixPrompt({ files: ['src/a.ts'] }))
+      const run2 = ackedRun(claimed())
+      assert.equal(await runCosmeticFixPass({ task: defect, aiRun: run2, diffOf: diffOf(commentOnly), exec: passExec({ status: 'done', summary: '改了运行代码', detailDoc: 'D-new' }).exec }), true)
+      assert.equal(run2.result.detailDoc, 'D-new')
+      for (const bad of [{ summary: 's' }, { status: 'done', summary: 5 }, { status: 'done', summary: '  ' }, null]) {
+        const run = ackedRun(claimed())
+        assert.equal(await runCosmeticFixPass({ task: defect, aiRun: run, diffOf: diffOf(commentOnly), exec: passExec(bad).exec }), false)
+        assert.deepEqual(run.result, claimed())
+      }
+      const run3 = ackedRun(claimed())
+      assert.equal(await runCosmeticFixPass({ task: defect, aiRun: run3, diffOf: diffOf(commentOnly), exec: passExec(null, { throws: true }).exec }), false)
+      assert.deepEqual(run3.result, claimed())
     }],
     ['环境识别与核对（aven 11-02：online 的问题不能拿 pre 复验）：认环境名 / 中文叫法 / 域名；提示点名；本轮打的环境不对就明说、通过的降待验证', async () => {
       const sites = { dev: 'https://www.pfyys.com', test: 'https://www.dvmkgi.vip', pre: 'www.azmgb.com', online: 'https://www.fameex.com', bad: 'http://[' }
