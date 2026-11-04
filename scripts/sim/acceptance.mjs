@@ -38,7 +38,9 @@ export const collapseVerdicts = (lines) => {
 export const evaluateAcceptance = ({ current, rules = null, prev = null, explained = new Map(), riskOf = () => [], pendingOf = () => false, total }) => {
   const rows = [...current.values()]
   // 待办不计分：裁判行标了 pending，或 case-tags 里 pending=true（旧裁判结论没有这一栏，照样排除）
-  const isPending = (r) => r.better === 'pending' || pendingOf(r.id)
+  // 模拟局限（judge-rules 旗标 sim_limit_ref：点名的任务是 falive 当时自己的，模拟里不存在）同待办：单列、不计分
+  const simLimit = (r) => Boolean(rules?.get?.(r.id)?.flags?.includes('sim_limit_ref'))
+  const isPending = (r) => r.better === 'pending' || pendingOf(r.id) || simLimit(r)
   const pending = rows.filter(isPending)
   const scored = rows.filter((r) => !isPending(r))
   const risk = (r) => (r.risk?.length ? r.risk : riskOf(r.id))
