@@ -251,7 +251,7 @@ describe('摄入链路 / 上下文包 / 入群事件（真 store + 假 lark-cli�
       await ingestLarkEvent({ raw: stranger, config: autoConfig, store })
       assert.equal(store.has(stranger.message_id), false, 'bot 不在的群 → 丢')
     })],
-    ['续跑：显式「继续任务 <id> 补料」→ 原任务 queued 并追加补料；id 不存在只回话不建任务；回复终态任务且同话题恰好一条挂起 → 并入那条', () => quiet(async () => {
+    ['续跑：显式「继续任务 <id> 补料」→ 原任务 queued 并追加补料；id 不存在只回话不建任务；回复终态任务且同话题恰好一条挂起 → 并入那条；没 @ bot 的同事搭话过门槛（11-04 falive 回放）', () => quiet(async () => {
       const parked = store.upsert({ id: 'om_p2', source: 'lark', chatId: 'oc_g', messageId: 'om_p2', operator: 'ou_qa', status: 'blocked', summary: '等字段', text: '等字段', epoch: 0, createdAt: '2026-11-01T00:00:00Z' })
       const resume = atBot(`继续任务 ${parked.id} 字段叫 avatar`)
       await ingestLarkEvent({ raw: resume, config, store })
@@ -266,6 +266,30 @@ describe('摄入链路 / 上下文包 / 入群事件（真 store + 假 lark-cli�
       await ingestLarkEvent({ raw: sibling, config, store })
       assert.equal(store.has(sibling.message_id), false)
       assert.deepEqual([store.get('om_p3').status, store.get('om_p3').text], ['queued', '等截图\n\n【补料】\n补充：接口字段是 avatar'])
+      // 11-04 falive 回放：回 bot 卡片（终态那条）但没 @ bot，同话题唯一挂起的那条不再被同事之间的话续跑——
+      // @ 了别人 → 交给分类（建 received 带锚点）；抄送 / 寒暄 → 静默丢；提单人没 @ 谁说的 → 照旧续跑
+      store.upsert({ id: 'om_p4', source: 'lark', chatId: 'oc_g', messageId: 'om_p4', operator: 'ou_qa', status: 'waiting_confirmation', threadRootId: 'omt_q', summary: '等账号', text: '等账号', epoch: 0, createdAt: '2026-11-01T00:00:00Z' })
+      store.upsert({ id: 'om_done4', source: 'lark', chatId: 'oc_g', messageId: 'om_done4', operator: 'ou_qa', status: 'done', threadRootId: 'omt_q', summary: '做完的', text: '做完的', epoch: 0, createdAt: '2026-11-01T00:00:00Z' })
+      store.recordReceipt('om_done4', { messageId: 'om_card4', kind: 'done', epoch: 0, chatId: 'oc_g' })
+      const repliesBefore = cliCalls('+messages-reply')
+      const toArthur = raw({ text: '@Arthur 麻烦在这里补信息吧', mentions: [{ id: 'ou_arthur', key: '@_user_3', name: 'Arthur' }], sender: 'ou_aven', reply_to: 'om_card4', thread_id: 'omt_q' })
+      await ingestLarkEvent({ raw: toArthur, config, store })
+      assert.deepEqual([store.get(toArthur.message_id)?.status, store.get(toArthur.message_id)?.intake.anchorTaskId, store.get('om_p4').status], ['received', 'om_done4', 'waiting_confirmation'], '@ 了别人：不续跑，交给分类')
+      const cc = raw({ text: 'cc @Encone', mentions: [{ id: 'ou_enc', key: '@_user_4', name: 'Encone' }], sender: 'ou_qz', reply_to: 'om_card4', thread_id: 'omt_q' })
+      await ingestLarkEvent({ raw: cc, config, store })
+      assert.deepEqual([store.has(cc.message_id), store.get('om_p4').status, cliCalls('+messages-reply')], [false, 'waiting_confirmation', repliesBefore], '抄送：静默，不建任务、不说话')
+      const own = raw({ text: '账号是 508', sender: 'ou_qa', reply_to: 'om_card4', thread_id: 'omt_q' })
+      await ingestLarkEvent({ raw: own, config, store })
+      assert.deepEqual([store.has(own.message_id), store.get('om_p4').status, store.get('om_p4').text], [false, 'queued', '等账号\n\n【补料】\n账号是 508'], '提单人没 @ 谁：照旧续跑')
+      // 直接回挂起任务的原消息（续跑解析那条路，控制通道也锚到它）：旁人没 @ 谁 → 交给分类；寒暄 → 静默
+      store.upsert({ id: 'om_p5', source: 'lark', chatId: 'oc_g', messageId: 'om_p5', operator: 'ou_qa', status: 'blocked', summary: '等字段', text: '等字段', epoch: 0, createdAt: '2026-11-01T00:00:00Z' })
+      store.recordReceipt('om_p5', { messageId: 'om_card5', kind: 'blocked', epoch: 0, chatId: 'oc_g' })
+      const aside = raw({ text: '用邮件注册会更流畅些', sender: 'ou_qy', reply_to: 'om_card5' })
+      await ingestLarkEvent({ raw: aside, config, store })
+      assert.deepEqual([store.get(aside.message_id)?.status, store.get(aside.message_id)?.intake.anchorTaskId, store.get('om_p5').status], ['received', 'om_p5', 'blocked'])
+      const thanks = raw({ text: '[赞]', sender: 'ou_qy', reply_to: 'om_card5' })
+      await ingestLarkEvent({ raw: thanks, config, store })
+      assert.deepEqual([store.has(thanks.message_id), store.get('om_p5').status], [false, 'blocked'])
     })],
     ['bundle：引用 + 话题 + 最近消息的版式、附件按来源标记（本条 / 被引用 / 话题回复 / 群里之前的消息）、项目优先取参数、threadSpeakers 取最后 10 个、refText', () => quiet(async () => {
       const calls = []
