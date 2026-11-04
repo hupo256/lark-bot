@@ -1,0 +1,26 @@
+{
+  "recordId": "reczz28SKSDf3v9v",
+  "why": "view",
+  "fetchedAt": "2026-11-04T10:52:12.939Z",
+  "version": "now",
+  "note": "拉取时的最新状态（状态 / 备注 / 测试结果可能晚于消息当时）",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "base",
+    "+record-get",
+    "--as",
+    "user",
+    "--base-token",
+    "<bugTable.appToken>",
+    "--table-id",
+    "tblbJYjrxZsPe40V",
+    "--record-id",
+    "reczz28SKSDf3v9v",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"data\": [\n      [\n        \"Bug-5021\",\n        null,\n        [\n          \"Pre测试通过\"\n        ],\n        null,\n        null,\n        \"PM-3254\",\n        \"2026-11-02T10:11:37.000+04:00\",\n        \"App\",\n        \"2026-10-27T10:03:02.000+04:00\",\n        null,\n        \"Falive\",\n        null,\n        null,\n        [\n          {\n            \"id\": \"ou_57bd40c686c743f8def7d503c70e8491\",\n            \"name\": \"HTJames.y\"\n          },\n          {\n            \"id\": \"ou_c03810195f4db6115f3acb45d04a7fec\",\n            \"name\": \"HTShellyhsu\"\n          }\n        ],\n        null,\n        \"1. 登入 Falive iOS \\n2. 成功登入進入首頁，點擊  【聊天】\\n3. 頁面提示 \\\"社區暫不可用\\\"，實際有看到帖子發佈的內容\",\n        \"2026-10-27T10:03:03.394+04:00\",\n        \"【falive一期】后端/web/app\",\n        \"[Falive iOS] 切換到 【聊天】頁面，會提示 \\\"社區暫不可用\\\"\",\n        null,\n        null,\n        [\n          \"Pre\"\n        ],\n        [\n          {\n            \"id\": \"ou_c03810195f4db6115f3acb45d04a7fec\",\n            \"name\": \"HTShellyhsu\"\n          }\n        ],\n        [\n          {\n            \"file_token\": \"SmrAbukM9oZMvVxYLNilno97gBb\",\n            \"name\": \"[Falive iOS] 切換到【聊天】頁籤提示 \\\"社區暫不可用\\\".PNG\",\n            \"size\": 376402\n          }\n        ],\n        [\n          {\n            \"id\": \"ou_f6e95ef1cfed53a7871bc23b74006bf2\",\n            \"name\": \"Broker\"\n          }\n        ],\n        \"pre测试中\",\n        [\n          \"App\"\n        ],\n        \"10-27 分配：iOS 截图，App 端问题，负责RD 填 Williamwang HT。参考：Web 同名文案「社区暂不可用」来自社区账号检查（PM-2954 community.registered=0，state 为 guest / ineligible / failed 等），App 顶部提示可查同一返回是否被误判。\",\n        \"1.0.3\"\n      ]\n    ],\n    \"field_id_list\": [\n      \"fldmxTvHTq\",\n      \"fld0Pe5U7G\",\n      \"fld1i6PDQT\",\n      \"fld1u0NBC5\",\n      \"fld4kVwoLs\",\n      \"fld52WVyfK\",\n      \"fld7ChUvSH\",\n      \"fld8fzIptW\",\n      \"fld8Q2XlJB\",\n      \"fldAh2Kyj0\",\n      \"fldBuyLemA\",\n      \"fldcuNmiVK\",\n      \"fldD77oYrZ\",\n      \"fldEiiSdHh\",\n      \"fldERqfLpq\",\n      \"fldGsVI1Y0\",\n      \"fldHgasO5A\",\n      \"fldhpTkoXE\",\n      \"fldIuAN6te\",\n      \"fldJ9rdSbO\",\n      \"fldMLCmFW2\",\n      \"fldPyoP99S\",\n      \"fldsV39i3n\",\n      \"fldu80s8wJ\",\n      \"fldw1TK5PO\",\n      \"fldwobTvnQ\",\n      \"fldyh4ldX6\",\n      \"fldYisQZkD\",\n      \"fldZHrw01k\"\n    ],\n    \"field_type_list\": [\n      \"auto_number\",\n      \"text\",\n      \"select\",\n      \"lookup\",\n      \"link\",\n      \"text\",\n      \"updated_at\",\n      \"lookup\",\n      \"created_at\",\n      \"text\",\n      \"lookup\",\n      \"select\",\n      \"attachment\",\n      \"user\",\n      \"datetime\",\n      \"text\",\n      \"datetime\",\n      \"lookup\",\n      \"text\",\n      \"attachment\",\n      \"datetime\",\n      \"select\",\n      \"updated_by\",\n      \"attachment\",\n      \"user\",\n      \"lookup\",\n      \"select\",\n      \"text\",\n      \"text\"\n    ],\n    \"fields\": [\n      \"Bug编号\",\n      \"测试结果\",\n      \"状态\",\n      \"测试人员所在部门\",\n      \"父記錄\",\n      \"需求ID\",\n      \"最后更新时间\",\n      \"解决人员所在部门\",\n      \"创建时间\",\n      \"项目备注\",\n      \"所属项目组\",\n      \"严重程度\",\n      \"测试结果截图\",\n      \"测试人员\",\n      \"预计上线时间\",\n      \"问题描述（复现步骤）\",\n      \"bug填写日期\",\n      \"需求名称\",\n      \"问题标题\",\n      \"附件\",\n      \"修复完成时间\",\n      \"环境\",\n      \"记录最后修改人\",\n      \"问题截图\",\n      \"负责RD\",\n      \"需求阶段\",\n      \"涉及端口\",\n      \"备注\",\n      \"Sprint\"\n    ],\n    \"has_more\": false,\n    \"record_id_list\": [\n      \"reczz28SKSDf3v9v\"\n    ],\n    \"rev\": 21688,\n    \"timezone\": \"Asia/Dubai\"\n  }\n}\n",
+  "stderr": ""
+}

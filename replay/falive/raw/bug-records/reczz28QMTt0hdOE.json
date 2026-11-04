@@ -1,0 +1,26 @@
+{
+  "recordId": "reczz28QMTt0hdOE",
+  "why": "view",
+  "fetchedAt": "2026-11-04T10:52:11.177Z",
+  "version": "now",
+  "note": "拉取时的最新状态（状态 / 备注 / 测试结果可能晚于消息当时）",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "base",
+    "+record-get",
+    "--as",
+    "user",
+    "--base-token",
+    "<bugTable.appToken>",
+    "--table-id",
+    "tblbJYjrxZsPe40V",
+    "--record-id",
+    "reczz28QMTt0hdOE",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"data\": [\n      [\n        \"Bug-4930\",\n        null,\n        [\n          \"Pre测试通过\"\n        ],\n        \"QA\",\n        null,\n        \"PM-3254\",\n        \"2026-10-29T11:49:18.000+04:00\",\n        \"App,Backend,Product\",\n        \"2026-10-22T10:44:00.000+04:00\",\n        null,\n        \"Falive\",\n        null,\n        null,\n        [\n          {\n            \"id\": \"ou_ac2fb8eacd2c5ea9231d605c49c8c881\",\n            \"name\": \"Kaiser\"\n          }\n        ],\n        null,\n        \"任务中心》帖子阅读 没有积上积分\",\n        \"2026-10-22T10:44:01.268+04:00\",\n        \"【falive一期】后端/web/app\",\n        \"任务中心》帖子阅读 没有积上积分\",\n        null,\n        null,\n        [\n          \"Pre\"\n        ],\n        [\n          {\n            \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n            \"name\": \"World\"\n          }\n        ],\n        null,\n        [\n          {\n            \"id\": \"ou_a0c48d661b36b1e16bf0d89b4a3bb775\",\n            \"name\": \"Arthur.a\"\n          },\n          {\n            \"id\": \"ou_089c0e5c53df38e1920e9c0013077f84\",\n            \"name\": \"Mateo\"\n          },\n          {\n            \"id\": \"ou_0474e2a35ff1054cdbc0bb9d9d9c9766\",\n            \"name\": \"HQUCEncone\"\n          },\n          {\n            \"id\": \"ou_36e7f9a45c4f9bad97bd178d5ee90ad5\",\n            \"name\": \"Adrian\"\n          }\n        ],\n        \"pre测试中\",\n        [\n          \"Backend\"\n        ],\n        \"10-22 核对（pre uid 508）：两处都没通。Backend（Arthur.a）：Go GET /go-api/api/points/task/list 回 code 0 但 data=[]（没有任何任务，包括阅读帖子），签到 checkinPointsTask/sign 回「积分模块未开启！」——任务没配 / 积分模块没开，阅读帖子不可能加分。Web（aven）：广场帖子页还没发「阅读完成」事件（square:postReadConfirmed），卡产品口径：《前端完成任务接入说明》要求按原客户端 / 产品口径，前端不能自己定阅读时长。产品（Mateo）：请给一句口径，如「打开帖子详情即算阅读」或「停留 N 秒算阅读」，定了 aven 当天接。10-22 下午补：任务完成上报 POST /hc-api/api/points/event/report 在 pre 回 HTTP 404（/hc-api 反代转错上游，直连 pre-hailiao 正常，详见 Bug-4934）；HQUCEncone 修好反代前，就算任务配好、前端发了事件也上报不了。 10-22 16:2x（+04）复测仍未通：task/list 仍 data=[]；/hc-api/api/points/event/report 仍 404（直连 pre-hailiao 正常）；产品阅读口径未给。aven 侧等三方解除后再接。 10-22 晚复测（uid 508 登录态）：签到 checkinPointsTask/query 已正常（积分模块已开）；task/list 仍 code 0、data=[]（没有阅读帖子任务）；POST /hc-api/api/points/event/report 带登录态仍回 Spring 404（不带登录态回 401，说明反代已通到上游但上游没有这个路径，请 HQUCEncone 核对 /hc-api 指向的服务）；产品阅读口径仍未给。仍阻塞。\\n【10-22 aven 查 x9】x9 没有「阅读帖子」积分任务，也没有帖子详情页和任务完成事件上报（任务只有 checkin / chat / watch / gift，进度由后端统计），无可照搬。Web 侧仍等三方：Go task/list 配阅读任务（Arthur.a）、/hc-api/api/points/event/report 404（HQUCEncone）、阅读口径（Mateo）；口径定了当天接。\\n【10-22 aven】现阶段前端没有要改的：积分没到账的直接原因是 Go 没配阅读任务、/hc-api 上报接口 404，产品也没给阅读口径。负责人去掉 aven、端口改 Backend；等后端两项通、Mateo 给口径后再加回 Web / aven 接「阅读完成」事件（广场详情页发 square:postReadConfirmed，任务中心消费端已就绪）。\",\n        \"1.0.3\"\n      ]\n    ],\n    \"field_id_list\": [\n      \"fldmxTvHTq\",\n      \"fld0Pe5U7G\",\n      \"fld1i6PDQT\",\n      \"fld1u0NBC5\",\n      \"fld4kVwoLs\",\n      \"fld52WVyfK\",\n      \"fld7ChUvSH\",\n      \"fld8fzIptW\",\n      \"fld8Q2XlJB\",\n      \"fldAh2Kyj0\",\n      \"fldBuyLemA\",\n      \"fldcuNmiVK\",\n      \"fldD77oYrZ\",\n      \"fldEiiSdHh\",\n      \"fldERqfLpq\",\n      \"fldGsVI1Y0\",\n      \"fldHgasO5A\",\n      \"fldhpTkoXE\",\n      \"fldIuAN6te\",\n      \"fldJ9rdSbO\",\n      \"fldMLCmFW2\",\n      \"fldPyoP99S\",\n      \"fldsV39i3n\",\n      \"fldu80s8wJ\",\n      \"fldw1TK5PO\",\n      \"fldwobTvnQ\",\n      \"fldyh4ldX6\",\n      \"fldYisQZkD\",\n      \"fldZHrw01k\"\n    ],\n    \"field_type_list\": [\n      \"auto_number\",\n      \"text\",\n      \"select\",\n      \"lookup\",\n      \"link\",\n      \"text\",\n      \"updated_at\",\n      \"lookup\",\n      \"created_at\",\n      \"text\",\n      \"lookup\",\n      \"select\",\n      \"attachment\",\n      \"user\",\n      \"datetime\",\n      \"text\",\n      \"datetime\",\n      \"lookup\",\n      \"text\",\n      \"attachment\",\n      \"datetime\",\n      \"select\",\n      \"updated_by\",\n      \"attachment\",\n      \"user\",\n      \"lookup\",\n      \"select\",\n      \"text\",\n      \"text\"\n    ],\n    \"fields\": [\n      \"Bug编号\",\n      \"测试结果\",\n      \"状态\",\n      \"测试人员所在部门\",\n      \"父記錄\",\n      \"需求ID\",\n      \"最后更新时间\",\n      \"解决人员所在部门\",\n      \"创建时间\",\n      \"项目备注\",\n      \"所属项目组\",\n      \"严重程度\",\n      \"测试结果截图\",\n      \"测试人员\",\n      \"预计上线时间\",\n      \"问题描述（复现步骤）\",\n      \"bug填写日期\",\n      \"需求名称\",\n      \"问题标题\",\n      \"附件\",\n      \"修复完成时间\",\n      \"环境\",\n      \"记录最后修改人\",\n      \"问题截图\",\n      \"负责RD\",\n      \"需求阶段\",\n      \"涉及端口\",\n      \"备注\",\n      \"Sprint\"\n    ],\n    \"has_more\": false,\n    \"record_id_list\": [\n      \"reczz28QMTt0hdOE\"\n    ],\n    \"rev\": 21688,\n    \"timezone\": \"Asia/Dubai\"\n  }\n}\n",
+  "stderr": ""
+}

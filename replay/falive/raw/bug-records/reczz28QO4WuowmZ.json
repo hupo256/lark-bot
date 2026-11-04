@@ -1,0 +1,26 @@
+{
+  "recordId": "reczz28QO4WuowmZ",
+  "why": "view",
+  "fetchedAt": "2026-11-04T10:52:06.519Z",
+  "version": "now",
+  "note": "拉取时的最新状态（状态 / 备注 / 测试结果可能晚于消息当时）",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "base",
+    "+record-get",
+    "--as",
+    "user",
+    "--base-token",
+    "<bugTable.appToken>",
+    "--table-id",
+    "tblbJYjrxZsPe40V",
+    "--record-id",
+    "reczz28QO4WuowmZ",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"data\": [\n      [\n        \"Bug-4939\",\n        \"[10/29 James.y] 現行測試已不需經過審核，頭像就可以上傳成功。\",\n        [\n          \"不处理\"\n        ],\n        null,\n        null,\n        \"PM-3254\",\n        \"2026-10-29T13:16:44.000+04:00\",\n        \"Backend\",\n        \"2026-10-22T12:17:23.000+04:00\",\n        null,\n        \"Falive\",\n        [\n          \"P0\"\n        ],\n        [\n          {\n            \"file_token\": \"SVX9b3l2AojzAkxdkIyll5iPgJf\",\n            \"name\": \"頭像上傳不需審核.mov\",\n            \"size\": 1818081\n          }\n        ],\n        [\n          {\n            \"id\": \"ou_57bd40c686c743f8def7d503c70e8491\",\n            \"name\": \"HTJames.y\"\n          }\n        ],\n        null,\n        \"1. 進入 Falive \\n2. 點擊自己的頭像 \\u003e 個人主頁\\n3. 點擊 【設定圖示】 \\u003e 點擊 【上傳自定義頭像】 \\u003e 選擇任意圖片上傳\\n4. 驗證顯示 \\\"已提交审核，通过后可在上方选用\\\"\\n5. 點擊 【設定圖示】 \\u003e 點擊 【上傳自定義頭像】 \\u003e 選擇任意圖片上傳\\n6. 顯示 \\\"上傳失敗，請稍候再試\\\"，Api 回傳內容顯示 \\\"用户上传自定义头像后，当该头像还在审核中时，不能再修改头像\\\"\",\n        \"2026-10-22T12:17:24.178+04:00\",\n        \"【falive一期】后端/web/app\",\n        \"个人主页-在審核前重複進行頭像上傳\",\n        null,\n        \"2026-10-29T00:00:00.000+04:00\",\n        [\n          \"Pre\"\n        ],\n        [\n          {\n            \"id\": \"ou_91861d6da6cf6822e08045ba1868241e\",\n            \"name\": \"Aven.tong\"\n          }\n        ],\n        [\n          {\n            \"file_token\": \"NT0rb12Yho9qAjxGSMal1xjggRb\",\n            \"name\": \"在未審核頭像的情況下重複上傳-顯示上傳失敗.png\",\n            \"size\": 554477\n          }\n        ],\n        [\n          {\n            \"id\": \"ou_a0c48d661b36b1e16bf0d89b4a3bb775\",\n            \"name\": \"Arthur.a\"\n          }\n        ],\n        \"pre测试中\",\n        [\n          \"Backend\"\n        ],\n        \"10-22 代码核对：前端缺陷，归个人主页（henry，#1 / #46）。src/modules/user/components/AvatarPicker.tsx 上传自定义头像后只 toast「已提交审核」，没查有没有审核中的头像，上传按钮始终可点，所以审核前能重复上传。x9 参考（src/domain/setting/avatar/index.tsx）：调 bbs/member/avatarAuditUrl，返回 url 时显示「审核中」头像并隐藏上传按钮，上传成功后刷新该查询。按 x9 补上即可。\\n【10-27 aven 复测】原问题已不适用：换头像 10-26 已改接 Go POST /go-api/api/auth/avatar/upload（功能表 #46），无人工审核、上传即生效，前端已不再走 php uploadAvatar / avatarAuditUrl，没有「审核中不能再修改」这一步。10-27 14:1x（+04）falivepre 测试号 uid 508 个人主页 → 设置 → 上传头像连传两次：两次请求都正常发出，未出现审核拦截；但 Go 上传两次都回 HTTP 503 {code:-1,msg:\\\"Internal server error\\\"}，按 request_id 查 /go-api/api/auth/avatar/requests/\\u003cid\\u003e 回「头像修改记录不存在」，页面停在「重试」。根因在 Go 后端头像上传接口，涉及端口改 Backend、负责RD 改 Arthur.a；前端无需改动，接口恢复后测试按新流程复测（上传后头像直接更新，无审核提示）。\",\n        \"1.0.3\"\n      ]\n    ],\n    \"field_id_list\": [\n      \"fldmxTvHTq\",\n      \"fld0Pe5U7G\",\n      \"fld1i6PDQT\",\n      \"fld1u0NBC5\",\n      \"fld4kVwoLs\",\n      \"fld52WVyfK\",\n      \"fld7ChUvSH\",\n      \"fld8fzIptW\",\n      \"fld8Q2XlJB\",\n      \"fldAh2Kyj0\",\n      \"fldBuyLemA\",\n      \"fldcuNmiVK\",\n      \"fldD77oYrZ\",\n      \"fldEiiSdHh\",\n      \"fldERqfLpq\",\n      \"fldGsVI1Y0\",\n      \"fldHgasO5A\",\n      \"fldhpTkoXE\",\n      \"fldIuAN6te\",\n      \"fldJ9rdSbO\",\n      \"fldMLCmFW2\",\n      \"fldPyoP99S\",\n      \"fldsV39i3n\",\n      \"fldu80s8wJ\",\n      \"fldw1TK5PO\",\n      \"fldwobTvnQ\",\n      \"fldyh4ldX6\",\n      \"fldYisQZkD\",\n      \"fldZHrw01k\"\n    ],\n    \"field_type_list\": [\n      \"auto_number\",\n      \"text\",\n      \"select\",\n      \"lookup\",\n      \"link\",\n      \"text\",\n      \"updated_at\",\n      \"lookup\",\n      \"created_at\",\n      \"text\",\n      \"lookup\",\n      \"select\",\n      \"attachment\",\n      \"user\",\n      \"datetime\",\n      \"text\",\n      \"datetime\",\n      \"lookup\",\n      \"text\",\n      \"attachment\",\n      \"datetime\",\n      \"select\",\n      \"updated_by\",\n      \"attachment\",\n      \"user\",\n      \"lookup\",\n      \"select\",\n      \"text\",\n      \"text\"\n    ],\n    \"fields\": [\n      \"Bug编号\",\n      \"测试结果\",\n      \"状态\",\n      \"测试人员所在部门\",\n      \"父記錄\",\n      \"需求ID\",\n      \"最后更新时间\",\n      \"解决人员所在部门\",\n      \"创建时间\",\n      \"项目备注\",\n      \"所属项目组\",\n      \"严重程度\",\n      \"测试结果截图\",\n      \"测试人员\",\n      \"预计上线时间\",\n      \"问题描述（复现步骤）\",\n      \"bug填写日期\",\n      \"需求名称\",\n      \"问题标题\",\n      \"附件\",\n      \"修复完成时间\",\n      \"环境\",\n      \"记录最后修改人\",\n      \"问题截图\",\n      \"负责RD\",\n      \"需求阶段\",\n      \"涉及端口\",\n      \"备注\",\n      \"Sprint\"\n    ],\n    \"has_more\": false,\n    \"record_id_list\": [\n      \"reczz28QO4WuowmZ\"\n    ],\n    \"rev\": 21688,\n    \"timezone\": \"Asia/Dubai\"\n  }\n}\n",
+  "stderr": ""
+}

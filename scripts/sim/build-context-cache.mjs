@@ -164,6 +164,8 @@ const buildBugs = async () => {
   }
   const linked = new Set([...linkTokens].map((t) => shareTokens[t]?.recordId).filter(Boolean))
   for (const rid of linked) if (!wanted.has(rid)) wanted.set(rid, 'record link')
+  // --all-view：视图里的全部记录也拉（11-04 b1：bot 实测时会列整张视图再逐条读，只缓存群里提到的 153 条 → ep-1024 读到 67 条没缓存的，守卫停轮）
+  if (process.argv.includes('--all-view')) for (const rid of view?.ids || []) if (!wanted.has(rid)) wanted.set(rid, 'view')
   const result = { at: now(), tableRecords: all.ids.length, viewRecords: view?.ids.length ?? null, mentionedBugIds: mentioned.size, missingBugIds, linkTokens: linkTokens.size, unresolvedTokens, records: wanted.size, fetched: 0, cached: 0, failed: [], shots: { records: 0, files: 0, failed: [] } }
   await pool([...wanted.keys()], 3, async (rid) => {
     const file = join(dir, `${rid}.json`)
@@ -183,7 +185,7 @@ const buildBugs = async () => {
       result.fetched += 1
       stdout = r.stdout
     }
-    if (!linked.has(rid)) return
+    if (!linked.has(rid) && !process.argv.includes('--all-view')) return // --all-view：视图里的也拉截图（bot 读记录时会下截图，b1 缺 18 张）
     // 记录链接能点到的记录：问题截图前 4 张（lib/lark-bug-record MAX_SCREENSHOTS）
     const data = parse(stdout)?.data
     const col = (data?.fields || []).indexOf('问题截图')

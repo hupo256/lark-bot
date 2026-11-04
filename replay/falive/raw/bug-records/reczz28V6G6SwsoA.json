@@ -1,0 +1,26 @@
+{
+  "recordId": "reczz28V6G6SwsoA",
+  "why": "view",
+  "fetchedAt": "2026-11-04T10:51:58.694Z",
+  "version": "now",
+  "note": "拉取时的最新状态（状态 / 备注 / 测试结果可能晚于消息当时）",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "base",
+    "+record-get",
+    "--as",
+    "user",
+    "--base-token",
+    "<bugTable.appToken>",
+    "--table-id",
+    "tblbJYjrxZsPe40V",
+    "--record-id",
+    "reczz28V6G6SwsoA",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"data\": [\n      [\n        \"Bug-5184\",\n        null,\n        [\n          \"待处理\"\n        ],\n        \"QA\",\n        null,\n        \"PM-3254\",\n        \"2026-11-04T09:50:05.000+04:00\",\n        \"Backend\",\n        \"2026-11-03T10:10:40.000+04:00\",\n        null,\n        \"Falive\",\n        null,\n        null,\n        [\n          {\n            \"id\": \"ou_ac2fb8eacd2c5ea9231d605c49c8c881\",\n            \"name\": \"Kaiser\"\n          }\n        ],\n        null,\n        null,\n        \"2026-11-03T10:10:42.200+04:00\",\n        \"【falive一期】后端/web/app\",\n        \"社区发帖列表图片加载不出来\",\n        null,\n        null,\n        [\n          \"OL\"\n        ],\n        [\n          {\n            \"id\": \"ou_91861d6da6cf6822e08045ba1868241e\",\n            \"name\": \"Aven.tong\"\n          }\n        ],\n        [\n          {\n            \"file_token\": \"EGdrbXJMwoJ5wfx3YJYlJIEigIh\",\n            \"name\": \"image.png\",\n            \"size\": 215912\n          }\n        ],\n        [\n          {\n            \"id\": \"ou_0474e2a35ff1054cdbc0bb9d9d9c9766\",\n            \"name\": \"HQUCEncone\"\n          }\n        ],\n        \"pre测试中\",\n        [\n          \"Backend\"\n        ],\n        \"11-04 OL 实测（www.falive.com，前端 falive-build 见首页 meta）：帖子 tid 44774（User1520「发帖看一下」）的 bbsv2 picture 返回 https://img.falive.com/upload/discuz/bbsv2/202611/03/c5a41b10…_thumb.webp，文件本身 200 可访问，但内容是 HCIMG1 加密图（PM-2954 1.10），前端必须用 fetch 下载后解密才能显示；img.falive.com 响应没有 Access-Control-Allow-Origin，浏览器报「blocked by CORS policy: No 'Access-Control-Allow-Origin' header」，下载失败只能显示占位图（列表、详情 /hc/square/44774 都一样）。对照：pre / uat 的 bbsv2 picture 返回站点同源地址（falivepre.fdsser.com/upload/… 、faliveuat.fdsser.com/upload/…），没有跨域问题，所以 pre 正常。根因在后端 / 运维配置，前端无需改动；二选一：① img.falive.com 对 /upload/discuz/bbsv2/ 加 Access-Control-Allow-Origin（至少 https://www.falive.com）；② OL bbsv2 picture 和 pre / uat 一样返回站点同源地址（www.falive.com/upload/… 已实测能取到同一文件）。改端口 Backend，负责RD 改为 HQUCEncone（bbsv2 社区后端）。\",\n        \"1.0.3\"\n      ]\n    ],\n    \"field_id_list\": [\n      \"fldmxTvHTq\",\n      \"fld0Pe5U7G\",\n      \"fld1i6PDQT\",\n      \"fld1u0NBC5\",\n      \"fld4kVwoLs\",\n      \"fld52WVyfK\",\n      \"fld7ChUvSH\",\n      \"fld8fzIptW\",\n      \"fld8Q2XlJB\",\n      \"fldAh2Kyj0\",\n      \"fldBuyLemA\",\n      \"fldcuNmiVK\",\n      \"fldD77oYrZ\",\n      \"fldEiiSdHh\",\n      \"fldERqfLpq\",\n      \"fldGsVI1Y0\",\n      \"fldHgasO5A\",\n      \"fldhpTkoXE\",\n      \"fldIuAN6te\",\n      \"fldJ9rdSbO\",\n      \"fldMLCmFW2\",\n      \"fldPyoP99S\",\n      \"fldsV39i3n\",\n      \"fldu80s8wJ\",\n      \"fldw1TK5PO\",\n      \"fldwobTvnQ\",\n      \"fldyh4ldX6\",\n      \"fldYisQZkD\",\n      \"fldZHrw01k\"\n    ],\n    \"field_type_list\": [\n      \"auto_number\",\n      \"text\",\n      \"select\",\n      \"lookup\",\n      \"link\",\n      \"text\",\n      \"updated_at\",\n      \"lookup\",\n      \"created_at\",\n      \"text\",\n      \"lookup\",\n      \"select\",\n      \"attachment\",\n      \"user\",\n      \"datetime\",\n      \"text\",\n      \"datetime\",\n      \"lookup\",\n      \"text\",\n      \"attachment\",\n      \"datetime\",\n      \"select\",\n      \"updated_by\",\n      \"attachment\",\n      \"user\",\n      \"lookup\",\n      \"select\",\n      \"text\",\n      \"text\"\n    ],\n    \"fields\": [\n      \"Bug编号\",\n      \"测试结果\",\n      \"状态\",\n      \"测试人员所在部门\",\n      \"父記錄\",\n      \"需求ID\",\n      \"最后更新时间\",\n      \"解决人员所在部门\",\n      \"创建时间\",\n      \"项目备注\",\n      \"所属项目组\",\n      \"严重程度\",\n      \"测试结果截图\",\n      \"测试人员\",\n      \"预计上线时间\",\n      \"问题描述（复现步骤）\",\n      \"bug填写日期\",\n      \"需求名称\",\n      \"问题标题\",\n      \"附件\",\n      \"修复完成时间\",\n      \"环境\",\n      \"记录最后修改人\",\n      \"问题截图\",\n      \"负责RD\",\n      \"需求阶段\",\n      \"涉及端口\",\n      \"备注\",\n      \"Sprint\"\n    ],\n    \"has_more\": false,\n    \"record_id_list\": [\n      \"reczz28V6G6SwsoA\"\n    ],\n    \"rev\": 21688,\n    \"timezone\": \"Asia/Dubai\"\n  }\n}\n",
+  "stderr": ""
+}

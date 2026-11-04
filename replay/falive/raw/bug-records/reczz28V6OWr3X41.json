@@ -1,0 +1,26 @@
+{
+  "recordId": "reczz28V6OWr3X41",
+  "why": "view",
+  "fetchedAt": "2026-11-04T10:52:05.375Z",
+  "version": "now",
+  "note": "拉取时的最新状态（状态 / 备注 / 测试结果可能晚于消息当时）",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "base",
+    "+record-get",
+    "--as",
+    "user",
+    "--base-token",
+    "<bugTable.appToken>",
+    "--table-id",
+    "tblbJYjrxZsPe40V",
+    "--record-id",
+    "reczz28V6OWr3X41",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"data\": [\n      [\n        \"Bug-5185\",\n        null,\n        [\n          \"已推版\"\n        ],\n        null,\n        null,\n        \"PM-3254\",\n        \"2026-11-03T11:41:15.000+04:00\",\n        \"Web\",\n        \"2026-11-03T10:14:16.000+04:00\",\n        null,\n        \"Falive\",\n        null,\n        null,\n        [\n          {\n            \"id\": \"ou_c03810195f4db6115f3acb45d04a7fec\",\n            \"name\": \"HTShellyhsu\"\n          }\n        ],\n        null,\n        \"目前看起來只有點左上角的Falive之後，點右上角頭像去個人主頁  才有完整Call API\",\n        \"2026-11-03T10:14:17.163+04:00\",\n        \"【falive一期】后端/web/app\",\n        \"從左側menu進入頁面後，點右上角頭像去個人主頁應該要重新抓個人主頁的資料\",\n        null,\n        null,\n        [\n          \"Pre\"\n        ],\n        [\n          {\n            \"id\": \"ou_91861d6da6cf6822e08045ba1868241e\",\n            \"name\": \"Aven.tong\"\n          }\n        ],\n        [\n          {\n            \"file_token\": \"VgFgbNOTloMJuoxgCiflqVUzgwg\",\n            \"name\": \"image.png\",\n            \"size\": 401045\n          }\n        ],\n        [\n          {\n            \"id\": \"ou_f429a72d959a341cd2fdd1b18a0d3772\",\n            \"name\": \"Henry\"\n          }\n        ],\n        \"pre测试中\",\n        [\n          \"Web\"\n        ],\n        \"11-03 bot 修复中（分支 hotfix-5185）\\n11-03 bot 已修（Web，MR !219 → pre，提交 9ef0aa01，分支 hotfix-5185 基于 origin/online）。根因：顶栏 logo 是整页跳转（\\u003ca href\\u003e），会清掉 React Query 缓存，所以之后进个人主页所有接口都重新请求；侧栏 / 顶栏菜单是站内路由，个人主页各查询 staleTime 3 分钟内再进只显示缓存、一个接口都不发（部署版 uat 实测：首次进 /user/me 6 个请求，侧栏去别页再进 0 个，点 logo 整页回首页后再进 6 个；pre 同代码）。修法：进本人主页时把 user 域已有数据的查询整体标脏后台重拉（Member/info、threadsCount、bbsv2 member/info、anchorRecordList、notify/unreadCount、profile/my，以及切 tab 才挂的帖子 / 收藏 / 赞过 / 评论列表），缓存先显示、拉到再换，不闪骨架；首次进页 / 整页刷新时不重复请求；重拉到的头像 / 昵称与之前不同时再经 user:profileUpdated 同步顶栏（Bug-4928 通道）。他人主页不动（路由 loader 已预取）。本地生产包自测：pre 的 Go 登录 11-03 10:30–10:55 对所有账号回「外部服务调用失败」登不上，改用本地 build:uat 包反代 uat 网关 + uat 测试号实测：侧栏 /lives → 头像 → 个人主页 6 个请求，再经侧栏 /square → 头像 → 个人主页仍 6 个（修复前 0 个），logo 整页回首页后 6 个且无重复；回归：游客进 /user/me 出登录引导、他人主页 /user/260 站内返回不额外重拉、帖子 tab threadsCursor 正常并随再进页重拉、/user/following 正常，console 无新增报错；单测 4 项通过、typecheck / biome 通过。待 pre 部署后请在 pre 复测（先确认 pre 登录已恢复）。\",\n        \"1.0.3\"\n      ]\n    ],\n    \"field_id_list\": [\n      \"fldmxTvHTq\",\n      \"fld0Pe5U7G\",\n      \"fld1i6PDQT\",\n      \"fld1u0NBC5\",\n      \"fld4kVwoLs\",\n      \"fld52WVyfK\",\n      \"fld7ChUvSH\",\n      \"fld8fzIptW\",\n      \"fld8Q2XlJB\",\n      \"fldAh2Kyj0\",\n      \"fldBuyLemA\",\n      \"fldcuNmiVK\",\n      \"fldD77oYrZ\",\n      \"fldEiiSdHh\",\n      \"fldERqfLpq\",\n      \"fldGsVI1Y0\",\n      \"fldHgasO5A\",\n      \"fldhpTkoXE\",\n      \"fldIuAN6te\",\n      \"fldJ9rdSbO\",\n      \"fldMLCmFW2\",\n      \"fldPyoP99S\",\n      \"fldsV39i3n\",\n      \"fldu80s8wJ\",\n      \"fldw1TK5PO\",\n      \"fldwobTvnQ\",\n      \"fldyh4ldX6\",\n      \"fldYisQZkD\",\n      \"fldZHrw01k\"\n    ],\n    \"field_type_list\": [\n      \"auto_number\",\n      \"text\",\n      \"select\",\n      \"lookup\",\n      \"link\",\n      \"text\",\n      \"updated_at\",\n      \"lookup\",\n      \"created_at\",\n      \"text\",\n      \"lookup\",\n      \"select\",\n      \"attachment\",\n      \"user\",\n      \"datetime\",\n      \"text\",\n      \"datetime\",\n      \"lookup\",\n      \"text\",\n      \"attachment\",\n      \"datetime\",\n      \"select\",\n      \"updated_by\",\n      \"attachment\",\n      \"user\",\n      \"lookup\",\n      \"select\",\n      \"text\",\n      \"text\"\n    ],\n    \"fields\": [\n      \"Bug编号\",\n      \"测试结果\",\n      \"状态\",\n      \"测试人员所在部门\",\n      \"父記錄\",\n      \"需求ID\",\n      \"最后更新时间\",\n      \"解决人员所在部门\",\n      \"创建时间\",\n      \"项目备注\",\n      \"所属项目组\",\n      \"严重程度\",\n      \"测试结果截图\",\n      \"测试人员\",\n      \"预计上线时间\",\n      \"问题描述（复现步骤）\",\n      \"bug填写日期\",\n      \"需求名称\",\n      \"问题标题\",\n      \"附件\",\n      \"修复完成时间\",\n      \"环境\",\n      \"记录最后修改人\",\n      \"问题截图\",\n      \"负责RD\",\n      \"需求阶段\",\n      \"涉及端口\",\n      \"备注\",\n      \"Sprint\"\n    ],\n    \"has_more\": false,\n    \"record_id_list\": [\n      \"reczz28V6OWr3X41\"\n    ],\n    \"rev\": 21688,\n    \"timezone\": \"Asia/Dubai\"\n  }\n}\n",
+  "stderr": ""
+}

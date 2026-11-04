@@ -1,0 +1,26 @@
+{
+  "recordId": "reczz28SOL5BXqUw",
+  "why": "view",
+  "fetchedAt": "2026-11-04T10:52:12.530Z",
+  "version": "now",
+  "note": "拉取时的最新状态（状态 / 备注 / 测试结果可能晚于消息当时）",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "base",
+    "+record-get",
+    "--as",
+    "user",
+    "--base-token",
+    "<bugTable.appToken>",
+    "--table-id",
+    "tblbJYjrxZsPe40V",
+    "--record-id",
+    "reczz28SOL5BXqUw",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"data\": [\n      [\n        \"Bug-5044\",\n        null,\n        [\n          \"Pre测试通过\"\n        ],\n        \"QA\",\n        null,\n        \"PM-3254\",\n        \"2026-10-29T11:49:18.000+04:00\",\n        \"Web\",\n        \"2026-10-27T13:54:47.000+04:00\",\n        null,\n        \"Falive\",\n        null,\n        null,\n        [\n          {\n            \"id\": \"ou_76eea7f1089ccfb66678300fe4bc4a40\",\n            \"name\": \"HTStone.z\"\n          }\n        ],\n        null,\n        \"目前首頁一進入會打一整排直播間的getRoomInfo\\n此情境只需在首頁刷新兩三次就會觸發API返回429\\n請協助修正為點擊直播間才觸發該直播間的getRoomInfo\",\n        \"2026-10-27T13:54:48.259+04:00\",\n        \"【falive一期】后端/web/app\",\n        \"首頁getRoomInfo請求時機調整\",\n        null,\n        null,\n        [\n          \"Pre\"\n        ],\n        [\n          {\n            \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n            \"name\": \"World\"\n          }\n        ],\n        [\n          {\n            \"file_token\": \"DztWblOGhozwTHxo1b6lNPVVgVe\",\n            \"name\": \"image.png\",\n            \"size\": 915185\n          }\n        ],\n        [\n          {\n            \"id\": \"ou_91861d6da6cf6822e08045ba1868241e\",\n            \"name\": \"Aven.tong\"\n          }\n        ],\n        \"pre测试中\",\n        [\n          \"Web\"\n        ],\n        \"【10-27 修复】根因：首页「推荐视频」8 张录播卡为显示时长，每张卡各请求一次 getRoomInfo 取播放地址（串行约 0.6s 一个，加载 7 秒内打满 8 次），连刷就触发同接口 4 次/秒限流 429；另外路由默认 hover 预加载，鼠标划过直播 / 录播卡也会逐个打 getRoomInfo。修复：录播卡不再为时长请求 getRoomInfo（只读进过播放页留下的缓存，没缓存不显示时长；卡片要常显时长需后端在 robotManualList 返回时长）；/room、/video 路由关闭 hover 预加载，点进去才请求该房间。首页只保留 Hero 当前预览房间 1 次（取流播放用，3 分钟内不重复请求）。自测（本地 pre 生产包经 pre 网关，桌面 1440，加载后等 15 秒）：修复前 falivepre 每次加载 8 次 getRoomInfo、划过 6 张卡再加 3~4 次；修复后每次加载 1 次（uid=19668，Hero 当前房间），连刷 3 次均 1 次、无 429，划过卡片 0 次；点直播间 /room/19645 才发 1 次 getRoomInfo 200、播放器挂流正常；点录播卡 /video/404 发 1 次 200、视频在播（readyState 4）。biome / typecheck / live 下 248 条测试通过。MR：[http://mgit.lgroup.co/hqoi/web/falive-react/-/merge_requests/145](http://mgit.lgroup.co/hqoi/web/falive-react/-/merge_requests/145)\",\n        \"1.0.3\"\n      ]\n    ],\n    \"field_id_list\": [\n      \"fldmxTvHTq\",\n      \"fld0Pe5U7G\",\n      \"fld1i6PDQT\",\n      \"fld1u0NBC5\",\n      \"fld4kVwoLs\",\n      \"fld52WVyfK\",\n      \"fld7ChUvSH\",\n      \"fld8fzIptW\",\n      \"fld8Q2XlJB\",\n      \"fldAh2Kyj0\",\n      \"fldBuyLemA\",\n      \"fldcuNmiVK\",\n      \"fldD77oYrZ\",\n      \"fldEiiSdHh\",\n      \"fldERqfLpq\",\n      \"fldGsVI1Y0\",\n      \"fldHgasO5A\",\n      \"fldhpTkoXE\",\n      \"fldIuAN6te\",\n      \"fldJ9rdSbO\",\n      \"fldMLCmFW2\",\n      \"fldPyoP99S\",\n      \"fldsV39i3n\",\n      \"fldu80s8wJ\",\n      \"fldw1TK5PO\",\n      \"fldwobTvnQ\",\n      \"fldyh4ldX6\",\n      \"fldYisQZkD\",\n      \"fldZHrw01k\"\n    ],\n    \"field_type_list\": [\n      \"auto_number\",\n      \"text\",\n      \"select\",\n      \"lookup\",\n      \"link\",\n      \"text\",\n      \"updated_at\",\n      \"lookup\",\n      \"created_at\",\n      \"text\",\n      \"lookup\",\n      \"select\",\n      \"attachment\",\n      \"user\",\n      \"datetime\",\n      \"text\",\n      \"datetime\",\n      \"lookup\",\n      \"text\",\n      \"attachment\",\n      \"datetime\",\n      \"select\",\n      \"updated_by\",\n      \"attachment\",\n      \"user\",\n      \"lookup\",\n      \"select\",\n      \"text\",\n      \"text\"\n    ],\n    \"fields\": [\n      \"Bug编号\",\n      \"测试结果\",\n      \"状态\",\n      \"测试人员所在部门\",\n      \"父記錄\",\n      \"需求ID\",\n      \"最后更新时间\",\n      \"解决人员所在部门\",\n      \"创建时间\",\n      \"项目备注\",\n      \"所属项目组\",\n      \"严重程度\",\n      \"测试结果截图\",\n      \"测试人员\",\n      \"预计上线时间\",\n      \"问题描述（复现步骤）\",\n      \"bug填写日期\",\n      \"需求名称\",\n      \"问题标题\",\n      \"附件\",\n      \"修复完成时间\",\n      \"环境\",\n      \"记录最后修改人\",\n      \"问题截图\",\n      \"负责RD\",\n      \"需求阶段\",\n      \"涉及端口\",\n      \"备注\",\n      \"Sprint\"\n    ],\n    \"has_more\": false,\n    \"record_id_list\": [\n      \"reczz28SOL5BXqUw\"\n    ],\n    \"rev\": 21688,\n    \"timezone\": \"Asia/Dubai\"\n  }\n}\n",
+  "stderr": ""
+}

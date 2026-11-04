@@ -1,0 +1,26 @@
+{
+  "recordId": "reczz28SOZPMTU5R",
+  "why": "view",
+  "fetchedAt": "2026-11-04T10:52:11.129Z",
+  "version": "now",
+  "note": "拉取时的最新状态（状态 / 备注 / 测试结果可能晚于消息当时）",
+  "ok": true,
+  "exitCode": 0,
+  "command": [
+    "lark-cli",
+    "base",
+    "+record-get",
+    "--as",
+    "user",
+    "--base-token",
+    "<bugTable.appToken>",
+    "--table-id",
+    "tblbJYjrxZsPe40V",
+    "--record-id",
+    "reczz28SOZPMTU5R",
+    "--format",
+    "json"
+  ],
+  "stdout": "{\n  \"ok\": true,\n  \"identity\": \"user\",\n  \"data\": {\n    \"data\": [\n      [\n        \"Bug-5046\",\n        \"[10/28 James.y] 複驗通過\",\n        [\n          \"Pre测试通过\"\n        ],\n        \"QA\",\n        null,\n        \"PM-3254\",\n        \"2026-10-29T11:49:18.000+04:00\",\n        \"App,Backend\",\n        \"2026-10-27T14:04:37.000+04:00\",\n        null,\n        \"Falive\",\n        null,\n        [\n          {\n            \"file_token\": \"Z14VbmlqfokSwNxjPUclptbLg3b\",\n            \"name\": \"Bug-5046-Pass.mov\",\n            \"size\": 9112779\n          }\n        ],\n        [\n          {\n            \"id\": \"ou_ac2fb8eacd2c5ea9231d605c49c8c881\",\n            \"name\": \"Kaiser\"\n          },\n          {\n            \"id\": \"ou_57bd40c686c743f8def7d503c70e8491\",\n            \"name\": \"HTJames.y\"\n          }\n        ],\n        null,\n        null,\n        \"2026-10-27T14:04:38.370+04:00\",\n        \"【falive一期】后端/web/app\",\n        \"任务中心-广场贴回复评论-没有获得积分\",\n        null,\n        \"2026-10-28T00:00:00.000+04:00\",\n        [\n          \"Pre\"\n        ],\n        [\n          {\n            \"id\": \"ou_64ffdc75d43e10682c273670c8f70632\",\n            \"name\": \"World\"\n          }\n        ],\n        null,\n        [\n          {\n            \"id\": \"ou_a0c48d661b36b1e16bf0d89b4a3bb775\",\n            \"name\": \"Arthur.a\"\n          },\n          {\n            \"id\": \"ou_36e7f9a45c4f9bad97bd178d5ee90ad5\",\n            \"name\": \"Adrian\"\n          }\n        ],\n        \"pre测试中\",\n        [\n          \"Web\",\n          \"Backend\"\n        ],\n        \"【10-27 bot 分类】与 Bug-5008 同因。契约（任务中心-前端完成任务接入说明-2026-10-20 第 53 行 / §6.3）：SQUARE_POST_REPLY_COMMENT 前端不申报，由社区服务端回调 Go /api/discuz/callback/complete_task 发奖。pre 实测（10-27 10:27–10:31 UTC，测试号 uid 508）：在 tid 18648 回复评论 26987 成功（listCursor 查到 pid 26992），回复后 30s / 70s go-api points/task/list 仍 data:[]、myPoints 仍 10 分无新流水，前端未请求 complete（符合契约）。后端（主因）：HQUCEncone 查 bbsv2 评论落库后是否回调 Go、Token 是否匹配；Arthur.a 查 Go 是否收到回调及该任务配置（测试号 task/list 为空）。前端（次要，Adrian）：评论成功后未让任务列表 / 积分失效重拉（缓存 60s），契约要求业务成功后刷新，补上只影响及时显示，不会让积分到账。请 Kaiser 补账号、回复的帖子号和操作时间供后端查日志。\",\n        \"1.0.3\"\n      ]\n    ],\n    \"field_id_list\": [\n      \"fldmxTvHTq\",\n      \"fld0Pe5U7G\",\n      \"fld1i6PDQT\",\n      \"fld1u0NBC5\",\n      \"fld4kVwoLs\",\n      \"fld52WVyfK\",\n      \"fld7ChUvSH\",\n      \"fld8fzIptW\",\n      \"fld8Q2XlJB\",\n      \"fldAh2Kyj0\",\n      \"fldBuyLemA\",\n      \"fldcuNmiVK\",\n      \"fldD77oYrZ\",\n      \"fldEiiSdHh\",\n      \"fldERqfLpq\",\n      \"fldGsVI1Y0\",\n      \"fldHgasO5A\",\n      \"fldhpTkoXE\",\n      \"fldIuAN6te\",\n      \"fldJ9rdSbO\",\n      \"fldMLCmFW2\",\n      \"fldPyoP99S\",\n      \"fldsV39i3n\",\n      \"fldu80s8wJ\",\n      \"fldw1TK5PO\",\n      \"fldwobTvnQ\",\n      \"fldyh4ldX6\",\n      \"fldYisQZkD\",\n      \"fldZHrw01k\"\n    ],\n    \"field_type_list\": [\n      \"auto_number\",\n      \"text\",\n      \"select\",\n      \"lookup\",\n      \"link\",\n      \"text\",\n      \"updated_at\",\n      \"lookup\",\n      \"created_at\",\n      \"text\",\n      \"lookup\",\n      \"select\",\n      \"attachment\",\n      \"user\",\n      \"datetime\",\n      \"text\",\n      \"datetime\",\n      \"lookup\",\n      \"text\",\n      \"attachment\",\n      \"datetime\",\n      \"select\",\n      \"updated_by\",\n      \"attachment\",\n      \"user\",\n      \"lookup\",\n      \"select\",\n      \"text\",\n      \"text\"\n    ],\n    \"fields\": [\n      \"Bug编号\",\n      \"测试结果\",\n      \"状态\",\n      \"测试人员所在部门\",\n      \"父記錄\",\n      \"需求ID\",\n      \"最后更新时间\",\n      \"解决人员所在部门\",\n      \"创建时间\",\n      \"项目备注\",\n      \"所属项目组\",\n      \"严重程度\",\n      \"测试结果截图\",\n      \"测试人员\",\n      \"预计上线时间\",\n      \"问题描述（复现步骤）\",\n      \"bug填写日期\",\n      \"需求名称\",\n      \"问题标题\",\n      \"附件\",\n      \"修复完成时间\",\n      \"环境\",\n      \"记录最后修改人\",\n      \"问题截图\",\n      \"负责RD\",\n      \"需求阶段\",\n      \"涉及端口\",\n      \"备注\",\n      \"Sprint\"\n    ],\n    \"has_more\": false,\n    \"record_id_list\": [\n      \"reczz28SOZPMTU5R\"\n    ],\n    \"rev\": 21688,\n    \"timezone\": \"Asia/Dubai\"\n  }\n}\n",
+  "stderr": ""
+}
