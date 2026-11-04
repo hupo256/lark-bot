@@ -1,178 +1,88 @@
 #!/usr/bin/env node
 /**
- * L2 / L3 裁判（docs/falive-replay-plan-2026-11-03.md §2）：模拟器跑完一个窗口后，对每条「触发了 bot」的真人消息
- * （@bot、回复 bot 的消息、aven 在 webhook 群说的 = 负责人私信），把消息 + 群里上下文 + 【A：falive 当时】（分类、bot 回复、人的反应、审计）
- * + 【B：lark-bot 这次模拟】（任务分类与终态、群里回复、私信 aven、审计结论）交给模型，以 aven 的利益为准判谁更合适。
- *   node scripts/sim/judge-sim.mjs --sim <name> [--conc 4] [--limit n] [--all]
- * 默认只判「有差异」的（一边回了一边没回、或分类决策不同）；--all 判全部触发消息。
- * 结果追加到 sim/<name>/judge.jsonl（可续跑，已判的跳过），最后打印 better 与 larkIssue 的分布。
+ * L2 / L3 裁判（docs/falive-replay-design-v2.md §5「裁判」）：对 sim 目录里每条 case，把消息 + 上下文 + 标签 + 实测类当时证据 +
+ * 【A：falive 当时】+【B：lark-bot 这次】交给模型，以 aven 的利益为准判谁更合适。提示冻结在 scripts/sim/judge-prompt.mjs（带版本）。
+ *   node scripts/sim/judge-sim.mjs --round <轮> | --sim <名> | --dir <路径> [--effort high] [--all] [--gold [gold.jsonl]]
+ *        [--conc 4] [--limit n] [--ids a,b] [--score-from <ISO>] [--dry] [--print-prompt <case id>]
+ * 先跑规则预判（judge-rules.mjs，同时落 rules.jsonl）；然后：
+ *   - 待办不计分的（case-tags pending=true，「已部署」→ 自动复测链路）不判，better=pending 单列；
+ *   - 按 case id + 输出指纹 + 提示版本查缓存（judge-cache.mjs），命中就沿用，不花 token；--all 无视缓存全部重判（定金标准那轮配 --effort max）；
+ *   - --gold：对照金标准判（gold.mjs compare 就是它）——输出指纹等于 aven 审过的那版 → 直接沿用金标准结论；不等 → 模型判，带上金标准的理想做法作参照。
+ * 产物：每个 sim 目录下 judge.jsonl（每条 case 一行，整文件重写；结论都在缓存里，断了重跑即可）。
+ * 结论字段：better / confidence / reason / larkIssue / cause / idealBehavior（模型）+ risk / kind / promptVersion / effort / fingerprint / source（cache|model|gold）。
  */
 import { spawn } from 'node:child_process'
-import { appendFileSync, existsSync, readFileSync, readdirSync } from 'node:fs'
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { AVEN_OPEN_ID, datasetDir, replayRoot } from './falive-data.mjs'
+import { casesDir, replayRoot, roundsDir } from './falive-data.mjs'
+import { goldRefOf, lookupVerdict, storeVerdict } from './judge-cache.mjs'
+import { contextLinesOf, faliveRepliesOf, loadJudgeData } from './judge-data.mjs'
+import { BETTER, CAUSES, CONFIDENCE, JUDGE_PROMPT_VERSION, JUDGE_SCHEMA, LARK_ISSUES, assertPromptFrozen, buildJudgePrompt } from './judge-prompt.mjs'
+import { computeSimRules } from './judge-rules.mjs'
+import { listSimDirs, loadSim, readJsonl, simSelectorFromArgs } from './sim-dir.mjs'
 
 const args = process.argv.slice(2)
 const value = (name, fallback) => (args.includes(name) ? args[args.indexOf(name) + 1] : fallback)
-const simName = value('--sim', null)
-if (!simName) {
-  console.error('用法：node scripts/sim/judge-sim.mjs --sim <name> [--conc 4] [--limit n] [--all]')
+const sims = listSimDirs(simSelectorFromArgs(args))
+if (!sims.length) {
+  console.error('用法：node scripts/sim/judge-sim.mjs --round <轮> | --sim <名> | --dir <路径> [--effort high] [--all] [--gold]（没找到 sim 目录）')
   process.exit(2)
 }
 const all = args.includes('--all')
+const dry = args.includes('--dry')
+const effort = value('--effort', 'high')
+const model = value('--model', 'claude-opus-5-5')
 const concurrency = Number(value('--conc', 4))
 const limit = Number(value('--limit', 0))
-const simDir = join(replayRoot, 'sim', simName)
-if (!existsSync(join(simDir, 'fed.json'))) {
-  console.error(`[judge-sim] 找不到 ${join(simDir, 'fed.json')}`)
-  process.exit(2)
+const onlyIds = value('--ids', null) ? new Set(value('--ids', '').split(',').filter(Boolean)) : null
+const printPrompt = value('--print-prompt', null)
+const scoreFromMs = value('--score-from', null) ? Date.parse(value('--score-from', null)) : 0
+const goldArg = args.includes('--gold') ? (args[args.indexOf('--gold') + 1] && !args[args.indexOf('--gold') + 1].startsWith('--') ? args[args.indexOf('--gold') + 1] : join(casesDir, 'gold.jsonl')) : null
+const gold = goldArg ? new Map(readJsonl(goldArg).map((g) => [g.id, g])) : null
+if (goldArg && !gold.size) console.warn(`[judge-sim] 金标准 ${goldArg} 是空的，按普通裁判跑`)
+
+const promptHashNow = assertPromptFrozen()
+const data = loadJudgeData()
+
+// 本轮用的提示版本记进 rounds/<轮>/code.txt（design-v2 §5：裁判提示冻结、每轮记版本）
+const roundName = value('--round', null)
+if (roundName && !dry && existsSync(join(roundsDir, roundName))) {
+  const codePath = join(roundsDir, roundName, 'code.txt')
+  const line = `judge-prompt ${JUDGE_PROMPT_VERSION} ${promptHashNow}`
+  if (!(existsSync(codePath) ? readFileSync(codePath, 'utf8') : '').includes(line)) appendFileSync(codePath, `${line}\n`)
 }
 
-const FOLLOW_MS = 2 * 60 * 60_000
-const CONTEXT_COUNT = 10
-const readJsonl = (path) => (existsSync(path) ? readFileSync(path, 'utf8').split('\n').filter(Boolean).map((line) => JSON.parse(line)) : [])
+const one = (t, n) => String(t || '').replace(/\s+/g, ' ').trim().slice(0, n)
 
-// —— 数据集 ——
-const timeline = JSON.parse(readFileSync(join(datasetDir, 'timeline.json'), 'utf8'))
-const byId = new Map(timeline.map((m) => [m.id, m]))
-const episodes = new Map(JSON.parse(readFileSync(join(datasetDir, 'episodes.json'), 'utf8')).map((e) => [e.id, e]))
-
-// —— 模拟产物 ——
-const fed = JSON.parse(readFileSync(join(simDir, 'fed.json'), 'utf8'))
-const outbox = readJsonl(join(simDir, 'outbox.jsonl'))
-const tasks = new Map()
-const tasksDir = join(simDir, 'runtime', 'lark-tasks')
-if (existsSync(tasksDir)) for (const f of readdirSync(tasksDir)) {
-  if (!f.endsWith('.json')) continue
-  try { const t = JSON.parse(readFileSync(join(tasksDir, f), 'utf8')); tasks.set(t.id, t) } catch { /* 坏文件跳过 */ }
-}
-// 并入别的任务的消息：对方 task.mergedFrom 里有它的 id。
-const mergedInto = new Map()
-for (const t of tasks.values()) for (const from of t.mergedFrom || []) mergedInto.set(from, t)
-// 审计：每个任务取最后一代里带 final 的（最新一代常是 done 后的空壳，final 为 null），没有就取最新一代。
-const audits = new Map()
-const auditsDir = join(simDir, 'runtime', 'lark-audits')
-if (existsSync(auditsDir)) for (const project of readdirSync(auditsDir)) {
-  const dir = join(auditsDir, project)
-  for (const f of readdirSync(dir)) {
-    const m = f.match(/^(.*)-e(\d+)\.json$/)
-    if (!m) continue
-    try {
-      const a = JSON.parse(readFileSync(join(dir, f), 'utf8'))
-      const epoch = Number(m[2])
-      const prev = audits.get(m[1])
-      const better = !prev || (a.final && !prev.final) || (Boolean(a.final) === Boolean(prev.final) && epoch > prev.epoch)
-      if (better) audits.set(m[1], { epoch, status: a.status || null, final: a.final || null })
-    } catch { /* 坏文件跳过 */ }
-  }
-}
-
-const outPath = join(simDir, 'judge.jsonl')
-const done = new Set(readJsonl(outPath).map((r) => r.id))
-
-// —— 取数 ——
-const fmt = (ms) => new Date(ms).toISOString().slice(5, 16).replace('T', ' ')
-const one = (t, n) => String(t || '').replace(/<at user_id="[^"]*">([^<]*)<\/at>/g, '@$1').replace(/\s+/g, ' ').slice(0, n)
-const isTrigger = (m) => Boolean(m) && !m.ownBot && !m.deleted && m.senderType !== 'system'
-  && (m.atBot || Boolean(m.parentId && byId.get(m.parentId)?.ownBot) || (m.chatKey === 'webhook-group' && m.isAven))
-const isPrincipalDm = (m) => m.chatKey === 'webhook-group' && m.isAven
-const contextOf = (m) => timeline
-  .filter((x) => x.chatId === m.chatId && x.atMs < m.atMs && !x.deleted && x.text && x.senderType !== 'system')
-  .slice(-CONTEXT_COUNT)
-  .map((x) => `${x.senderName}${x.ownBot ? '（bot）' : ''}（${fmt(x.atMs)}）：${one(x.text, 300)}`)
-  .join('\n')
-
-const larkSideOf = (m) => {
-  const task = tasks.get(m.id) || null
-  const merged = mergedInto.get(m.id) || null
-  const replies = outbox.filter((o) => o.kind === 'reply' && o.parentId === m.id)
-  const dms = outbox.filter((o) => o.kind === 'send' && o.userId === AVEN_OPEN_ID && o.at >= m.atMs && o.at <= m.atMs + FOLLOW_MS)
+const buildJudgeContext = ({ m, sim, row }) => {
+  const baseline = data.baselines.get(m.id)
+  const b = baseline?.baseline || {}
+  const parent = m.parentId ? data.byId.get(m.parentId) || null : null
+  const task = sim.tasks.get(m.id) || null
+  const audit = sim.audits.get(m.id) || null
   const cls = task?.intake?.classification || null
-  const audit = audits.get(m.id) || null
-  const decision = cls?.decision || (merged ? 'merged' : task ? '(未分类)' : 'ignore')
-  // 负责人私信（webhook 群映射）没有群里回复可言，bot 的回应就是私信本身。
-  const replied = replies.length > 0 || (isPrincipalDm(m) && dms.length > 0)
-  return { task, merged, replies, dms, cls, audit, decision, replied }
-}
-const faliveSideOf = (m) => {
-  const e = episodes.get(m.id) || null
-  const b = e?.baseline || {}
   return {
-    episode: e,
-    classified: b.classified || null,
-    decision: b.classified?.decision || 'ignore',
-    botReplies: b.botReplies || [],
-    humanFollowups: b.humanFollowups || [],
-    ledger: b.ledger || null,
-    audit: b.audit || null,
-    routing: b.routing || [],
-    replied: (b.botReplies || []).length > 0,
+    m,
+    parent,
+    replyToBot: Boolean(parent?.ownBot),
+    context: contextLinesOf(m, { data }).join('\n'),
+    tag: data.tags.get(m.id) || null,
+    evidence: data.evidence.get(m.id) || null,
+    falive: { classified: b.classified || null, replies: faliveRepliesOf(m, { data }), humanFollowups: b.humanFollowups || [], ledger: b.ledger || null, audit: b.audit || null, routing: b.routing || [] },
+    lark: {
+      ...row.lark,
+      classReply: cls?.reply || null,
+      result: task?.result || task?.summary || null,
+      auditFinal: audit?.final ? `${audit.final.status || audit.status}；${audit.final.summary || ''}` : audit ? `${audit.status}（没有 final）` : null,
+    },
+    gold: null,
   }
-}
-const differs = (lark, falive) => lark.replied !== falive.replied || lark.decision !== falive.decision
-
-const describeTask = (lark) => {
-  if (lark.merged) return `并入了另一条消息的任务（${lark.merged.id}，终态 ${lark.merged.status}）`
-  if (!lark.task) return '没建任务（分类前就忽略，或根本没触发）'
-  const { task, cls } = lark
-  const parts = [`分类 ${cls ? `${cls.decision}/${cls.confidence}${cls.deliverable ? `·${cls.deliverable}` : ''}` : '（无）'}`, `终态 ${task.status}`]
-  if (cls?.reply) parts.push(`分类时的接话「${one(cls.reply, 200)}」`)
-  if (cls?.continues) parts.push(`续接任务 ${cls.continues}`)
-  if (task.result) parts.push(`结果：${one(task.result, 400)}`)
-  else if (task.summary) parts.push(`摘要：${one(task.summary, 200)}`)
-  return parts.join('；')
-}
-
-const schema = JSON.stringify({
-  type: 'object',
-  additionalProperties: false,
-  required: ['better', 'reason', 'larkIssue', 'idealBehavior'],
-  properties: {
-    better: { type: 'string', enum: ['lark-bot', 'falive', 'same', 'both_wrong'] },
-    reason: { type: 'string' },
-    larkIssue: { type: 'string', enum: ['none', 'missed', 'noisy', 'wrong_target', 'wrong_content', 'duplicate', 'stuck'] },
-    idealBehavior: { type: 'string' },
-  },
-})
-
-const buildPrompt = (m, lark, falive) => {
-  const principalDm = isPrincipalDm(m)
-  return `你是 aven（falive 前端负责人）的代理机器人的评审。下面是一条飞书消息，当时的机器人（falive）和现在的机器人（lark-bot，离线回放同一条输入）各给了一套反应。
-请结合消息原文、群里前文、以及事后信息（当时人接下来的反应、审计结论），判断哪一套更合适。
-判断标准：以 aven 的利益为准——该做的没做是漏（更差），不该做的去做了是扰民 / 浪费（更差），接话像不像一个正常同事、对不对得上前文，给出的结论 / 答案对不对。两边都合理就 same；都不对就 both_wrong。
-注意：lark-bot 是离线回放，外网环境是「现在」的，结论里若带了环境状态（如 503）不要据此扣分；评的是判断和接话，不是环境。
-${principalDm ? '这条是 aven 本人在 falive 控制台群说的话，回放里映射成了 aven 给 lark-bot 的私信——lark-bot 的回应就是「私信 aven」那一栏，没有群里回复是正常的。\n' : ''}
-【消息】${fmt(m.atMs)} ${principalDm ? '负责人私信' : `群「${m.chatName}」`} ${m.senderName}${m.isAven ? '（aven 本人，负责人）' : ''}${m.atBot ? ' @了机器人' : ''}${m.parentId && byId.get(m.parentId)?.ownBot ? ' 回复了机器人的消息' : ''}：
-${String(m.text).slice(0, 1500)}
-${m.parentId && byId.get(m.parentId) ? `【被回复的消息】${byId.get(m.parentId).senderName}${byId.get(m.parentId).ownBot ? '（bot）' : ''}：${one(byId.get(m.parentId).text, 400)}\n` : ''}
-【群里这条之前的消息】
-${contextOf(m) || '（无）'}
-
-【A：falive 当时】
-- 分类：${falive.classified ? `${falive.classified.decision}/${falive.classified.confidence || '-'}` : '（网关没分类）'}
-- bot 当时的回复（2 小时内，同群）：${falive.botReplies.length ? falive.botReplies.slice(0, 4).map((r) => `（${fmt(r.atMs)}）${one(r.text, 500)}`).join('\n  ') : '（没有）'}
-- 人接下来的反应（2 小时内）：${falive.humanFollowups.length ? falive.humanFollowups.slice(0, 4).map((r) => `（${fmt(r.atMs)}）${r.sender}：${one(r.text, 200)}`).join('\n  ') : '（没有）'}
-- 台账：${falive.ledger ? one(`${falive.ledger.decision}；${falive.ledger.excerpt || ''}`, 300) : '（无）'}
-- 审计结论：${falive.audit ? one(`${falive.audit.status} / ${falive.audit.workKind || ''}；${falive.audit.finalSummary || ''}`, 400) : '（无）'}
-- 网关路由：${falive.routing.length ? one(falive.routing.slice(0, 6).join(' | '), 500) : '（无）'}
-
-【B：lark-bot 这次模拟】
-- 任务：${describeTask(lark)}
-- 群里对这条的回复：${lark.replies.length ? lark.replies.slice(0, 4).map((r) => `（${fmt(r.at)}）${one(r.text, 600)}`).join('\n  ') : '（没有）'}
-- 私信 aven（2 小时内，可能含别的任务的）：${lark.dms.length ? lark.dms.slice(0, 4).map((r) => `（${fmt(r.at)}）${one(r.text, 300)}`).join('\n  ') : '（没有）'}
-- 审计结论：${lark.audit?.final ? one(`${lark.audit.final.status || lark.audit.status}；${lark.audit.final.summary || ''}`, 400) : lark.audit ? `${lark.audit.status}（没有 final）` : '（无）'}
-
-只输出 JSON：
-- better：lark-bot / falive / same / both_wrong
-- reason：一句话，≤60 字
-- larkIssue：lark-bot 这边的问题类型——none（没问题）/ missed（该接没接、该做没做）/ noisy（不该回却回了、不该做却做了、扰民）/ wrong_target（回错人 / 回错消息 / 该私信却发群）/ wrong_content（接话或结论内容不对）/ duplicate（重复回复 / 重复做）/ stuck（卡住没出结果：running / failed / 只回了「收到」）
-- idealBehavior：理想的做法，≤40 字`
 }
 
 const callJudge = async (prompt) => {
-  const child = spawn(join(dirname(fileURLToPath(import.meta.url)), 'claude-q'), ['-p', '--permission-mode', 'plan', '--tools', '', '--model', 'claude-opus-5-5', '--effort', 'high', '--strict-mcp-config', '--setting-sources', 'project', '--no-session-persistence', '--json-schema', schema, '--output-format', 'json', prompt], { cwd: replayRoot, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, SIM_ORIG_INTENT_MS: '1800000' } }) // 裁判也是 plan 模式：额度闸别按分类调用的 120 秒超时掐（max 强度要更久）
+  const child = spawn(join(dirname(fileURLToPath(import.meta.url)), 'claude-q'), ['-p', '--permission-mode', 'plan', '--tools', '', '--model', model, '--effort', effort, '--strict-mcp-config', '--setting-sources', 'project', '--no-session-persistence', '--json-schema', JSON.stringify(JUDGE_SCHEMA), '--output-format', 'json', prompt], { cwd: replayRoot, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, SIM_ORIG_INTENT_MS: '1800000' } }) // 裁判也是 plan 模式：额度闸别按分类调用的 120 秒超时掐（max 强度要更久）
   let out = ''
   let err = ''
   child.stdout.on('data', (c) => { out += c })
@@ -180,45 +90,84 @@ const callJudge = async (prompt) => {
   const code = await new Promise((resolve) => child.on('close', resolve))
   if (code !== 0) throw new Error(`claude exit ${code}: ${err.slice(0, 200)}`)
   const envelope = JSON.parse(out)
-  return envelope.structured_output ?? (typeof envelope.result === 'string' ? JSON.parse(envelope.result) : envelope.result)
+  const v = envelope.structured_output ?? (typeof envelope.result === 'string' ? JSON.parse(envelope.result) : envelope.result)
+  if (!BETTER.includes(v?.better) || !LARK_ISSUES.includes(v?.larkIssue)) throw new Error(`结论不合结构：${JSON.stringify(v).slice(0, 200)}`)
+  return { better: v.better, confidence: CONFIDENCE.includes(v.confidence) ? v.confidence : 'low', reason: v.reason || '', larkIssue: v.larkIssue, cause: CAUSES.includes(v.cause) ? v.cause : 'bot', idealBehavior: v.idealBehavior || '' }
 }
 
-// —— 待判队列 ——
-// --score-from：分段并行时热身那天只为留状态、不计分（docs/falive-replay-plan-2026-11-03.md 39）
-const scoreFromMs = value('--score-from', null) ? Date.parse(value('--score-from', null)) : 0
-const triggered = fed.map((id) => byId.get(id)).filter(isTrigger).filter((m) => m.atMs >= scoreFromMs)
-let queue = triggered
-  .map((m) => ({ m, lark: larkSideOf(m), falive: faliveSideOf(m) }))
-  .filter(({ m, lark, falive }) => !done.has(m.id) && (all || differs(lark, falive)))
-if (limit) queue = queue.slice(0, limit)
-console.log(`[judge-sim] sim=${simName} 喂了 ${fed.length} 条，触发 bot ${triggered.length} 条，待判 ${queue.length} 条（已判 ${done.size}${all ? '' : '，只判有差异的'}）`)
-
-let index = 0
-const worker = async () => {
-  while (index < queue.length) {
-    const { m, lark, falive } = queue[index++]
-    try {
-      const verdict = await callJudge(buildPrompt(m, lark, falive))
-      const line = {
-        id: m.id,
-        sim: simName,
-        at: new Date(m.atMs).toISOString(),
-        chatKey: m.chatKey,
-        sender: m.senderName,
-        text: one(m.text, 120),
-        ...verdict,
-        falive: `${falive.decision}${falive.replied ? '，回了' : '，没回'}`,
-        larkBot: `${lark.decision}${lark.task ? `/${lark.task.status}` : ''}${lark.replied ? '，回了' : '，没回'}`,
-      }
-      appendFileSync(outPath, `${JSON.stringify(line)}\n`)
-      console.log(`[judge-sim] ${m.id} ${verdict.better} / ${verdict.larkIssue}：${verdict.reason}`)
-    } catch (error) {
-      console.error(`[judge-sim] ${m.id} 失败：${String(error.message).slice(0, 200)}`)
+// —— 规则预判 + 分流 ——
+const perSim = []
+const queue = []
+const counts = { cases: 0, pending: 0, cache: 0, gold: 0, model: 0, failed: 0 }
+for (const entry of sims) {
+  const sim = loadSim(entry)
+  const { rows } = computeSimRules({ sim, data, scoreFromMs })
+  writeFileSync(join(sim.dir, 'rules.jsonl'), rows.map((r) => JSON.stringify(r)).join('\n') + (rows.length ? '\n' : ''))
+  // --ids / --limit 只判一部分时，别把这个目录里其余 case 的结论（同一提示版本、同一指纹）冲掉
+  const rowFp = new Map(rows.map((r) => [r.id, r.fingerprint]))
+  const kept = readJsonl(join(sim.dir, 'judge.jsonl')).filter((l) => rowFp.get(l.id) === l.fingerprint && l.promptVersion === JUDGE_PROMPT_VERSION)
+  const slot = { sim, lines: new Map(onlyIds || limit ? kept.map((l) => [l.id, l]) : []) }
+  perSim.push(slot)
+  for (const row of rows) {
+    if (onlyIds && !onlyIds.has(row.id)) continue
+    counts.cases += 1
+    const m = data.byId.get(row.id)
+    const base = {
+      id: row.id, sim: sim.label, episode: row.episode, at: row.at, chatKey: row.chatKey, sender: m.senderName, text: one(m.text, 120),
+      risk: row.risk, kind: row.kind, pending: row.pending, promptVersion: JUDGE_PROMPT_VERSION, fingerprint: row.fingerprint,
+      falive: `${row.falive.decision || '（没分类记录）'}${row.falive.replied ? '，回了' : '，没回'}`,
+      larkBot: `${row.lark.decision}${row.lark.status ? `/${row.lark.status}` : ''}${row.lark.replied ? '，回了' : '，没回'}`,
+      flags: row.flags,
     }
+    if (printPrompt === row.id) { const ctx = buildJudgeContext({ m, sim, row }); ctx.gold = gold?.get(row.id) && gold.get(row.id).reviewedFingerprint !== row.fingerprint ? gold.get(row.id) : null; console.log(buildJudgePrompt(ctx)) }
+    if (row.pending) { counts.pending += 1; slot.lines.set(row.id, { ...base, better: 'pending', reason: '「已部署」→ 自动复测链路，待办不计分（design-v2 §7）', source: 'rule' }); continue }
+    const g = gold?.get(row.id) || null
+    if (g && g.reviewedFingerprint === row.fingerprint) { // 金标准不是缓存，--all 也沿用
+      counts.gold += 1
+      slot.lines.set(row.id, { ...base, better: g.better, confidence: 'high', reason: `金标准（${g.by === 'aven' ? 'aven 审过' : '定稿裁判'}同一输出）`, larkIssue: g.larkIssue || 'none', cause: g.cause || 'n/a', idealBehavior: g.ideal || '', effort: g.effort || null, source: 'gold', ref: 'gold' })
+      continue
+    }
+    const ref = g ? goldRefOf(g) : 'none'
+    const hit = all ? null : lookupVerdict({ id: row.id, fingerprint: row.fingerprint, promptVersion: JUDGE_PROMPT_VERSION, ref, effort })
+    if (hit) { counts.cache += 1; slot.lines.set(row.id, { ...base, ...hit.verdict, effort: hit.effort, source: 'cache', ref }); continue }
+    queue.push({ slot, m, row, base, gold: g, ref })
   }
 }
-await Promise.all(Array.from({ length: Math.max(1, concurrency) }, worker))
+const toJudge = limit ? queue.slice(0, limit) : queue
+console.log(`[judge-sim] ${sims.length} 个 sim 目录，case ${counts.cases}：待办不计分 ${counts.pending}，沿用缓存 ${counts.cache}，沿用金标准 ${counts.gold}，要送模型 ${queue.length}${limit ? `（本次只判 ${toJudge.length}）` : ''}（提示 ${JUDGE_PROMPT_VERSION}/${promptHashNow}，effort ${effort}${all ? '，--all 无视缓存' : ''}${gold ? '，对照金标准' : ''}）`)
+if (dry) {
+  for (const j of toJudge) console.log(`  待判 ${j.base.sim} ${j.row.id} ${j.row.fingerprint} ${j.row.flags.join(',')} ${j.base.text.slice(0, 60)}`)
+  process.exit(0)
+}
 
-const allRows = readJsonl(outPath)
-const count = (key) => allRows.reduce((acc, r) => ({ ...acc, [r[key]]: (acc[r[key]] || 0) + 1 }), {})
-console.log(`[judge-sim] 汇总（${allRows.length} 条）：better=${JSON.stringify(count('better'))} larkIssue=${JSON.stringify(count('larkIssue'))}`)
+let index = 0
+await Promise.all(Array.from({ length: Math.max(1, concurrency) }, async () => {
+  while (index < toJudge.length) {
+    const job = toJudge[index++]
+    try {
+      const ctx = buildJudgeContext({ m: job.m, sim: job.slot.sim, row: job.row })
+      ctx.gold = job.gold
+      const verdict = await callJudge(buildJudgePrompt(ctx))
+      storeVerdict({ id: job.row.id, fingerprint: job.row.fingerprint, promptVersion: JUDGE_PROMPT_VERSION, ref: job.ref, effort, model, verdict, sim: job.base.sim })
+      job.slot.lines.set(job.row.id, { ...job.base, ...verdict, effort, source: 'model', ref: job.ref })
+      counts.model += 1
+      console.log(`[judge-sim] ${job.row.id} ${verdict.better}/${verdict.confidence} ${verdict.larkIssue}·${verdict.cause}：${verdict.reason}`)
+    } catch (error) {
+      counts.failed += 1
+      console.error(`[judge-sim] ${job.row.id} 失败：${String(error.message).slice(0, 200)}`)
+    }
+  }
+}))
+
+const allLines = []
+for (const { sim, lines } of perSim) {
+  const out = [...lines.values()].sort((a, b) => a.at.localeCompare(b.at))
+  allLines.push(...out)
+  writeFileSync(join(sim.dir, 'judge.jsonl'), out.map((l) => JSON.stringify(l)).join('\n') + (out.length ? '\n' : ''))
+}
+const count = (key, rows) => rows.reduce((acc, r) => ({ ...acc, [r[key]]: (acc[r[key]] || 0) + 1 }), {})
+const scored = allLines.filter((l) => l.better !== 'pending')
+console.log(`[judge-sim] 汇总（计分 ${scored.length} 条；本次送模型 ${counts.model}、失败 ${counts.failed}）：better=${JSON.stringify(count('better', scored))} confidence=${JSON.stringify(count('confidence', scored))} larkIssue=${JSON.stringify(count('larkIssue', scored))} source=${JSON.stringify(count('source', allLines))}`)
+const pending = allLines.filter((l) => l.better === 'pending')
+if (pending.length) console.log(`[judge-sim] 待办不计分 ${pending.length} 条：${pending.map((l) => `${l.id.slice(-8)}「${l.text.slice(0, 20)}」`).join('；')}`)
+if (counts.failed) process.exitCode = 1
