@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * 按事件组跑一轮回放（docs/falive-replay-design-v2.md §2、§8 P0-d；取代按天切段的 run-round.sh / run-days.sh）：
- *   node scripts/sim/run-episodes.mjs --round <轮> [--only ep-…,ep-…] [--max-parallel N] [--port-base 3200] [--no-guard]
+ *   node scripts/sim/run-episodes.mjs --round <轮> [--only ep-…,ep-…] [--max-parallel N] [--port-base 3200] [--no-guard] [--ai-cache] [--no-judge]
+ *   --ai-cache 透传给 run-sim（claude 调用录放，scripts/sim/claude-cache.mjs；SIM_AI_CACHE_HIT_DELAY 等环境变量照常继承）。
  * 每组 = 一个独立的 lark-bot 实例（网关 + worker），目录 runtime/falive-replay/sim/<轮>/<组>/：从组里第一条 case 前 30 分钟起，
  * 只喂本组的 case，到最后一条之后 bot 没动静、再让虚拟时间走 5 小时（逾期义务 / 催办）为止。跨天的组按 UTC 天切段，
  * 每段一次 run-sim（共用同一个 sim 目录：任务 / 义务 / 发件簿延续；每天重钉业务仓基线，同 run-days）。
@@ -10,7 +11,7 @@
  * 调度：最长的组先跑（case 数、跨度），同时最多 --max-parallel 组（默认见 DEFAULT_PARALLEL，按 P0-e 实测内存定）；
  * 起跑前预检（preflight.mjs）、防睡眠（caffeinate）、止损守卫（round-guard.mjs）；额度闸 claude-q 由 run-sim 的环境接上。
  * 每组跑完做出网审计（egress-audit.mjs → <组>/egress-summary.json）；全部跑完出总账 replay/falive/rounds/<轮>/report.md。
- * 裁判不在这里跑（P0-g 定规则预判 + 冻结裁判提示后再接）。
+ * 每组跑完接着裁判：judge-sim --dir <组目录>（规则预判 + 按输出指纹缓存，只判变了的）→ <组>/judge.jsonl、judge.out；--no-judge 不判。
  */
 import { spawn, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
@@ -22,7 +23,7 @@ import { fileURLToPath } from 'node:url'
 import { auditEgress } from './egress-audit.mjs'
 import { casesDir, datasetDir, replayRoot, roundsDir } from './falive-data.mjs'
 
-// P0-e（11-04）：3 组并发实测每组进程树峰值见 docs/falive-replay-plan-2026-11-03.md 47；16G 留 3G 余量
+// P0-e（11-04）：小组实测单组进程树峰值见 docs/falive-replay-plan-2026-11-03.md 49；16G 留 3G 余量
 export const DEFAULT_PARALLEL = 4
 const here = dirname(fileURLToPath(import.meta.url))
 const repo = dirname(dirname(here))
@@ -46,7 +47,7 @@ const log = (line) => {
 // 都取 HEAD 的 git tree（预检已保证这些路径没有未提交改动）；裁判 / 报表脚本不进指纹（改了不影响 bot 的输出）。
 const FINGERPRINT_PATHS = ['lib', 'lark-gateway.mjs', 'lark-worker.mjs', 'runtime/lark-worker.mjs', 'tools', 'replay/falive/dataset', 'replay/falive/raw', 'replay/falive/episodes.json',
   'scripts/sim/run-sim.mjs', 'scripts/sim/fake-lark-cli.mjs', 'scripts/sim/lark-cli', 'scripts/sim/virtual-clock.mjs', 'scripts/sim/falive-data.mjs', 'scripts/sim/claude-quota.mjs', 'scripts/sim/claude-q',
-  'scripts/sim/egress', 'scripts/sim/egress-hook.mjs', 'scripts/sim/egress-log.mjs', 'scripts/sim/proc-sampler.mjs']
+  'scripts/sim/egress', 'scripts/sim/egress-hook.mjs', 'scripts/sim/egress-log.mjs', 'scripts/sim/proc-sampler.mjs', 'scripts/sim/claude', 'scripts/sim/claude-cache.mjs']
 export const codeFingerprint = () => {
   const trees = FINGERPRINT_PATHS.map((p) => {
     const out = spawnSync('git', ['-C', repo, 'rev-parse', `HEAD:${p}`], { encoding: 'utf8' })
@@ -82,7 +83,7 @@ const main = async () => {
   const pre = spawnSync('node', [join(here, 'preflight.mjs'), '--round', round, '--md', join(outDir, 'preflight.md')], { cwd: repo, stdio: 'inherit' })
   if (pre.status !== 0) { log(`PREFLIGHT-FAIL ${round}（见 replay/falive/rounds/${round}/preflight.md）`); process.exit(1) }
   const fingerprint = codeFingerprint()
-  const head = spawnSync('git', ['-C', repo, 'log', '-1', '--format=%h %s'], { encoding: 'utf8' }).stdout.trim()
+  const head = spawnSync('git', ['-C', repo, 'log', '-1', '--format=%h %s'], { encoding: 'utf8' }).stdout.trim().slice(0, 60)
   const branch = spawnSync('git', ['-C', repo, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8' }).stdout.trim()
   const roundMetaPath = join(roundDir, 'round.json')
   const roundMeta = existsSync(roundMetaPath) ? JSON.parse(readFileSync(roundMetaPath, 'utf8')) : null
@@ -123,7 +124,7 @@ const main = async () => {
 
   const runSegment = (g, seg, port) => new Promise((resolve) => {
     const dir = join(roundDir, g.id)
-    const argv = [join(here, 'run-sim.mjs'), '--sim', `${round}/${g.id}`, '--episode', g.id, '--from', seg.from, '--to', seg.to, '--port', String(port), '--conc', '3', '--max-wait-min', '40', ...(seg.tailTo ? ['--tail-to', seg.tailTo] : [])]
+    const argv = [join(here, 'run-sim.mjs'), '--sim', `${round}/${g.id}`, '--episode', g.id, '--from', seg.from, '--to', seg.to, '--port', String(port), '--conc', '3', '--max-wait-min', '40', ...(seg.tailTo ? ['--tail-to', seg.tailTo] : []), ...(args.includes('--ai-cache') ? ['--ai-cache'] : [])]
     const out = openSync(join(dir, 'run.out'), 'a')
     const child = spawn('node', argv, { cwd: repo, stdio: ['ignore', out, out] })
     running.add(child)
@@ -149,6 +150,11 @@ const main = async () => {
     const done = { fingerprint, head, finishedAt: new Date().toISOString(), realMin: Math.round((Date.now() - started) / 6000) / 10, segments, memPeakMb: mem.rssMb ?? null, egress: { violations: egress.violations.length, review: egress.review.length } }
     writeFileSync(join(dir, 'DONE'), JSON.stringify(done, null, 1))
     log(`完成 ${g.id}：${done.realMin} 分钟，内存峰值 ${done.memPeakMb}MB，出网违规 ${egress.violations.length} / 待核 ${egress.review.length}`)
+    if (!args.includes('--no-judge')) {
+      const out = openSync(join(dir, 'judge.out'), 'a')
+      const code = await new Promise((resolve) => spawn('node', [join(here, 'judge-sim.mjs'), '--dir', dir, '--conc', '2'], { cwd: repo, stdio: ['ignore', out, out] }).on('exit', (c) => resolve(c ?? 1)))
+      log(`裁判 ${g.id}：${code === 0 ? '完成' : `退出 code=${code}（看 judge.out）`}`)
+    }
     return { id: g.id, ok: true }
   }
 

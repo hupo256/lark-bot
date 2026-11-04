@@ -11,7 +11,7 @@ import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs
 import { lookup } from 'node:dns/promises'
 import { join } from 'node:path'
 
-import { noteEgress } from './egress-log.mjs'
+import { LOCAL_HOST_RE, noteEgress } from './egress-log.mjs'
 
 // 放行主机里能解析的那几个（通配的子域名靠 egress-audit 的 IP 段 / 反查兜）
 export const RESOLVE_HOSTS = ['api.anthropic.com', 'statsig.anthropic.com', 'claude.ai', 'console.anthropic.com', 'falivepre.fdsser.com', 'faliveuat.fdsser.com', 'streampre.fdsser.com', 'falivego.fdsser.com', 'www.falive.com', 'falive.com']
@@ -72,11 +72,11 @@ export const startSampler = ({ simDir, rootPid = process.pid, intervalMs = 5000,
         if (!name) continue
         const remote = name.split('->')[1]
         const m = /^\[?([^\]]+?)\]?:(\d+)$/.exec(remote)
-        if (!m) continue
+        if (!m || LOCAL_HOST_RE.test(m[1])) continue // 本机连接（网关、vite）不记：本来就放行，记了全是临时端口
         const key = `${cols[0]} ${m[1]}:${m[2]}`
         if (seenSock.has(key)) continue
         seenSock.add(key)
-        noteEgress({ via: 'sock', method: 'TCP', url: `tcp://${m[1].includes(':') ? `[${m[1]}]` : m[1]}:${m[2]}/`, extra: cols[0] })
+        noteEgress({ via: 'sock', method: 'TCP', url: `tcp://${m[1].includes(':') ? `[${m[1]}]` : m[1]}:${m[2]}/`, extra: cols[0], dir: simDir })
       }
     }
   }

@@ -360,6 +360,19 @@ for (const [index, m] of events.entries()) {
   }
   virtualNow = Math.max(clockNow(), m.atMs)
   const event = toSimEvent(m, { botOpenId: BOT_OPEN_ID })
+  // 组内的人回复的是 falive 对组内 case 说的话（本次模拟里那句由模拟 bot 说、id 不同，原 id 的消息 bot 认不出是自己的 → 网关当成没 @ 的群聊丢掉；
+  // P0-d 冒烟 ep-1029「cc @HQUCEncone」就这样没接住）：改成回复模拟 bot 在同群（私信）里对本组 case 说的最近一句，记 remap.jsonl。
+  if (episode && m.parentId && (meta?.hideBotIds || episode.faliveBotIds || []).includes(m.parentId)) {
+    const sent = existsSync(join(simDir, 'sent.json')) ? JSON.parse(readFileSync(join(simDir, 'sent.json'), 'utf8')) : []
+    const target = sent.filter((s) => s.chat_id === event.chat_id && (s.parent_id ? caseSet.has(s.parent_id) : event.chat_type === 'p2p') && Number(s.create_time) <= clockNow()).at(-1)
+    if (target) {
+      Object.assign(event, { reply_to: target.message_id, root_id: target.root_id || target.message_id })
+      if (target.thread_id) event.thread_id = target.thread_id
+      else delete event.thread_id
+      appendFileSync(join(simDir, 'remap.jsonl'), `${JSON.stringify({ caseId: m.id, faliveParent: m.parentId, simParent: target.message_id, simThread: target.thread_id || null })}\n`)
+      log(`${m.id} 回复的是 falive 对组内 case 的原话 ${m.parentId}：改成回复模拟 bot 的 ${target.message_id}`)
+    } else log(`${m.id} 回复的是 falive 对组内 case 的原话 ${m.parentId}，模拟 bot 在这里还没说过话：原样喂（多半接不住，裁判标模拟局限）`)
+  }
   appendFileSync(join(simDir, 'events.ndjson'), `${JSON.stringify(event)}\n`)
   fed.add(m.id)
   writeFileSync(fedPath, JSON.stringify([...fed]))

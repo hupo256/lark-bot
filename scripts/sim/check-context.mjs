@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * 冒烟核对：bot 实际看到的上下文 = 原始群聊（docs/falive-replay-design-v2.md §8 P0-d 验收、§9「冒烟」）。
- *   node scripts/sim/check-context.mjs --sim <轮>/<组> [--json]        或   --round <轮>（该轮全部组）
+ *   node scripts/sim/check-context.mjs --round <轮> | --sim <轮>/<组> | --dir <路径> [--json]
+ * 组内的人回复 falive 对组内 case 的原话时，run-sim 把回复目标改成模拟 bot 那句（remap.jsonl），这里按改后的父消息核。
  * 对组里每条 case，拿 sim 的 runtime/lark-tasks/<case>.json（网关建任务时的上下文包：task.text / task.attachments）
  * 和「原始群聊」逐条对：
  *   期望 = 时间线（replay/falive/dataset，群里当时真有的消息，与假 CLI 的供数逻辑无关地重算）：
@@ -17,7 +18,8 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { applyRecentWindow, parseFetchedMessage, pickRecentContext, pickThreadContext, RECENT_CONTEXT_HOURS } from '../../lib/lark-chat-context.mjs'
-import { AVEN_OPEN_ID, BOT_APP_ID, GROUPS, rawDir, replayRoot } from './falive-data.mjs'
+import { AVEN_OPEN_ID, BOT_APP_ID, GROUPS, rawDir } from './falive-data.mjs'
+import { listSimDirs, simSelectorFromArgs } from './sim-dir.mjs'
 
 const BOT_OPEN_ID = 'ou_e331d79d4491e64b7bba89bb4e3b5e43' // run-sim 配置的 botOpenId
 const WEBHOOK_CHAT_ID = GROUPS.find((g) => g.key === 'webhook-group').chatId
@@ -51,7 +53,7 @@ const asItem = (m) => ({
 })
 const recentLine = (item) => `${item.sender || ''}${item.time ? `（${item.time}）` : ''}${item.sender || item.time ? '：' : ''}${item.text}`
 const threadLine = (item) => `${item.sender ? `${item.sender}：` : ''}${item.text}`
-const flat = (s) => String(s || '').replace(/<[^>]+>/g, '').replace(/@\S+/g, '').replace(/\s+/g, '')
+const flat = (s) => String(s || '').replace(/<[^>]+>/g, '').replace(/@[\w.-]+/g, '').replace(/[\s@]+/g, '')
 const short = (s, n = 50) => String(s || '').replace(/\s+/g, ' ').slice(0, n)
 
 export const checkEpisode = (simDir) => {
@@ -63,11 +65,14 @@ export const checkEpisode = (simDir) => {
   const tasksDir = join(simDir, 'runtime', 'lark-tasks')
   const tasks = existsSync(tasksDir) ? readdirSync(tasksDir).filter((f) => f.endsWith('.json')).map((f) => readJson(join(tasksDir, f))).filter(Boolean) : []
   const botOpenIds = [BOT_OPEN_ID, BOT_APP_ID]
+  const remap = new Map((existsSync(join(simDir, 'remap.jsonl')) ? readFileSync(join(simDir, 'remap.jsonl'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []).map((x) => [x.caseId, x]))
   const results = []
   for (const caseId of meta.caseIds || []) {
-    const m = byId.get(caseId)
+    const remapped = remap.get(caseId)
+    const m = remapped ? { ...byId.get(caseId), parentId: remapped.simParent, threadId: remapped.simThread } : byId.get(caseId)
     const r = { caseId, at: new Date(m.atMs).toISOString().slice(5, 16), chat: m.chatKey, sender: m.senderName, text: short(m.text, 40), problems: [], notes: [] }
     results.push(r)
+    if (remapped) r.notes.push(`回复的 falive 原话 ${remapped.faliveParent.slice(-6)} 换成模拟 bot 的 ${remapped.simParent}`)
     let task = tasks.find((t) => t.id === caseId)
     if (!task) {
       const host = tasks.find((t) => flat(t.text).includes(flat(m.text).slice(0, 20)))
@@ -139,13 +144,12 @@ export const checkEpisode = (simDir) => {
 }
 
 const main = () => {
-  const round = value('--round', null)
-  const sims = value('--sim', null) ? [value('--sim', null)] : round ? readdirSync(join(replayRoot, 'sim', round), { withFileTypes: true }).filter((d) => d.isDirectory() && existsSync(join(replayRoot, 'sim', round, d.name, 'meta.json'))).map((d) => `${round}/${d.name}`) : []
-  if (!sims.length) throw new Error('--sim <轮>/<组> 或 --round <轮>')
+  const sims = listSimDirs(simSelectorFromArgs(args)).filter((e) => e.episodeId)
+  if (!sims.length) throw new Error('--round <轮> | --sim <轮>/<组> | --dir <路径>（只认按事件组跑的目录）')
   let bad = 0
   const all = []
-  for (const sim of sims) {
-    const res = checkEpisode(join(replayRoot, 'sim', sim))
+  for (const { dir, label: sim } of sims) {
+    const res = checkEpisode(dir)
     all.push({ sim, cases: res })
     console.log(`## ${sim}`)
     for (const r of res) {

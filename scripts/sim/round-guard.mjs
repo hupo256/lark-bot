@@ -8,23 +8,21 @@
  *   最后写入时间（组里只喂几条 case，收尾等空闲也可能半小时不喂；单次 claude 调用最长 30 分钟，见 claude-quota SIM_ORIG_TOTAL_MS）。
  *   node scripts/sim/round-guard.mjs --round r11 --pid <run-episodes / run-round 的 pid> [--once]
  */
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync, mkdirSync } from 'node:fs'
+import { existsSync, readFileSync, statSync, writeFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
 import { replayRoot, roundsDir } from './falive-data.mjs'
 import { pausedUntil } from './claude-quota.mjs'
+import { listSimDirs } from './sim-dir.mjs'
 
 const args = process.argv.slice(2)
 const value = (name, fallback) => (args.includes(name) ? args[args.indexOf(name) + 1] : fallback)
 const round = value('--round', null)
 const pid = value('--pid', null)
 const simRoot = join(replayRoot, 'sim')
-const episodeRoot = join(simRoot, round)
-// 按组跑：sim/<轮>/ 下每个有 meta.json 的子目录是一组；按天跑（旧）：sim/<轮>-<段>/
-const units = () => existsSync(join(episodeRoot, 'round.json'))
-  ? readdirSync(episodeRoot, { withFileTypes: true }).filter((d) => d.isDirectory() && existsSync(join(episodeRoot, d.name, 'meta.json'))).map((d) => ({ name: d.name, dir: join(episodeRoot, d.name), episode: true }))
-  : readdirSync(simRoot).filter((d) => d.startsWith(`${round}-`) && !d.includes('.')).map((d) => ({ name: d, dir: join(simRoot, d), episode: false })) // 存档点 <段>.ckpt / 日志 <段>.run-days.out 不算段
+// 两种布局都认（sim-dir.mjs）：按组 sim/<轮>/<组>/、按天 sim/<轮>-<段>/（存档点 <段>.ckpt、日志不算段）；喂过第一条才算开跑
+const units = () => listSimDirs({ round }).map((e) => ({ name: e.label, dir: e.dir, episode: Boolean(e.episodeId) }))
 const PROGRESS_FILES = ['sim.log', 'gateway.log', 'worker.log', 'cli-calls.log', 'outbox.jsonl']
 const lastProgress = (dir) => Math.max(0, ...PROGRESS_FILES.map((f) => (existsSync(join(dir, f)) ? statSync(join(dir, f)).mtimeMs : 0)))
 const fed = new Map()

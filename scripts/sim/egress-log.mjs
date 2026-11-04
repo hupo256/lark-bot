@@ -14,8 +14,8 @@ import { realpathSync } from 'node:fs'
 const realNow = () => Math.round(performance.timeOrigin + performance.now()) // 不用 Date：gateway / worker 里 Date 是虚拟时钟
 export const LOCAL_HOST_RE = /^(?:127(?:\.\d{1,3}){3}|localhost|::1|\[::1\]|0\.0\.0\.0)$/i
 
-export const noteEgress = ({ via, method = 'GET', url, extra = null }) => {
-  const dir = process.env.SIM_DIR
+// dir：默认 SIM_DIR（壳 / 预载都在 bot 进程里，继承得到）；run-sim 自己的采样器不在那个环境里，显式传 simDir（P0-d 冒烟漏记的就是这个）。
+export const noteEgress = ({ via, method = 'GET', url, extra = null, dir = process.env.SIM_DIR }) => {
   if (!dir) return
   let u = null
   try { u = new URL(/^[a-z][\w+.-]*:\/\//i.test(url) ? url : `http://${url}`) } catch { u = null }
