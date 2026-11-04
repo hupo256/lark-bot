@@ -235,3 +235,8 @@
    - b1：`node scripts/sim/run-episodes.mjs --round b1 --max-parallel 4 --ai-cache --port-base 3400`（指纹 d68f7c9957f5），最长先跑。**b1 跑完之前 latest 的 lib / 入口 / 模拟器文件都不能改**（一轮只许一版代码；只提交 docs）。
    - p4a（lark/falive-p4a）修分类：L1 分歧里 high 错 / 都错的、冒烟里的多余插话、「请马上修掉」边界题；p4b（lark/falive-p4b）修实测照搬旧结论不复测。两者都等 b1 跑完再合，再只重跑受影响的组。
    - 校准查出合并交互 bug：p0d 把 webhook 群（aven 控制台）在假 CLI 里归成「aven 的私信」，falive 按原群号轮询一条都拉不到（ep-1028-03cd66 两条「已部署」没接）。修在新 worktree `~/github/lark-bot-cal`（lark/falive-cal）：按群号来拉时按私信取、还原群号，模拟里 falive 自己发进群的也照列；校准改从这个 worktree 跑，结果在它的 `replay/falive/calibration/`，完了合回 latest（b1 之后）。受影响的两组作废重跑。
+53. **11-04 p4a / p4b 完成（分支待 b1 后合）+ L1 时间泄漏**
+   - p4b（lark/falive-p4b）：代答说到环境现状也要本轮只读实测，旧结论不当现状；探测只打配置里的环境（aven 定），上游只转述。复跑 ep-1029-f09207：falive 更好 → lark-bot 更好，出网 0 违规。
+   - p4a（lark/falive-p4a，1ac907c / bae5cfb）：线上真问题 2 个——正文 @ 别人被归一剥掉，跟同事说话被当成对 bot 说（含「cc @HQUCEncone」插话）；「确认一下，请马上修掉」边界题。另查出 **L1 回放工具时间泄漏**：拼话题回复没按时间截，85/285 条能看到之后的回复（「编造事实」其实是看到了未来）；「继续任务」等固定指令线上不过分类器、回放却送分类。L1 重跑 62 条变化裁判：新 46 / 旧 7（无系统性回退）/ 一样 8 / 都错 1；回归集 56/56。
+   - 因泄漏，**之前 low / high 结论（据此改 high）要重确认**：v4 用 p4a 修好的回放 + 新提示，285 条 low / high 各一遍再判分歧（进行中）。
+   - 新派 p4c（lark/falive-p4c）：挂起任务卡下同事闲聊被控制通道当补料直接续跑（不经分类器）。
