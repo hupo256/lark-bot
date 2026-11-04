@@ -421,6 +421,10 @@ describe('createTaskStore', () => {
     store.upsert({ id: 'm-blocked', status: 'blocked', rerunAfterDone: true, priorConclusion: otherPrior, createdAt: '2026-01-01T00:00:00Z' })
     const blocked = store.requeueMergedFollowUp('m-blocked')
     assert.deepEqual([blocked?.status, blocked?.priorConclusion], ['queued', otherPrior], '挂起态也回队；这轮没结论留原背景')
+    // 重跑那轮回给并进来的那条（b4 ep-1023-9f0fd7 e39f13a4：主流的提问，重跑结论发进了话题）
+    store.upsert({ id: 'm-main', status: 'done', rerunAfterDone: true, operator: 'ou_a', operatorName: 'Ace', replyTarget: { messageId: 'om_t', inThread: true }, threadRootId: 'om_root', rerunReplyTo: { operator: 'ou_b', replyTarget: { messageId: 'om_main', inThread: false } }, createdAt: '2026-01-01T00:00:00Z' })
+    const main = store.requeueMergedFollowUp('m-main')
+    assert.deepEqual([main.replyTarget, main.operator, main.operatorName, main.threadRootId, main.rerunReplyTo], [{ messageId: 'om_main', inThread: false }, 'ou_b', null, 'om_root', undefined])
     store.upsert({ id: 'm-running', status: 'running', rerunAfterDone: true, createdAt: '2026-01-01T00:00:00Z' })
     store.upsert({ id: 'm-verifying', status: 'verifying', rerunAfterDone: true, createdAt: '2026-01-01T00:00:00Z' })
     store.upsert({ id: 'm-false', status: 'done', rerunAfterDone: false, createdAt: '2026-01-01T00:00:00Z' })

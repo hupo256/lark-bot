@@ -371,6 +371,8 @@ describe('对话层：契约、入队门槛、分类落态、归并', () => {
         { name: 'received → appended', into: fresh('received'), mode: 'appended', after: (into) => assert.equal(into.status, 'received') },
         { name: 'running → rerun_after_done', into: fresh('running'), mode: 'rerun_after_done', after: (into) => { assert.equal(into.rerunAfterDone, true); assert.equal(into.status, 'running') } },
         { name: 'verifying → rerun_after_done', into: fresh('verifying'), mode: 'rerun_after_done' },
+        // b4 ep-1023-9f0fd7 e39f13a4：主流里问并进话题里在跑的单——这轮结论照旧回话题，重跑那轮的回复目标 / 提问人记下来等回队时换
+        { name: 'running + 来源在主流 → rerun_after_done：回复目标记进 rerunReplyTo、这轮不动', into: fresh('running', { operator: 'ou_a', replyTarget: { messageId: 'om_t', inThread: true }, threadRootId: 'om_root' }), source: from({ operator: 'ou_b', operatorName: 'Arthur', replyTarget: { messageId: 'om_main', inThread: false } }), mode: 'rerun_after_done', after: (into) => assert.deepEqual([into.replyTarget, into.operator, into.rerunReplyTo], [{ messageId: 'om_t', inThread: true }, 'ou_a', { operator: 'ou_b', operatorName: 'Arthur', replyTarget: { messageId: 'om_main', inThread: false } }]) },
         // falive 回放 b2 ep-1014-d74f19：在跑时「这也麻烦在测试下」「麻烦在看看 有没有问题」各打一次 rerunAfterDone，群里 4 分钟连发 3 条几乎一样的结论。
         // 只是催 / 重复同一个请求 → 不欠一轮，这轮结论顺带答它（answerFor）；结论刚送达、它发在送达之前 → 不重开（answered_before）
         { name: 'running + 只是催 → nudge_running：不打 rerunAfterDone，记 answerFor', into: fresh('running', { answerFor: ['old'] }), source: nudge(), mode: 'nudge_running', after: (into) => assert.deepEqual([into.rerunAfterDone, into.answerFor, into.status, into.epoch], [undefined, ['old', 'from'], 'running', 2]) },
