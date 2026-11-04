@@ -1,0 +1,1 @@
+0a07029 fix(worker): 环境探测只打配置里的环境地址，上游 / 合作方只转述（aven 11-04 出 lark/falive-p4b 指纹 3c585ecbdc92
