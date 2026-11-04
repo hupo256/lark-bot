@@ -18,9 +18,12 @@ import { pathToFileURL } from 'node:url'
 import { AVEN_OPEN_ID, GROUPS } from './falive-data.mjs'
 import { WEBHOOK_CHAT_KEY, casesOfSim, loadJudgeData } from './judge-data.mjs'
 import { listSimDirs, loadSim, simSelectorFromArgs } from './sim-dir.mjs'
+import { loadSimLimitSources, simLimitsOf } from './sim-limits.mjs'
+
+export { refMissing } from './sim-limits.mjs'
 
 export const FOLLOW_MS = 2 * 60 * 60_000
-export const RULES_VERSION = 'rules-v1-1104'
+export const RULES_VERSION = 'rules-v2-1104' // v2：模拟局限旗标 6 类（sim-limits.mjs），行里多 simLimits: [{ flag, why }]
 const WEBHOOK_CHAT_ID = GROUPS.find((g) => g.key === WEBHOOK_CHAT_KEY)?.chatId
 const NOT_CONCLUDED = new Set(['received', 'queued', 'ready', 'running', 'verifying', 'failed', 'intake_failed'])
 
@@ -146,15 +149,6 @@ export const faliveFacts = ({ m, baseline }) => {
   }
 }
 
-/** 模拟局限（11-04 b2）：aven 的「继续任务 / 结单 / 结束 <id>」点名的任务在这个模拟里不存在——那是 falive 当时自己建的任务（常是没 @ bot 的消息、
- *  或别的事件组），lark-bot 真跑时 aven 会点它自己的任务号；这条的对错不该算到 lark-bot 头上。点了 id、id 不在模拟的任务库里才算。 */
-export const refMissing = (m, sim) => {
-  const text = String(m.text || '')
-  if (!/继续任务|结单|结束|取消任务|重开/.test(text)) return false
-  const ids = [...text.matchAll(/om_x[0-9a-f]{20,}/g)].map((x) => x[0]).filter((id) => id !== m.id)
-  return ids.length > 0 && ids.every((id) => !sim.tasks.has(id))
-}
-
 /** 规则旗标：便宜信号，给汇总 / 验收 / 裁判排序用，不是结论。 */
 export const ruleFlags = ({ lark, falive, pending }) => {
   const flags = []
@@ -169,7 +163,7 @@ export const ruleFlags = ({ lark, falive, pending }) => {
 }
 
 /** 一个 sim 目录的全部 case 行。 */
-export const computeSimRules = ({ sim, data, scoreFromMs = 0 }) => {
+export const computeSimRules = ({ sim, data, scoreFromMs = 0, limitSources = loadSimLimitSources() }) => {
   const cases = casesOfSim({ sim, data, scoreFromMs })
   const { byCase, orphans } = attributeOutbox({ cases, outbox: sim.outbox })
   const rows = cases.map((m) => {
@@ -179,6 +173,7 @@ export const computeSimRules = ({ sim, data, scoreFromMs = 0 }) => {
     const lark = larkFacts({ m, items: byCase.get(m.id) || [], task, mergedIntoId, mergedTask: mergedIntoId ? sim.tasks.get(mergedIntoId) : null, audit: sim.audits.get(m.id) || null, simDir: sim.dir })
     const falive = faliveFacts({ m, baseline: data.baselines.get(m.id) })
     const pending = Boolean(tag?.pending)
+    const simLimits = simLimitsOf({ m, sim, data, lark, src: limitSources })
     return {
       id: m.id,
       sim: sim.label,
@@ -191,7 +186,8 @@ export const computeSimRules = ({ sim, data, scoreFromMs = 0 }) => {
       pending,
       rulesVersion: RULES_VERSION,
       fingerprint: lark.fingerprint,
-      flags: [...ruleFlags({ lark, falive, pending }), ...(refMissing(m, sim) ? ['sim_limit_ref'] : [])],
+      flags: [...ruleFlags({ lark, falive, pending }), ...simLimits.map((x) => x.flag)],
+      simLimits,
       lark,
       falive,
     }

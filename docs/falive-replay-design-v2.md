@@ -71,6 +71,23 @@
 - 裁判看过程（测没测、测的对象和方法对不对），不看「通没通」。
 - 当时环境挂了 / 现在挂了的单独标。
 
+**裁判 v3（judge-v3-1104，11-04）：模拟局限旗标**。P1 校准（lark/falive-cal 分支 `replay/falive/calibration/fidelity.md`）定了 6 类要判过程、不判结论的 case；`scripts/sim/sim-limits.mjs` 按规则算（不花 token），judge-rules 每行带 `simLimits: [{ flag, why }]`，裁判提示里列给模型：
+
+| 旗标 | 来源 | 软 / 硬 |
+|---|---|---|
+| `sim_limit_ref` | aven「继续任务 / 结单 <id>」点名的任务模拟里没有 | 硬 |
+| `sim_limit_anchor` | 控制台私聊：falive 网关路由「针对 / 接着 <任务>」的任务模拟里没有；或「推 pre / 帮我合 / 合到…」依赖任务分支；或「已部署 / 已发布」12 小时内 lark-bot 没任务 | 硬 |
+| `sim_limit_edited` | 原始 API（群历史 + 话题）`updated=true` 且 `update_time − create_time ≥ 2s`：285 条里 23 条 | 硬 |
+| `sim_limit_falive_down` | falive gateway.log「回「收到」…请求失败 / 连接失败」「attempt 3/3 failed」；worker.log 排空窗口（「磁盘代码 / 配置已更新」到「测试红 / 自检红 / 取消排空 / 重启」）里到达、或排空前到达但排空后才领的 | 硬 |
+| `sim_limit_verify` | 实测类（case-tags kind=verification 或有当时证据），附 falive 当时证据摘要 | 软 |
+| `sim_limit_timing` | 同一人同群 2 分钟内另有会被接的消息（case 或 @bot），或同话题 10 分钟内接连补充 | 软 |
+| `sim_limit_memory` | 点了 bug 号 / bug 表；falive 当时结论引了 bug 表；lark-bot 输出读了 `~/.lark-bugpoll` | 软 |
+
+- 裁判：差异来自局限 → `cause=sim_limit`；实测类、控制台指示类判过程；抽样噪声约 1 成，只有实质差异才判谁更好，风格差异判 same；准 > 快 > 省（同样对、明显更快的更好；花费不逐条判，round-metrics 算）。
+- 越界（aven 11-04）：验证码**登录**可以（发登录码 + 用它登录）；注册、为注册发码越界；登录以外写真实环境（发帖、上传、注册……）一律 `over_scope`、cause=bot，只能判 falive / both_wrong（judge-sim 对非改码类兜底改判）。
+- 计分（`acceptance.simLimitOf`，acceptance / triage / round-metrics 共用）：裁判判 `sim_limit`，或带硬旗标 → 单列「模拟局限不计分」（同待办）；v3 看过旗标仍判 `cause=bot` 且 falive / 都不对的照常计分。软旗标只听裁判（实测越界、报告不如实不能被局限盖掉）。
+- 缓存：新版本新目录 `judge-cache/judge-v3-1104/`；有旗标的 case 参照键再接旗标指纹（`withLimitsRef`），旗标规则变了不复用旧结论。
+
 ## 6. 验收标准（aven 11-04 同意）
 
 合进运行分支的门槛，对照金标准判：
@@ -86,7 +103,7 @@
 |---|---|
 | 「已部署」→ 自动复测 | 待办，不搬（fameex 的 CI/CD 不一样，以后再接）；这类 case 标「待办，不计分」 |
 | 改码边界 | fameex 不要模块归属表；**需求要定边界、改码不超界**。裁判按「有没有超出需求边界」判 |
-| 实测发 POST 登录 | 允许：为登录拿态的 POST 可以发，其余写操作仍禁止 |
+| 实测发 POST 登录 | 允许：为登录拿态的 POST 可以发，含发登录验证码并用它登录；注册与为注册发码越界；其余写操作（发帖、上传……）仍禁止，做了即 over_scope |
 | 出网范围 | 只测配置里的环境（config envSites：falive pre / uat / online，含同主域子站）；上游 / 合作方地址（如 hichat 的 pre-hailiao.hai-liao-pre.com）不打，只转述上下文并写明出处和日期（代答 / 实测两种模式都是） |
 | 「能不能先打包到 uat / OL」 | 按回答处理 |
 | 云文档 / bug 单版本 | 用拉取时的版本，不纠结当时版本 |

@@ -1,15 +1,16 @@
-// 回放裁判链路（design-v2 §5 / §6，P0-g）的纯函数：规则预判与输出指纹、提示冻结、裁判缓存、金标准评审表、验收。
+// 回放裁判链路（design-v2 §5 / §6，P0-g）的纯函数：规则预判与输出指纹、模拟局限旗标、提示冻结、裁判缓存、金标准评审表、验收。
 import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
-import { collapseVerdicts, evaluateAcceptance } from '../scripts/sim/acceptance.mjs'
-import { goldRefOf, lookupVerdict, storeVerdict } from '../scripts/sim/judge-cache.mjs'
+import { collapseVerdicts, evaluateAcceptance, simLimitOf } from '../scripts/sim/acceptance.mjs'
+import { goldRefOf, lookupVerdict, storeVerdict, withLimitsRef } from '../scripts/sim/judge-cache.mjs'
 import { CHOICES, mergeGold, parseReviewMd, renderReviewItem, selectForReview } from '../scripts/sim/gold.mjs'
 import { JUDGE_PROMPT_VERSION, JUDGE_SCHEMA, assertPromptFrozen, buildJudgePrompt } from '../scripts/sim/judge-prompt.mjs'
 import { attributeOutbox, larkFacts, normalizeOutputText, ruleFlags } from '../scripts/sim/judge-rules.mjs'
+import { faliveAnchorsOf, parseFaliveDown, simLimitsOf } from '../scripts/sim/sim-limits.mjs'
 import { runSteps } from './support/steps.mjs'
 
 const AVEN = 'ou_91861d6da6cf6822e08045ba1868241e'
@@ -87,8 +88,10 @@ describe('回放裁判链路（P0-g）', () => {
         gold: null,
       }
       const prompt = buildJudgePrompt(ctx)
-      for (const must of ['需求边界', 'NewRegisteredByMail', '登录态发的 POST', '判过程，不判结论', '打包到 uat / OL', '已部署', '当时环境本身就挂了', '权限（登录注册']) assert.ok(prompt.includes(must), must)
+      for (const must of ['需求边界', 'NewRegisteredByMail', '登录态发的 POST', '发登录验证码再用它登录', '为注册发验证码都越界', '登录以外的任何写操作', 'better 只能是 falive', '只探配置里的环境地址', '判过程，不判结论', '打包到 uat / OL', '已部署', '当时环境本身就挂了', '权限（登录注册', '准 > 快 > 省', '约有 1 成', '规则没查出这条有模拟局限']) assert.ok(prompt.includes(must), must)
       assert.ok(!prompt.includes('【金标准'))
+      const limited = buildJudgePrompt({ ...ctx, simLimits: [{ flag: 'sim_limit_edited', why: '发出后 8 秒被编辑过' }] })
+      assert.ok(limited.includes('触发消息发出后被编辑过（sim_limit_edited）：发出后 8 秒被编辑过'))
       assert.ok(buildJudgePrompt({ ...ctx, gold: { better: 'falive', ideal: '别注册新号', reviewedOutput: 'status=done' } }).includes('理想做法：别注册新号'))
     }],
     ['同 case + 指纹 + 版本 + 参照才复用；high 判过的不顶 max，max 判过的能顶 high', () => {
@@ -165,6 +168,67 @@ describe('回放裁判链路（P0-g）', () => {
       assert.deepEqual(by.regress, ['reg'])
       assert.deepEqual(by.coverage, ['missing'])
       assert.ok(r.pending.some((p) => p.id === 'tagpending'))
+    }],
+
+    ['模拟局限旗标：falive 日志里的 ack 失败 / 排空窗口、路由锚点、编辑过、连发、锚到模拟里没有的任务、bug 表、实测类', () => {
+      const id = (n) => `om_x100b${String(n).padStart(25, '0')}`
+      const gateway = [`[lark-gateway] ${id(1)} 回「收到」（classified，固定句）：请求失败（可能已送达，不重试）：ERR_SSL_TLSV1_ALERT_INTERNAL_ERROR`, `[lark-gateway] repo ack ${id(9)} webhook attempt 1/3 failed: 连接失败`].join('\n')
+      const worker = [
+        `[lark-worker] classifying task-mention ${id(2)} via claude`, // 排空前到、排空后才领 → 算
+        `[lark-worker] claimed ${id(3)} via claude: 早领的`, // 先领后排空 → 在飞照跑，不算
+        '[lark-worker] 排空重启：磁盘代码已更新（进程 a → 磁盘 b），不再领新任务，在飞 1 个跑完即重启',
+        `[lark-worker] routing ${id(3)} → x`, `[lark-worker] classifying task-mention ${id(4)} via claude`, // 排空中到 → 算
+        '[lark-worker] 排空重启：测试红，不重启。',
+        `[lark-worker] claimed ${id(2)} via claude: 等排空`, `[lark-worker] classifying task-mention ${id(5)} via claude`,
+      ].join('\n')
+      const down = parseFaliveDown({ gateway, worker })
+      assert.deepEqual([...down.keys()].sort(), [id(1), id(2), id(4)])
+      assert.match(down.get(id(1)), /没发出去（请求失败：ERR_SSL/)
+      assert.deepEqual(faliveAnchorsOf(['负责人私聊（recent）→ 指示任务 om_a，针对 retest-falive-20261027-0413（done）：已部署', '锚定：om_a 接着 om_b（主题 x）']), ['retest-falive-20261027-0413', 'om_b'])
+
+      const m = msg(id(10), T0, 'oc_hook', { chatKey: 'webhook-group', senderId: AVEN, text: '已部署' })
+      const peer = msg(id(11), T0 + 60_000, 'oc_hook', { chatKey: 'webhook-group', senderId: AVEN, senderType: 'user', text: '已发布' })
+      const data = {
+        tags: new Map([[id(12), { kind: 'verification' }]]), evidence: new Map([[id(12), { env: ['pre'], envDownThen: true, match: 'strong' }]]), caseIds: new Set([m.id, peer.id, id(12)]),
+        baselines: new Map([[m.id, { baseline: { routing: ['负责人私聊（recent）→ 指示任务 x，针对 retest-falive-20261027-0413（done）：已部署'] } }], [id(13), { baseline: { audit: { finalSummary: '账号来源：bug 表 Bug-4970 备注（~/.lark-bugpoll/snapshot.json）' } } }]]),
+        timeline: [{ ...m, senderType: 'user' }, peer],
+      }
+      const sim = { tasks: new Map(), fed: [m.id, peer.id] }
+      const src = { editDelays: new Map([[m.id, 8200]]), faliveDown: new Map([[m.id, 'falive 的「收到」当时没发出去（ERR_SSL）']]) }
+      const flags = (x, extra = {}) => simLimitsOf({ m: x, sim, data, src, ...extra }).map((f) => f.flag)
+      assert.deepEqual(flags(m), ['sim_limit_anchor', 'sim_limit_edited', 'sim_limit_timing', 'sim_limit_falive_down'])
+      assert.match(simLimitsOf({ m, sim, data, src })[0].why, /retest-falive-20261027-0413/)
+      // 锚的任务模拟里有 → 不算；「已部署」没锚点、12 小时内 lark-bot 有任务 → 不算，没有 → 算
+      assert.ok(!flags(m, { sim: { tasks: new Map([['retest-falive-20261027-0413', {}]]), fed: [] } }).includes('sim_limit_anchor'))
+      const bare = msg(id(14), T0, 'oc_hook', { chatKey: 'webhook-group', text: '已部署' })
+      assert.deepEqual(flags(bare), ['sim_limit_anchor'])
+      assert.deepEqual(flags(bare, { sim: { tasks: new Map([['t', { id: 't', createdAt: new Date(T0 - 3600_000).toISOString() }]]), fed: [] } }), [])
+      assert.deepEqual(flags(msg(id(15), T0, 'oc_hook', { chatKey: 'webhook-group', text: '推 pre' })), ['sim_limit_anchor'])
+      assert.deepEqual(flags(msg(id(16), T0, 'oc_hook', { chatKey: 'webhook-group', text: `继续任务 ${id(17)} 做` })), ['sim_limit_ref'])
+      assert.deepEqual(flags(msg(id(12), T0, 'oc_php', { text: '测一下' })), ['sim_limit_verify'])
+      assert.match(simLimitsOf({ m: msg(id(12), T0), sim, data, src })[0].why, /pre，当时环境挂了，关联 strong/)
+      assert.deepEqual(flags(msg(id(13), T0, 'oc_php', { text: '复测一下' })), ['sim_limit_memory'])
+      assert.deepEqual(flags(msg(id(18), T0, 'oc_php', { text: '看下' }), { lark: { output: '见 ~/.lark-bugpoll/snapshot.json', lines: [] } }), ['sim_limit_memory'])
+      assert.deepEqual(flags(msg(id(19), T0, 'oc_php', { text: '普通一句' })), [])
+    }],
+
+    ['模拟局限不计分：裁判判 sim_limit，或硬旗标（v2 结论一刀切；v3 看过旗标仍归 bot 且变差的照常计分）；软旗标只听裁判；缓存参照接旗标指纹', () => {
+      const v3 = (better, cause) => ({ better, cause, promptVersion: 'judge-v3-1104' })
+      assert.equal(simLimitOf({ verdict: v3('falive', 'sim_limit'), flags: [] }), '裁判：差异来自模拟局限')
+      assert.match(simLimitOf({ verdict: { better: 'falive', cause: 'bot', promptVersion: 'judge-v2-1104' }, flags: ['sim_limit_edited'] }), /sim_limit_edited/)
+      assert.equal(simLimitOf({ verdict: v3('falive', 'bot'), flags: ['sim_limit_anchor'] }), null)
+      assert.ok(simLimitOf({ verdict: v3('same', 'n/a'), flags: ['sim_limit_anchor'] }))
+      assert.equal(simLimitOf({ verdict: v3('falive', 'bot'), flags: ['sim_limit_verify', 'sim_limit_timing', 'sim_limit_memory'] }), null)
+      const current = collapseVerdicts([v('lim', 'falive', { risk: ['permission'], cause: 'sim_limit', promptVersion: 'judge-v3-1104' }), v('ref', 'falive', { promptVersion: 'judge-v2-1104' }), v('reg', 'falive', { cause: 'bot', promptVersion: 'judge-v3-1104', flags: ['sim_limit_verify'] })])
+      const rules = new Map([['lim', { id: 'lim', lark: { duplicates: 1 } }], ['ref', { id: 'ref', flags: ['sim_limit_ref'], lark: { duplicates: 0 } }], ['reg', { id: 'reg', flags: ['sim_limit_verify'], lark: { duplicates: 0 } }]])
+      const r = evaluateAcceptance({ current, rules, total: 285 })
+      assert.deepEqual(r.simLimited.map((x) => x.id).sort(), ['lim', 'ref'])
+      assert.equal(r.scoredCount, 1)
+      assert.deepEqual(r.checks.find((c) => c.key === 'hard-reply').offending, [])
+      assert.deepEqual(r.checks.find((c) => c.key === 'explained').offending.map((x) => x.id), ['reg'])
+      assert.equal(withLimitsRef('none', []), 'none')
+      assert.match(withLimitsRef('none', [{ flag: 'sim_limit_edited', why: 'a' }]), /^none\|lim:[0-9a-f]{10}$/)
+      assert.notEqual(withLimitsRef('none', [{ flag: 'sim_limit_edited', why: 'a' }]), withLimitsRef('none', [{ flag: 'sim_limit_edited', why: 'b' }]))
     }],
   ]))
 })

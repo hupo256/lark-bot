@@ -3,7 +3,7 @@
  * 一轮的三项「更好」指标（docs/falive-replay-design-v2.md §11：决断更准、反应更快、token 更省），lark-bot 对 falive 当时，逐 case 与汇总。
  *   node scripts/sim/round-metrics.mjs --round <轮> [--md out.md] [--json out.json] [--all]
  * 默认只算跑完（有 DONE）的事件组；--all 连没跑完的也算（数据不全，只看个大概）。JSON 默认写 sim/<轮>/metrics.json，给 acceptance.mjs --metrics 用。
- * 待办不计分（pending）的 case 三项都不进。不花 token、只读。
+ * 待办不计分（pending）与模拟局限不计分（acceptance.simLimitOf：裁判判 cause=sim_limit 或硬局限旗标）的 case 三项都不进，单列。不花 token、只读。
  *
  * 1 准：裁判结论分布（lark-bot / falive / same / both_wrong，pending 单列不进），再按风险标签、case 类型拆。
  * 2 快：虚拟时间，从人发消息（时间线 atMs）算起——
@@ -22,7 +22,7 @@ import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { collapseVerdicts } from './acceptance.mjs'
+import { collapseVerdicts, simLimitOf } from './acceptance.mjs'
 import { isAck } from './case-context.mjs'
 import { cacheRoot } from './claude-cache.mjs'
 import { createFaliveBotOwners, loadFaliveAuditFiles } from './falive-bot-owner.mjs'
@@ -31,7 +31,7 @@ import { WEBHOOK_CHAT_KEY, loadJudgeData } from './judge-data.mjs'
 import { FOLLOW_MS, computeSimRules } from './judge-rules.mjs'
 import { listSimDirs, loadSim, readJsonl, simRoot } from './sim-dir.mjs'
 
-export const METRICS_VERSION = 'metrics-v1-1104'
+export const METRICS_VERSION = 'metrics-v2-1104' // v2：模拟局限单列不计分
 const NOT_CONCLUDED = new Set(['received', 'queued', 'ready', 'running', 'verifying', 'failed', 'intake_failed'])
 const VERDICTS = ['lark-bot', 'same', 'falive', 'both_wrong']
 
@@ -258,7 +258,7 @@ export const computeRoundMetrics = ({ round, all = false, data = loadJudgeData()
     for (const row of ruleRows) {
       const m = data.byId.get(row.id)
       rows.push({
-        id: row.id, episode: entry.episodeId, at: row.at, chatKey: row.chatKey, kind: row.kind, risk: row.risk, pending: row.pending,
+        id: row.id, episode: entry.episodeId, at: row.at, chatKey: row.chatKey, kind: row.kind, risk: row.risk, pending: row.pending, flags: row.flags,
         text: String(data.cases.find((c) => c.id === row.id)?.text || '').replace(/\s+/g, ' ').slice(0, 60),
         lark: { ...larkCaseFacts({ row, cost: costs.get(row.id) }), instantHitSavedMs: saved.get(row.id) || 0 },
         falive: faliveCaseFacts({ m, side }),
@@ -271,8 +271,10 @@ export const computeRoundMetrics = ({ round, all = false, data = loadJudgeData()
     r.better = v?.better || null
     r.reason = v?.reason ? String(v.reason).slice(0, 120) : null
     if (r.better === 'pending' || data.tags.get(r.id)?.pending) r.pending = true
+    r.simLimit = r.pending ? null : simLimitOf({ verdict: v || {}, flags: r.flags })
   }
-  const scored = rows.filter((r) => !r.pending)
+  const scored = rows.filter((r) => !r.pending && !r.simLimit)
+  const simLimited = rows.filter((r) => r.simLimit)
 
   // 1 准
   const dist = (list) => {
@@ -288,7 +290,8 @@ export const computeRoundMetrics = ({ round, all = false, data = loadJudgeData()
   }
   const accuracy = {
     overall: dist(scored),
-    pending: rows.length - scored.length,
+    pending: rows.filter((r) => r.pending).length,
+    simLimited: dist(simLimited),
     byRisk: byKey((r) => (r.risk?.length ? r.risk : ['（无风险标签）'])),
     byKind: byKey((r) => [r.kind || '（未标）']),
   }
@@ -360,7 +363,7 @@ export const computeRoundMetrics = ({ round, all = false, data = loadJudgeData()
     round,
     generatedAt: new Date().toISOString(),
     episodes: { total: sims.length, done: done.length, used: used.length, ids: used.map((s) => s.episodeId) },
-    cases: { total: rows.length, scored: scored.length, pending: rows.length - scored.length },
+    cases: { total: rows.length, scored: scored.length, pending: rows.filter((r) => r.pending).length, simLimited: simLimited.length },
     accuracy,
     latency,
     cost,
@@ -391,7 +394,7 @@ export const renderMarkdown = (m) => {
   const distRow = (k, d) => `| ${k} | ${d.judged} | ${d['lark-bot']} | ${d.same} | ${d.falive} | ${d.both_wrong} | ${d.unjudged} |`
   const one = (r) => `\`${r.id.slice(-8)}\` ${r.episode} ${r.at.slice(5, 16)} [${r.kind || '-'}${r.risk?.length ? ` ${r.risk.join('/')}` : ''}] ${r.text}`
   const worst = (list, fmt) => (list.length ? list.slice(0, 10).map((r) => `- ${one(r)} —— ${fmt(r)}`) : ['- （无）'])
-  const scored = m.rows.filter((r) => !r.pending)
+  const scored = m.rows.filter((r) => !r.pending && !r.simLimit)
   const latWorst = (k) => scored.filter((r) => r.lark[k] != null && r.falive[k] != null).sort((x, y) => (y.lark[k] - y.falive[k]) - (x.lark[k] - x.falive[k]))
     .filter((r) => r.lark[k] > r.falive[k])
   const missing = (k) => scored.filter((r) => r.lark[k] == null && r.falive[k] != null)
@@ -400,13 +403,13 @@ export const renderMarkdown = (m) => {
   const badJudge = scored.filter((r) => r.better === 'falive' || r.better === 'both_wrong').sort((x, y) => (y.risk?.length || 0) - (x.risk?.length || 0) || (x.better === 'falive' ? -1 : 1))
   return [
     `# ${m.round} 三项指标（${m.version}，${m.generatedAt.slice(5, 16)}）`, '',
-    `事件组 ${m.episodes.used} / ${m.episodes.total}（跑完 ${m.episodes.done}）；case ${m.cases.total}，计分 ${m.cases.scored}，待办不计分 ${m.cases.pending}。时间均为虚拟时间、从人发消息算起；花费为等价花费（录放命中照算录时的数）。`, '',
+    `事件组 ${m.episodes.used} / ${m.episodes.total}（跑完 ${m.episodes.done}）；case ${m.cases.total}，计分 ${m.cases.scored}，待办不计分 ${m.cases.pending}，模拟局限不计分 ${m.cases.simLimited ?? 0}。时间均为虚拟时间、从人发消息算起；花费为等价花费（录放命中照算录时的数）。`, '',
     '| 指标 | lark-bot | falive | 配对 | 配对差中位（lark−falive） | 判定 |', '|---|---|---|---|---|---|',
     `| 准：lark-bot 更好 / falive 更好 | ${a['lark-bot']}（${pct(a['lark-bot'], a.judged)}） | ${a.falive}（${pct(a.falive, a.judged)}） | 已判 ${a.judged}（一样 ${a.same}、都不对 ${a.both_wrong}） | - | ${a['lark-bot'] > a.falive ? 'lark-bot 多' : '**不多于 falive**'} |`,
     ...['firstMs', 'concludeMs'].map((k) => `| 快：${k === 'firstMs' ? '首句' : '结论'} 中位 / P90 | ${fmtMs(L[k].paired.lark.median)} / ${fmtMs(L[k].paired.lark.p90)}（全部 n=${L[k].lark.n}：${fmtMs(L[k].lark.median)} / ${fmtMs(L[k].lark.p90)}） | ${fmtMs(L[k].paired.falive.median)} / ${fmtMs(L[k].paired.falive.p90)}（全部 n=${L[k].falive.n}：${fmtMs(L[k].falive.median)} / ${fmtMs(L[k].falive.p90)}） | ${L[k].paired.n}（lark 快 ${L[k].paired.larkFaster}、falive 快 ${L[k].paired.faliveFaster}；只 lark ${L[k].larkOnly}、只 falive ${L[k].faliveOnly}） | ${fmtMs(L[k].paired.diff.median)} | ${lat(k)} |`),
     `| 省：每 case 中位 / 合计 | ${fmtUsd(C.paired.lark.median)} / ${fmtUsd(C.paired.lark.total)}（全部 ${C.lark.n} 条合计 ${fmtUsd(C.lark.total)}，本轮实花 ${fmtUsd(C.lark.actualTotal)}，命中 ${C.lark.hits}/${C.lark.calls} 次） | ${fmtUsd(C.paired.falive.median)} / ${fmtUsd(C.paired.falive.total)} | ${C.paired.n}（覆盖期内 ${C.paired.covered}；lark 省 ${C.paired.larkCheaper}、falive 省 ${C.paired.faliveCheaper}） | ${fmtUsd(C.paired.diff.median)} | ${costOk} |`,
     '', '## 准：裁判分布', '', '| 范围 | 已判 | lark-bot 更好 | 一样 | falive 更好 | 都不对 | 未判 |', '|---|---|---|---|---|---|---|',
-    distRow('全部', a), ...Object.entries(m.accuracy.byRisk).map(([k, d]) => distRow(`风险 ${k}`, d)), ...Object.entries(m.accuracy.byKind).map(([k, d]) => distRow(`类型 ${k}`, d)),
+    distRow('全部', a), ...(m.accuracy.simLimited ? [distRow('（不计分）模拟局限', m.accuracy.simLimited)] : []), ...Object.entries(m.accuracy.byRisk).map(([k, d]) => distRow(`风险 ${k}`, d)), ...Object.entries(m.accuracy.byKind).map(([k, d]) => distRow(`类型 ${k}`, d)),
     '', '## 差的 10 条', '',
     '### 准：falive 更好 / 都不对（风险优先）', '', ...worst(badJudge, (r) => `${r.better}：${r.reason || ''}`), '',
     '### 快：首句比 falive 慢得最多', '', ...worst(latWorst('firstMs'), (r) => `lark ${fmtMs(r.lark.firstMs)} vs falive ${fmtMs(r.falive.firstMs)}`), '',
