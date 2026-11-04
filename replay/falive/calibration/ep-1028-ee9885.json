@@ -1,0 +1,254 @@
+{
+  "episode": "ep-1028-ee9885",
+  "faliveCode": {
+    "sha": "106935afa55c2691863e0f7da473be7e2e5a91bf",
+    "dir": "/Users/aven/github/lark-bot-falive-sim/code-106935a",
+    "codeHash": "0089d20f061b",
+    "startedAt": "2026-10-28T10:24:25.027Z",
+    "verified": true,
+    "tried": [
+      {
+        "sha": "106935a",
+        "hashes": [
+          "0089d20f061b",
+          "df64b16491ac"
+        ]
+      }
+    ]
+  },
+  "faliveConfig": "/Users/aven/github/lark-bot-falive/runtime/lark-bot.bak-20261028.local.json",
+  "cases": [
+    {
+      "label": "C1",
+      "id": "om_x100b612916b3c8a0ed3b215e1ee9885",
+      "at": "2026-10-28T10:59:20.044Z",
+      "chat": "php-group",
+      "text": "@Aven.tong @Aven.Bot 请帮我核实一下现在web端调用权益兑换接口，请求头是否有传X-Hc-Uid字段呢",
+      "classified": {
+        "falive": {
+          "decision": "question",
+          "confidence": "medium"
+        },
+        "sim": {
+          "decision": "question",
+          "confidence": "medium"
+        }
+      },
+      "status": {
+        "falive": "done",
+        "sim": "done"
+      },
+      "seen": {
+        "falive": 50,
+        "sim": 50,
+        "onlyFalive": [
+          "Arthur.a（10-28 14:56）：@Williamwang HT 这个API你这边现在通了吗，我记得好像另外一个群回复了",
+          "- 台账 new#c28669（asked）Arthur：修改头像对接中头像上传接口的 404 已处理并发布，请重新接入复测｜最近：Arthur 说 bot 发的上传头像 503 curl/报错文档没带链接，问文档在哪",
+          "- 台账 new#ceeda3（noted）Encone 要前端对接待处理事项清单（汇总台账里 open / asked 的对接条目）｜最近：前文有异议的头像 Go 上传接口 404，Arthur 说已处理"
+        ],
+        "onlySim": [
+          "Arthur.a（10-28 14:56）：@Williamwang HT 这个API你这边现在通了吗，我记得好像另外一个群回复了，咨询一下前端其他同事吧，pre环境这个API通的",
+          "- 台账 new#c2b104（noted）Encone 要 pre 环境测试账号密码，aven 授权直接回一份测试账号｜最近：Arthur（hichat / 账号后端）在群里 @ 机器人，要我方发一下 pre 测试号。前文里 Encone 也在要…",
+          "- 台账 new#e7ed15（applied）Arthur：pre 邮箱 / 手机号验证码已真实接入，让 web 在 pre 测一遍（登录注册、修…｜最近：Arthur（账号后端）通知 pre 环境的邮箱、手机号验证码已改成真实接入，并 @ bot 要 web 端在 pre …"
+        ]
+      },
+      "group": {
+        "falive": [
+          {
+            "at": "2026-10-28T11:00:03.259Z",
+            "afterSec": 43,
+            "phase": "ack",
+            "gated": null,
+            "text": "@ou_a0c48d661b36b1e16bf0d89b4a3bb775 收到，我去代码里查下权益兑换请求有没有带 X-Hc-Uid，查完回你。"
+          },
+          {
+            "at": "2026-10-28T11:01:51.030Z",
+            "afterSec": 151,
+            "phase": "done",
+            "gated": null,
+            "text": "@ou_a0c48d661b36b1e16bf0d89b4a3bb775 有带。web 调权益兑换（POST /api/mallRights/exchange/{id}，走 Go）时请求头里每次都带 X-Hc-Uid，但它的值是浏览器第一次访问时生成并存在本地的随机 UUID，相当于设备标识，不是 hichat 的用户 id；用户身份是靠 Authorization: hiApp <portal token> 传的。如果后端要的是用户 id，麻烦说一下口径，我们再改。\n详细见：https://qfglxo2m3dc.sg.larksuite.com/docx/ItTVdrc5ZoYYLKxlfSsljrwogch"
+          }
+        ],
+        "sim": [
+          {
+            "at": "2026-10-28T10:59:53.031Z",
+            "afterSec": 33,
+            "phase": "ack",
+            "gated": null,
+            "text": "@ou_a0c48d661b36b1e16bf0d89b4a3bb775 收到，我查下 web 调权益兑换接口时请求头有没有带 X-Hc-Uid，查完回你。"
+          },
+          {
+            "at": "2026-10-28T11:01:17.107Z",
+            "afterSec": 117,
+            "phase": "done",
+            "gated": null,
+            "text": "@ou_a0c48d661b36b1e16bf0d89b4a3bb775 有带。web 点兑换调 POST /api/mallRights/exchange/{id}（Go）时，请求头会带 X-Hc-Uid，值是浏览器本地持久化的设备 UUID（不是会员 ID），同时带 X-Device-Type: 1、X-Version: 3.12.0、Accept-Language 和 Authorization: hiApp <登录 token>。请求头明细放在文档里。\n- ⚠️ 接了但还不能用 pre 上真实兑换请求没抓到：前端只有已绑定 FameEX 才会走到兑换接口，目前的 pre 测试号都没绑定、积分也不够，所以 pre 上还没发出过真实兑换请求（Bug-4988 一直卡在这个账号上）。有这样的账号的话，我们可以在 pre 抓一次实际请求头给你\n详细见：https://sim.local/docx/simdoc00003"
+          }
+        ]
+      }
+    },
+    {
+      "label": "C2",
+      "id": "om_x100b61292d1cb0a0fe10cefbcde0e47",
+      "at": "2026-10-28T11:02:21.105Z",
+      "chat": "webhook-group",
+      "text": "已部署",
+      "classified": {
+        "falive": {
+          "decision": "question",
+          "confidence": "high"
+        },
+        "sim": {
+          "decision": "question",
+          "confidence": "medium"
+        }
+      },
+      "status": {
+        "falive": "done",
+        "sim": "done"
+      },
+      "seen": {
+        "falive": 38,
+        "sim": 38,
+        "onlyFalive": [
+          "【指示针对的群消息（任务 om_x100b612916b3c8a0ed3b215e1ee9885，当前 done，之前判定 question：这是在问前端现状，看仓库代码就能答：查兑换接口的调用处和公共请求层是怎么注入请求头的。积分兑换这个功能在总表上归 adrian（#21），但请求头一般在基座的请求层统一加，基座算 aven 的；之前 Bug-4988 商城兑换的复测也是 aven 在跟。他被点名问的就是请求头，所以算他的事，置信度给中等。）】"
+        ],
+        "onlySim": [
+          "【指示针对的群消息（任务 om_x100b612916b3c8a0ed3b215e1ee9885，当前 done，之前判定 question：这是后端在问前端现在的实现，看代码就能答。权益兑换这个业务本身在 adrian 的积分兑换那块（#21）。但 X-Hc-Uid 这类请求头一般是公共请求层统一注入的，请求层属于基座（kernel / lib），归 aven；而且这条点名 @ 了 aven 和 bot，所以按 aven 有份处理，只回答请求头这一点。归属不是完全确定，置信度定为 medium。）】"
+        ]
+      },
+      "group": {
+        "falive": [
+          {
+            "at": "2026-10-28T11:12:27.217Z",
+            "afterSec": 606,
+            "phase": "done",
+            "gated": null,
+            "text": "@ou_a0c48d661b36b1e16bf0d89b4a3bb775 有传。Web 端调权益兑换接口（POST /api/mallRights/exchange/{id}）时，请求头会带 X-Hc-Uid，值是浏览器本地生成并持久保存的设备 ID（不是用户的 hichat_id），同时也带登录 token、X-Device-Type: 1 和 X-Version；pre 线上的代码已经是这个版本。完整请求头清单放在文档里。\n详细见：https://qfglxo2m3dc.sg.larksuite.com/docx/XU0JdtMEjooTtixb21FlY7Y6g1g"
+          }
+        ],
+        "sim": [
+          {
+            "at": "2026-10-28T11:10:37.388Z",
+            "afterSec": 496,
+            "phase": "done",
+            "gated": null,
+            "text": "@ou_a0c48d661b36b1e16bf0d89b4a3bb775 有传。web 端调权益兑换接口（POST /go-api/api/mallRights/exchange/{id}）时请求头里带了 X-Hc-Uid，值是浏览器本地保存的设备 UUID（不是会员 ID），同时带 X-Device-Type: 1、X-Version、Accept-Language 和登录 token；pre 现在部署的前端包里也是这样。\n详细见：https://sim.local/docx/simdoc00008"
+          }
+        ]
+      }
+    }
+  ],
+  "routing": {
+    "falive": [
+      "received task-mention C1，等待意图分类…",
+      "repo ack C1 ok via webhook",
+      "C1 回「收到」（classified，用分类 reply）：ok",
+      "台账：C1 question 触及 new#ee9885、new#9ac193 → 工单键 …",
+      "repo start C1 -> webhook-group ok via webhook",
+      "task-mention C1 classified=question/medium，正式入队",
+      "repo group reply C1 ok via webhook",
+      "repo outcome C1 done -> webhook-group ok via webhook",
+      "负责人私聊（recent）→ 指示任务 C2，针对 C1（done）：已部署",
+      "锚定：C2 接着 C1（主题 q:C1）",
+      "repo ack-private C2 -> webhook-group ok via webhook",
+      "台账：C2 question 触及 new#ee9885 → 工单键 …",
+      "repo start C2 -> webhook-group ok via webhook",
+      "task-mention C2 classified=question/high，正式入队",
+      "repo group reply C2 ok via webhook",
+      "repo outcome C2 done -> webhook-group ok via webhook"
+    ],
+    "sim": [
+      "received task-mention C1，等待意图分类…",
+      "repo ack C1 ok via webhook",
+      "C1 回「收到」（classified，用分类 reply）：ok",
+      "台账：C1 question 触及 new#ee9885 → 工单键 …",
+      "repo start C1 -> webhook-group ok via webhook",
+      "task-mention C1 classified=question/medium，正式入队",
+      "repo group reply C1 ok via webhook",
+      "repo outcome C1 done -> webhook-group ok via webhook",
+      "负责人私聊（recent）→ 指示任务 C2，针对 C1（done）：已部署",
+      "repo ack-private C2 -> webhook-group ok via webhook",
+      "锚定：C2 接着 C1（主题 q:C1）",
+      "台账：C2 question 触及 new#ee9885 → 工单键 …",
+      "repo start C2 -> webhook-group ok via webhook",
+      "task-mention C2 classified=question/medium，正式入队",
+      "repo group reply C2 ok via webhook",
+      "repo outcome C2 done -> webhook-group ok via webhook"
+    ],
+    "onlyFalive": [
+      "台账：C1 question 触及 new#ee9885、new#9ac193 → 工单键 …",
+      "task-mention C2 classified=question/high，正式入队"
+    ],
+    "onlySim": [
+      "台账：C1 question 触及 new#ee9885 → 工单键 …",
+      "task-mention C2 classified=question/medium，正式入队"
+    ]
+  },
+  "console": {
+    "falive": [
+      {
+        "at": "2026-10-28T11:00:03.778Z",
+        "text": "<card>\n🛠 开始做：Arthur（hichat / 账号后端）直接 @ aven 和 bot，请他们核实：web 端现在调权益兑换接口时，请求头里有没有带 X-Hc-Uid 字段。（Falive PHP后端群）\n</card>"
+      },
+      {
+        "at": "2026-10-28T11:01:51.553Z",
+        "text": "<card>\n✅ 有带。web 调权益兑换（Go：POST /go-api/api/mallRights/exchange/{id}）走 pointsRequest，请求头固定带 X-Hc-Uid；但它的值是浏览器本地生成并存在 localStorage(falive__hc_uid) 的随机 UUID（设备标识，照 hichat 的 X-Hc-Uid 用法），不是 hichat 用户 id / live uid；用户身份靠 Authorization: hiApp 。依据：src/modules/task-center/hichat/requests.ts:47-63、mall.ts:45/83-94、src/lib/x9/identity.ts:214-222、src/lib/task-center-routes.ts、src/lib/api-fetch.ts:583-587；这些文件 feature/phase-5-test 与 origin/pre 无差异。积分兑换功能负责人是 adrian（功能表 #21）。若 Arthur 期望 X-Hc-Uid 填用户 id，需要他给出口径再由 adrian 改。\n群里已回：「有带。web 调权益兑换（POST /api/mallRights/exchange/{id}，走 Go）时请求头里每次都带 X-Hc-Uid，但它的值是浏览器第一次访问时生成并存在本地的随机 UUID，相当于设备标识，不是 hichat 的用户 id；用户身份是靠 Authorization: hiApp  传的。如果后端要的是用户 id，麻烦说一下口径，我们再改。」\n</card>"
+      },
+      {
+        "at": "2026-10-28T11:02:36.652Z",
+        "text": "<card>\n收到，当作对「Arthur（hichat / 账号后端）直接 @ aven 和 bot，请他们核实：web 端现在」（Falive PHP后端群）这条的指示处理。不是这条就回「取消任务 om_x100b61292d1cb0a0fe10cefbcde0e47」。\n</card>"
+      },
+      {
+        "at": "2026-10-28T11:02:59.411Z",
+        "text": "<card>\n🛠 开始做：Arthur 问 web 端调权益兑换接口时请求头有没有带 X-Hc-Uid。aven 私聊指示回他「已部署」，意思是 web 端已经带上这个头并上线了。（Falive PHP后端群）\n</card>"
+      },
+      {
+        "at": "2026-10-28T11:12:27.733Z",
+        "text": "<card>\n✅ Web 端权益兑换（POST Go /api/mallRights/exchange/{id}）已带 X-Hc-Uid：exchangeMallRight 走 pointsRequest，公共请求头里固定加 X-Hc-Uid（值是浏览器本地持久化的设备 UUID falive__hc_uid，不是用户 hichat_id），同时带 Portal token、X-Device-Type: 1、X-Version、Accept-Language。依据：src/modules/task-center/hichat/mall.ts:83 exchangeMallRight → src/modules/task-center/hichat/requests.ts:49-63；值来源 src/lib/x9/identity.ts:214 readOrCreateHcUid；口径见 docs/architecture/adr-2026-10-15-hichat-hc-uid.md。相关提交都已在 origin/pre，本地与 origin/pre 这几个文件无差异；pre 站点线上主包里的 pointsRequest 已含 X-Hc-Uid 头。pre-probe 只能打 php，Go 兑换接口没法用探针实测，且兑换是写操作，未真实调用。\n群里已回：「有传。Web 端调权益兑换接口（POST /api/mallRights/exchange/{id}）时，请求头会带 X-Hc-Uid，值是浏览器本地生成并持久保存的设备 ID（不是用户的 hichat_id），同时也带登录 token、X-Device-Type: 1 和 X-Version；pre 线上的代码已经是这个版本。完整请求头清单放在文档里。」\n</card>"
+      },
+      {
+        "at": "2026-10-28T11:14:11.101Z",
+        "text": "<card>\n✅ 把 Henry 那份 Bug 问题文档收进待对接目录，按群里已有的答复写了反馈文档：勋章已定，一期不做，等 Henry 隐藏 tab；Bug-4997 群头像、用户头像归「群同步」，等后端 Max / mainly；Bug-4952 搜索助理昵称还在等产品 Mateo 定。本轮在 pre 上测了：勋章路径返回的是网页，不是接口；测试号的会话列表只有私聊，群头像要用在群里的账号才能复核。待对接索引里三份已删的 henry 旧文档也换成了这一份。改动在本地分支 lark/falive-0ace8964。\n分支 feature/phase-5-test · 改了 3 个文件\n已合进 feature/phase-5-test\n要 Henry、Max、Mateo 跟进：[https://qfglxo2m3dc.sg.larksuite.com/docx/O9C8dFk8bov7nJxFv6PlalYygkd](https://qfglxo2m3dc.sg.larksuite.com/docx/O9C8dFk8bov7nJxFv6PlalYygkd)\n群里已回：「@Henry @Max @Mateo Henry 这几张 Bug 单：通了 0 项，没通 3 项」\n</card>"
+      }
+    ],
+    "sim": [
+      {
+        "at": "2026-10-28T10:59:53.067Z",
+        "text": "<card>\n🛠 开始做：Arthur（账号后端）在群里 @aven 和 bot，请我们核实一下：web 端调权益兑换接口时，请求头里有没有传 X-Hc-Uid。（Falive PHP后端群）\n</card>"
+      },
+      {
+        "at": "2026-10-28T11:01:17.109Z",
+        "text": "<card>\n✅ 有带。web 调权益兑换 POST /go-api/api/mallRights/exchange/{id} 走 task-center 的 pointsRequest（src/modules/task-center/hichat/mall.ts exchangeMallRight → requests.ts pointsRequest），统一加 X-Hc-Uid（浏览器 localStorage falive__hc_uid 持久化 UUID，设备标识不是会员 ID，src/lib/x9/identity.ts readOrCreateHcUid）+ X-Device-Type: 1 + X-Version 3.12.0 + Accept-Language + Authorization: hiApp <portal token>；requests.test.ts 47 条通过（Go 配套接口断言了 X-Hc-Uid）。pre 上没法抓到真实兑换请求：pre-probe 只打 php、兑换是写接口，且一直缺已绑 FameEX、积分够的账号（Bug-4988）。任务中心归 adrian，只读未改。\n群里已回：「有带。web 点兑换调 POST /api/mallRights/exchange/{id}（Go）时，请求头会带 X-Hc-Uid，值是浏览器本地持久化的设备 UUID（不是会员 ID），同时带 X-Device-Type: 1、X-Version: 3.12.0、Accept-Language 和 Authorization: hiApp <登录 token>。请求头明细放在文档里。」\n</card>"
+      },
+      {
+        "at": "2026-10-28T11:02:31.174Z",
+        "text": "<card>\n收到，当作对「Arthur（账号后端）在群里 @aven 和 bot，请我们核实一下：web 端调权益兑换接口时，」（Falive PHP后端群）这条的指示处理。不是这条就回「取消任务 om_x100b61292d1cb0a0fe10cefbcde0e47」。\n</card>"
+      },
+      {
+        "at": "2026-10-28T11:02:47.845Z",
+        "text": "<card>\n🛠 开始做：Arthur（账号后端）问 web 调权益兑换接口时，请求头里有没有带 X-Hc-Uid。aven 私聊指示回他「已部署」：web 端相关版本已经部署，请 Ar（Falive PHP后端群）\n</card>"
+      },
+      {
+        "at": "2026-10-28T11:10:37.389Z",
+        "text": "<card>\n✅ 有传。web 端权益兑换 POST /api/mallRights/exchange/{id} 走 Go（task-center-routes 把 mallRights 路由到 golang），统一经 pointsRequest 发出，浏览器端固定带 X-Hc-Uid（localStorage falive__hc_uid 持久化的设备 UUID，不是会员 ID）+ X-Device-Type: 1 + X-Version + Accept-Language + Authorization: hiApp <portal token>。依据：src/modules/task-center/hichat/requests.ts:49-69、mall.ts:83-93、src/lib/x9/identity.ts:214；已部署的 pre 前端包（useMallActions chunk 的兑换调用 → index chunk 的 pointsRequest）里同样有这段注入。注意兑换属 adrian 的 #21，本次只答请求头。\n群里已回：「有传。web 端调权益兑换接口（POST /go-api/api/mallRights/exchange/{id}）时请求头里带了 X-Hc-Uid，值是浏览器本地保存的设备 UUID（不是会员 ID），同时带 X-Device-Type: 1、X-Version、Accept-Language 和登录 token；pre 现在部署的前端包里也是这样。」\n</card>"
+      }
+    ]
+  },
+  "simOtherSends": 0,
+  "egress": {
+    "connections": 158,
+    "nonLocal": [
+      "2.1.289 160.79.104.10:443",
+      "curl 13.124.203.191:443"
+    ],
+    "flagged": [],
+    "probe": 9,
+    "probeBlocked": [
+      "2026-11-04T09:37:35.319Z BLOCKED POST /api/user/sendVerificationCode",
+      "2026-11-04T09:37:35.323Z BLOCKED POST /api/user/NewRegisteredByMail"
+    ]
+  },
+  "fakeCliGaps": [],
+  "casesDir": "/Users/aven/github/lark-bot-p0h/replay/falive"
+}
