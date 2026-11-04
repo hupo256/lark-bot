@@ -233,5 +233,17 @@
     "code": "const sent = await say.principal({ config, store, text: sayIntakeFailed({ task, chatLabel: chatLabel(task, { chatNames: config.chatNames || {} }) }), taskId: task.id, kind: 'intake_failed' })",
     "op": "|| → &&",
     "reason": "chatNames 缺省与传 {} 对 chatLabel 等价（都查不到群名回落 chatId）；无业务含义"
+  },
+  {
+    "file": "lib/lark-control-channel.mjs",
+    "code": "if ((msg.attachments || []).length || MATERIAL_LINK_RE.test(msg.text || '')) return null",
+    "op": "|| → &&",
+    "reason": "变的是 (msg.attachments || [])：normalizeMessage 恒给数组，[] && [] 与 [] || [] 同为空数组，等价变异"
+  },
+  {
+    "file": "lib/lark-ingest.mjs",
+    "code": "if (notForBot) return console.log(`[lark-gateway] ${msg.messageId} 回 bot 消息但不是对机器人说的（${notForBot === 'social' ? '寒暄 / 抄送' : '@ 的是别的同事'}），静默、不分类`)",
+    "op": "=== → !==",
+    "reason": "只影响日志里的原因措辞（寒暄 / 抄送 vs @ 的是别的同事），不影响行为"
   }
 ]
