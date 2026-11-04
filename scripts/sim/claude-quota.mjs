@@ -26,7 +26,7 @@ export const pausedUntil = () => {
 }
 // 「resets 6:40pm (Asia/Dubai)」「resets Nov 4, 6:40pm」→ 本机时区（与提示里的时区一致：本机就是 Asia/Dubai）的下一个该时刻。
 export const parseReset = (text, now = Date.now()) => {
-  const m = /resets\s+(?:([A-Z][a-z]{2})\s+(\d{1,2}),?\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i.exec(text)
+  const m = /resets\s+(?:([A-Z][a-z]{2})\s+(\d{1,2}),?\s+(?:at\s+)?)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i.exec(text) // 周额度是「resets Nov 8 at 6pm」
   if (!m) return null
   let hour = Number(m[3]) % 12
   if (m[5].toLowerCase() === 'pm') hour += 12
