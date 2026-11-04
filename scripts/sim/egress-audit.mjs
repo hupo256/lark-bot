@@ -19,9 +19,10 @@ import { fileURLToPath } from 'node:url'
 import { realpathSync } from 'node:fs'
 
 import { CODE_SEND_PATH_RE, LOGIN_PATH_RE, REGISTER_PATH_RE } from '../../lib/lark-egress-policy.mjs'
-import { LOCAL_HOST_RE, LOGIN_PURPOSES } from './egress-log.mjs'
+import { LOCAL_HOST_RE, LOGIN_PURPOSES, claudeGatewayHost } from './egress-log.mjs'
 
 const CLAUDE_HOST_RE = /^(?:[\w-]+\.)*anthropic\.com$|^claude\.ai$/i
+export const isClaudeHost = (host) => CLAUDE_HOST_RE.test(host) || (Boolean(host) && String(host).toLowerCase() === claudeGatewayHost())
 const FALIVE_HOST_RE = /^(?:[\w-]+\.)*falive\.com$|^(?:falive|stream)[\w-]*\.fdsser\.com$/i
 const LARK_HOST_RE = /(?:^|\.)(?:larksuite\.com|feishu\.cn|larkoffice\.com|feishucdn\.com|larksuitecdn\.com|larksuite-boe\.com)$/i
 const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
@@ -35,12 +36,12 @@ export const classifyLine = (x, dns = {}) => {
   if (!x.host) return { kind: 'review', reason: x.extra || '没解析出目标' }
   if (LOCAL_HOST_RE.test(x.host)) return { kind: 'local', reason: '本机' }
   if (x.via === 'sock') {
-    if (dns[x.host]) return FALIVE_HOST_RE.test(dns[x.host]) || CLAUDE_HOST_RE.test(dns[x.host]) ? { kind: 'allowed', reason: dns[x.host] } : { kind: 'review', reason: `IP 属于 ${dns[x.host]}` }
+    if (dns[x.host]) return FALIVE_HOST_RE.test(dns[x.host]) || isClaudeHost(dns[x.host]) ? { kind: 'allowed', reason: dns[x.host] } : { kind: 'review', reason: `IP 属于 ${dns[x.host]}` }
     if (inAnthropicRange(x.host)) return { kind: 'allowed', reason: 'Anthropic 地址段' }
     return { kind: 'review', reason: `IP 级连接未归类（进程 ${x.extra || '?'}）` }
   }
   if (LARK_HOST_RE.test(x.host)) return { kind: 'violation', reason: '直连飞书 / Lark（应全部走假 lark-cli）' }
-  if (CLAUDE_HOST_RE.test(x.host)) return { kind: 'allowed', reason: 'Claude 接口' }
+  if (isClaudeHost(x.host)) return { kind: 'allowed', reason: 'Claude 接口' }
   // Figma 设计稿只读预取（lark-bot 自带：消息里的 Figma 链接读节点 / 变量 / 导出图，LARK_FIGMA_PREFETCH）= 读上下文，同云文档，不是去测别的环境（11-04 b2 ep-1021-193c03）
   if (FIGMA_HOST_RE.test(x.host) && READ_METHODS.has(x.method)) return { kind: 'allowed', reason: 'Figma 设计稿只读（上下文）' }
   if (FALIVE_HOST_RE.test(x.host)) {

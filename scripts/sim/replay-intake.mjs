@@ -27,6 +27,7 @@ const { OPS_COMMAND_TYPE, resolveOpsCommandType } = await import('../../lib/lark
 const { parseDailyDirective } = await import('../../lib/lark-daily-schedule.mjs')
 const { parseRetentionDirective } = await import('../../lib/lark-chat-retention.mjs')
 const { isDeployNotice } = await import('../../lib/lark-principal-channel.mjs')
+const { notForBotReason } = await import('../../lib/lark-control-channel.mjs')
 const { classifyTaskIntent } = await import('../../lib/lark-worker-run.mjs')
 
 const args = process.argv.slice(2)
@@ -136,7 +137,7 @@ const buildTask = async (m) => {
   const rawTrigger = resolveMessageTrigger({ msg, config, isBotReceiptReply })
   const trigger = rawTrigger === 'task_mention' ? null : rawTrigger
   if (!trigger) return { msg, trigger: null, task: null }
-  const route = deterministicRoute(msg)
+  const route = deterministicRoute(msg) || (trigger === 'bot_reply' && notForBotReason({ msg, config }) ? 'not_for_bot' : null) // 网关同口径（lib/lark-ingest.mjs）
   if (route) return { msg, trigger: rawTrigger, task: null, route }
   const bundle = await buildConversationBundle({ msg, config, store: emptyStore, project: 'FALIVE', deps: depsFor(m.atMs) })
   const fromPrincipal = msg.senderOpenId === AVEN_OPEN_ID

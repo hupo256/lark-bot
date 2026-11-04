@@ -149,7 +149,7 @@ describe('上下文分层升级：遮蔽检测 / 缓存标龄 / 视觉分流 / �
       await execAiExecutor({ executor: 'cursor', promptText: 'x', cwd: mkdtempSync(join(tmpdir(), 'cur-')), localConfig: { ...pinned, claudeSettingSources: 'project' }, systemPromptText: 'SYS', spawnImpl: (cmd, args) => { calls.push({ cmd, args }); throw new Error('stop') } }).catch(() => {})
       assert.equal(calls[3].args.some((a) => a === '--setting-sources' || a === '--append-system-prompt'), false, '非 claude 执行器不吃 claude 参数')
       // 分类单独配模型 / 强度（11-02）：只作用于 intent，分析 / 实施仍走各自的键；没配沿用任务模型与强度。
-      const stop = (cmd, args) => { calls.push({ cmd, args }); throw new Error('stop') }
+      const stop = (cmd, args, opts) => { calls.push({ cmd, args, opts }); throw new Error('stop') }
       const intentCfg = { ...pinned, claudeIntentModel: 'fast', claudeIntentEffort: 'low', claudeAnalysisEffort: 'max' }
       await execAiExecutor({ executor: 'claude', promptText: 'x', cwd: tmpdir(), localConfig: intentCfg, resultKind: 'intent', spawnImpl: stop }).catch(() => {})
       await execAiExecutor({ executor: 'claude', promptText: 'x', cwd: tmpdir(), localConfig: intentCfg, resultKind: 'analysis', spawnImpl: stop }).catch(() => {})
@@ -159,6 +159,9 @@ describe('上下文分层升级：遮蔽检测 / 缓存标龄 / 视觉分流 / �
       await execAiExecutor({ executor: 'claude', promptText: 'x', cwd: tmpdir(), localConfig: {}, model: 'p', reasoningEffort: 'pe', resultKind: 'intent', spawnImpl: stop }).catch(() => {})
       await execAiExecutor({ executor: 'claude', promptText: 'x', cwd: tmpdir(), localConfig: {}, codexModel: 'c', codexReasoningEffort: 'ce', resultKind: 'intent', spawnImpl: stop }).catch(() => {})
       assert.deepEqual(calls.slice(4).map((c) => [argOf(c.args, '--model'), argOf(c.args, '--effort')]), [['fast', 'low'], ['m', 'max'], ['m', 'high'], ['m', 'high'], ['p', 'pe'], ['c', 'ce']])
+      // 分类瘦身（11-04 省钱）：只有 intent 带 --safe-mode（不注入本机 CLAUDE.md / 记忆）+ 关提示缓存（单发调用写了读不到）；分析 / 实施照旧走缓存
+      assert.deepEqual(calls.slice(4, 7).map((c) => [c.args.includes('--safe-mode'), c.opts?.env?.DISABLE_PROMPT_CACHING ?? null]), [[true, '1'], [false, null], [false, null]])
+      assert.equal(calls[4].opts.env.PATH, process.env.PATH, '其它环境变量照传')
     }],
     ['环境版本解析（11-02）：老站 /version 认 React 注释、新站 /wn/<sha>/、只认十六进制；分支映射可覆盖；人话三种落点', () => {
       assert.equal(parseLegacyVersion('<div>Version: <!-- -->13E83A1</div>'), '13e83a1')

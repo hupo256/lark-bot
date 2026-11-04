@@ -15,6 +15,7 @@ import { spawnSync } from 'node:child_process'
 import { replayRoot, roundsDir } from './falive-data.mjs'
 import { pausedUntil } from './claude-quota.mjs'
 import { listSimDirs } from './sim-dir.mjs'
+import { isClaudeHost } from './egress-audit.mjs'
 
 const args = process.argv.slice(2)
 const value = (name, fallback) => (args.includes(name) ? args[args.indexOf(name) + 1] : fallback)

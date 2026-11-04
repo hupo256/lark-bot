@@ -245,5 +245,17 @@
     "code": "if (explicit && !lead) {",
     "op": "&& → ||",
     "reason": "非显式续跑的 task 总在库里（锚定来的），resolveDirectiveTarget 回 exact 原样往下走；带 lead 的递归里点名的已是认出来的那条，同样回 exact——两种都只多算一遍、行为不变（等价变异）"
+  },
+  {
+    "file": "lib/lark-control-channel.mjs",
+    "code": "if ((msg.attachments || []).length || MATERIAL_LINK_RE.test(msg.text || '')) return null",
+    "op": "|| → &&",
+    "reason": "变的是 (msg.attachments || [])：normalizeMessage 恒给数组，[] && [] 与 [] || [] 同为空数组，等价变异"
+  },
+  {
+    "file": "lib/lark-ingest.mjs",
+    "code": "if (notForBot) return console.log(`[lark-gateway] ${msg.messageId} 回 bot 消息但不是对机器人说的（${notForBot === 'social' ? '寒暄 / 抄送' : '@ 的是别的同事'}），静默、不分类`)",
+    "op": "=== → !==",
+    "reason": "只影响日志里的原因措辞（寒暄 / 抄送 vs @ 的是别的同事），不影响行为"
   }
 ]
