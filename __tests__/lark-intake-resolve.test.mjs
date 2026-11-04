@@ -11,7 +11,7 @@ import { describe, it, mock } from 'node:test'
 
 import { CONTRACT_VERSION, deriveContract, isReadOnlyAsk, isRecordOnly, refreshContract, taskContract } from '../lib/lark-task-contract.mjs'
 import { PRIOR_CONCLUSION_MAX, applyIntakeClassification, intakeActionable, priorConclusionOf, sameIntentClassification } from '../lib/lark-intake-resolve.mjs'
-import { mergeTaskObjects } from '../lib/lark-task-merge.mjs'
+import { isNudgeFollowUp, mergeTaskObjects } from '../lib/lark-task-merge.mjs'
 import { judgeIntakeCase, regressionTaskOf } from '../lib/lark-intake-replay.mjs'
 import { buildIntentClassificationPrompt } from '../lib/lark-classify-prompt.mjs'
 import { createTaskStore } from '../lib/lark-task-store.mjs'
@@ -318,11 +318,31 @@ describe('对话层：契约、入队门槛、分类落态、归并', () => {
       const fresh = (status, extra = {}) => ({ id: 'into', status, text: '原问题', epoch: 2, ...extra })
       const from = (extra = {}) => ({ id: 'from', text: '有哪些差别', epoch: 0, attachments: [{ type: 'image', imageKey: 'img_1' }], contract: { v: 1, deliverable: 'answer' }, conversation: { anchor: null }, ...extra })
       const run = (into, source = from()) => ({ mode: mergeTaskObjects({ from: source, into, requeueTask, now: NOW }), into, source })
+      const nudge = (extra = {}) => from({ text: '【本条 @】这也麻烦在测试下', attachments: [{ type: 'image', imageKey: 'ctx', origin: '群里之前的消息' }], messageCreatedAt: '2026-11-01T09:58:59.000Z', ...extra })
+      const done = (extra = {}) => fresh('done', { lastDeliveredReceipt: { status: 'done', epoch: 2, deliveredAt: '2026-11-01T09:59:00.000Z' }, ...extra })
       return eachCase([
         { name: 'queued → appended：正文追加、附件合并、不换代', into: fresh('queued'), mode: 'appended', after: (into) => { assert.equal(into.text, '原问题\n\n【同主题补充 2026-11-01T10:00】有哪些差别'); assert.deepEqual(into.attachments, [{ type: 'image', imageKey: 'img_1' }]); assert.equal(into.epoch, 2); assert.equal(into.status, 'queued') } },
         { name: 'received → appended', into: fresh('received'), mode: 'appended', after: (into) => assert.equal(into.status, 'received') },
         { name: 'running → rerun_after_done', into: fresh('running'), mode: 'rerun_after_done', after: (into) => { assert.equal(into.rerunAfterDone, true); assert.equal(into.status, 'running') } },
         { name: 'verifying → rerun_after_done', into: fresh('verifying'), mode: 'rerun_after_done' },
+        // falive 回放 b2 ep-1014-d74f19：在跑时「这也麻烦在测试下」「麻烦在看看 有没有问题」各打一次 rerunAfterDone，群里 4 分钟连发 3 条几乎一样的结论。
+        // 只是催 / 重复同一个请求 → 不欠一轮，这轮结论顺带答它（answerFor）；结论刚送达、它发在送达之前 → 不重开（answered_before）
+        { name: 'running + 只是催 → nudge_running：不打 rerunAfterDone，记 answerFor', into: fresh('running', { answerFor: ['old'] }), source: nudge(), mode: 'nudge_running', after: (into) => assert.deepEqual([into.rerunAfterDone, into.answerFor, into.status, into.epoch], [undefined, ['old', 'from'], 'running', 2]) },
+        { name: 'verifying + 只是催 → nudge_running', into: fresh('verifying'), source: nudge(), mode: 'nudge_running' },
+        { name: 'running + 只是催、但已欠一轮 → 标记留着', into: fresh('running', { rerunAfterDone: true }), source: nudge(), mode: 'nudge_running', after: (into) => assert.equal(into.rerunAfterDone, true) },
+        { name: 'running + 引用里带东西、本条只是催 → 仍算催（只看本条原话）', into: fresh('running'), source: nudge({ text: '【被引用消息】（Aven.Bot）\n用 508 号登录\n\n【本条 @】@Aven.Bot 麻烦在看看 有没有问题\n\n【群里这条之前的消息】\n验证码 123456' }), mode: 'nudge_running' },
+        { name: 'running + 催但自己带了图 → rerun_after_done', into: fresh('running'), source: nudge({ attachments: [{ type: 'image', imageKey: 'own' }] }), mode: 'rerun_after_done' },
+        { name: 'done、结论在它之后送达 + 只是催 → answered_before：不重开、不动目标', into: done({ ackReply: 'A 那句', envTargets: ['pre'], contract: { v: 1, deliverable: 'verification' }, mergedNotified: ['x'] }), source: nudge({ envTargets: ['uat'], ackReply: 'B 那句' }), mode: 'answered_before', after: (into) => assert.deepEqual([into.status, into.epoch, into.rerunAfterDone, into.ackReply, into.envTargets, into.contract.deliverable, into.mergedNotified, into.answerFor], ['done', 2, undefined, 'A 那句', ['pre'], 'verification', ['x', 'from'], undefined]) },
+        { name: 'no_change_needed 同理', into: done({ status: 'no_change_needed', lastDeliveredReceipt: { status: 'no_change_needed', epoch: 2, deliveredAt: '2026-11-01T09:59:00.000Z' } }), source: nudge(), mode: 'answered_before' },
+        { name: 'done、它发在结论送达之后（看过结论还要再看）→ reopened', into: done(), source: nudge({ messageCreatedAt: '2026-11-01T09:59:01.000Z' }), mode: 'reopened' },
+        { name: 'done、恰好同一刻 → answered_before', into: done(), source: nudge({ messageCreatedAt: '2026-11-01T09:59:00.000Z' }), mode: 'answered_before' },
+        { name: 'done、没 messageCreatedAt 按 createdAt', into: done(), source: nudge({ messageCreatedAt: undefined, createdAt: '2026-11-01T09:58:00.000Z' }), mode: 'answered_before' },
+        { name: 'done、送达的是上一代的结论 → reopened', into: done({ lastDeliveredReceipt: { status: 'done', epoch: 1, deliveredAt: '2026-11-01T09:59:00.000Z' } }), source: nudge(), mode: 'reopened' },
+        { name: 'done、没送达记录 → reopened', into: done({ lastDeliveredReceipt: undefined }), source: nudge(), mode: 'reopened' },
+        { name: 'failed 的结论 → reopened（没做成，再看看是要重试）', into: done({ status: 'failed', lastDeliveredReceipt: { status: 'failed', epoch: 2, deliveredAt: '2026-11-01T09:59:00.000Z' } }), source: nudge(), mode: 'reopened' },
+        { name: '送达的是 done、但目标现在是 failed（回写晚到）→ reopened', into: done({ status: 'failed' }), source: nudge(), mode: 'reopened' },
+        { name: '目标 done、但送达的是挂起回执 → reopened', into: done({ lastDeliveredReceipt: { status: 'blocked', epoch: 2, deliveredAt: '2026-11-01T09:59:00.000Z' } }), source: nudge(), mode: 'reopened' },
+        { name: 'done、结论之前发的但有新内容 → reopened', into: done(), source: nudge({ text: '【本条 @】验证码 123456 再测下' }), mode: 'reopened' },
         { name: '疑似挂起 → appended_suspected：不开跑、不换代', into: fresh('waiting_confirmation', { suspected: true, parkedAt: 'p' }), mode: 'appended_suspected', after: (into) => { assert.equal(into.status, 'waiting_confirmation'); assert.equal(into.epoch, 2); assert.equal(into.parkedAt, 'p'); assert.equal(calls.includes('into'), false) } },
         { name: '挂起（非疑似）→ resumed：经 requeueTask 换代、记 waitingHistory、清结果 / 挂起字段', into: fresh('waiting_confirmation', { waitRound: 2, result: '等材料', owner: 'qa', scopeRequest: { x: 1 }, parkedAt: 'p', parkedRemindedRound: 1 }), mode: 'resumed', after: (into) => { assert.equal(into.status, 'queued'); assert.equal(into.epoch, 3); assert.deepEqual(into.waitingHistory, [{ round: 2, epoch: 2, status: 'waiting_confirmation', result: '等材料', resumedAt: NOW }]); assert.equal(into.resumeCount, 1); assert.equal(into.result, null); assert.equal(into.owner, null); assert.equal(into.scopeRequest, null); assert.equal(into.parkedAt, null); assert.equal(into.parkedRemindedRound, 0); assert.deepEqual(calls, ['into']) } },
         { name: 'blocked → resumed', into: fresh('blocked'), mode: 'resumed', after: (into) => assert.equal(into.waitingHistory[0].round, 1) },
@@ -385,6 +405,21 @@ describe('对话层：契约、入队门槛、分类落态、归并', () => {
         after?.(r.into)
       })
     }],
+    ['isNudgeFollowUp：本条原话整句都是催办 / 客套词才算；剩任何别的字、自己带附件都不算', () => eachCase([
+      { name: '这也麻烦在测试下', text: '【本条 @】这也麻烦在测试下', want: true },
+      { name: '麻烦在看看 有没有问题', text: '【本条 @】@Aven.Bot 麻烦在看看 有没有问题', want: true },
+      { name: '进度怎么样了？', text: '进度怎么样了？', want: true },
+      { name: '没【本条 @】看首行', text: '帮忙看下\n验证码 123456', want: true },
+      { name: '改成红色（新内容）', text: '【本条 @】改成红色', want: false },
+      { name: '测一下 pre（点名环境）', text: '【本条 @】测一下 pre', want: false },
+      { name: '用 508 再测', text: '【本条 @】用 508 再测', want: false },
+      { name: '只 @ 没附言', text: '【本条 @】（无附言，只 @ 了机器人）', want: false },
+      { name: '空', text: '', want: false },
+      { name: '超过 20 字', text: `【本条 @】${'麻烦'.repeat(11)}`, want: false },
+      { name: '恰好 20 字', text: `【本条 @】${'麻烦'.repeat(10)}`, want: true },
+      { name: '自己带图', text: '【本条 @】看看', attachments: [{ type: 'image', imageKey: 'p' }], want: false },
+      { name: '群上下文带进来的图不算', text: '【本条 @】看看', attachments: [{ type: 'image', imageKey: 'p', origin: '群里之前的消息' }], want: true },
+    ], ({ text, attachments, want }) => assert.equal(isNudgeFollowUp({ text, attachments }), want))],
     ['mergeTaskObjects：缺任一方、同一条、目标已 superseded → null，不动对象', () => {
       const same = { id: 'a', status: 'queued' }
       assert.equal(mergeTaskObjects({ from: same, into: same, requeueTask: () => {} }), null)

@@ -22,7 +22,7 @@ process.env.LARK_RUNTIME_DIR = runtime
 
 const { ACK_SWEEP_EVERY_MS, DEFAULT_ACK_TIMEOUT_MS, appendSuspectedSupplement, deliverFollowUpReply, flushPendingAck, holdsSuspectedForPrincipal, intakeTiming, isCompleteMessage, markAckPending, mergeThreadSupplement, pickSupplementTarget, resolveIntakeLane, resolveIntakeNotBefore, sweepPendingAcks } = await import('../lib/lark-intake-ack.mjs')
 const { DEFAULT_PRINCIPAL_REPLY_WINDOW_MS, anchorHead, buildPrincipalInstructionTask, classifyPrincipalReply, decidePrincipalAction, findHeldDraftTask, isBareGoAhead, isDeployNotice, isFreshInFlight, isReleaseHeldReply, isShortDeictic, latestDmReceipt, maybeHandlePrincipalChannel, resolvePrincipalAnchor } = await import('../lib/lark-principal-channel.mjs')
-const { RERUN_ACK_REPLY, compatibleContinuation, handleIntakeResolution, mergeableTarget, resolveMergeTarget } = await import('../lib/lark-routes-intake.mjs')
+const { ANSWERED_BEFORE_ACK_REPLY, NUDGE_RUNNING_ACK_REPLY, RERUN_ACK_REPLY, compatibleContinuation, handleIntakeResolution, mergeableTarget, resolveMergeTarget } = await import('../lib/lark-routes-intake.mjs')
 const { buildConversationBundle } = await import('../lib/lark-conversation-bundle.mjs')
 const { ingestLarkEvent } = await import('../lib/lark-ingest.mjs')
 const { handleBotAddedEvent, parseBotAddedEvent } = await import('../lib/lark-project-chat-sync.mjs')
@@ -765,6 +765,20 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       mergeResult = { mode: 'rerun_after_done', into: { ...target, status: 'running' } }
       assert.deepEqual(await run({ ok: true, actionable: true, task: cont }), body({ actionable: true, mergedInto: 'om_target', mode: 'rerun_after_done' }))
       assert.deepEqual([said.slice(1), delivered, RERUN_ACK_REPLY], [[['flushPendingAck', { config: cfg, store: st, task: cont, reply: '收到，这条等上一轮跑完一起处理', send: true, reason: 'merged:rerun_after_done' }]], [], '收到，这条等上一轮跑完一起处理'])
+      // 只是催（falive 回放 b2 ep-1014-d74f19）：在跑 → 「在做了」，不重发开跑；结论刚发在它之前 → 指过去，义务记 answered
+      mergeResult = { mode: 'nudge_running', into: { ...target, status: 'running' } }
+      const nudgeRun = task({ id: 'om_nu1' }, cls({ decision: 'bug', continues: 'om_target' }))
+      assert.deepEqual(await run({ ok: true, actionable: true, task: nudgeRun }), body({ actionable: true, mergedInto: 'om_target', mode: 'nudge_running' }))
+      assert.deepEqual([said.slice(1), delivered, getObligation(nudgeRun), NUDGE_RUNNING_ACK_REPLY], [[['flushPendingAck', { config: cfg, store: st, task: nudgeRun, reply: '在做了，有结果一起回你', send: true, reason: 'merged:nudge_running' }]], [], null, '在做了，有结果一起回你'])
+      mergeResult = { mode: 'answered_before', into: { ...target, status: 'done' } }
+      const nudgeDone = task({ id: 'om_nu2' }, cls({ decision: 'bug', continues: 'om_target' }))
+      assert.deepEqual(await run({ ok: true, actionable: true, task: nudgeDone }), body({ actionable: true, mergedInto: 'om_target', mode: 'answered_before' }))
+      assert.deepEqual([said.slice(1), delivered, getObligation(nudgeDone)?.state, getObligation(nudgeDone)?.answerText], [[['flushPendingAck', { config: cfg, store: st, task: nudgeDone, reply: ANSWERED_BEFORE_ACK_REPLY, send: true, reason: 'merged:answered_before' }]], [], 'answered', '结论刚发在上面了，有问题再叫我'])
+      ackLive = false
+      const nudgeLate = task({ id: 'om_nu3' }, cls({ decision: 'bug', continues: 'om_target' }))
+      await run({ ok: true, actionable: true, task: nudgeLate })
+      assert.equal(getObligation(nudgeLate), null, '「收到」没用上这句（已发固定句）→ 不记 answered')
+      ackLive = true
       mergeResult = null
       // 开跑
       const go = task()
