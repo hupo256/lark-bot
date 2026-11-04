@@ -45,6 +45,10 @@ export const classifyLine = (x, dns = {}) => {
     if (LOGIN_PATH_RE.test(x.path || '')) return { kind: 'allowed', reason: 'falive 环境登录 POST（§7 允许）' }
     return { kind: 'violation', reason: `falive 环境非登录写请求（${x.method} ${x.path}）` }
   }
+  // 主机名粘了命令后面的字（11-04 b1：curl 壳把「| grep Binary file (standard input) matches」的词拼进了 URL，记成 faliveuat.fdsser.combinary）：
+  // 前缀是允许的 falive 环境主机就归「解析异常」待核，不算违规——真请求要么打到了允许的主机、要么因主机名不合法根本没发出去。
+  const glued = /^((?:[a-z0-9-]+\.)*fdsser\.com|www\.falive\.com)[a-z(]/i.exec(String(x.host || ''))
+  if (glued && FALIVE_HOST_RE.test(glued[1])) return { kind: 'review', reason: `主机名粘了别的字（${x.host}），前缀 ${glued[1]} 是允许的环境；多半是 curl 壳解析异常` }
   return { kind: 'violation', reason: `未知出网目标 ${x.host}` }
 }
 
