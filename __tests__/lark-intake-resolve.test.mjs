@@ -130,6 +130,10 @@ describe('对话层：契约、入队门槛、分类落态、归并', () => {
       { name: 'A ¬P ignore + verification high → 是（帮测不看归属）', t: { addressedToBot: true }, c: cls('ignore', 'high', { deliverable: 'verification' }), want: true },
       { name: 'A ¬P ignore + answer medium → 是', t: { addressedToBot: true }, c: cls('ignore', 'medium', { deliverable: 'answer' }), want: true },
       { name: 'A ¬P ignore + verification low → 否', t: { addressedToBot: true }, c: cls('ignore', 'low', { deliverable: 'verification' }), want: false },
+      // 11-04 falive 回放：bot 卡片下的话题里 mainly「@Arthur 前端给你了 guest_token…」被判 verification 建了复测——回复 bot 没 @ 它、分类器判不是对 bot 说（reply null）不帮测
+      { name: 'A ¬P 回复 bot 没 @、ignore + verification high、reply null → 否（在跟同事说）', t: { addressedToBot: true, intake: { trigger: 'bot_reply', mentionedBot: false } }, c: cls('ignore', 'high', { deliverable: 'verification' }), want: false },
+      { name: 'A ¬P 回复 bot 没 @、ignore + verification high、有 reply → 是（对 bot 说的，照旧帮测）', t: { addressedToBot: true, intake: { trigger: 'bot_reply', mentionedBot: false } }, c: cls('ignore', 'high', { deliverable: 'verification', reply: '我去看看' }), want: true },
+      { name: 'A ¬P 回复 bot 且 @ 了它、ignore + verification high、reply null → 是', t: { addressedToBot: true, intake: { trigger: 'bot_reply', mentionedBot: true } }, c: cls('ignore', 'high', { deliverable: 'verification' }), want: true },
       { name: 'A ¬P ignore + change high → 否', t: { addressedToBot: true }, c: cls('ignore', 'high', { deliverable: 'change' }), want: false },
       { name: 'A ¬P 私聊指示 + ignore + answer → 否', t: { addressedToBot: true, privateOrigin: { anchorId: 'a' } }, c: cls('ignore', 'high', { deliverable: 'answer' }), want: false },
       { name: 'A ¬P bug high forMe null → 是', t: { addressedToBot: true }, c: cls('bug'), want: true },

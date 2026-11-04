@@ -440,6 +440,13 @@ describe('task-mention intent classification', () => {
     // 仓名读配置 repoLabel（falive 回放 11-03）：没配沿用 fameex-web
     assert.match(prompt, /只做 fameex-web 前端仓的事/)
     assert.match(buildIntentClassificationPrompt({ text: 'x' }, { localConfig: { repoLabel: 'falive-react 前端仓' } }), /只做 falive-react 前端仓的事/)
+    // 回复 bot 消息没 @ 它（11-04 falive 回放：bot 卡片下的话题里 aven 跟同事说话被当成对 bot 说）：先判在跟谁说，不是对 bot → ignore、reply null；
+    // @ 了 bot 的回复、直接 @ / 私信照旧「不能没下文」。
+    const replyNoAt = buildIntentClassificationPrompt({ text: 'x', addressedToBot: true, intake: { trigger: 'bot_reply', mentionedBot: false } })
+    const replyAt = buildIntentClassificationPrompt({ text: 'x', addressedToBot: true, intake: { trigger: 'bot_reply', mentionedBot: true } })
+    assert.deepEqual([/没 @ 它：先看在跟谁说.*不是对机器人说的，ignore、reply 填 null/.test(replyNoAt), /不能没下文/.test(replyNoAt), /没 @ 它：先看在跟谁说/.test(replyAt), /不能没下文/.test(replyAt)], [true, false, false, true])
+    // 明说修掉 / 改掉就是 change（回归集边界题「确认一下，请马上修掉」high 偶尔判 question / answer）
+    assert.match(replyAt, /change = 要改代码（明说修掉 \/ 改掉就是，前面带「确认 \/ 看下」也是）/)
   })
 })
 

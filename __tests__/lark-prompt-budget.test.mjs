@@ -94,6 +94,12 @@ describe('提示词规则预算', () => {
     }
     assert.doesNotMatch(followUp, /<<<UNTRUSTED_TASK_INPUT|<<<TRUSTED_RULE_CONTEXT|\bRULES\b/, `${name} 增量提示不重复任务正文与规则原文块`)
     const classifier = buildIntentClassificationPrompt(task)
+    // 对象块四选一，每种都量（11-04 起；原来只量了「只 @ 负责人」那种，私聊指示那种已经 2626 超了没人发现）。
+    const variants = { 直接叫: { addressedToBot: true }, 回复没at: { addressedToBot: true, intake: { trigger: 'bot_reply', mentionedBot: false } }, 私聊指示: { addressedToBot: true, privateOrigin: { anchorId: 'a' } } }
+    for (const [variant, extraTask] of Object.entries(variants)) {
+      const size = buildIntentClassificationPrompt({ ...task, ...extraTask }).length
+      assert.ok(size <= CLASSIFIER_RULE_BUDGET, `分类器规则（${variant}）${size} 字符，超过预算 ${CLASSIFIER_RULE_BUDGET}`)
+    }
     assert.ok(classifier.length <= CLASSIFIER_RULE_BUDGET, `分类器规则 ${classifier.length} 字符，超过预算 ${CLASSIFIER_RULE_BUDGET}`)
     assert.doesNotMatch(classifier, /PR-0\d{4}/)
     // 11-03 falive 回放：「创建最新的帖子 进行测试」先回「我在 pre 发几条新帖」，实测只读发不了帖——「收到」不许诺写操作。
