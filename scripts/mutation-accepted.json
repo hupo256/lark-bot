@@ -233,5 +233,11 @@
     "code": "const sent = await say.principal({ config, store, text: sayIntakeFailed({ task, chatLabel: chatLabel(task, { chatNames: config.chatNames || {} }) }), taskId: task.id, kind: 'intake_failed' })",
     "op": "|| → &&",
     "reason": "chatNames 缺省与传 {} 对 chatLabel 等价（都查不到群名回落 chatId）；无业务含义"
+  },
+  {
+    "file": "lib/lark-control-channel.mjs",
+    "code": "if (explicit && !lead) {",
+    "op": "&& → ||",
+    "reason": "非显式续跑的 task 总在库里（锚定来的），resolveDirectiveTarget 回 exact 原样往下走；带 lead 的递归里点名的已是认出来的那条，同样回 exact——两种都只多算一遍、行为不变（等价变异）"
   }
 ]

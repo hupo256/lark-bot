@@ -484,9 +484,12 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
         { name: '不是，这个是 B 页面（补料）', text: '不是，这个是 B 页面', want: null },
         { name: '不，找 William 要账号（补料）', text: '不，找 William 要账号', want: null },
         { name: '不，找后端要账号（补料）', text: '不，找后端要账号', want: null },
-        // 结单语族在私信这里最多问一句（补料里常带「不用管 / 取消那个 / 不用改了」），不直接关
-        { name: '用 508 账号，不用管验证码 → 只问', text: '用 508 账号，不用管验证码', want: { kind: 'unclear', closureReason: 'no_longer_needed' } },
-        { name: '取消那个弹窗，直接跳转 → 只问', text: '取消那个弹窗，直接跳转', want: { kind: 'unclear', closureReason: 'cancelled' } },
+        // 结单语族在私信这里最多问一句（补料里常带「不用改了」），不直接关
+        // 11-04 ep-1021-193c03：结单动词带了产品宾语（不用管验证码 / 取消那个弹窗 / 关闭礼物入口）已不算结单语族，是补料，照常续跑
+        { name: '用 508 账号，不用管验证码 → 补料', text: '用 508 账号，不用管验证码', want: null },
+        { name: '取消那个弹窗，直接跳转 → 补料', text: '取消那个弹窗，直接跳转', want: null },
+        { name: '关闭直播间内的礼物入口，由服务端控制 → 补料', text: '关闭直播间内的礼物入口，由服务端控制', want: null },
+        { name: '这个任务关闭吧 → 只问', text: '这个任务关闭吧', want: { kind: 'unclear', closureReason: 'cancelled' } },
         { name: '后端已经修了，不用改了，复测一下 → 只问', text: '后端已经修了，不用改了，复测一下', want: { kind: 'unclear', closureReason: 'no_longer_needed' } },
         { name: '已经有人在改了 → 只问', text: '已经有人在改了', want: { kind: 'unclear', closureReason: 'no_longer_needed' } },
         { name: '别做了？', text: '别做了？', want: { kind: 'unclear', closureReason: 'cancelled' } },
