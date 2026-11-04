@@ -120,7 +120,7 @@ const toListItem = (m) => ({
   message_id: m.id,
   chat_id: m.chatId,
   msg_type: m.msgType,
-  content: expandedContent(m.id)?.content ?? m.text,
+  content: expandedContent(m.id)?.content ?? m.cliText ?? m.text, // bot 看到的 = 真 lark-cli 的渲染
   create_time: String(m.atMs),
   deleted: m.deleted,
   sender: { id: m.senderType === 'app' ? BOT_APP_ID : m.senderId, id_type: m.senderType === 'app' ? 'app_id' : 'open_id', sender_type: m.senderType, name: m.senderName, ...(m.ownBot ? { open_bot_id: BOT_APP_ID } : {}) },

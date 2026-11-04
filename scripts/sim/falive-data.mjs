@@ -123,8 +123,10 @@ export const loadTimeline = () => {
       const recalled = view?.content === '[Invalid text JSON]' || /^This message was recalled$/.test(String(item.body?.content || ''))
       const shown = recalled ? '' : typeof view?.content === 'string' ? view.content : renderRawContent(item.msg_type, item.body?.content, mentions)
       const text = displayText({ msgType: item.msg_type, senderType, text: shown })
+      const cliText = text !== shown ? shown : undefined // 真 lark-cli 给 bot 看的就是带 (ou_xxx) 的版本：假 CLI 供数用它，裁判 / 清单用 text
       messages.set(item.message_id, {
         id: item.message_id,
+        ...(cliText ? { cliText } : {}),
         chatId: group.chatId,
         chatKey: group.key,
         chatName: group.name,
@@ -155,7 +157,8 @@ export const loadTimeline = () => {
       messages.set(id, {
         id, chatId: group.chatId, chatKey: group.key, chatName: group.name, atMs: Date.parse(String(view.create_time).replace(' ', 'T')) || 0,
         msgType: view.msg_type, senderType, senderId: view.sender?.id || '', senderName: view.sender?.name || '', ownBot, isAven: view.sender?.id === AVEN_OPEN_ID,
-        text: displayText({ msgType: view.msg_type, senderType, text: typeof view.content === 'string' ? view.content : '' }), rawContent: null, mentions, parentId: null, rootId: null, threadId: view.thread_id || null,
+        text: displayText({ msgType: view.msg_type, senderType, text: typeof view.content === 'string' ? view.content : '' }),
+        ...(typeof view.content === 'string' && displayText({ msgType: view.msg_type, senderType, text: view.content }) !== view.content ? { cliText: view.content } : {}), rawContent: null, mentions, parentId: null, rootId: null, threadId: view.thread_id || null,
         deleted: Boolean(view.deleted), resources: (view.resources || []).map((r) => ({ key: r.key, type: r.type, localPath: r.local_path || null })),
         atBot: mentions.some((m) => BOT_MENTION_IDS.has(m.id) || BOT_NAMES.has(m.name)),
       })
@@ -172,7 +175,7 @@ export const toEvent = (m) => ({
   message_type: m.msgType,
   sender_type: m.senderType === 'app' ? 'bot' : m.senderType || 'user',
   sender_id: m.senderId,
-  content: m.text,
+  content: m.cliText ?? m.text, // 假 CLI / 分类回放给 bot 看的 = 真 lark-cli 的渲染（卡片里 @名字(ou_xxx)）
   mentions: m.mentions,
   create_time: String(m.atMs),
   ...(m.parentId ? { reply_to: m.parentId } : {}),
