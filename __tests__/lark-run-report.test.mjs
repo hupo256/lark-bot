@@ -211,7 +211,7 @@ describe('worker 侧对话层：outcome / 契约映射 / 群回复补写 / 模�
     // 11-03 falive 回放：「测试的tid 发出来」tid 在上一单结论里却回「去翻文档」；「创建最新的帖子」先回「我在 pre 发几条新帖」，实测只读没发。
     ['代答 / 实测：要什么本轮给什么（两种模式都带）；「收到」那句与上一单结论只进单趟提示', () => {
       for (const block of [ANSWER_MODE_BLOCK({}), ANSWER_MODE_BLOCK({}, { persona: '短句' }), VERIFICATION_MODE_BLOCK({}), VERIFICATION_MODE_BLOCK({}, { hasPageTool: true })]) assert.ok(block.endsWith(`\n${DELIVER_NOW_RULE}`))
-      assert.match(DELIVER_NOW_RULE, /要事实（tid \/ 账号 \/ 地址 \/ 数据）就查出来直接列.*上一单结论.*只读 GET.*不让对方自己去翻.*不允许（发帖 \/ 注册 \/ 下单这类写操作）就直说这边做不了、该找谁.*单趟没有下次.*群里先回的那句答应过的/)
+      assert.match(DELIVER_NOW_RULE, /要事实（tid \/ 账号 \/ 地址 \/ 数据）就查出来直接列.*上一单结论.*只读去环境拉.*不让对方自己去翻.*不允许（发帖 \/ 注册 \/ 下单这类写操作）就直说这边做不了、该找谁.*单趟没有下次.*群里先回的那句答应过的/)
       const prior = { taskId: 'om_prev', summary: '翻译实测', text: '- 标题翻译：18726–18742' }
       const PRIOR_LINE = '本条接着任务 om_prev（翻译实测），那单 bot 的结论（以前的记录，用前对一下）：\n- 标题翻译：18726–18742'
       return eachCase([
@@ -236,11 +236,12 @@ describe('worker 侧对话层：outcome / 契约映射 / 群回复补写 / 模�
           const block = buildCarryOverBlock(full, { verification: contract.deliverable === 'verification' })
           if (want) assert.equal(user.includes(`\n${block}\n`), carried, `${contract.deliverable}：${carried ? '要带' : '不带'}`)
           assert.equal(['群里已先回了一句', '本条接着任务', '本单上一轮'].some((line) => user.includes(line)), carried && Boolean(want))
+          assert.equal(user.includes('curl GET / 登录 POST'), contract.deliverable === 'verification', '只有实测放开登录 POST（aven 11-04）')
         }
       })
     }],
-    ['buildEnvProbeRule：只认非空字符串地址；一个都没有就说明没配环境地址', () => {
-      assert.match(buildEnvProbeRule({ test: 'https://test.example.com', pre: ' ', uat: 5, online: null }), /上下文说哪个环境就测哪个：test https:\/\/test\.example\.com。/)
+    ['buildEnvProbeRule：只认非空字符串地址；一个都没有就说明没配环境地址；只放开登录 POST（aven 11-04）', () => {
+      assert.match(buildEnvProbeRule({ test: 'https://test.example.com', pre: ' ', uat: 5, online: null }), /上下文说哪个环境就测哪个：test https:\/\/test\.example\.com。.*只发 GET，唯一例外是为拿登录态（token \/ cookie）发登录 POST；不注册、不下单、不改任何数据。$/)
       assert.match(buildEnvProbeRule({ test: 'https://t', pre: 'https://p' }), /test https:\/\/t、pre https:\/\/p/)
       for (const sites of [null, {}, { pre: 7 }, { pre: '  ' }]) assert.match(buildEnvProbeRule(sites), /^环境实测：本仓没有配环境地址/)
     }],
