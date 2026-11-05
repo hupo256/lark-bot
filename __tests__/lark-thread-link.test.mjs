@@ -127,6 +127,7 @@ describe('同话题前一单关联（11-04）', () => {
         ['超过 30 分钟', { msg, items: [{ ...henry, createTime: String(at - ANSWERING_WINDOW_MS - 1) }] }],
         ['bot 在中间插过话', { msg, items: [henry, { messageId: 'om_b', sender: 'Aven.Bot（bot，我们自己）', senderOpenId: '', text: '好', bot: true, createTime: String(at - 1000) }] }],
         ['上一条是他自己', { msg, items: [{ ...henry, senderOpenId: 'ou_encone' }] }],
+        ['上一条是负责人 @ 他（回负责人 = 给 bot 的活，b4 79553ea1）', { msg, items: [{ ...henry, senderOpenId: 'ou_aven' }], principals: ['ou_aven'] }],
         ['上一条 @ 的不是他', { msg, items: [{ ...henry, mentionIds: ['ou_other'] }] }],
         ['上一条没 @ 谁', { msg, items: [{ ...henry, mentionIds: undefined }] }],
         ['上一条没发送人', { msg, items: [{ ...henry, senderOpenId: '' }] }],
