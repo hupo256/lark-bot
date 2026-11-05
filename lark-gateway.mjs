@@ -41,7 +41,7 @@ import { startWakeCatchup } from './lib/lark-wake-catchup.mjs'
 import { handleBotAddedEvent, startProjectChatSync } from './lib/lark-project-chat-sync.mjs'
 import { sendMarkdown } from './lib/lark-cli.mjs'
 import { ACK_SWEEP_EVERY_MS, sweepPendingAcks } from './lib/lark-intake-ack.mjs'
-import { deliverOverdueObligations } from './lib/lark-delivery.mjs'
+import { deliverOverdueObligations, deliverUnansweredAddressed } from './lib/lark-delivery.mjs'
 import { expireSuspectedAndNotify, startDailyDigest } from './lib/lark-daily-digest.mjs'
 import { startDailyReport } from './lib/lark-daily-schedule.mjs'
 import { startChatRetention } from './lib/lark-chat-retention.mjs'
@@ -183,13 +183,17 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
 
   // 挂起催办：waiting_confirmation / blocked 的任务每 15min 盘一遍，超时未处理按轮次催办。
   // 无此定时器时，挂起任务只有最初那一条回执，被群里讨论刷下去就再无人记得。
-  // 同一轮顺带：答应了 4h 没结论的私信负责人一次（回复义务）、疑似 48h 没人认领的自动关（合并私信一条）。
+  // 同一轮顺带：答应了 4h 没结论的私信负责人一次（回复义务）、群里 @bot 半小时一句没回过的私信一次、疑似 48h 没人认领的自动关（合并私信一条）。
   const parkedTimer = setInterval(() => {
     remindParkedTasks({ config, store }).catch((error) =>
       console.error(`[lark-gateway] 挂起催办异常：${String(error).slice(0, 120)}`),
     )
     deliverOverdueObligations({ config, store }).catch((error) =>
       console.error(`[lark-gateway] 逾期义务巡检异常：${String(error).slice(0, 120)}`),
+    )
+    // 群里 @bot 半小时一句没回过的：私信负责人一次（不变量巡检，b4 波 6 E3）。
+    deliverUnansweredAddressed({ config, store }).catch((error) =>
+      console.error(`[lark-gateway] 未回 @ 巡检异常：${String(error).slice(0, 120)}`),
     )
     expireSuspectedAndNotify({ config, store }).catch((error) =>
       console.error(`[lark-gateway] 疑似过期巡检异常：${String(error).slice(0, 120)}`),

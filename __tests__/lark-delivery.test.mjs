@@ -6,11 +6,11 @@ import { describe, it } from 'node:test'
 
 import { externalBlockers, extractLegacyBlockers, isFixElsewhere, nameIn } from '../lib/lark-blocked-ask.mjs'
 import {
-  blockedAskMentions, decideGroupReply, deliverAck, deliverHeldGroupReply, deliverIgnoredAfterAck, deliverNoted, deliverOutcome, deliverOverdueObligations,
+  blockedAskMentions, decideGroupReply, deliverAck, deliverHeldGroupReply, deliverIgnoredAfterAck, deliverNoted, deliverOutcome, deliverOverdueObligations, deliverUnansweredAddressed,
   deliverStart, deliverSuspected, deliverableOf, legacyOutcome, mentionsFor,
 } from '../lib/lark-delivery.mjs'
 import { recordOutbox } from '../lib/lark-outbox.mjs'
-import { getObligation, noteAck } from '../lib/lark-reply-obligation.mjs'
+import { getObligation, noteAck, noteAddressed } from '../lib/lark-reply-obligation.mjs'
 import { normalizeOutcome } from '../lib/lark-report-render.mjs'
 import { createTaskStore } from '../lib/lark-task-store.mjs'
 import { eachCase, runSteps } from './support/steps.mjs'
@@ -513,6 +513,52 @@ describe('任务的人话出口', () => {
       assert.equal(await deliverOverdueObligations({ config, store, now, deps }), 1)
       assert.deepEqual([getObligation(p).state, getObligation(p).answerTaskId], ['answered', 'om_p'])
       assert.match(dm()[0], /答应过「收到 q」.*继续任务 om_q/)
+      // b4 波 6 E3：群里 @bot 半小时一句没回过——对这条的回话（anchor / 任务 id）或并进的单回给了同一人 → replied；自己的单私信过负责人 → informed；
+      // 相关单还在排队 / 在跑 → 下轮再看；回过「收到」的归 4h 逾期管；恰好 30 分钟不算；都没有 → 私信一次（并进别人的单 / 没建成任务各一句）
+      const at = now - 40 * 60_000
+      const addr = (id, asker, text = '', when = at) => noteAddressed({ chatId: 'oc_g', messageId: id, asker, text, now: when })
+      addr('om_u1', 'ou_u1', '有回话')
+      recordOutbox({ chatId: 'oc_g', taskId: 'om_zz', phase: 'notice', anchor: 'om_u1', text: '好', now: at + 60_000 })
+      addr('om_u2', 'ou_u2', '并进同一人的单')
+      task({ id: 'om_t2', messageId: 'om_t2', operator: 'ou_u2', status: 'done', linkedMessageIds: ['om_u2'] })
+      recordOutbox({ chatId: 'oc_g', taskId: 'om_t2', phase: 'done', to: 'ou_u2', text: 't2 结论', now: at + 120_000 })
+      addr('om_u2b', 'ou_u2b', '结论末行 @ 了他')
+      task({ id: 'om_t2b', messageId: 'om_t2b', operator: 'ou_x', status: 'done', mergedFrom: ['om_u2b'] })
+      recordOutbox({ chatId: 'oc_g', taskId: 'om_t2b', phase: 'done', to: 'ou_x', mentions: ['ou_u2b'], text: 't2b 结论', now: at + 120_000 })
+      addr('om_u3', 'ou_u3', '并进了别人的单。')
+      task({ id: 'om_t3', messageId: 'om_t3', operator: 'ou_x', summary: '礼物入口', status: 'blocked', mergedFrom: ['om_u3'] })
+      recordOutbox({ chatId: 'oc_g', taskId: 'om_t3', phase: 'blocked_ask', to: 'ou_x', text: 't3 要材料', now: at + 120_000 })
+      recordOutbox({ chatId: 'oc_g', taskId: 'om_t3', phase: 'ack', to: 'ou_u3', text: '更早回他的', now: at - 60_000 })
+      addr('om_u4', 'ou_u4', '还在跑')
+      task({ id: 'om_t4', messageId: 'om_t4', status: 'queued', linkedMessageIds: ['om_u4'] })
+      addr('om_u5', 'ou_u5', '自己的单私信过')
+      task({ id: 'om_u5', messageId: 'om_u5', operator: 'ou_u5', status: 'failed' })
+      recordOutbox({ chatId: 'ou_aven', taskId: 'om_u5', phase: 'failed', text: '没做成', now: at + 60_000 })
+      addr('om_u5b', 'ou_u5b', '只私信了开始')
+      task({ id: 'om_u5b', messageId: 'om_u5b', operator: 'ou_u5b', status: 'done' })
+      recordOutbox({ chatId: 'ou_aven', taskId: 'om_u5b', phase: 'start', text: '开始', now: at + 60_000 })
+      addr('om_u6', 'ou_u6')
+      addr('om_u7', 'ou_u7', '回过收到')
+      noteAck({ task: { id: 'om_u7', chatId: 'oc_g', operator: 'ou_u7' }, text: '收到', now: at })
+      addr('om_u8', 'ou_u8', '刚好 30 分钟', now - 30 * 60_000)
+      sent.length = 0
+      assert.equal(await deliverUnansweredAddressed({ config, store, now, deps }), 3)
+      assert.deepEqual(dm(), [
+        `🔕 群里 @我 的这条 40 分钟了一句没回过（${G}）：「并进了别人的单」\n它并进了「礼物入口」，结论没回到这条。\n要我接着做回「继续任务 om_t3 做」，不用管就忽略。`,
+        `🔕 群里 @我 的这条 40 分钟了一句没回过（${G}）：「只私信了开始」\n要我接着做回「继续任务 om_u5b 做」，不用管就忽略。`,
+        `🔕 群里 @我 的这条 40 分钟了一句没回过（${G}）：「（只有 @ / 附件）」\n这条没建成任务，要接就让对方重新 @我，不用管就忽略。`,
+      ])
+      const ob = (id) => getObligation({ id, chatId: 'oc_g' })
+      assert.deepEqual(['om_u1', 'om_u2', 'om_u2b', 'om_u3', 'om_u4', 'om_u5', 'om_u6', 'om_u7', 'om_u8'].map((id) => [id, ob(id).state, ob(id).settledAs || null]), [
+        ['om_u1', 'answered', 'replied'], ['om_u2', 'answered', 'replied'], ['om_u2b', 'answered', 'replied'], ['om_u3', 'unanswered', 'notified'], ['om_u4', 'open', null],
+        ['om_u5', 'unanswered', 'informed'], ['om_u6', 'unanswered', 'notified'], ['om_u7', 'acked', null], ['om_u8', 'open', null],
+      ])
+      sent.length = 0
+      assert.equal(await deliverUnansweredAddressed({ config, store, now, deps }), 0, '查结过的不再查；在跑的下轮再看')
+      store.upsert({ ...store.get('om_t4'), status: 'done' })
+      assert.equal(await deliverUnansweredAddressed({ config, store, now: now + 1, deps: failing }), 0, '发送失败不标记')
+      assert.equal(ob('om_u4').state, 'open')
+      assert.equal(await deliverUnansweredAddressed({ config, store, now: now + 1, deps }), 2, '跑完了照查；恰好满 30 分钟之后也查')
     })],
   ], {
     before: () => {

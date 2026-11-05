@@ -49,6 +49,7 @@ const { ingestLarkEvent } = await import('../lib/lark-ingest.mjs')
 const { recordOutbox } = await import('../lib/lark-outbox.mjs')
 const { handleBotAddedEvent, parseBotAddedEvent } = await import('../lib/lark-project-chat-sync.mjs')
 const { createTaskStore } = await import('../lib/lark-task-store.mjs')
+const { getObligation } = await import('../lib/lark-reply-obligation.mjs')
 
 const BOT = { id: 'ou_bot', key: '@_user_1', name: 'Aven.Bot' }
 const AVEN = { id: 'ou_aven', key: '@_user_2', name: 'aven' }
@@ -93,6 +94,9 @@ describe('摄入链路 / 上下文包 / 入群事件（真 store + 假 lark-cli�
       // 快道不等（慢道要等 60 秒）：两个时间戳分别取当前时间，机器忙时相差几百毫秒（11-02 排空重启自检在负载下红过一次），只要远小于慢道等待就算
       assert.ok(Date.parse(task.intake.notBefore) - Date.parse(task.intake.receivedAt) < 5_000, '快道不等')
       assert.ok(task.ackPending?.at && task.ackPending?.deadline, '挂起「收到」')
+      // b4 波 6 E3：群里直接 @bot 开一条回复义务（open，记提问人 / 原话），供 30 分钟未回巡检
+      const ob = getObligation({ id: event.message_id, chatId: 'oc_g' })
+      assert.deepEqual([ob.state, ob.asker, ob.text, Boolean(ob.addressedAt)], ['open', 'ou_qa', '看下登录页', true])
       assert.deepEqual(task.conversation, { anchor: null, activity: { outbox: [], tasks: [] }, candidates: [] })
       assert.deepEqual(['threadSpeakers' in task, 'contextPeople' in task], [false, false])
       // 幂等：同一条再投一次不动
@@ -158,6 +162,8 @@ describe('摄入链路 / 上下文包 / 入群事件（真 store + 假 lark-cli�
       assert.ok(supplements.every((event) => !store.has(event.message_id)), '补充不建新任务')
       assert.match(target.text, /^登录页白屏\n\n【话题补充 \d\d:\d\d】补充：Chrome 也是\n\n【话题补充 \d\d:\d\d】你也看下（@ 的是 aven，没 @ 机器人）\n\n【话题补充 \d\d:\d\d】再补一句$/)
       assert.deepEqual([target.addressedToBot, target.intake.lane], [true, 'fast'])
+      assert.deepEqual(target.linkedMessageIds, [supplements[2].message_id], '@bot 的补充记在并进的单上（未回 @ 巡检按它认）；没叫机器人的不记')
+      assert.deepEqual(supplements.map((event) => getObligation({ id: event.message_id, chatId: 'oc_g' })?.state || null), [null, null, 'open'], '只有 @bot 的开义务')
       // 11-02 之前落下的「只 @ 负责人」任务（addressedToBot=false、慢道）：同一人紧接着 @bot → 升级
       const now = new Date().toISOString()
       store.upsert({ id: 'om_legacy', source: 'lark', chatId: 'oc_g', operator: 'ou_qc', status: 'received', text: '旧的只 @ 负责人', addressedToBot: false, fromPrincipal: false, intake: { required: true, trigger: 'task_mention', lane: 'slow', receivedAt: now, notBefore: now }, createdAt: now })

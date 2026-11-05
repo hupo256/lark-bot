@@ -14,7 +14,7 @@ import { toEpochMs } from '../lib/lark-message.mjs'
 import { hashText, listOutbox, localHHMM, pruneOutbox, recordOutbox, shouldSend } from '../lib/lark-outbox.mjs'
 import { describePerson, personName, loadPeople, loadPersona, notePerson, peopleBlock, personaBlock } from '../lib/lark-persona.mjs'
 import { buildQuotedBotBlock, findQuotedBotMessages, quoteCandidates } from '../lib/lark-quote-lookup.mjs'
-import { clearHeldDraft, getObligation, heldDraftFor, listOverdueObligations, markAnsweredFromOutbox, markOverdueNotified, noteAck, noteAnswer, noteHeld, noteOwed, obligationIdFor, OVERDUE_AFTER_MS } from '../lib/lark-reply-obligation.mjs'
+import { clearHeldDraft, getObligation, heldDraftFor, listOverdueObligations, listUnansweredAddressed, markAnsweredFromOutbox, markOverdueNotified, noteAck, noteAddressed, noteAnswer, noteHeld, noteOwed, obligationIdFor, OVERDUE_AFTER_MS, settleAddressed, UNANSWERED_AFTER_MS } from '../lib/lark-reply-obligation.mjs'
 import { eachCase, runSteps } from './support/steps.mjs'
 
 const NOW_MS = Date.parse('2026-11-01T10:00:00.000Z')
@@ -445,6 +445,20 @@ describe('对话层：锚点、上下文、对话包、发件簿、义务、pers
       markAnsweredFromOutbox({ chatId, id: 'om_4', entry: { at: iso(NOW_MS + HOUR), taskId: 'om_4', text: '发件簿里的结论' }, now: NOW_MS + 2 * HOUR })
       assert.deepEqual([getObligation(t4).state, getObligation(t4).answeredAt, getObligation(t4).answerText, getObligation(t4).answerTaskId], ['answered', iso(NOW_MS + HOUR), '发件簿里的结论', 'om_4'])
       markAnsweredFromOutbox({ chatId, id: 'nope', entry: {} })
+      // b4 波 6 E3：@bot 开 open（再记一次不动首次时刻 / 原话）；超过 30 分钟仍 open 才列；回过「收到」的不列；查结后不再列
+      const ua = 'oc_ua'
+      noteAddressed({ chatId: ua, messageId: 'om_a1', asker: 'ou_a', text: '第一句'.repeat(30), now: NOW_MS })
+      noteAddressed({ chatId: ua, messageId: 'om_a1', asker: 'ou_a', text: '再投一次', now: NOW_MS + MIN })
+      noteAddressed({ chatId: ua, messageId: 'om_a2', asker: 'ou_b', now: NOW_MS })
+      noteAck({ task: { id: 'om_a2', chatId: ua, operator: 'ou_b' }, text: '收到', now: NOW_MS })
+      assert.deepEqual([getObligation({ id: 'om_a1', chatId: ua }).addressedAt, getObligation({ id: 'om_a1', chatId: ua }).text.length], [iso(NOW_MS), 80])
+      assert.deepEqual(listUnansweredAddressed({ chatIds: [ua], now: NOW_MS + UNANSWERED_AFTER_MS }), [], '恰好 30 分钟不算')
+      assert.deepEqual(listUnansweredAddressed({ chatIds: [ua], now: NOW_MS + UNANSWERED_AFTER_MS + 1 }).map((i) => [i.id, i.asker]), [['om_a1', 'ou_a']])
+      settleAddressed({ chatId: ua, id: 'om_a1', how: 'replied', now: NOW_MS + HOUR })
+      assert.deepEqual([getObligation({ id: 'om_a1', chatId: ua }).state, getObligation({ id: 'om_a1', chatId: ua }).answeredAt], ['answered', iso(NOW_MS + HOUR)])
+      assert.deepEqual(listUnansweredAddressed({ chatIds: [ua], now: NOW_MS + 2 * HOUR }), [])
+      settleAddressed({ chatId: ua, id: 'nope', how: 'notified' })
+      assert.equal(getObligation({ id: 'nope', chatId: ua }), null)
       assert.equal(noteOwed({ task: { id: 'x' }, status: 'failed' }), null, '没 chatId 记不了')
       // 落盘时顺手清 7 天没动过的：恰好 7 天的还留着，过了才清（om_3 最后动在 +1h）
       noteAck({ task: { id: 'om_5', chatId, operator: 'ou_5' }, text: '收到', now: NOW_MS + 7 * 24 * HOUR + HOUR })
