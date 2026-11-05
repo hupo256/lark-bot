@@ -230,6 +230,20 @@ describe('resolveAnalysisGate', () => {
     // 假设必须真的下发给实施阶段，否则等于没记录。
     for (const item of gate.assumptions) assert.ok(gate.analysis.requirements.includes(item))
     assert.deepEqual(gate.analysis.assumptions, gate.assumptions)
+    // b4 波 6 E2：负责人本人交办、首句在请他定的 → decision（26351f74 原文，含 scope 字样也不当 hard）；别人发的 / 还在要账号的 / 请别人定的照旧停
+    const askAven = '后端答复前前端怎么处理，需要 aven 定：我建议先停掉「拿 Live uid 调 Go」这一步，这是可撤回的改动，aven 同意就可以按 scope 实施。'
+    await eachCase([
+      { name: '负责人交办', task: larkTask({ text: '根据现有信息同步相关逻辑', fromPrincipal: true }), blocker: askAven, status: 'ready' },
+      { name: '「等你拍板」', task: larkTask({ text: '同步逻辑', fromPrincipal: true }), blocker: '两种改法都可撤回，等你拍板：先停掉这一步', status: 'ready' },
+      { name: '不是负责人发的', task: larkTask({ text: '同步逻辑', fromPrincipal: false }), blocker: askAven, status: 'blocked' },
+      { name: '还在要账号', task: larkTask({ text: '同步逻辑', fromPrincipal: true }), blocker: '需要 aven 定：用哪个测试账号登录', status: 'blocked' },
+      { name: '请别人定', task: larkTask({ text: '同步逻辑', fromPrincipal: true }), blocker: '需要后端定：按 scope 实施哪种取数方式', status: 'blocked' },
+      { name: '只在细节里提到 aven', task: larkTask({ text: '同步逻辑', fromPrincipal: true }), blocker: '目标页面无法定位：之前需要 aven 定的那版已撤', status: 'blocked' },
+    ], ({ name, task, blocker, status }) => {
+      const out = resolveAnalysisGate({ task, analysis: blocked([blocker]) })
+      assert.equal(out.analysis.status, status, name)
+      if (status === 'ready') assert.match(out.assumptions[0], /^需人工拍板：.*写清选择与理由/, name)
+    })
     // 对接答复（api_reply / api: 前缀）：对方的答复本身就是材料，首句在「再要文档 / 再确认」的 blocker 归 soft，细节里顺带的
     // token / 登录 / 测试环境不算（10-31 falive 回放：Arthur 答「完善资料部分需要前端接入」，bot 反过来要接口文档，四条全判 hard 停机）。
     // 首句本身在要账号 / 权限的仍是 hard；非对接答复的同一批 blocker 不受影响。
