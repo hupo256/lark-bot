@@ -38,7 +38,7 @@ lark-bot start
 lark-bot status
 ```
 
-launchd 直接运行本仓代码。**改完代码不会自动生效**，要执行 `lark-bot restart`。如果 `status` 提示 `codeStale` / `configStale`，说明进程还在跑旧代码或旧配置。
+launchd 直接运行本仓代码。**往本目录合代码 = 几分钟内上线**：排空重启（默认开，`lib/lark-drain-restart.mjs`）发现磁盘代码 / 配置变了，worker 就不再领新任务，在飞任务跑完后先自检（代码改了跑全量单测，配置改了做启动校验），绿了自动 `lark-bot restart`；红了不重启、私信 `notifyOpenId` 一次，继续跑旧代码。只改文档不触发。排空重启关着（`selfHeal.drainRestart=false` / `LARK_DRAIN_RESTART=0`）或不是 launchd 托管时，仍要手动 `lark-bot restart`。`status` 提示 `codeStale` / `configStale` 说明进程还在跑旧代码或旧配置。
 
 ## CLI
 
@@ -57,6 +57,30 @@ launchd 直接运行本仓代码。**改完代码不会自动生效**，要执�
 | `lark-bot clean [hours]` / `clean --failed [hours]` | 清理陈旧终态任务（默认只清 done） |
 | `lark-bot claude-auth [local\|proxy]` | 切换 claude 执行器鉴权（本机钥匙串 / `claude.env` 网关 key），切换后自动重启 |
 
+## 2026-11-05 更新：falive 实战回放后上线
+
+用 falive bot 10-14 → 11-03 的 285 个真实 case 离线回放、逐条和 falive 当时对比，分六批修完后上线（60c6230）。同一批 125 个 case 上，lark-bot 更好 54 / falive 更好 23；首句中位 12 秒（falive 47 秒），结论中位 1.4 分钟（falive 4.4 分钟）。过程与逐轮成绩见 [docs/falive-replay-plan-2026-11-03.md](./docs/falive-replay-plan-2026-11-03.md) 第 60–65 条。
+
+### 新功能
+
+| 功能 | 说明 |
+|---|---|
+| 「@bot 没回」巡检 | 群里直接 @bot 的消息一进来就开一条回复义务；30 分钟后仍没任何回话（含并进的单回给同一提问人）、负责人也没为它收到私信、相关单已不在跑 → 私信负责人一次，不发群。挂在网关 15 分钟一次的挂起巡检里 |
+| 测试号登录工具 `tools/env-login.mjs` | `node tools/env-login.mjs --env pre [--account <登录名> --password <密码>] [--token [名]] [--fresh]`：只登录（不注册、不改数据），20 分钟内复用登录态，密码 / token 不打印；`--token hichat_token` 取同次登录的具名凭证。对方消息里给的账号也走它。配置 `testAccounts.<环境>` |
+| 出网命令层拦截 | 代答 / 实测只许打 `envSites` 里的环境 + 本机；改代码 / 自测另许读 npm / GitHub / PyPI / 业务仓 git 主机。写请求只放登录（含验证码登录）。靠 PATH 里的 curl 壳（`tools/egress-guard/bin`）+ node 预载（`tools/egress-guard/preload.mjs`）在进程层拦，权限档是 auto 还是跳过权限都生效。口径 `lib/lark-egress-policy.mjs` |
+| 造测试数据例外 | 原话明确要造测试数据（「生产 / 制造 + 数量 + 数据 / 帖」）且环境在 `testData.envs` 里时，放开用测试号建测试内容，默认不放 |
+| 负责人本人交办不再干等 | 负责人自己发的单、分析停下只为请他拍板 → 按建议做完，完成说明写清怎么选的供复核；缺账号 / 凭证 / 环境或不是他发的照旧停 |
+| 交付前回看新消息 | 结论在向人要东西时，先看本条之后群里 / 话题里的新消息，要的已经给了就直接用上，不再重复要 |
+| 提交前缀 `commitPrefix` | 收尾提交标题前缀读配置，满足业务仓 commit-msg 钩子 |
+
+### 主要修复（按类）
+
+- **该回没回**：续跑回话按「同内容 + 同一条消息」去重（原来按内容 24 小时去重，第二次续跑的回话被吞）；光一条「@bot」不再被丢；回 bot 卡片说「重新接一下」「404 已处理请重新接入」不再被当成结单或同事闲聊；话题里回负责人的照常分类；分类失败不再先发「收到」再永远静默。
+- **重复回 / 回错人**：只是催或重复同一请求不再重跑出第二份结论；并入的单这轮结论回给并进来的那条、提问人不换；代答结论行首 @ 提问人，待跟进只 @ 要动手的人；私信续跑后群里不再重复 @ 同一批人。
+- **判断不准**：挂起任务话题里同事互相说话不再当补料续跑；「关闭直播间礼物入口」这类带产品宾语的不算结单；问「做完了没」才算问结单；OL 认作 online、多环境共用主域按整个主机名认；botSelf 只认明说要改机器人自己。
+- **卡住不交付**：改码不再被模块归属 / 行数上限卡住（改码边界只按需求）；对接答复里「再要文档 / 再确认」不再停机；实测可发登录 POST 拿登录态；零改动闸认本单分支上已有的提交。
+- **说的不实**：实测 diff 只有注释 / 文档时不再说「已修复」；代答说环境现状要本轮实测，旧结论不当现状；部署信不再承诺 lark-bot 没有的「部署后自动复测」。
+
 ## 目录
 
 | 路径 | 内容 |
@@ -67,6 +91,8 @@ launchd 直接运行本仓代码。**改完代码不会自动生效**，要执�
 | `schemas/` | AI 结构化输出的 JSON Schema（分析 / 结果 / triage / 意图分类） |
 | `runtime/` | launchd 薄包装、plist、`launchd-node.sh`；本机配置与运行态（gitignore）也放在这里 |
 | `scripts/` | `lark-bot` CLI、`lark-bot-shim`、`code-rules.mjs`（代码规则扫描器副本）、`figma-spec.mjs`、`test-affected.mjs` / `test-all.mjs`（按 import 关系挑相关测试 / 合并前全量） |
+| `scripts/sim/` / `replay/falive/` | falive 实战离线回放台与 285 个 case 数据（11-05 回放已结项，留作历史与将来离线回归；`replay/falive/` 是内部群聊数据，不要 push） |
+| `tools/` | 给 worker 里 AI 用的工具：`env-login.mjs`（测试号登录）、`env-version.mjs`（查环境版本）、`verify-page.mjs`（页面验证）、`read-bug-record.mjs`（读 bug 单）、`egress-guard/`（出网拦截） |
 | `docs/` | 运维手册，入口 [docs/README.md](./docs/README.md) |
 | `__tests__/` | `node --test` 单测 |
 
@@ -86,6 +112,7 @@ launchd 直接运行本仓代码。**改完代码不会自动生效**，要执�
 2026-11-02 上下文与环境知识的可选键：`recentContextHours`（「群里这条之前的消息」近几小时全留，默认 4；更早的只留 bot 自己最近 3 条和本人最近 2 条；配 0 = 不截，旧行为）、`envBranches`（环境 → 分支，默认同名，如 `{ "prod": "online" }`）。负责人维护的固定知识放 `runtime/knowledge/*.md`（gitignore，每条任务现读、改了不用重启），只读答疑 / 实测 / 状态查询的提示里带上；查各环境当前跑的提交：`node tools/env-version.mjs [环境…] [--no-fetch] [--json]`（读 `envSites`，抓站点 `/version` 与新站资源路径 `/wn/<sha>/`，再核在不在对应分支、落后几个）。
 2026-11-02 fameex 日报的可选键 `dailyReport`（`{ enabled, at: "19:00", days: [1, 2, 3, 4, 5] }`，默认开、工作日 19:00）：只私发负责人（`notifyOpenId`），私信「发日报 / 重发日报」随时要，见 [docs/gateway-and-worker.md](./docs/gateway-and-worker.md) §6 末尾；记账 `runtime/lark-daily-report-state.json`。
 2026-11-02 闲置群自动退出的可选键 `chatRetention`（`{ enabled, idleDays: 14, graceHours: 48, at: "09:35", keep: [chat_id] }`，默认开）：14 天没人 @bot 的群先私信负责人，48 小时后还没人找就退群；bug 表群、`keep` 里的、私信「留下 关键字」标过的永远不退，私信「退群列表」查看。退群要应用开通 `im:chat`、`im:chat.members:write_only`。见 [docs/gateway-and-worker.md](./docs/gateway-and-worker.md) §6 末尾；记账 `runtime/lark-chat-activity-state.json`。
+2026-11-05 的可选键：`testAccounts.<环境>`（测试号与登录方式，`tools/env-login.mjs` 用，口径见 `lib/lark-env-login.mjs` 文件头）、`testData`（`{ envs: ['pre'], account? }`，原话明确要造测试数据时放开的环境）、`egress.loginCodeTypes`（算作登录的验证码类型）、`commitPrefix`（收尾提交标题前缀）。运行态多了 `runtime/lark-env-login/<环境>.json`（登录态，0600）。
 
 执行器的选择优先级：任务里的 `[claude]` / `[codex]` / `[pi]` / `[cursor]` 标签 > 配置 `aiExecutor` > 内置默认 `claude`。执行器在入队时锁定。
 
