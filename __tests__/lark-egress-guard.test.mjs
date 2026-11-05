@@ -13,7 +13,7 @@ import { buildAiExecutorCommand, execAiExecutor } from '../lib/lark-ai-executor.
 import {
   EGRESS_DENY_RULES, EGRESS_GUARD_ENV, SOURCE_HOSTS, checkCurlInvocation, checkEgressRequest, createBlockedPath, egressGuardEnv, egressPolicyFor, egressScopeOf, egressTestDataEnvsOf, gitRemoteHost, hostInScope, parseCurlArgs, parseEgressPolicy, withoutEgressGuard,
 } from '../lib/lark-egress-policy.mjs'
-import { buildLoginRequest, freshLogin, maskToken, namedTokensOf, pickSessionToken, readTestPassword, redactSecrets, resolveTestAccount, validateTestAccess } from '../lib/lark-env-login.mjs'
+import { buildLoginRequest, freshLogin, maskToken, namedTokensOf, pickSessionToken, readTestPassword, redactSecrets, resolveTestAccount, sessionFileName, validateTestAccess } from '../lib/lark-env-login.mjs'
 import { EGRESS_GUARD_BIN_DIR, EGRESS_GUARD_PRELOAD, ENV_LOGIN_TOOL } from '../lib/lark-paths.mjs'
 import { deriveContract, requestsTestData } from '../lib/lark-task-contract.mjs'
 import { classifyLine } from '../scripts/sim/egress-audit.mjs'
@@ -333,6 +333,13 @@ describe('代答 / 实测出网范围（命令层）', () => {
       assert.match(resolveTestAccount(ok, 'online').error, /online 没有配测试号[\s\S]*已配：pre[\s\S]*不注册新号/)
       assert.match(resolveTestAccount(ok, null).error, /--env <pre>/)
       assert.match(resolveTestAccount({ testAccounts: { pre: { mail: 'a' } } }, 'pre').error, /没有站点地址/)
+      // --account（b4 c13d396a / f09ac193）：登录方式照本环境的，没配借第一个配了的；换登录名、密码走 ENV_LOGIN_PASSWORD，uid / 密码文件不带，借来的 apiBase 不带
+      const cfg = { envSites: { pre: 'https://pre.x', online: 'https://ol.x/' }, testAccounts: { pre: { mail: 'qa@x', uid: 508, passwordFile: '/p', apiBase: 'https://api.pre.x', loginModule: '/m.mjs' } } }
+      assert.deepEqual(resolveTestAccount(cfg, 'online', { login: ' kai@x ' }), { env: 'online', base: 'https://ol.x', account: { mail: 'kai@x', loginModule: '/m.mjs', passwordEnv: 'ENV_LOGIN_PASSWORD' } })
+      assert.deepEqual(resolveTestAccount(cfg, 'pre', { login: 'h@x' }), { env: 'pre', base: 'https://api.pre.x', account: { mail: 'h@x', apiBase: 'https://api.pre.x', loginModule: '/m.mjs', passwordEnv: 'ENV_LOGIN_PASSWORD' } })
+      assert.match(resolveTestAccount(cfg, 'online').error, /online 没有配测试号/, '不给 --account 不借')
+      assert.match(resolveTestAccount({ envSites: cfg.envSites }, 'online', { login: 'kai@x' }).error, /没有配测试号/)
+      assert.deepEqual([sessionFileName('pre'), sessionFileName('pre', ' '), sessionFileName('online', 'kai@x'), sessionFileName('online', ' kai@x')], ['pre.json', 'pre.json', 'online--a627324f1b.json', 'online--a627324f1b.json'])
       assert.equal(readTestPassword({ passwordEnv: 'P', passwordFile: '/f' }, { env: { P: 'from-env' }, readFile: () => 'from-file' }), 'from-env')
       assert.equal(readTestPassword({ passwordEnv: 'P', passwordFile: '/f' }, { env: {}, readFile: () => 'from-file\nrest' }), 'from-file')
       assert.equal(readTestPassword({}, { env: {} }), null)

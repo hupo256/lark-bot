@@ -19,7 +19,7 @@ const { buildOutcome, detailDocOf, mapStatusForContract, outcomeFromWorkerFailur
 const { buildGroupReplyPassPrompt, owesGroupReply, runGroupReplyPass } = await import('../lib/lark-group-reply-pass.mjs')
 const { buildLateMessagesPrompt, fetchLateMessages, pickLateMessages, resultAsks, runLateMessagesPass } = await import('../lib/lark-late-messages.mjs')
 const { buildCosmeticFixPrompt, cosmeticDiff, runCosmeticFixPass } = await import('../lib/lark-cosmetic-diff.mjs')
-const { ANSWER_MODE_BLOCK, CLAIM_EVIDENCE_RULE, DELIVER_NOW_RULE, VERIFICATION_MODE_BLOCK, buildAckPromiseBlock, buildAnswerEnvRule, buildApiReplyRetestBlock, buildCarryOverBlock, buildDocAskBlock, buildEnvLoginRule, buildEnvProbeRule, buildTestDataRule } = await import('../lib/lark-worker-modes.mjs')
+const { ANSWER_MODE_BLOCK, CLAIM_EVIDENCE_RULE, DELIVER_NOW_RULE, VERIFICATION_MODE_BLOCK, buildAckPromiseBlock, buildAnswerEnvRule, buildApiReplyRetestBlock, buildCarryOverBlock, buildDocAskBlock, givesAccount, buildEnvLoginRule, buildEnvProbeRule, buildTestDataRule } = await import('../lib/lark-worker-modes.mjs')
 const { buildTaskPromptParts } = await import('../lib/lark-worker-prompts.mjs')
 const { applyEnvCheck, checkEnvTarget, envTargetLine, hostOf, resolveEnvTargets, resolveTaskEnvTargets, touchedEnvs } = await import('../lib/lark-env-target.mjs')
 const { buildIntentClassificationPrompt, describeSender, formatTaskAttachments, readPersona } = await import('../lib/lark-classify-prompt.mjs')
@@ -460,7 +460,7 @@ describe('worker 侧对话层：outcome / 契约映射 / 群回复补写 / 模�
     ['测试号登录 / 造测试数据：配了测试号才有登录句（固定工具、不设写开关、被拦也用它）；放开了环境才有造数据句；进代答 / 实测 / 改码块', () => {
       const accounts = { pre: { mail: 'qa@x' } }
       const login = buildEnvLoginRule(accounts)
-      assert.match(login, /^要登录态只用 `node \/\S+\/tools\/env-login\.mjs --env <环境>`（配了测试号的：pre；只登录不注册，token 用 `\$\(… --token\)` 取，摘要里列了别的凭证（如 hichat_token）用 `--token <名>` 取，都不打印）；不自己写登录脚本、不设 PROBE_ALLOW_WRITE 之类写开关，被权限拦下也改用它。$/)
+      assert.match(login, /^要登录态只用 `node \/\S+\/tools\/env-login\.mjs --env <环境>`（配了测试号的：pre；对方消息里给了账号就加 `--account <登录名> --password <密码>`，配了站点的环境都行；只登录不注册，token 用 `\$\(… --token\)` 取，摘要里列了别的凭证（如 hichat_token）用 `--token <名>` 取，都不打印）；不自己写登录脚本、不设 PROBE_ALLOW_WRITE 之类写开关，被权限拦下也改用它。$/)
       for (const none of [null, {}]) assert.equal(buildEnvLoginRule(none), '')
       const testData = buildTestDataRule(['pre'])
       assert.match(testData, /^本单对方明确要造测试数据（发帖不允许的口径本单例外）：只在 pre 用测试号.*不删、不改、不碰别人的数据、不注册；建了什么把 id（如 tid）列进 report；命令层拦了就照实写拦在哪。$/)
@@ -473,6 +473,12 @@ describe('worker 侧对话层：outcome / 契约映射 / 群回复补写 / 模�
       assert.equal(buildAckPromiseBlock({}, { testAccounts: accounts, testDataEnvs: ['pre'] }), `${testData}${login}`, '改码单没「收到」也给造数据口径')
       assert.ok(buildAckPromiseBlock({ ackReply: '好' }, { testAccounts: accounts, testDataEnvs: ['pre'] }).endsWith(`不写「测完再回你」。\n${testData}${login}`))
       assert.equal(buildAckPromiseBlock({ ackReply: '好' }, { testAccounts: accounts }).includes('env-login'), false)
+      // b4 c13d396a / f09ac193：本条 / 并进来的补充里给了账号 → 改码单也给登录口径；只提「账号」没给值、只有数字没说账号的不算
+      for (const text of ['【本条 @】自己登录进去看看，这个是账号： [734343862@qq.com](mailto:734343862@qq.com) Test1234', '原单\n\n【同主题补充 2026-10-30T17:42 · HTStone】請嘗試郵箱登入 郵箱：kegocel106@airhemp.com 密碼：123qwe', '手機號登入 Account：+86 15661234567 PWD：123qwe']) {
+        assert.equal(givesAccount({ text }), true, text)
+        assert.equal(buildAckPromiseBlock({ text }, { testAccounts: accounts }), login)
+      }
+      for (const text of ['【本条 @】账号没给，先别测', '【本条 @】uid 19675 看不到入口', null]) assert.equal(givesAccount({ text }), false, String(text))
       const verification = buildTaskPromptParts({ projectId: 'TR-1', projectDocs: [], cwd: '/tmp/repo' }, { id: 't', text: '创建最新的帖子 进行测试', attachments: [], contract: { v: 1, deliverable: 'verification', readOnly: false, testData: true } }, 'claude', { ruleContext: { text: '', sources: [] }, envSites: { pre: 'https://p' }, testAccounts: accounts, testDataEnvs: ['pre'] }).user
       assert.match(verification, /curl GET \/ 登录 POST \/ 本单要求的建测试数据）/)
       const answer = buildTaskPromptParts({ projectId: 'TR-1', projectDocs: [], cwd: '/tmp/repo' }, { id: 't', text: '问', attachments: [], contract: { v: 1, deliverable: 'answer', readOnly: true } }, 'claude', { ruleContext: { text: '', sources: [] }, envSites: { pre: 'https://p' }, testAccounts: accounts, testDataEnvs: ['pre'] }).user
