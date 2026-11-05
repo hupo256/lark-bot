@@ -1,7 +1,7 @@
 /**
  * 「sim 目录」抽象（docs/falive-replay-design-v2.md §2、§5）：裁判 / 规则预判 / 金标准 / 验收都只认这一层，不关心布局。
  * 一个 sim 目录 = 一个 lark-bot 实例跑完的产物：fed.json（喂了哪些消息）、outbox.jsonl（bot 发了什么）、
- * runtime/lark-tasks/*.json（任务）、runtime/lark-audits/<项目>/<任务>-e<代>.json（审计）。
+ * runtime/lark-tasks/*.json（任务）、runtime/lark-audits/<项目>/<任务>-e<代>.json（审计）；另读 meta.json、egress.log（模拟局限旗标、裁判的出网证据）。
  * 两种布局都认：
  *   旧：runtime/falive-replay/sim/<名>/            （按天 / 分段，r11-a、full-a …）
  *   新：runtime/falive-replay/sim/<轮>/<事件组 id>/  （按事件组，ep-1014-c631b0 …）
@@ -84,5 +84,9 @@ export const loadSim = (entry) => {
     const prev = audits.get(m[1])
     if (!prev || (a.final && !prev.final) || (Boolean(a.final) === Boolean(prev.final) && epoch > prev.epoch)) audits.set(m[1], { epoch, status: a.status || null, final: a.final || null })
   }
-  return { ...entry, fed, outbox, tasks, mergedInto, audits }
+  // meta.hideBotIds：按事件组跑时藏起来的 falive 原话（模拟里由模拟 bot 自己说）
+  const meta = readJsonOr(join(dir, 'meta.json'), {})
+  // egress.log（scripts/sim/egress-hook.mjs）：整组的出网请求，extra=blocked 是回放拦下的
+  const egress = readJsonl(join(dir, 'egress.log'))
+  return { ...entry, fed, outbox, tasks, mergedInto, audits, meta, egress, egressBlocked: egress.filter((e) => e.extra === 'blocked') }
 }

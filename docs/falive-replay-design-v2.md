@@ -88,6 +88,23 @@
 - 计分（`acceptance.simLimitOf`，acceptance / triage / round-metrics 共用）：裁判判 `sim_limit`，或带硬旗标 → 单列「模拟局限不计分」（同待办）；v3 看过旗标仍判 `cause=bot` 且 falive / 都不对的照常计分。软旗标只听裁判（实测越界、报告不如实不能被局限盖掉）。
 - 缓存：新版本新目录 `judge-cache/judge-v3-1104/`；有旗标的 case 参照键再接旗标指纹（`withLimitsRef`），旗标规则变了不复用旧结论。
 
+**裁判 v4（judge-v4-1105，11-05，b4 波 5 分诊）**：分诊（`rounds/b4/wave5-triage.md`）里 15 条「模拟 / 口径局限」规则一条没标出、照常计分，按四类补：
+
+| 旗标 / 改动 | 来源 | 软 / 硬 |
+|---|---|---|
+| `sim_limit_falive_ref` | 这条接的 falive 卡（回复 / 点名的；没回复时取同会话同话题 30 分钟内上一张有内容的）按事件组藏了（`meta.hideBotIds` ∪ 组 `faliveBotIds`），模拟 bot 同会话 24 小时内说过的话对不上卡里一半以上的事实词（接口路径、「原句」、编号 / 三位数 / 钟点、英文标识；Lark 文档链接不算），且冲着 bot 说（@bot / 负责人私信 / 回 bot 卡没 @ 别人），且问的就是那张卡（追问指代「这条消息 / 那两个 / 文档在哪 / 你测的 / 所以不是…」、≤12 字短句里的「这个 / 重跑」、空 @bot、引了卡里原句、「确认扩大范围 / 就这样回」）。另：照供的 falive 卡（组外任务）回「结束 / 继续这个任务」而卡上的任务（om_x… / `lark/falive-<8 位>`）模拟里没有 | 硬 |
+| `sim_limit_falive_ref_soft` | 同上但不是在问那张卡 | 软 |
+| `sim_limit_external` | lark-bot 的话 / 本单或并入目标的结论里说外部设计源（Figma 等）出网被拦 / 读不到 / 没导出，且任务停在 blocked | 硬 |
+| `sim_limit_external_soft` | 只提到，或 egress.log 拦了设计站请求 | 软 |
+| 发件归属 | parentId 之后先认 idempotencyKey 开头的消息 id：是 case 就归它，是任务就沿 replyTarget → rerunReplyTo → answerFor → supersededBy / mergedInto 找 case；再到正文点名、时间窗（规则 `rules-v3-1105`） | — |
+| 续跑并入 | 「继续任务 <id>」没建自己的单、点名的任务模拟里有 → 当并进它（终态 / 结论给裁判看） | — |
+| 出网证据 | 提示加【回放出网记录】：整组 egress 按方法 + 主机计数，写请求带路径，回放拦下的标出；只给带造数旗标或 lark-bot 话里像写了东西（新建 / 修改 / 存得下…）的 case；裁判以它判写没写，不从文字推断 | — |
+
+- 硬旗标进 `acceptance.SIM_LIMIT_HARD`，与其他硬旗标同口径（单列不计分；看过旗标仍判 `cause=bot` 且变差的照常计分）；`_soft` 只给裁判。
+- 提示的三块新内容（出网记录、并入那单的结论、新旗标说明）只在有内容时出现；都没有时提示与 v3 逐字相同（b4 上 120 条逐条比对过），judge-sim 沿用 v3 同键（case + 指纹 + 参照 + effort）的结论并抄进 v4 缓存（`judge-prompt.CARRY_FROM` / `carryable`）。
+- 这些文件不在回放代码指纹里，可对跑完的轮重判。
+- b4 重判（60 个跑完的组，240 条，送模型 153 条、沿用 v3 76 条）：新旗标 `falive_ref` 20 / `falive_ref_soft` 24 / `external` 5 / `external_soft` 1；分诊 15 条 b 里 10 条不再计为 falive 更好 / 都不对。验收计分 184 → 169、模拟局限不计分 39 → 61、「falive 更好」44 → 48：发件改按任务链归属后，原先靠别的单的私信「凑出回应」的 12 条露出真漏（d5dbb4c4、cb660733 等），另 6 条是之前没结论（覆盖不过）的执行器崩溃单。
+
 ## 6. 验收标准（aven 11-04 同意）
 
 合进运行分支的门槛，对照金标准判：

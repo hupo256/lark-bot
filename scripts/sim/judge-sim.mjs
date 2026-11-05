@@ -7,6 +7,7 @@
  * 先跑规则预判（judge-rules.mjs，同时落 rules.jsonl）；然后：
  *   - 待办不计分的（case-tags pending=true，「已部署」→ 自动复测链路）不判，better=pending 单列；
  *   - 按 case id + 输出指纹 + 提示版本查缓存（judge-cache.mjs），命中就沿用，不花 token；--all 无视缓存全部重判（定金标准那轮配 --effort max）；
+ *     本版本没有、但这条的提示里没有新版本才有的块（judge-prompt carryable）→ 沿用上一版本（CARRY_FROM）同键的结论，并抄进本版本缓存；
  *   - --gold：对照金标准判（gold.mjs compare 就是它）——输出指纹等于 aven 审过的那版 → 直接沿用金标准结论；不等 → 模型判，带上金标准的理想做法作参照。
  * 产物：每个 sim 目录下 judge.jsonl（每条 case 一行，整文件重写；结论都在缓存里，断了重跑即可）。
  * 结论字段：better / confidence / reason / larkIssue / cause / idealBehavior（模型）+ risk / kind / promptVersion / effort / fingerprint / source（cache|model|gold）
@@ -20,9 +21,9 @@ import { fileURLToPath } from 'node:url'
 import { casesDir, replayRoot, roundsDir } from './falive-data.mjs'
 import { goldRefOf, lookupVerdict, storeVerdict, withLimitsRef } from './judge-cache.mjs'
 import { contextLinesOf, faliveRepliesOf, loadJudgeData } from './judge-data.mjs'
-import { BETTER, CAUSES, CONFIDENCE, JUDGE_PROMPT_VERSION, JUDGE_SCHEMA, LARK_ISSUES, assertPromptFrozen, buildJudgePrompt } from './judge-prompt.mjs'
+import { BETTER, CARRY_FROM, CAUSES, CONFIDENCE, JUDGE_PROMPT_VERSION, JUDGE_SCHEMA, LARK_ISSUES, assertPromptFrozen, buildJudgePrompt, carryable } from './judge-prompt.mjs'
 import { simLimitOf } from './acceptance.mjs'
-import { computeSimRules } from './judge-rules.mjs'
+import { computeSimRules, egressEvidenceOf, egressRelevant } from './judge-rules.mjs'
 import { listSimDirs, loadSim, readJsonl, simSelectorFromArgs } from './sim-dir.mjs'
 
 const args = process.argv.slice(2)
@@ -65,6 +66,7 @@ const buildJudgeContext = ({ m, sim, row }) => {
   const task = sim.tasks.get(m.id) || null
   const audit = sim.audits.get(m.id) || null
   const cls = task?.intake?.classification || null
+  const merged = row.lark.mergedInto ? sim.tasks.get(row.lark.mergedInto) || null : null
   return {
     m,
     parent,
@@ -77,12 +79,16 @@ const buildJudgeContext = ({ m, sim, row }) => {
       ...row.lark,
       classReply: cls?.reply || null,
       result: task?.result || task?.summary || null,
+      mergedResult: merged ? merged.result || merged.summary || null : null, // v4：并入 / 续跑的那单的结论
       auditFinal: audit?.final ? `${audit.final.status || audit.status}；${audit.final.summary || ''}` : audit ? `${audit.status}（没有 final）` : null,
     },
     gold: null,
     simLimits: row.simLimits || [],
+    egress: egressRelevant({ row, evidence: egressOf(sim) }) ? egressOf(sim) : null, // v4：整组出网证据
   }
 }
+const egressCache = new Map()
+const egressOf = (sim) => { if (!egressCache.has(sim.dir)) egressCache.set(sim.dir, egressEvidenceOf(sim.egress || [])); return egressCache.get(sim.dir) }
 
 const callJudge = async (prompt, kind) => {
   const child = spawn(join(dirname(fileURLToPath(import.meta.url)), 'claude-q'), ['-p', '--permission-mode', 'plan', '--tools', '', '--model', model, '--effort', effort, '--strict-mcp-config', '--setting-sources', 'project', '--no-session-persistence', '--json-schema', JSON.stringify(JUDGE_SCHEMA), '--output-format', 'json', prompt], { cwd: replayRoot, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, SIM_ORIG_INTENT_MS: '1800000' } }) // 裁判也是 plan 模式：额度闸别按分类调用的 120 秒超时掐（max 强度要更久）
@@ -108,7 +114,7 @@ const callJudge = async (prompt, kind) => {
 // —— 规则预判 + 分流 ——
 const perSim = []
 const queue = []
-const counts = { cases: 0, pending: 0, cache: 0, gold: 0, model: 0, failed: 0 }
+const counts = { cases: 0, pending: 0, cache: 0, carried: 0, gold: 0, model: 0, failed: 0 }
 for (const entry of sims) {
   const sim = loadSim(entry)
   const { rows } = computeSimRules({ sim, data, scoreFromMs })
@@ -139,13 +145,20 @@ for (const entry of sims) {
       continue
     }
     const ref = withLimitsRef(g ? goldRefOf(g) : 'none', row.simLimits)
-    const hit = all ? null : lookupVerdict({ id: row.id, fingerprint: row.fingerprint, promptVersion: JUDGE_PROMPT_VERSION, ref, effort })
+    const key = { id: row.id, fingerprint: row.fingerprint, ref, effort }
+    let hit = all ? null : lookupVerdict({ ...key, promptVersion: JUDGE_PROMPT_VERSION })
+    // v4 的新块都没出现时提示与 CARRY_FROM 逐字相同：沿用那版同键的结论（结论行仍记本版本号，下次直接命中本版本缓存）
+    if (!hit && !all && CARRY_FROM && carryable(buildJudgeContext({ m, sim, row }))) {
+      hit = lookupVerdict({ ...key, promptVersion: CARRY_FROM })
+      if (hit) counts.carried += 1
+      if (hit && !dry) storeVerdict({ ...key, promptVersion: JUDGE_PROMPT_VERSION, model: hit.model, verdict: hit.verdict, sim: sim.label, effort: hit.effort })
+    }
     if (hit) { counts.cache += 1; slot.lines.set(row.id, { ...base, ...hit.verdict, effort: hit.effort, source: 'cache', ref }); continue }
     queue.push({ slot, m, row, base, gold: g, ref })
   }
 }
 const toJudge = limit ? queue.slice(0, limit) : queue
-console.log(`[judge-sim] ${sims.length} 个 sim 目录，case ${counts.cases}：待办不计分 ${counts.pending}，沿用缓存 ${counts.cache}，沿用金标准 ${counts.gold}，要送模型 ${queue.length}${limit ? `（本次只判 ${toJudge.length}）` : ''}（提示 ${JUDGE_PROMPT_VERSION}/${promptHashNow}，effort ${effort}${all ? '，--all 无视缓存' : ''}${gold ? '，对照金标准' : ''}）`)
+console.log(`[judge-sim] ${sims.length} 个 sim 目录，case ${counts.cases}：待办不计分 ${counts.pending}，沿用缓存 ${counts.cache}（其中沿用 ${CARRY_FROM} ${counts.carried}），沿用金标准 ${counts.gold}，要送模型 ${queue.length}${limit ? `（本次只判 ${toJudge.length}）` : ''}（提示 ${JUDGE_PROMPT_VERSION}/${promptHashNow}，effort ${effort}${all ? '，--all 无视缓存' : ''}${gold ? '，对照金标准' : ''}）`)
 if (dry) {
   for (const j of toJudge) console.log(`  待判 ${j.base.sim} ${j.row.id} ${j.row.fingerprint} ${j.row.flags.join(',')} ${j.base.text.slice(0, 60)}`)
   process.exit(0)

@@ -10,13 +10,21 @@
  *   sim_limit_memory      6 依赖记忆或 bug 表快照（bug 号复测、bug 表认领）：模拟里的记忆是近似版本，读 ~/.lark-bugpoll 是读到了今天的数据
  *   sim_limit_testdata    7 原话明确要造测试数据（lib/lark-task-contract requestsTestData）：线上放开 pre 用测试号建，回放的写拦截照拦
  *                         （「回放：真实写入已拦截」），软旗标：判过程——有没有用测试号在 pre 计划 / 尝试创建、有没有如实报「回放拦截、未创建」
- * 数据只读：replay/falive/raw（编辑时间）、~/Library/Logs/falive-lark/{gateway,worker}.log（没有就不出旗标 5，loadSimLimitSources().logs 记 false）。
+ *   sim_limit_falive_ref  8 （11-05 b4 波 5）这条接的是 falive 当时自己发的话（回复 / 点名的 falive 卡，或没回复时紧挨着的上一张 falive 卡），
+ *                         那张卡按事件组藏了（meta.hideBotIds），模拟 bot 在同会话里也没说过卡里那些事实（关键词覆盖 < 一半）：
+ *                         冲着 bot 说、且问的就是那张卡（「这条消息 / 那两个 / 文档在哪 / 你测的 / 所以不是 bug」、≤12 字短句里的「这个 / 重跑」、空 @bot、
+ *                         引了卡里原句、「确认扩大范围 / 就这样回」）→ 硬；否则软（sim_limit_falive_ref_soft）；跟人说的（cc @x）不算。
+ *                         没藏的 falive 卡（组外任务的卡照供）只在「结束 / 继续 / 重跑这个任务」而卡上的任务模拟里没有时算（硬）
+ *   sim_limit_external    9 （11-05）lark-bot 的结论 / 卡点是外部设计 / 文档源（Figma 等）在回放里读不到（出网拦截 / 没导出）：
+ *                         任务因此 blocked → 硬，只是提到 → 软（sim_limit_external_soft）
+ * 数据只读：replay/falive/raw（编辑时间）、~/Library/Logs/falive-lark/{gateway,worker}.log（没有就不出旗标 5，loadSimLimitSources().logs 记 false）、
+ * sim 目录的 meta.json / outbox / egress.log（旗标 8、9）。
  */
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { requestsTestData } from '../../lib/lark-task-contract.mjs'
-import { GROUPS, faliveLogDir, rawDir } from './falive-data.mjs'
+import { BOT_MENTION_IDS, GROUPS, faliveLogDir, rawDir } from './falive-data.mjs'
 
 export const SIM_LIMIT_PREFIX = 'sim_limit_'
 export const EDIT_MIN_MS = 2000
@@ -112,12 +120,116 @@ export const refMissing = (m, sim) => {
   return ids.length > 0 && ids.every((id) => !sim.tasks.has(id))
 }
 
+export const REF_LOOKBACK_MS = 30 * 60_000
+export const REF_POOL_MS = 24 * 3600_000
+export const REF_MIN_FACTS = 3
+export const REF_COVER_MAX = 0.5
+const REF_STOP = new Set(['card', 'http', 'https', 'aven', 'with', 'from', 'this', 'that', 'docx', 'wiki', 'larksuite', 'image', 'html', 'the', 'and'])
+const URL_RE = /https?:\/\/[^\s)\]」，。；<>]+/g
+/** 卡片 / 帖子里的标记去掉：<p> <card> <at>、@人名、「由 aven 的助手整理」署名。 */
+const plain = (text) => String(text || '')
+  .replace(/<at [^>]*>[^<]*<\/at>/g, ' ').replace(/<\/?[a-z]+[^>]*>/gi, ' ')
+  .replace(/@[^\s@（(，,]+/g, ' ').replace(/📝 由 aven 的助手整理/g, ' ')
+  .replace(/\[([^\]]*)\]\((https?:[^)]+)\)/g, '$2')
+
+/** 一段话里可核对的事实词：接口路径（含链接的路径）、「引号里的原句」、编号 / 三位以上数字 / 钟点、四个字母以上的英文标识（小写）。 */
+export const refFactsOf = (text) => {
+  const s = plain(text)
+  const out = new Set()
+  // 链接只取路径（falive 的 Lark 文档链接模拟里永远对不上，不算事实；接口链接的路径算）
+  const rest = s.replace(URL_RE, (u) => (/larksuite\.com|feishu\.cn/.test(u) ? ' ' : ` ${u.replace(/^https?:\/\/[^/]+/, '')} `))
+  for (const x of rest.matchAll(/\/[A-Za-z][\w./-]{3,}/g)) out.add(x[0].toLowerCase().replace(/[.]+$/, ''))
+  for (const x of rest.matchAll(/「([^」]{2,30})」/g)) out.add(x[1].toLowerCase())
+  for (const x of rest.matchAll(/(?<![\w.])(?:bug[-_ ]?\d{3,}|\d{1,2}:\d{2}|\d{3,})(?![\w])/gi)) out.add(x[0].toLowerCase())
+  for (const x of rest.matchAll(/(?<![\w/.-])[A-Za-z][A-Za-z0-9_]{3,}(?![\w])/g)) if (!REF_STOP.has(x[0].toLowerCase())) out.add(x[0].toLowerCase())
+  return [...out]
+}
+
+/** 问的就是那张卡本身：空 @、指代 / 追问细节、按卡上的按钮话术回、或引了卡里的原句。 */
+const ABOUT_RE = /这条消息|针对这条|这两个|那两个|哪两个|哪个两个|两个(?:号|接口)|文档在哪|链接在哪|你测的|你这次|本次请求|这次(?:测试|请求|实测)|所以(?:不是|是不是|就是)|列出来|什么时候调|请求头|请求参数|原始返回|确认扩大范围|就这样回/
+/** 短句（≤ 12 字）里的指代也算：「这个重跑一次」「新接口文档，是这个么」。 */
+const SHORT_ABOUT_RE = /这个|那个|这条|那条|这次|重跑|再测/
+export const asksAboutRef = (caseText, refText, { atBot = true } = {}) => {
+  const own = plain(caseText).replace(/\s+/g, ' ').trim()
+  if (own.replace(/[\s\p{P}]/gu, '').length <= 2) return atBot ? '空 @ 接着那张卡' : null
+  if (ABOUT_RE.test(own) || (own.replace(/\s+/g, '').length <= 12 && SHORT_ABOUT_RE.test(own))) return `追问那张卡的内容（「${own.slice(0, 30)}」）`
+  const ref = String(refText || '')
+  const quoted = [...own.matchAll(/「([^」]{2,40})」|"([^"]{2,40})"/g)].map((x) => x[1] || x[2]).find((q) => ref.includes(q))
+  return quoted ? `引了那张卡里的原句「${quoted}」` : null
+}
+
+const TASK_CTRL_RE = /(?:结束|继续|结单|重跑|取消|关掉)(?:这个|这条|该)?任务|^\s*(?:@\S+\s*)*结单/
+/** 卡上写的 falive 任务（om_x… 或分支 lark/falive-<8 位>）在模拟里一个都没有。 */
+const cardTaskMissing = (refText, sim) => {
+  const text = String(refText || '')
+  const ids = [...text.matchAll(/om_x[0-9a-f]{20,}/g)].map((x) => x[0])
+  const tails = [...text.matchAll(/lark\/falive-([0-9a-f]{8})/g)].map((x) => x[1])
+  if (!ids.length && !tails.length) return null
+  const simIds = [...(sim.tasks?.keys() || [])]
+  const has = ids.some((id) => sim.tasks.has(id)) || tails.some((t) => simIds.some((id) => id.endsWith(t)))
+  return has ? null : (ids[0] ? `…${ids[0].slice(-8)}` : tails[0])
+}
+
+/**
+ * 旗标 8：这条接的那张 falive 卡（见文件头）。返回 { hard, why } 或 null。
+ * hidden：本组藏起来的 falive 话（meta.hideBotIds ∪ 事件组 faliveBotIds）；pool：模拟 bot 在同会话、这条之前 24 小时内说过的话。
+ */
+export const faliveRefOf = ({ m, sim, data }) => {
+  const byId = data.byId || new Map((data.timeline || []).map((x) => [x.id, x]))
+  const hidden = new Set([...(sim.meta?.hideBotIds || []), ...((sim.episodeId && data.groupById?.get(sim.episodeId)?.faliveBotIds) || [])])
+  const text = String(m.text || '')
+  const parent = m.parentId ? byId.get(m.parentId) || null : null
+  const named = [...text.matchAll(/om_x[0-9a-f]{20,}/g)].map((x) => byId.get(x[0])).find((x) => x?.ownBot)
+  let ref = parent?.ownBot ? parent : named || null
+  let via = ref ? (ref === parent ? '回复的' : '点名的') : null
+  if (!ref && !parent) { // 没回复：紧挨着的上一张有内容的 falive 卡（同会话、同话题 / 主流，30 分钟内），且这条确实在问它
+    ref = (data.timeline || []).filter((x) => x.ownBot && hidden.has(x.id) && x.chatId === m.chatId && (x.threadId || null) === (m.threadId || null)
+      && x.atMs < m.atMs && m.atMs - x.atMs <= REF_LOOKBACK_MS && refFactsOf(x.text).length >= REF_MIN_FACTS).at(-1) || null
+    via = ref ? '紧挨着的上一张' : null
+  }
+  if (!ref) return null
+  // 只看冲着 bot 说的：@ 了 bot、负责人私信，或回 bot 的卡且没 @ 别人（「cc @x」「@Arthur 你描述一下」是在跟人说）
+  const toBot = m.atBot || m.chatKey === 'webhook-group' || (ref === parent && !(m.mentions || []).some((x) => !BOT_MENTION_IDS.has(x.id)))
+  if (!toBot) return null
+  const about = asksAboutRef(text, ref.text, { atBot: Boolean(m.atBot || m.chatKey === 'webhook-group') })
+  const at = `${via} falive 卡（…${ref.id.slice(-8)}，${new Date(ref.atMs).toISOString().slice(5, 16).replace('T', ' ')}）`
+  if (!hidden.has(ref.id)) {
+    const missing = TASK_CTRL_RE.test(plain(text)) && !named ? cardTaskMissing(ref.text, sim) : null
+    return missing ? { hard: true, why: `${at}照供，但卡上的任务（${missing}）是 falive 当时自己的，模拟里没有：「${plain(text).trim().slice(0, 20)}」指的那单续 / 结不了` } : null
+  }
+  if (via === '紧挨着的上一张' && !about) return null
+  const facts = refFactsOf(ref.text)
+  if (facts.length < REF_MIN_FACTS) return null
+  const dm = m.chatKey === 'webhook-group'
+  const pool = (sim.outbox || []).filter((o) => o.at <= m.atMs && m.atMs - o.at <= REF_POOL_MS && (dm ? Boolean(o.userId) || o.chatId === m.chatId : o.chatId === m.chatId))
+    .map((o) => String(o.text || '')).join('\n').toLowerCase()
+  const hit = facts.filter((f) => pool.includes(f))
+  if (hit.length / facts.length >= REF_COVER_MAX) return null
+  const miss = facts.filter((f) => !pool.includes(f)).slice(0, 5)
+  return {
+    hard: Boolean(about),
+    why: `${at}按事件组藏了，模拟 bot 在这里没说过卡里的事实（${hit.length}/${facts.length} 对得上，缺 ${miss.join('、')}）${about ? `；${about}` : ''}：falive 答的是它自己那份记录，lark-bot 手上没有`,
+  }
+}
+
+const EXTERNAL_HOST_RE = /figma|sketch|zeplin|lanhuapp|mastergo|modao|pixso/i
+const EXTERNAL_TEXT_RE = /(?:figma|设计稿|ui\s*稿|稿子?)[^。\n]{0,60}(?:出网|白名单|拦截|被拦|读不到|拿不到|访问不了|打不开|没有?导出)|(?:出网|白名单|egress)[^。\n]{0,30}(?:figma|设计)/i
+/** 旗标 9：lark-bot 说外部设计源读不到，或 egress 里拦了设计站的请求。task：本条或并入目标的任务。返回 { hard, why } 或 null。 */
+export const externalLimitOf = ({ lark = null, task = null, egressBlocked = [] }) => {
+  const said = [lark?.output, ...(lark?.lines || []).map((l) => l.text), task?.result, task?.summary, typeof task?.blocker === 'string' ? task.blocker : JSON.stringify(task?.blocker || '')].filter(Boolean).join('\n')
+  const quote = said.match(EXTERNAL_TEXT_RE)?.[0] || null
+  const blocked = egressBlocked.filter((e) => EXTERNAL_HOST_RE.test(e.host || ''))
+  if (!quote && !blocked.length) return null
+  const hard = task?.status === 'blocked' && Boolean(quote)
+  return { hard, why: `外部设计 / 文档源回放里读不到${quote ? `（lark-bot：「${quote.replace(/\s+/g, ' ').slice(0, 50)}」）` : ''}${blocked.length ? `（egress 拦了 ${[...new Set(blocked.map((e) => e.host))].join('、')} ${blocked.length} 次）` : ''}${hard ? '，任务因此停在 blocked' : ''}：线上 bot 能读稿，卡在这里不算 bot 的错，看它要稿 / 报卡点是否清楚` }
+}
+
 /**
  * 一条 case 的模拟局限：[{ flag, why }]。
  * m：时间线消息；sim：loadSim 结果（tasks / fed）；data：loadJudgeData；lark：larkFacts（看 lark-bot 输出里有没有读 bug 表快照）；
  * src：loadSimLimitSources（或测试注入）。
  */
-export const simLimitsOf = ({ m, sim, data, lark = null, src = loadSimLimitSources() }) => {
+export const simLimitsOf = ({ m, sim, data, lark = null, task = null, src = loadSimLimitSources() }) => {
   const out = []
   const add = (flag, why) => out.push({ flag: `${SIM_LIMIT_PREFIX}${flag}`, why })
   const tag = data.tags?.get(m.id) || null
@@ -168,5 +280,11 @@ export const simLimitsOf = ({ m, sim, data, lark = null, src = loadSimLimitSourc
   if (/lark-bugpoll|bug\s*表/i.test(faliveText)) why.push('falive 当时靠记忆 / bug 表快照答的')
   if (/lark-bugpoll/.test(larkText)) why.push('lark-bot 会话读了 ~/.lark-bugpoll（今天的 bug 表快照，含窗口之后的备注）')
   if (why.length) add('memory', `${why.join('；')}：记忆是近似版本，bug 表快照是今天的`)
+
+  // 8 / 9：硬的是 sim_limit_falive_ref / sim_limit_external（acceptance.SIM_LIMIT_HARD），软的带 _soft 后缀，只给裁判看
+  const ref = faliveRefOf({ m, sim, data })
+  if (ref) add(ref.hard ? 'falive_ref' : 'falive_ref_soft', ref.why)
+  const ext = externalLimitOf({ lark, task, egressBlocked: sim.egressBlocked || [] })
+  if (ext) add(ext.hard ? 'external' : 'external_soft', ext.why)
   return out
 }
