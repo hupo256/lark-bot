@@ -103,7 +103,7 @@
 | D5 | 主动能力（4.5） | ✅ 先只做部署核对 (a)，邮件暂缓 |
 | D6 | falive bot 什么时候下线（5.1） | ✅ 批 1 上线后就下：回放已经停了，它的审计原地留作样本 |
 | D7 | `getLiveUrl` 这类「只读但会改数据」的接口写进固定知识（2.2） | ✅ 写 |
-| D8 | pre 上的 25 个测试帖（5.2） | ✅ 删：pre 是共用环境，别留脏数据 |
+| D8 | pre 上的 25 个测试帖（5.2） | ✅ 删：pre 是共用环境，别留脏数据。11-05 核实：falive 前端只有 `bbsv2/thread/create / detail / listCursor / hot / recommend / related` 等，没有删帖接口，bot 删不了；要找后端 / 运营后台删（falive pre，测试号 uid 508，11-04 b2 回放期间 `thread/create` 25 次） |
 
 ## 5. 刻意不做
 
