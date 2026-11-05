@@ -42,7 +42,12 @@
 
 ## 3. 分阶段 plan
 
-### P1 代码拆成独立目录（约 0.5–1 天，零上线风险）
+### P1 代码拆成独立目录（约 0.5–1 天，零上线风险）· 11-05 已完成
+
+> 落地结果：本体在 `packages/mail-relay/`（engine / routes / presets / forward / scorers/ol-release / 自带 lark-cli 层 lark.mjs / 长连接 consumer.mjs / 独立入口 bin/mail-relay.mjs，说明见包内 README.md）；
+> `lib/lark-mail-*.mjs` 只剩薄转发，内置时注入 lark-bot 的 runLarkCli / 长连接 / 台账路径。
+> 验收：`__tests__/mail-relay-package.test.mjs` 钉住包边界（不 import lark-bot）与 lark-cli 层两边参数逐字一致；5 封真邮件（3 OL + 2 B2B）拆前 / 拆后 / 独立入口三方 dry-run 输出逐字相同。
+> 与原设想的出入：测试仍放 `__tests__/`（全量测试只扫这个目录），没搬进包内。
 
 目标：转发代码不再依赖 lark-bot 其他模块，lark-bot 照样内置调用它，线上行为不变。
 

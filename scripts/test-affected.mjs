@@ -20,7 +20,7 @@ import { basename, dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const CODE_DIRS = ['lib', 'lib/vendor', 'scripts', 'tools', 'runtime', '__tests__', '__tests__/fixtures/golden']
+const CODE_DIRS = ['lib', 'lib/vendor', 'packages/mail-relay', 'packages/mail-relay/scorers', 'packages/mail-relay/bin', 'scripts', 'tools', 'runtime', '__tests__', '__tests__/fixtures/golden']
 const TEST_DIR = '__tests__'
 
 const listCode = () => CODE_DIRS.flatMap((dir) => {

@@ -14,6 +14,7 @@ import { RELAY_ALERT_AFTER_FAILURES, RELAY_POLL_MS, RELAY_POLL_OVERLAP_MS, catch
 import { forwardMail, renderRelayNote } from '../lib/lark-mail-relay-forward.mjs'
 import { getScorer } from '../lib/lark-mail-relay-presets.mjs'
 import { addressOf, matchRoute, normalizeRoutes, relayChatIds, routeMatches, validateMailRelay } from '../lib/lark-mail-relay-routes.mjs'
+import { mailRelayPackageSteps } from './support/mail-relay-package-steps.mjs'
 import { eachCase, runSteps } from './support/steps.mjs'
 
 // 审批邮件转群（aven 11-02）：OL 上线评分口径（docs/notes/mail-ol-scoring-2026-11-02.md）+ 通用路由 / 转发 / 引擎 / 拆分接口。
@@ -52,7 +53,7 @@ const quiet = async (fn) => {
   }
 }
 
-describe('审批邮件转群：OL 评分、路由、转发、引擎、拆分接口', () => {
+describe('审批邮件转群：OL 评分、路由、转发、引擎、拆分接口、独立包', () => {
   it('预设与评分、路由匹配与校验、转发、台账与补转、网关 / 独立进程接线', () => runSteps([
     ['ol-release 预设：只认 OL 申请首封——回复 / 转发 / 非 OL 环境 / 有 in_reply_to 都不认', () => {
       for (const subject of [STD_SUBJECT, '【HQEX】【CHAINUP】【OL环境】生产环境 撮合 重启【20261027】', '【嗨聊】OL環境-申請上線 v6.10.3', '【HQEX】【CHAINUP】【ol】【需求】x【20261018】', '【20261031】【B2B_直播中心】【Falive 直播站】【OL环境 HQUC-AWS-JP-OL-falive-core01】 x']) {
@@ -440,5 +441,7 @@ describe('审批邮件转群：OL 评分、路由、转发、引擎、拆分接�
       relay.stop()
       assert.equal(consumed.stopped, true)
     }],
+    // 独立包 packages/mail-relay（11-05 P1 拆分）：包边界、lark-cli 层对照、独立运行缺省、长连接、独立入口。
+    ...mailRelayPackageSteps,
   ]))
 })

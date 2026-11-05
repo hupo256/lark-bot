@@ -23,7 +23,9 @@ const closureOf = (entry) => {
 
 // 只看代码不看注释：注释里提到「不再 spawnSync」不算。
 const stripComments = (source) => source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/[^:'"]\/\/.*$/gm, '')
-const CHILD_PROCESS_ALLOWED = new Set(['lib/lark-cli.mjs', 'lib/lark-consumer.mjs', 'lib/lark-keep-awake.mjs', 'lib/lark-power.mjs'])
+// packages/mail-relay 的 lark.mjs / consumer.mjs：邮件转发包自带的 lark-cli 层与长连接（11-05 拆分，异步 spawn，与 lib/lark-cli / lark-consumer 同类）；
+// 网关内置时注入 lark-bot 自己的那两份，包里的只是被 engine 静态 import 进闭包、不在网关里跑。
+const CHILD_PROCESS_ALLOWED = new Set(['lib/lark-cli.mjs', 'lib/lark-consumer.mjs', 'lib/lark-keep-awake.mjs', 'lib/lark-power.mjs', 'packages/mail-relay/lark.mjs', 'packages/mail-relay/consumer.mjs'])
 const WORKER_ONLY = /lib\/lark-(daily-report|ai-executor|doc|worker-run|worker-git|worker-prompts|task-runner|runner-steps|quality-gate|final-verification|system-runner|triage|rule-context|classify-prompt|run-report|group-reply-pass|worker-modes|ai-result-text)\.mjs$/
 
 describe('gateway 纯度闸', () => {
