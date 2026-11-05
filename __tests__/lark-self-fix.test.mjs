@@ -54,6 +54,7 @@ import { SELF_REQUEST_DAILY_CAP, openSelfRequest } from '../lib/lark-self-fix.mj
 import { buildSelfRequestPrompt, sayAppliedInThread } from '../lib/lark-self-fix-run.mjs'
 import { maybeHandleSelfFixDirective, parseSelfFixDirective, pickReadyTicket } from '../lib/lark-self-fix-directive.mjs'
 import { listSelfFixRequests } from '../lib/lark-self-fix-store.mjs'
+import { CORRECTION_DAILY_CAP, KNOWLEDGE_PROPOSAL_PATH, applyKnowledgeProposal, buildCorrectionPrompt, buildCorrectionReport, openCorrectionTicket } from '../lib/lark-self-fix-correction.mjs'
 import { deriveContract } from '../lib/lark-task-contract.mjs'
 import { resolveWorkContext } from '../lib/lark-work-context.mjs'
 import { runPreExecutionGates } from '../lib/lark-ops-run.mjs'
@@ -776,6 +777,89 @@ describe('CLI：lark-bot self-fix', () => {
       await maybeHandleSelfFixDirective({ msg: dm('上线'), config, store: null, dir: repo.dir, deps })
       assert.match(sent[1], /没有等上线/)
       assert.equal(sayAppliedInThread({}), '已更新上线：这条要求。之后按新逻辑处理。')
+
+      // 纠错修复单（aven 11-05「错一个修一个，然后排空重启」）：gateway 开单（不取 HEAD）→ worker 开跑补 HEAD → 验收过自动合进运行分支；
+      // 补的事实搬进运行态固定知识；关了自动上线 / 合不进去留 ready；只补知识 / 没修 → reported
+      const record = (id, extra = {}) => ({ id, body: 'pre 没部署新站，别说 pre 有新站', text: '纠错：pre 没部署新站', links: [], messageIds: [], via: 'message', action: 'rerun', task: { id: 'om_wrong', chatId: 'oc_g', chatName: '测试群', status: 'done', deliverable: 'answer', decision: 'question', createdAt: '2026-10-24T03:00:00.000Z', text: 'test 和 pre 一样吗', result: '一样，pre 也有新站' }, ...extra })
+      assert.deepEqual(openCorrectionTicket({ record: record('om_c1'), config: { selfHeal: { selfFix: false } }, dir: repo.dir, root: repo.root, now: NOON }), { opened: false, reason: '自修关着（selfHeal.selfFix=false / LARK_SELF_FIX=0）', id: null })
+      assert.equal(openCorrectionTicket({ record: record('om_c1'), config: {}, dir: repo.dir, root: repo.root, env: { LARK_SELF_FIX: '0' }, now: NOON }).opened, false)
+      const cOpen = openCorrectionTicket({ record: record('om_c1'), task: { id: 'om_wrong', project: 'PR-01947' }, config: {}, dir: repo.dir, root: repo.root, env: {}, now: NOON })
+      assert.deepEqual(cOpen, { opened: true, reason: 'opened', id: 'sf-20261024-fixom_c1' })
+      const ct = readTicket({ dir: repo.dir, id: cOpen.id })
+      assert.deepEqual([ct.kind, ct.status, ct.baseHead, ct.branch, ct.worktreePath, ct.correction.task.id, ct.correction.action, ct.correction.auditDir.endsWith('/lark-audits/PR-01947'), ct.fingerprint.label], ['correction', 'pending', null, 'lark/self-correct-om_c1-20261024', join(repo.base, `lark-bot-${cOpen.id}`), 'om_wrong', 'rerun', true, '纠错：pre 没部署新站，别说 pre 有新站'])
+      assert.deepEqual(openCorrectionTicket({ record: record('om_c1'), config: {}, dir: repo.dir, root: repo.root, env: {}, now: NOON }), { opened: false, reason: `已有工单 ${cOpen.id}`, id: cOpen.id }, '同一条私信只开一张')
+      assert.equal(openCorrectionTicket({ record: record('om_c0', { task: null }), config: { project: 'PR-1' }, dir: join(repo.base, 'nt'), root: repo.root, env: {}, now: NOON }).opened, true)
+      assert.equal(readTicket({ dir: join(repo.base, 'nt'), id: 'sf-20261024-fixom_c0' }).correction.auditDir, null, '没对上任务不写审计目录')
+      openCorrectionTicket({ record: { id: 'om_bare', body: 'b', text: 't' }, config: {}, dir: join(repo.base, 'nt'), root: repo.root, env: {}, now: NOON })
+      openCorrectionTicket({ record: record('om_full', { links: ['https://x/1'], messageIds: ['om_q'], via: 'reply' }), config: {}, dir: join(repo.base, 'nt'), root: repo.root, env: {}, now: NOON })
+      const pick = (id) => { const c = readTicket({ dir: join(repo.base, 'nt'), id }).correction; return [c.links, c.messageIds, c.via, c.action, c.task] }
+      assert.deepEqual(pick('sf-20261024-fixom_bare'), [[], [], null, null, null], '记录缺字段：给空值，不编')
+      assert.deepEqual(pick('sf-20261024-fixom_full').slice(0, 3), [['https://x/1'], ['om_q'], 'reply'])
+      const capDir = join(repo.base, 'cap')
+      for (let i = 0; i < CORRECTION_DAILY_CAP; i += 1) assert.equal(openCorrectionTicket({ record: record(`om_k${i}`), config: {}, dir: capDir, root: repo.root, env: {}, now: NOON }).opened, true)
+      assert.deepEqual(openCorrectionTicket({ record: record('om_kx'), config: {}, dir: capDir, root: repo.root, env: {}, now: NOON }), { opened: false, reason: `今天已开 ${CORRECTION_DAILY_CAP} 张纠错修复单（上限 ${CORRECTION_DAILY_CAP}）`, id: null })
+      assert.equal(openCorrectionTicket({ record: record('om_kx'), config: {}, dir: capDir, root: repo.root, env: {}, now: NOON + 86_400_000 }).opened, true, '第二天重新算')
+      const c_prompt = buildCorrectionPrompt({ ...ct, baseHead: 'abcdef1234', worktreePath: '/w' }, { knowledgeDir: '/k' })
+      for (const part of ['纠错修复单 sf-20261024-fixom_c1', '当前目录 /w，分支 lark/self-correct-om_c1-20261024，基于 abcdef12', '<<<CORRECTION\npre 没部署新站，别说 pre 有新站\nCORRECTION', '任务 om_wrong（测试群', '<<<ORIGINAL\ntest 和 pre 一样吗\nORIGINAL', '<<<ANSWER\n一样，pre 也有新站\nANSWER', 'PR-01947/om_wrong-e*.json', `写进 ${KNOWLEDGE_PROPOSAL_PATH}`, '现有固定知识在 /k/', '--diff abcdef1234 --lanes 1', '你不用再回群']) assert.ok(c_prompt.includes(part), part)
+      const taskLine = (task) => buildCorrectionPrompt({ ...ct, correction: { ...ct.correction, task }, baseHead: 'b', worktreePath: '/w' }).split('\n').find((line) => line.startsWith('出错的那单'))
+      assert.equal(taskLine(ct.correction.task), '出错的那单：任务 om_wrong（测试群，2026-10-24T03:00:00.000Z，状态 done，交付物 answer，分类 question）。')
+      assert.equal(taskLine({ id: 'om_z', chatId: 'oc_z' }), '出错的那单：任务 om_z（oc_z，?，状态 ?，交付物 ?，分类 ?）。', '没群名退群 id，缺的写 ?')
+      assert.equal(taskLine({ id: 'om_z' }), '出错的那单：任务 om_z（?，?，状态 ?，交付物 ?，分类 ?）。')
+      assert.match(buildCorrectionPrompt({ ...ct, correction: { ...ct.correction, task: null }, baseHead: 'b', worktreePath: '/w' }), /没对上是哪一单：按纠正里的关键词在 runtime\/lark-audits\//)
+      assert.match(buildCorrectionPrompt({ ...ct, correction: { ...ct.correction, task: { ...ct.correction.task, result: '' } }, baseHead: 'b', worktreePath: '/w' }), /<<<ANSWER\n（没记下结论）\nANSWER/)
+
+      const kdir = join(repo.base, 'knowledge')
+      const headBefore = g(repo.root, ['rev-parse', 'HEAD']).stdout.trim()
+      const dms2 = []
+      const cw = (extra = {}) => createSelfFixRunner({ dir: repo.dir, root: repo.root, log: quiet, now: () => NOON, apply: applySelfFix, discard: discardSelfFix, runTests: ok('测试 3 个：通过 3'), runMutate: async () => ({ ok: true, checked: true, summary: '变异存活 0（1 个变异点：抓到 1，豁免 0）' }), notify: async (text, opts) => { dms2.push({ text, opts }) }, applyKnowledge: (args) => applyKnowledgeProposal({ ...args, knowledgeDir: kdir }), ...extra })
+      const corrCalls = []
+      const fixed = await cw({ exec: fakeExec({ calls: corrCalls, summary: '分类器把 pre 当成有新站：补知识 + 代答口径', files: { 'lib/a.mjs': 'export const a = 3\n', [KNOWLEDGE_PROPOSAL_PATH]: 'pre 只有老站，新站只部署在 test\n\n- 新站上 pre 要等发版\n' } }) }).runTicket(ct)
+      assert.deepEqual([fixed.status, fixed.baseHead, fixed.knowledgeAdded, fixed.mergedInto, fixed.changedFiles], ['applied', headBefore, 2, 'main', ['lib/a.mjs']], '开跑补 HEAD；验收过自动合进运行分支；知识提议不算代码改动')
+      assert.equal(readFileSync(join(repo.root, 'lib/a.mjs'), 'utf8'), 'export const a = 3\n')
+      assert.match(corrCalls[0].promptText, new RegExp(`^纠错修复单 ${cOpen.id}：.*\\n你在 lark-bot 本仓的临时 worktree 里（当前目录 ${join(repo.base, `lark-bot-${cOpen.id}`)}，分支 lark/self-correct-om_c1-20261024，基于 ${headBefore.slice(0, 8)}`), '纠错单用纠错提示（带开跑时补的 HEAD）')
+      assert.equal(readFileSync(join(kdir, 'corrections.md'), 'utf8'), `# 纠错补的固定知识（纠错修复单自动追加，负责人可随时改）\n\n<!-- ${cOpen.id} ${new Date(NOON).toISOString().slice(0, 10)} -->\n- pre 只有老站，新站只部署在 test\n- 新站上 pre 要等发版\n`)
+      assert.deepEqual(dms2.map((d) => d.opts.idempotencyKey), [`self-fix-${cOpen.id}-applied`])
+      assert.equal(dms2[0].text, [
+        `纠错修复单 ${cOpen.id}（任务 om_wrong）：pre 没部署新站，别说 pre 有新站`,
+        '根因与改动：分类器把 pre 当成有新站：补知识 + 代答口径',
+        '改了：lib/a.mjs',
+        '测试：测试 3 个：通过 3；变异：变异存活 0（1 个变异点：抓到 1，豁免 0）',
+        '固定知识：追加了 2 条到 runtime/knowledge/corrections.md，下一单起生效',
+        `已自动合进 main（${readTicket({ dir: repo.dir, id: cOpen.id }).mergedAs.slice(0, 8)}），排空重启后上线（在飞任务跑完、全量自检绿就换新代码）。`,
+      ].join('\n'))
+      // 只补知识：不改代码 → reported；追加时不重复写标题
+      const kOnly = openCorrectionTicket({ record: record('om_c2'), config: {}, dir: repo.dir, root: repo.root, env: {}, now: NOON })
+      const t2 = await cw({ exec: fakeExec({ summary: '事实错了', files: { [KNOWLEDGE_PROPOSAL_PATH]: '- online 用 www 主域\n' } }) }).runTicket(readTicket({ dir: repo.dir, id: kOnly.id }))
+      assert.deepEqual([t2.status, t2.knowledgeAdded, t2.reason], ['reported', 1, '只补了固定知识，没改代码（AI done）'])
+      assert.equal(readFileSync(join(kdir, 'corrections.md'), 'utf8').match(/^# /gm).length, 1)
+      assert.match(dms2.at(-1).text, /固定知识：追加了 1 条.*\n没改代码：只补了固定知识，没改代码（AI done）$/)
+      // 没做完（blocked）：知识提议不搬、不改代码 → reported「没修」
+      const blk = openCorrectionTicket({ record: record('om_c3'), config: {}, dir: repo.dir, root: repo.root, env: {}, now: NOON })
+      const t3 = await cw({ exec: fakeExec({ status: 'blocked', summary: '证据不够', files: { [KNOWLEDGE_PROPOSAL_PATH]: '- 不该搬\n' } }) }).runTicket(readTicket({ dir: repo.dir, id: blk.id }))
+      assert.deepEqual([t3.status, 'knowledgeAdded' in t3, readFileSync(join(kdir, 'corrections.md'), 'utf8').includes('不该搬')], ['reported', false, false])
+      assert.match(dms2.at(-1).text, /没修：AI blocked，没改代码；还缺：装 lark-cli$/)
+      // 关了自动上线：留 ready 等「上线 <id>」
+      const manual = openCorrectionTicket({ record: record('om_c4'), config: {}, dir: repo.dir, root: repo.root, env: {}, now: NOON })
+      const t4 = await cw({ localConfig: { selfHeal: { autoApplyCorrections: false } }, exec: fakeExec({ files: { 'lib/a.mjs': 'export const a = 4\n' } }) }).runTicket(readTicket({ dir: repo.dir, id: manual.id }))
+      assert.deepEqual([t4.status, readFileSync(join(repo.root, 'lib/a.mjs'), 'utf8')], ['ready', 'export const a = 3\n'])
+      assert.match(dms2.at(-1).text, new RegExp(`回我「上线 ${manual.id}」合进运行分支，不要就回「丢弃 ${manual.id}」`))
+      discardSelfFix({ dir: repo.dir, root: repo.root, id: manual.id })
+      // 运行目录有未提交改动：合不进去 → 留 ready，带原因
+      const dirty = openCorrectionTicket({ record: record('om_c5'), config: {}, dir: repo.dir, root: repo.root, env: {}, now: NOON })
+      writeFileSync(join(repo.root, 'lib/a.mjs'), 'export const a = 99\n')
+      const t5 = await cw({ exec: fakeExec({ files: { 'lib/b.mjs': 'export const b = 1\n' } }) }).runTicket(readTicket({ dir: repo.dir, id: dirty.id }))
+      assert.deepEqual([t5.status, t5.applyError.startsWith('运行目录 ')], ['ready', true])
+      assert.match(dms2.at(-1).text, /自动上线没成：运行目录 .*有未提交改动.*回我「上线 /)
+      g(repo.root, ['checkout', '--', 'lib/a.mjs'])
+      assert.match(buildCorrectionReport({ id: 'sf-x', status: 'rejected', reason: '全量单测没过', correction: { body: 'b' } }), /^纠错修复单 sf-x：b\n作废原因：全量单测没过。现场与分支已删，这类错还会再犯——要人看一下。$/)
+      const files = (n) => Array.from({ length: n }, (_, i) => `lib/f${i}.mjs`)
+      assert.equal(buildCorrectionReport({ id: 'sf-x', status: 'pending', changedFiles: files(8), correction: { body: 'b' } }).split('\n')[1], `改了：${files(8).join('、')}`)
+      assert.equal(buildCorrectionReport({ id: 'sf-x', status: 'pending', changedFiles: files(9), correction: { body: 'b' } }).split('\n')[1], `改了：${files(8).join('、')} 等`)
+      assert.match(buildCorrectionReport({ id: 'sf-x', status: 'failed', reason: '起不来', correction: { body: 'b' } }), /出错：起不来/)
+      assert.equal(applyKnowledgeProposal({ worktreePath: join(repo.base, 'none'), ticketId: 'x', knowledgeDir: kdir }), 0)
+      mkdirSync(join(repo.base, 'empty', 'runtime', 'knowledge'), { recursive: true })
+      writeFileSync(join(repo.base, 'empty', KNOWLEDGE_PROPOSAL_PATH), '\n  \n')
+      assert.deepEqual([applyKnowledgeProposal({ worktreePath: join(repo.base, 'empty'), ticketId: 'x', knowledgeDir: kdir }), existsSync(join(repo.base, 'empty', KNOWLEDGE_PROPOSAL_PATH))], [0, false], '空提议不写、读完删掉')
     } finally {
       repo.cleanup()
     }
