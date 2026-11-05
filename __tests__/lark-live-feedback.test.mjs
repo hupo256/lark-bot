@@ -13,7 +13,7 @@ import { eachCase, runSteps } from './support/steps.mjs'
 import { auditCalls, parseCostLog, sessionIncrements } from '../lib/lark-audit-cost.mjs'
 import { appendCorrection, appendDecision, adoptionOf, correctionRecordOf, decisionRecordOf, parseCorrection, readCorrections, readDecisions, taskSnapshot } from '../lib/lark-feedback-log.mjs'
 import { LIVE_LINES, buildScorecard, collectLiveFacts, formatDuration, renderScorecard, summarizeAccuracy, summarizeCost, summarizeFeedback, summarizeSpeed } from '../lib/lark-live-scorecard.mjs'
-import { correctionAckText, maybeHandlePrincipalChannel, resolveCorrectionTask } from '../lib/lark-principal-channel.mjs'
+import { CORRECTION_DIRECTIVE_HEAD, correctionAckText, correctionDirectiveText, maybeHandlePrincipalChannel, resolveCorrectionTask } from '../lib/lark-principal-channel.mjs'
 import { selfReplyLatencyRecord } from '../lib/lark-routes-intake.mjs'
 import { renderDailyReport, scorecardSection } from '../lib/lark-daily-report.mjs'
 
@@ -95,33 +95,74 @@ describe('实战迭代批 1：线上指标 / 纠错 / 决策日志', () => {
       assert.deepEqual(resolve('纠错 om_t2'), { task: tasks[2], via: 'message' }, '并进别的单：认并入的那单')
       assert.deepEqual(resolve('纠错 om_nope 答错了', { replyToDirect: 'om_rcpt' }), { task: tasks[0], via: 'reply' }, '点名的对不上 → 看引用')
       assert.equal(resolve('纠错 答错了'), null)
-      assert.equal(correctionAckText({ saved: true, task: tasks[2], count: 3 }), '记下了，纠错第 3 条（对上了「om_t3」）。攒一批我统一修，不用再专门找我。')
-      assert.equal(correctionAckText({ saved: true, task: { id: 'x', summary: '【PR】导出按钮没反应' }, count: 1 }), '记下了，纠错第 1 条（对上了「导出按钮没反应」）。攒一批我统一修，不用再专门找我。')
-      assert.equal(correctionAckText({ saved: true, task: null, count: 2 }), '记下了，纠错第 2 条（没对上具体任务，分诊时按你给的链接 / 原话再查）。攒一批我统一修，不用再专门找我。')
-      assert.equal(correctionAckText({ saved: false, task: null, count: 0 }), '这条纠错没记上（写文件失败），麻烦晚点再发一次。')
+      const t = { id: 'x', summary: '【PR】导出按钮没反应' }
+      assert.equal(correctionAckText({ saved: true, task: t, count: 3, action: 'rerun' }), '记下了（纠错第 3 条，之后统一修根因）。「导出按钮没反应」已按你的纠正重新答，更正后回原消息。')
+      assert.equal(correctionAckText({ saved: true, task: tasks[2], count: 1, action: 'resume' }), '记下了（纠错第 1 条，之后统一修根因）。「om_t3」带着你的纠正接着做，做完回原消息。')
+      assert.equal(correctionAckText({ saved: false, task: t, count: 0, action: 'dm' }), '这条纠错没记进清单（写文件失败），根因那边晚点再发我一次。「导出按钮没反应」是你私信里发起的，要我重答直接接着说就行。')
+      assert.equal(correctionAckText({ saved: true, task: null, count: 2, candidates: [t, { id: 'om_y' }] }), '记下了（纠错第 2 条，之后统一修根因）。\n没对上是哪一单，先没重答。要更正的话回「继续任务 <id> <正确的说法>」：\n- 「导出按钮没反应」：继续任务 x\n- 「om_y」：继续任务 om_y')
+      assert.equal(correctionAckText({ saved: true, task: null, count: 2 }), '记下了（纠错第 2 条，之后统一修根因）。\n没对上是哪一单，先没重答。要更正的话回复那条 bot 消息再发一次纠错，或贴上消息链接。')
+      assert.equal(correctionDirectiveText('pre 没部署新站'), `${CORRECTION_DIRECTIVE_HEAD}pre 没部署新站`)
     }],
 
-    ['私信主通道：纠错先于锚定——只记账回一句，不续跑、不建任务；群里 / 别人说的不认', async () => {
-      const config = { notifyOpenId: 'ou_aven', opsOwnerOpenIds: ['ou_aven'], ownerMap: { aven: 'ou_aven' } }
+    ['私信主通道：纠错先于锚定——记账 + 对上的群任务当场重答（建指示任务 / 挂起的续跑）；私信单、没对上的只记；群里 / 别人说的不认', async () => {
+      const config = { notifyOpenId: 'ou_aven', opsOwnerOpenIds: ['ou_aven'], ownerMap: { aven: 'ou_aven' }, project: 'PR-1' }
       const notes = []
       const saved = []
+      const upserts = []
+      const resumes = []
+      const decisions = []
+      const downloads = []
       let anchored = 0
-      const tasks = [{ id: 'om_t1', status: 'done', summary: '导出按钮' }]
-      const store = { get: (id) => tasks.find((t) => t.id === id) || null, list: () => tasks, upsert: () => { throw new Error('不该建任务') } }
+      const tasks = [
+        { id: 'om_t0', status: 'done', chatId: 'oc_g', messageId: 'om_t0', operator: 'ou_qa', summary: '没项目号' },
+        { id: 'om_t1', status: 'done', chatId: 'oc_g', messageId: 'om_t1', operator: 'ou_qa', summary: '导出按钮', text: '导出按钮没反应', project: 'PR-X' },
+        { id: 'om_w', status: 'waiting_confirmation', chatId: 'oc_g', messageId: 'om_w', operator: 'ou_qa', summary: '充值页', text: '充值页' },
+        { id: 'om_dm', status: 'answered', chatId: 'oc_p2p', chatType: 'p2p', summary: '私信问题', text: '私信问题' },
+        { id: 'om_c', status: 'done', chatId: 'oc_g', summary: '最近私信过的', receipts: [{ chatId: 'ou_aven', kind: 'done', createdAt: iso(T0 - 60_000) }] },
+      ]
+      const store = { get: (id) => tasks.find((t) => t.id === id) || upserts.find((t) => t.id === id) || null, list: () => tasks, upsert: (task) => (upserts.push(task), task) }
       const deps = {
         now: () => T0,
         sendPrincipalNote: async (args) => { notes.push(args); return { ok: true } },
         appendCorrection: (record) => { saved.push(record); return true },
         readCorrections: () => saved,
+        appendDecision: (record) => { decisions.push(record); return true },
+        handleResume: async (args) => { resumes.push(args) },
+        downloadAttachments: async (args) => (downloads.push(args), [{ type: 'image', imageKey: `dl-${args.attachments.length}` }]),
         resolveAnchor: () => { anchored += 1; return null },
       }
       const msg = (text, extra = {}) => ({ messageId: 'om_in', chatId: 'oc_p2p', chatType: 'p2p', senderOpenId: 'ou_aven', text, mentions: [], attachments: [], ...extra })
-      assert.equal(await maybeHandlePrincipalChannel({ msg: msg('纠错：om_t1 结论答错了'), config, store, deps }), true)
-      assert.deepEqual([saved.length, saved[0].via, saved[0].task.id, saved[0].at, anchored], [1, 'message', 'om_t1', iso(T0), 0])
-      assert.deepEqual(notes.pop(), { config, store, text: '记下了，纠错第 1 条（对上了「导出按钮」）。攒一批我统一修，不用再专门找我。', taskId: 'om_t1', kind: 'private', idempotencyKey: 'om_in-pn' })
-      deps.appendCorrection = () => false
+      // 答过的群任务：建私聊指示任务当场重答（回原消息 / 原提问人），记账 + 决策 correct
+      assert.equal(await maybeHandlePrincipalChannel({ msg: msg('纠错：om_t1 pre 没部署新站', { attachments: [{ type: 'image', imageKey: 'k' }] }), config, store, deps }), true)
+      assert.deepEqual([saved.length, saved[0].via, saved[0].task.id, saved[0].action, saved[0].at, anchored], [1, 'message', 'om_t1', 'rerun', iso(T0), 0])
+      const rerun = upserts.at(-1)
+      assert.deepEqual([rerun.id, rerun.chatId, rerun.operator, rerun.privateOrigin.anchorId, rerun.replyTarget, rerun.attachments.map((a) => a.imageKey)], ['om_in', 'oc_g', 'ou_qa', 'om_t1', { messageId: 'om_t1', inThread: false }, ['dl-1']])
+      assert.deepEqual(downloads.pop(), { project: 'PR-X', messageId: 'om_in', attachments: [{ type: 'image', imageKey: 'k' }] }, '纠错里带的截图按那单的项目下载')
+      assert.ok(rerun.text.startsWith(`【aven 私聊指示】${CORRECTION_DIRECTIVE_HEAD}om_t1 pre 没部署新站`), '执行器看到的是要更正的指示')
+      assert.deepEqual(tasks[1].linkedMessageIds, ['om_in'])
+      assert.deepEqual([decisions.at(-1).kind, decisions.at(-1).taskId], ['correct', 'om_t1'])
+      assert.deepEqual(notes.pop(), { config, store, text: '记下了（纠错第 1 条，之后统一修根因）。「导出按钮」已按你的纠正重新答，更正后回原消息。', taskId: 'om_in', kind: 'ack', idempotencyKey: 'om_in-pn' })
+      assert.equal(await maybeHandlePrincipalChannel({ msg: msg('纠错 om_t0 答错了', { attachments: undefined }), config, store, deps }), true)
+      assert.deepEqual([downloads.pop(), upserts.at(-1).attachments.map((a) => a.imageKey)], [{ project: 'PR-1', messageId: 'om_in', attachments: [] }, ['dl-0']], '那单没项目号退到配置；没附件传空')
+      saved.pop()
+      notes.pop()
+      // 挂起的单：带着纠正续跑（显式补料），不另建任务
+      const created = () => upserts.filter((t) => t.intake?.trigger === 'principal_private').length
+      const upsertsBefore = created()
+      assert.equal(await maybeHandlePrincipalChannel({ msg: msg('纠错 om_w 用 508 账号'), config, store, deps }), true)
+      assert.deepEqual([resumes.length, resumes[0].parentTask, resumes[0].resumeDirective, resumes[0].msg.text, created()], [1, { taskId: 'om_w', task: tasks[2], explicit: true }, { taskId: 'om_w', supplementText: `${CORRECTION_DIRECTIVE_HEAD}om_w 用 508 账号` }, `${CORRECTION_DIRECTIVE_HEAD}om_w 用 508 账号`, upsertsBefore])
+      assert.deepEqual([saved.at(-1).action, decisions.at(-1).kind, notes.pop().text], ['resume', 'correct', '记下了（纠错第 2 条，之后统一修根因）。「充值页」带着你的纠正接着做，做完回原消息。'])
+      // 他自己私信发起的单 / 没对上：只记，不重答
+      const decisionsBefore = decisions.length
+      assert.equal(await maybeHandlePrincipalChannel({ msg: msg('纠错 om_dm 答错了'), config, store, deps }), true)
+      assert.deepEqual([saved.at(-1).action, notes.pop().taskId, created(), resumes.length, decisions.length], ['dm', 'om_dm', upsertsBefore, 1, decisionsBefore])
       assert.equal(await maybeHandlePrincipalChannel({ msg: msg('纠错 漏回了'), config, store, deps }), true)
-      assert.deepEqual([notes.pop().text, notes.length], ['这条纠错没记上（写文件失败），麻烦晚点再发一次。', 0])
+      const none = notes.pop()
+      assert.deepEqual([saved.at(-1).action, none.taskId, created(), decisions.length], ['none', null, upsertsBefore, decisionsBefore])
+      assert.match(none.text, /没对上是哪一单，先没重答。要更正的话回「继续任务 <id> <正确的说法>」：\n- 「最近私信过的」：继续任务 om_c$/, '列最近私信过他的群任务')
+      deps.appendCorrection = () => false
+      assert.equal(await maybeHandlePrincipalChannel({ msg: msg('纠错 om_t1 漏回了'), config, store, deps }), true)
+      assert.match(notes.pop().text, /^这条纠错没记进清单（写文件失败）.*已按你的纠正重新答/, '没记上也照样当场重答')
       assert.equal(await maybeHandlePrincipalChannel({ msg: msg('纠错 漏回了', { chatType: 'group', chatId: 'oc_g' }), config, store, deps }), false, '群里不认')
       assert.equal(await maybeHandlePrincipalChannel({ msg: msg('纠错 漏回了', { senderOpenId: 'ou_qa' }), config, store, deps }), false, '不是负责人')
       assert.equal(await maybeHandlePrincipalChannel({ msg: msg('不对，应该是 508 账号'), config, store, deps }), false, '补料照旧走锚定（这里锚不到 → 放行）')
@@ -192,9 +233,9 @@ describe('实战迭代批 1：线上指标 / 纠错 / 决策日志', () => {
 
     ['反馈：范围内纠错条数、没处理的总数、拍板分类与采纳率', () => {
       const f = summarizeFeedback({ range: RANGE,
-        corrections: [{ at: iso(T0 + 1), status: 'open' }, { at: iso(T0 - 1), status: 'open' }, { at: iso(T0 + 2), status: 'fixed' }],
+        corrections: [{ at: iso(T0 + 1), status: 'open', action: 'rerun' }, { at: iso(T0 - 1), status: 'open', action: 'rerun' }, { at: iso(T0 + 2), status: 'fixed', action: 'resume' }, { at: iso(T0 + 3), status: 'fixed', action: 'none' }, { at: iso(T0 + 4), status: 'open', action: 'dm' }],
         decisions: [{ at: iso(T0 + 1), kind: 'release' }, { at: iso(T0 + 2), kind: 'revise' }, { at: iso(T0 + 3), kind: 'instruct' }, { at: iso(T0 - 1), kind: 'release' }] })
-      assert.deepEqual(f, { corrections: 2, openCorrections: 2, decisions: 3, counts: { release: 1, revise: 1, decline: 0, resume: 0, instruct: 1 }, adoption: { release: 1, revise: 1, rate: 0.5 } })
+      assert.deepEqual(f, { corrections: 4, correctedLive: 2, openCorrections: 3, decisions: 3, counts: { release: 1, revise: 1, decline: 0, resume: 0, instruct: 1 }, adoption: { release: 1, revise: 1, rate: 0.5 } })
     }],
 
     ['渲染：达线 ✅ / 不达线 ⚠️ / 没数据不标；缺值写 --；明细最多 3 条', () => {
@@ -206,7 +247,7 @@ describe('实战迭代批 1：线上指标 / 纠错 / 决策日志', () => {
         '- 准：群里 @bot 0 条，漏回 0、重复回 0、回错人 0；回了「收到」没给结论 0',
         '- 快：没有交付记录',
         '- 省：没有模型花费',
-        '- 反馈：纠错 0 条（没处理的共 0）；你没拍板过',
+        '- 反馈：纠错 0 条（当场重答 0，根因没处理的共 0）；你没拍板过',
       ])
       const card = buildScorecard({
         range: RANGE,
@@ -224,7 +265,7 @@ describe('实战迭代批 1：线上指标 / 纠错 / 决策日志', () => {
         '- 准：群里 @bot 4 条，漏回 4、重复回 0、回错人 0 ⚠️；回了「收到」没给结论 0；没做成 1/5',
         '- 快：首句中位 10 秒（线 ≤47 秒） ✅；答疑 / 实测结论中位 5.0 分、P90 5.0 分（线 P90 ≤7 分） ✅；改码结论中位 10.0 分',
         '- 省：1 单共 $0.30，每单中位 $0.30，最贵 $0.30（登录页）',
-        '- 反馈：纠错 0 条（没处理的共 0）；你拍板 3 次（放行 1、改了再发 2、不做 0、续跑 0、指示 0），直接采纳率 33%',
+        '- 反馈：纠错 0 条（当场重答 0，根因没处理的共 0）；你拍板 3 次（放行 1、改了再发 2、不做 0、续跑 0、指示 0），直接采纳率 33%',
         '  · 漏回：问1', '  · 漏回：问2', '  · 漏回：问3',
       ])
       const edge = renderScorecard(buildScorecard({ range: RANGE, latency: [{ at: iso(T0 + 1), id: 'a', deliverable: 'answer', ackMs: 47_000, totalMs: 420_000 }], obligations: [], outbox: [], calls: [], corrections: [], decisions: [] }))
