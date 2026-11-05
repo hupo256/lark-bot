@@ -8,6 +8,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { eachCase, runSteps } from './support/steps.mjs'
 import { createTaskRunner } from '../lib/lark-task-runner.mjs'
+import { BASE_REF } from '../lib/lark-worker-git.mjs'
 import { tempWorktreeContextFor } from '../lib/lark-work-context.mjs'
 
 const SHA = 'a'.repeat(40)
@@ -526,6 +527,10 @@ describe('createTaskRunner 运行期控制流（deps 注入）', () => {
       assert.deepEqual(over.audit.record.scopeCheck.overBudget, { limit: 120, actual: 500 })
       assert.match(over.last.result, /改动 500 行，超过缺陷修复参考规模 120 行（不含 lockfile 与文案 json），请重点复核/)
       assert.deepEqual(over.audit.record.scopeApprovals, [{ paths: ['src/x.ts'] }])
+      // 重跑轮（b4 93d15b6e）：工作区干净、分支相对开工基线已有本单提交 → done，不判零改动
+      const reused = await doneRun({ deps: { gitAt: (cwd, args) => ({ status: 0, stdout: args.join(' ') === `diff --name-only ${BASE_REF}...HEAD` ? 'src/a.ts\n' : '' }) } })
+      assert.deepEqual(reused.statuses, ['running', 'done'])
+      assert.match(reused.last.result, /沿用分支上本单已有的提交（1 个文件）/)
       const noCode = await doneRun({ task: baseTask({ contract: { deliverable: 'change', expectsCode: false, readOnly: false } }), deps: { runAI: async () => aiRun(aiResult(), { scope: null }) } })
       assert.deepEqual(noCode.statuses, ['running', 'done'])
       assert.equal(noCode.audit.record.scopeCheck, undefined)

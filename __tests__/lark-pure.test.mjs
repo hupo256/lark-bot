@@ -1547,6 +1547,11 @@ describe('assessDoneResult（done 可信度评估）', () => {
     const a = assessDoneResult({ reportedChangedFiles: ['a.ts'], actualChangedFiles: [], checks: ['tsc'] })
     assert.equal(a.trustworthy, false)
     assert.match(a.notes[0], /无任何改动/)
+    // 重跑轮：分支上已有本单的提交 → 可信、沿用；那份提交只改测试且要修代码的照旧不可信
+    const reused = assessDoneResult({ actualChangedFiles: [], priorCommitFiles: ['src/a.ts', 'src/b.ts'], expectsCodeFix: true })
+    assert.deepEqual([reused.trustworthy, reused.tier, reused.notes], [true, 'L1', ['本轮没有新改动，沿用分支上本单已有的提交（2 个文件）']])
+    assert.equal(assessDoneResult({ actualChangedFiles: [], priorCommitFiles: ['src/a.test.ts'], expectsCodeFix: true }).trustworthy, false)
+    assert.equal(assessDoneResult({ actualChangedFiles: [], priorCommitFiles: ['src/a.test.ts'] }).trustworthy, true)
   })
   it('只读任务（状态/status）豁免零改动降级', () => {
     const a = assessDoneResult({ reportedChangedFiles: [], actualChangedFiles: [], readOnly: true })
