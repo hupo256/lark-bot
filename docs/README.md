@@ -16,5 +16,6 @@
 | [falive-replay-plan-2026-11-03.md](./falive-replay-plan-2026-11-03.md) | **falive 实战数据回放（11-03）**：拿 falive bot 10-20 → 11-02 的真实数据在 lark-bot 现在的代码上先跑基线、再修、再跑（`scripts/sim/`）；这批修复的场景出处（「11-03 falive 回放」「静态 review Rn」）都在这里 |
 | [todo-falive-offline.md](./todo-falive-offline.md) | **待办：falive bot 下线**——停服务不删目录，`~/github/lark-bot-falive` 冻结成只读存档；它的审计是 lark-bot 回放 / 度量的样本，怎么用、下线清单、什么时候才能删 |
 | [plan-bug-workflow-2026-11-01.md](./plan-bug-workflow-2026-11-01.md) | **方案（待拍板）：bug 工作流整合**——读新 bug 通知 + 15 分钟对账替代整表轮询、按项目号开关测试、断点续读、项目群按群 id 绑定、一条 bug 一个任务、分支策略 / 领单与修改范围 / 回写口径按仓库配置；分 5 批 |
+| [plan-iteration-2026-11-05.md](./plan-iteration-2026-11-05.md) | **方案（11-05 定稿）：上线后实战迭代**——不再离线回放，改用线上指标 + aven 纠错驱动；线上验收线、现状核对、批 1 衡量与纠错入口 / 批 2 准 / 批 3 省 / 批 4 数字分身 / 批 5 收尾，八项拍板结果 |
 | [agent-context-practices-2026-11-01.md](./agent-context-practices-2026-11-01.md) | 对照《Claude Code 第二阶段 8 个卡点》的六组建议（上一份的来源分析） |
 | [port-from-falive-2026-10-24.md](./port-from-falive-2026-10-24.md) | **从 falive 实践移植回来的通用能力**：自纠偏 / 续会话 / 租约心跳 / 独立终检 / 开盖补拉等，每项附来源教训、配置键与真机验法；以及刻意没搬的 |

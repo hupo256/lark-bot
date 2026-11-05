@@ -136,6 +136,7 @@ launchd 直接运行本仓代码。**往本目录合代码 = 几分钟内上线*
 | [docs/task-boundaries-and-reply.md](./docs/task-boundaries-and-reply.md) | 生命周期、自动执行 / 确认边界、范围契约、任务控制通道与回复策略 |
 | [docs/runtime-and-scheduling.md](./docs/runtime-and-scheduling.md) | 长连接健壮性、附件保留期、bug 表路由、并行调度 |
 | [docs/port-from-falive-2026-10-24.md](./docs/port-from-falive-2026-10-24.md) | 从 falive 实践移植回来的通用能力台账：每项的来源教训、配置键、真机验法；以及刻意没搬的 |
+| [docs/plan-iteration-2026-11-05.md](./docs/plan-iteration-2026-11-05.md) | 上线后实战迭代（11-05 定稿）：线上验收线、批 1 衡量与纠错 → 准 → 省 → 数字分身 |
 | [AGENTS.md](./AGENTS.md) | 在本仓改代码的 agent 规则 |
 
 ## 开发与测试
