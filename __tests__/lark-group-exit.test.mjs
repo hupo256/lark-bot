@@ -118,7 +118,7 @@ describe('群 / 私信唯一出口', () => {
       assert.deepEqual([s.sent[0].markdown, s.sent[0].fallbackMarkdown], ['收到。', '<at user_id="ou_qa"></at> 收到。'])
       assert.deepEqual(store.get('om_1').receipts.map((r) => [r.messageId, r.kind, r.epoch, r.chatId]), [['om_r1', 'ack', 2, 'oc_g']])
       const entry = listOutbox({ chatId: 'oc_g' })[0]
-      assert.deepEqual([entry.phase, entry.to, entry.topic, entry.messageId, entry.text, entry.gated], ['ack', 'ou_qa', 'login', 'om_r1', '收到。', undefined])
+      assert.deepEqual([entry.phase, entry.to, entry.topic, entry.messageId, entry.text, entry.gated, entry.anchor], ['ack', 'ou_qa', 'login', 'om_r1', '收到。', undefined, 'om_root'], 'anchor 记回的是哪条消息（b4 波 6）')
       // 没有 replyTarget 回原消息本身、不进话题；没有 messageId 直发
       const plain = newTask({ id: 'om_2', messageId: 'om_2' })
       await sendReply({ config, store, task: plain, phase: 'done', text: '结论', deps: s })
@@ -136,6 +136,9 @@ describe('群 / 私信唯一出口', () => {
       await sendReply({ config, store, task: newTask({ id: 'om_4', chatId: 'ou_aven' }), phase: 'digest', text: '汇总', deps: s })
       assert.deepEqual([s.sent.at(-1).kind, s.sent.at(-1).chatId, s.sent.at(-1).markdown], ['send', 'ou_aven', '汇总'])
       assert.equal(store.get('om_4').receipts, undefined)
+      assert.equal(listOutbox({ chatId: 'ou_aven' }).at(-1).anchor, undefined, '直发的不记 anchor')
+      await sendReply({ config, store, task: newTask({ id: 'om_4b', messageId: null }), phase: 'done', text: '没原消息', deps: s })
+      assert.equal(listOutbox({ chatId: 'oc_g' }).at(-1).anchor, undefined, '没原消息可回的不记 anchor')
       // 发送失败：不记发件簿、不登记回执
       const failing = { ...s, replyMarkdown: async () => ({ ok: false, messageId: null, via: 'reply', reason: '撤回了' }) }
       assert.deepEqual(await sendReply({ config, store, task: newTask({ id: 'om_5', messageId: 'om_5' }), phase: 'done', text: '结论三', deps: failing }), { ok: false, messageId: null, gated: false, reason: '撤回了', via: 'reply' })
