@@ -3,7 +3,7 @@
 > 写给接手的新 chat。先读本文，再按「下一步」做。用户是 aven，回复用中文。
 > 仓库 / 本机规则以 `AGENTS.md`、`~/.claude/CLAUDE.md` 为准；本文只写这件事本身。
 
-> **接续点（11-05 暂停）**：看 `docs/falive-replay-plan-2026-11-03.md` 第 63 条（周末接着做的清单）。最新代码在分支 lark/falive-fix-w6（worktree ~/github/lark-bot-fix-w6），波 3–6 还没合进 latest。
+> **已结束（11-05）**：离线回放停止。aven 选 b6 + 波 6（原 lark/falive-fix-w6）合进 fameex-stable（60c6230）上线，之后在实战中迭代，不再跑 falive case。回放分支 / worktree / falive-react 的 sim-base-* 已清；本文下面的分支、worktree 路径都已不存在，只作历史记录。收尾见 `docs/falive-replay-plan-2026-11-03.md` 第 64、65 条。
 
 ## 1. 这件事是什么
 

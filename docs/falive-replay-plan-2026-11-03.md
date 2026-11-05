@@ -284,3 +284,8 @@
    - 合并前全套验证（11-05 已跑的）：test-all 646 绿（8.7s）；提示回放规则不丢、系统层 1 种；intake --live 6/6；fixture 回归集没跑完（worktree 里没有 runtime/lark-bot.local.json，要在运行目录跑或先拷配置）；mutate --diff fameex-stable（977 个变异）跑到 380 停。
    - **待办（aven：token 用完，有余量再跑）**：① ~~mutate~~ 11-05 已跑完：977 个抓 973、豁免 4、存活 0（385 秒）；② fixture 回归集 56 条真跑分类器（耗 token，worktree 先 `cp ~/github/lark-bot/runtime/lark-bot.local.json runtime/`）；③ 全绿后 fix-w6 合进 fameex-stable（= 上线，排空重启），启动 bot 由 aven 做。合之前若 fameex-stable 有新提交先合进 w6 再跑 test-all。
    - 上线后：真实使用中漏回 / 风险类问题直接转修；「@bot 没回」巡检会私信 aven。
+65. **11-05 结项：上线 + 清理**
+   - 10:3x fix-w6 快进合进 fameex-stable（60c6230），运行目录全量 646 绿；排空重启 10:33:44 旧 worker 退出、10:34 新 gateway / worker / poller 起来，自检 probe=passed。变异测试 977 抓 973 / 豁免 4 / 存活 0。**分类回归集 56 条（--fixture … --live）没跑**，aven：有 token 余量再补。
+   - aven：之后实战中迭代，不再用 falive case 回放。已清：lark-bot 本地分支 32 个（只留 fameex-stable / main / feature/falive-repo-profile）；worktree 除运行目录和 ~/github/lark-bot-falive（falive 存档，审计作提示回放样本）外全部删除（含 lark-bot-conv、lark-bot-latest、fix-*、p4*、next、cal、lark-bot-falive-sim/*、mutate 临时目录）；falive-react 本地 sim-base-* 79 个（远端没有）。
+   - 留着的：`replay/falive/`（case 数据、轮次结果）与 `scripts/sim/` 仍在仓库里，作历史与将来可能的离线回归；回放产物 `runtime/falive-replay/`（不进版本）待 aven 定删不删。
+   - 遗留待 aven 定：只读复测调 `GET getLiveUrl` 会改 pre 场次数据是否写进固定知识；b2 事故在 pre 留下的 25 个测试帖删不删。
