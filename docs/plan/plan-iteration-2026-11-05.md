@@ -33,7 +33,7 @@
 
 ## 2. 分批
 
-每批的验证都一样：`node --check` → `node scripts/test-affected.mjs` → 改了提示词就跑 `lark-replay-prompts.mjs`，改了分类或 intake 就跑 `lark-replay-intake.mjs --live` → 合进 `fameex-stable` 前跑 `node scripts/test-all.mjs` 和 `node scripts/mutate.mjs --diff fameex-stable`，要求存活 0。合进运行分支 = 排空重启后上线（见 [AGENTS.md](../AGENTS.md)）。**不再跑整轮离线回放。**
+每批的验证都一样：`node --check` → `node scripts/test-affected.mjs` → 改了提示词就跑 `lark-replay-prompts.mjs`，改了分类或 intake 就跑 `lark-replay-intake.mjs --live` → 合进 `fameex-stable` 前跑 `node scripts/test-all.mjs` 和 `node scripts/mutate.mjs --diff fameex-stable`，要求存活 0。合进运行分支 = 排空重启后上线（见 [AGENTS.md](../../AGENTS.md)）。**不再跑整轮离线回放。**
 
 ### 批 1：先能衡量，再建纠错入口（1–2 天，几乎不耗 token）
 

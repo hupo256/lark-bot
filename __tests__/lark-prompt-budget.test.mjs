@@ -11,7 +11,7 @@ import { eachCase, runSteps } from './support/steps.mjs'
 const CLASSIFIER_RULE_BUDGET = 2600
 const TASK_PROMPT_BUDGET = 9500
 const ANALYSIS_PROMPT_BUDGET = 2600
-// 11-01 上下文分层（docs/upgrade-plan-context-layers-2026-11-01.md S5）后按层各有上限：驾驶规则进系统层（实测 6.1k，配页面工具 +
+// 11-01 上下文分层（docs/plan/upgrade-plan-context-layers-2026-11-01.md S5）后按层各有上限：驾驶规则进系统层（实测 6.1k，配页面工具 +
 // AGENTS.md 遮蔽 6.7k），claude 的实施 user 只放本轮（实测 2.8k，续会话 2.6k），只读查询不走系统层（4.2k）。
 // 加规则先想清楚放哪一层：换一条任务还成立 → 系统层；只对本轮成立 → user。
 const SYSTEM_LAYER_BUDGET = 7500

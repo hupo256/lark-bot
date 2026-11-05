@@ -1,6 +1,6 @@
 # lark-bot 优化升级策略：宿主隔离 + 上下文分层 + 度量（2026-11-01）
 
-> 输入：① 本仓 `docs/agent-context-practices-2026-11-01.md`（对照《Claude Code 第二阶段 8 个卡点》给出的 A–F 六组建议）；
+> 输入：① 本仓 `docs/notes/agent-context-practices-2026-11-01.md`（对照《Claude Code 第二阶段 8 个卡点》给出的 A–F 六组建议）；
 > ② 另一会话的读书笔记 `~/.ai-rules/labs/reading/2026-11-01-claude-code-web-frontend-best-practices.md`（官方口径修正 6 处：同名 Skill 个人压项目、
 > CLAUDE.md 存在时 AGENTS.md 不被加载、MCP 工具搜索默认开启、硬约束用 permissions deny 而不是提示词等）；
 > ③ 本机实测（claude 2.1.289）与 falive 线 10-24 → 10-31 的 192 份真实审计。

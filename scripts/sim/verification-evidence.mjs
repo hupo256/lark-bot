@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 实测类 case 的当时证据（docs/falive-replay-design-v2.md §5「实测类 case」、§8 P0-c）：
+ * 实测类 case 的当时证据（docs/replay/falive-replay-design-v2.md §5「实测类 case」、§8 P0-c）：
  * 回放打到的是今天的 pre / OL，不是当时的环境，裁判看过程不看结论——所以先把 falive 当时实际看到了什么（打了哪些接口、
  * HTTP 码 / 关键字段、页面现象、环境通不通）抽出来，给裁判当参照。
  *   来源优先级：关联的 falive 审计（final.checks / 结论，只到 10-27 起）→ falive 当时在群里的实测回报（时间线里的 bot 卡片）。

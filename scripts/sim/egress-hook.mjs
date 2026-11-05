@@ -1,5 +1,5 @@
 /**
- * 回放出网审计预载（docs/falive-replay-design-v2.md §8 前置 7）：run-sim 用 NODE_OPTIONS=--import 挂给 gateway / worker 及其派生的
+ * 回放出网审计预载（docs/replay/falive-replay-design-v2.md §8 前置 7）：run-sim 用 NODE_OPTIONS=--import 挂给 gateway / worker 及其派生的
  * 所有 node 子进程（bot 的 claude 会话里跑的 `node scripts/…`，如 falive-react 的 pre-client.mjs 直接用全局 fetch 登录 / 注册），
  * 包住 globalThis.fetch 与 http(s).request / get：每次请求记方法 + 主机 + 路径到 $SIM_DIR/egress.log（egress-log.mjs），然后原样放行。
  * 本机（127.0.0.1 / localhost：网关、vite、假端口）每个进程每个 host:port 只记一次，标 local。只记不拦。

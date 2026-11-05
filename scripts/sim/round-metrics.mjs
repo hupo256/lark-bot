@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 一轮的三项「更好」指标（docs/falive-replay-design-v2.md §11：决断更准、反应更快、token 更省），lark-bot 对 falive 当时，逐 case 与汇总。
+ * 一轮的三项「更好」指标（docs/replay/falive-replay-design-v2.md §11：决断更准、反应更快、token 更省），lark-bot 对 falive 当时，逐 case 与汇总。
  *   node scripts/sim/round-metrics.mjs --round <轮> [--md out.md] [--json out.json] [--all]
  * 默认只算跑完（有 DONE）的事件组；--all 连没跑完的也算（数据不全，只看个大概）。JSON 默认写 sim/<轮>/metrics.json，给 acceptance.mjs --metrics 用。
  * 待办不计分（pending）与模拟局限不计分（acceptance.simLimitOf：裁判判 cause=sim_limit 或硬局限旗标）的 case 三项都不进，单列。不花 token、只读。

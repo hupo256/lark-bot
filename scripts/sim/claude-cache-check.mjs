@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * claude 调用录放（scripts/sim/claude-cache.mjs）的核对工具（docs/falive-replay-design-v2.md §4、§8 P0-f）。
+ * claude 调用录放（scripts/sim/claude-cache.mjs）的核对工具（docs/replay/falive-replay-design-v2.md §4、§8 P0-f）。
  *
  *   node scripts/sim/claude-cache-check.mjs                 判定表 + 离线测试（不调模型，默认）
  *   node scripts/sim/claude-cache-check.mjs --only-table    只跑判定表

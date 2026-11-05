@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * falive-bot 做过的全部 case 清单（docs/falive-replay-plan-2026-11-03.md 42）：时间线里触发过 bot 的真人消息——@bot、回复 bot 的、
+ * falive-bot 做过的全部 case 清单（docs/replay/falive-replay-plan-2026-11-03.md 42）：时间线里触发过 bot 的真人消息——@bot、回复 bot 的、
  * aven 在 webhook 私聊群里发给 bot 的（口径与 judge-sim isTrigger 一致）。每条带 falive 当时第一句回复，供回放逐条裁判与人工查阅。
  *   node scripts/sim/list-cases.mjs   → replay/falive/cases.jsonl + cases.md
  */

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 离线模拟器编排（docs/falive-replay-plan-2026-11-03.md §2 L2 / L3）：真网关 + 真 worker 跑在隔离运行目录，
+ * 离线模拟器编排（docs/replay/falive-replay-plan-2026-11-03.md §2 L2 / L3）：真网关 + 真 worker 跑在隔离运行目录，
  * lark-cli 换成 scripts/sim/lark-cli（时间线供数、发件落 outbox），Date 换成虚拟时钟，按时间线逐条喂事件，每条等系统空闲再喂下一条。
  *   node scripts/sim/run-sim.mjs --sim day1020 --from 2026-10-20T08:00+04:00 --to 2026-10-20T20:00+04:00 [--reset] [--effort medium] [--intent-effort high]
  *        [--max-wait-min 30] [--settle-sec 25] [--dry]（只准备目录与事件，不起进程）[--no-ai-cache]（关掉 claude 调用缓存，全部真调）

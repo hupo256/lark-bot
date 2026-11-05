@@ -1,5 +1,5 @@
 /**
- * 回放上下文「按当时的版本供数」的纯函数（docs/falive-replay-plan-2026-11-03.md §6-1 补：消除未来信息）。
+ * 回放上下文「按当时的版本供数」的纯函数（docs/replay/falive-replay-plan-2026-11-03.md §6-1 补：消除未来信息）。
  * build-context-cache.mjs 拉修订 / 记录历史时用它算统计，fake-lark-cli.mjs 按虚拟时钟用它还原。
  *
  * 云文档：raw/docs/<token>/revisions.json（docs +history-list 的全部条目，升序）+ raw/docs/<token>/<revision_id>.json

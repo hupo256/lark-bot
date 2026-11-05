@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 冒烟核对：bot 实际看到的上下文 = 原始群聊（docs/falive-replay-design-v2.md §8 P0-d 验收、§9「冒烟」）。
+ * 冒烟核对：bot 实际看到的上下文 = 原始群聊（docs/replay/falive-replay-design-v2.md §8 P0-d 验收、§9「冒烟」）。
  *   node scripts/sim/check-context.mjs --round <轮> | --sim <轮>/<组> | --dir <路径> [--json]
  * 组内的人回复 falive 对组内 case 的原话时，run-sim 把回复目标改成模拟 bot 那句（remap.jsonl），这里按改后的父消息核。
  * 对组里每条 case，拿 sim 的 runtime/lark-tasks/<case>.json（网关建任务时的上下文包：task.text / task.attachments）

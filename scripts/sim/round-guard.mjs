@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 一轮回放的止损守卫（docs/falive-replay-plan-2026-11-03.md 43）：run-episodes.mjs（按事件组，sim/<轮>/<组>/）或旧的 run-round.sh
+ * 一轮回放的止损守卫（docs/replay/falive-replay-plan-2026-11-03.md 43）：run-episodes.mjs（按事件组，sim/<轮>/<组>/）或旧的 run-round.sh
  * （按天分段，sim/<轮>-<段>/）起跑后在后台跑，每 5 分钟看一次各组 / 段，
  * 出现「这轮结果已经不可信」的信号就整轮停掉并写明原因，不让它带病跑完（r9 撞额度后假失败一片、r10 第一次 worker 没起来都是跑了很久才发现）：
  *   worker / gateway 进程报错退出（日志里 Error:）、读取缺口（missing.log 有行）、分类失败 ≥ 3（intake_failed，排除额度暂停期）、

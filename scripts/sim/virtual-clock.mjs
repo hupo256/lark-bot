@@ -1,5 +1,5 @@
 /**
- * 虚拟时钟（离线模拟器，docs/falive-replay-plan-2026-11-03.md §2 L2）：`node --import <本文件>` 预载，
+ * 虚拟时钟（离线模拟器，docs/replay/falive-replay-plan-2026-11-03.md §2 L2）：`node --import <本文件>` 预载，
  * 让进程里的 Date.now() / new Date() 跟着 SIM_DIR/clock.json 走：{ virtualMs, realMs } 表示「真实时刻 realMs 对应虚拟时刻 virtualMs」，
  * 之后按真实时间等速推进；编排器每喂一条事件就改写一次（跳到事件时刻）。定时器（setInterval / setTimeout）仍按真实时间跑：
  * 它们大多是周期巡检，巡检里比较的是虚拟时间戳，跳表后下一次巡检自然命中。没有 SIM_DIR 或读不到文件就是真实时间。

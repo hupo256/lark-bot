@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 一轮回放的进度 + 总账（docs/falive-replay-plan-2026-11-03.md 39）：
+ * 一轮回放的进度 + 总账（docs/replay/falive-replay-plan-2026-11-03.md 39）：
  *   node scripts/sim/round-report.mjs --round r8 [--md out.md] [--issues]
  * 段 = sim 目录（scripts/sim/sim-dir.mjs）：旧布局 sim/<轮>-<段>/（按天分段，run-round.sh），新布局 sim/<轮>/<事件组>/（run-episodes.mjs）都认。
  * 按组跑的：每组 case 数、喂了几条、任务状态、发件、进程树内存峰值（P0-e）、出网审计违规 / 待核（design-v2 §8 前置 7）、状态；

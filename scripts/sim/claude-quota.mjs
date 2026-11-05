@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 回放用 claude 额度闸（docs/falive-replay-plan-2026-11-03.md 41）：run-sim 把 LARK_CLAUDE_BIN 指到 scripts/sim/claude-q（本文件的 sh 壳）。
+ * 回放用 claude 额度闸（docs/replay/falive-replay-plan-2026-11-03.md 41）：run-sim 把 LARK_CLAUDE_BIN 指到 scripts/sim/claude-q（本文件的 sh 壳）。
  * 回放和线上 bot 共用一个 Claude 账号，8 段并行约 1 小时就撞「session limit」，之后的分类 / 执行全失败、留下假的 intake_failed / failed。
  * 这里：撞限额（结果里 hit your … limit / usage limit reached / api_error_status 429）就写全局暂停文件 runtime/falive-replay/quota-pause.json
  * （到重置时刻 + 1 分钟；解析不出就 10 分钟后再试），各 sim 的 run-sim 看到它就冻住虚拟时钟、不喂消息；本次调用等到点重试，不把失败交给 lark-bot。

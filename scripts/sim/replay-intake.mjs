@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * L1 分类 / 接单层回放（docs/falive-replay-plan-2026-11-03.md §2）：falive 群里每条触发 bot 的消息，用 lark-bot 现在的代码
+ * L1 分类 / 接单层回放（docs/replay/falive-replay-plan-2026-11-03.md §2）：falive 群里每条触发 bot 的消息，用 lark-bot 现在的代码
  * 拼上下文包（buildConversationBundle，拉取函数改成从时间线取）→ 真跑分类器（classifyTaskIntent）→ 落地规则（applyIntakeClassification），
  * 与 falive 当时的分类 / 落地对照。不碰真实 Lark，不写任务仓；结果追加到 runtime/falive-replay/l1/<run>/results.jsonl（可续跑）。
  *   node scripts/sim/replay-intake.mjs --run base [--conc 6] [--limit n] [--only id,id] [--intent-model m] [--intent-effort e] [--dry] [--dump]

@@ -134,7 +134,7 @@ aven 收件箱 ──(user) mail +message──▶ 打分 ──(user) mail +sha
 2. **开发者后台**：应用 `cli_aabf9468b1789ed4` 的「事件与回调」要添加 `mail.user_mailbox.event.message_received_v1`，并发布版本。用户级邮件权限可能需要租户管理员审批。
 3. **要实测的一处风险**：网关现在通过 lark-cli 的本机 event bus（一条 WebSocket，多个 `event consume` 共用）收 `im.message.receive_v1`。`mail` 事件不在 `event list` 里，`+watch` **可能自己再开一条长连接**。飞书长连接在同一应用有多条连接时，每个事件只推给其中一条。如果 +watch 另开了连接，就可能**抢走网关的群消息事件**。验证方法：网关运行时起 `+watch`，看 `lark-cli event status` 里它是不是挂在同一个 bus 下，同时在测试群 @bot 几次，看网关有没有漏收。
    - 如果走同一个 bus，或者不抢事件：直接用网关现有的 `startConsumer` 思路，再挂一个常驻 `mail +watch` 子进程（自愈重连），不需要新进程或新轮询。
-   - 如果会抢：改由网关进程统一持有长连接（等 lark-cli 把 mail 事件并进 event bus），或者单独起进程（见 docs/plan-mail-approval-2026-11-02.md）。
+   - 如果会抢：改由网关进程统一持有长连接（等 lark-cli 把 mail 事件并进 event bus），或者单独起进程（见 docs/plan/plan-mail-approval-2026-11-02.md）。
 4. **user token 续期**：当前 refresh token 到 2026-11-09 过期（有 `offline_access`，lark-cli 刷新时会续）。常驻 `+watch` 持续使用 user 身份，要确认它会自动刷新；过期时私信 aven 重新授权。
 
 ### 11-02 实测结论（授权、事件订阅都已完成后）
@@ -218,4 +218,4 @@ aven 11-02：「如果好用，后面可能做成单独的应用，现在预留�
 
 ### 以后接领导邮箱（自动审批）
 
-路由的匹配和评分可以直接复用。差别在两处：邮箱主人换成领导（独立凭证目录，正好用 `cliConfigDir`）；动作从「转群」变成「私信确认 / 回复进行」，届时在 forward 这一层加一种动作，方案见 docs/plan-mail-approval-2026-11-02.md。
+路由的匹配和评分可以直接复用。差别在两处：邮箱主人换成领导（独立凭证目录，正好用 `cliConfigDir`）；动作从「转群」变成「私信确认 / 回复进行」，届时在 forward 这一层加一种动作，方案见 docs/plan/plan-mail-approval-2026-11-02.md。

@@ -33,7 +33,7 @@ node scripts/lark-metrics.mjs --days 30
 
 1. 停服务：`bash ~/github/lark-bot-falive/scripts/lark-bot stop`，再 `launchctl list | grep falive` 确认 `com.fameex.lark-falive-gateway` / `-worker` 没有 pid；`com.aven.falive-bugpoll`（`~/.lark-bugpoll/run.sh`，11-01 时已是退出状态 78）一并停掉。要彻底不再拉起，再从 launchd 卸载这三个 plist（`~/Library/LaunchAgents/com.fameex.lark-falive-*.plist`、`com.aven.falive-bugpoll.plist`）。
 2. **不删** `~/github/lark-bot-falive`（它是 `feature/falive-repo-profile` 分支的 worktree，删 worktree 就删了审计），**不删**它的 `runtime/lark-audits`、`runtime/lark-attachments`，**不删** `~/github/falive-react`（真跑回放要从里面检出当时的提交）。
-3. 在 `~/github/lark-bot-falive/` 根目录放一个 `ARCHIVED.md`：写「yyyy-mm-dd 下线，只读存档；runtime/lark-audits 是 lark-bot 的回放样本，见 lark-bot docs/todo-falive-offline.md」。以后谁看到这个目录都知道为什么不能删。
+3. 在 `~/github/lark-bot-falive/` 根目录放一个 `ARCHIVED.md`：写「yyyy-mm-dd 下线，只读存档；runtime/lark-audits 是 lark-bot 的回放样本，见 lark-bot docs/plan/todo-falive-offline.md」。以后谁看到这个目录都知道为什么不能删。
 4. 确认 fameex bot 不受影响：`lark-bot status` / `lark-bot doctor`（两条线是独立的 launchd 服务和端口：falive 3006，fameex 3005）。
 5. 回到本文，把顶部状态改成「已下线 yyyy-mm-dd」。
 

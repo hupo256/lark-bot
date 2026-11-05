@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * L1 裁判（docs/falive-replay-plan-2026-11-03.md A5）：对 L1 回放里与 falive 当时不一致的条目（或 --all 全部可比条目），
+ * L1 裁判（docs/replay/falive-replay-plan-2026-11-03.md A5）：对 L1 回放里与 falive 当时不一致的条目（或 --all 全部可比条目），
  * 把消息 + 上下文 + 事后信息（falive 当时 bot 怎么回、人接下来怎么反应、台账 / 审计结论）交给模型，判两边谁更合适。
  *   node scripts/sim/judge-intake.mjs --run base-low [--run2 base-high] [--all] [--conc 4] [--limit n]
  * 结果追加到 l1/<run>/judge.jsonl（可续跑），最后打印汇总：lark-bot 更好 / falive 更好 / 一样 / 都不对。

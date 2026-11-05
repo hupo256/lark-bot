@@ -1,6 +1,6 @@
 # falive 回放事件组（61 组 / 285 个 case）
 
-由 `node scripts/sim/episodes.mjs` 生成（规则见 docs/falive-replay-design-v2.md §2），别手改；明细与每次并组的理由在 `episodes.json`。时间 UTC。
+由 `node scripts/sim/episodes.mjs` 生成（规则见 docs/replay/falive-replay-design-v2.md §2），别手改；明细与每次并组的理由在 `episodes.json`。时间 UTC。
 
 - 最大一组 45 条；跨天的 5 组；单条成组 30 组
 - 逐步组数：规则 1 同话题 / 回复链 / 引用 id → 156；规则 2 同群相邻 < 30 分钟 → 75；规则 3 falive 真实归并 / 续跑 → 62；规则 4 同天改同一批代码文件 → 61

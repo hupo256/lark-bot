@@ -1,7 +1,7 @@
 #!/bin/bash
 # 【旧跑法，11-04 起由 scripts/sim/run-episodes.mjs 按事件组跑取代（design-v2 §2 / P0-d）；保留给旧轮次复现，新轮次别用】
 # 中断后再跑同一条命令 = 断点续跑：跑完的段跳过、没跑完的从最近的「一天结束」存档点接着跑（run-days.sh）。
-# 一轮完整回放（docs/falive-replay-plan-2026-11-03.md 39）：falive 10-14 → 11-03 切 8 段并行，每段先热身前一个工作日（bot 照常干活、
+# 一轮完整回放（docs/replay/falive-replay-plan-2026-11-03.md 39）：falive 10-14 → 11-03 切 8 段并行，每段先热身前一个工作日（bot 照常干活、
 # 留下跨天的任务 / 义务 / 发件状态，不计分），再跑计分窗口；每段跑完立刻 judge-sim --score-from 计分起点（按输出指纹沿用判过的结论，只判变了的）。
 #   bash scripts/sim/run-round.sh r8 [端口起点 3180]
 # 进度：runtime/falive-replay/sim/<轮>-<段>/{sim.log,judge.out,DONE}；汇总：node scripts/sim/round-report.mjs --round r8
@@ -12,7 +12,7 @@ cd "$(dirname "$0")/../.."
 root="$HOME/github/lark-bot/runtime/falive-replay/sim"
 # 防睡眠（design-v2 §8 前置 8）：本脚本活着期间系统、磁盘、显示都不睡
 caffeinate -dims -w $$ &
-# 起跑预检：数据（285 条 case 的上下文齐不齐）/ 代码（干净、含 fameex-stable 全部提交）/ 环境，不过就不跑（docs/falive-replay-plan-2026-11-03.md 43）
+# 起跑预检：数据（285 条 case 的上下文齐不齐）/ 代码（干净、含 fameex-stable 全部提交）/ 环境，不过就不跑（docs/replay/falive-replay-plan-2026-11-03.md 43）
 mkdir -p "replay/falive/rounds/$round"
 node scripts/sim/preflight.mjs --round "$round" --md "replay/falive/rounds/$round/preflight.md" || { echo "PREFLIGHT-FAIL ${round}（见 replay/falive/rounds/${round}/preflight.md）"; exit 1; }
 echo "$(git rev-parse --short HEAD) $(git rev-parse --abbrev-ref HEAD)" > "replay/falive/rounds/$round/code.txt"

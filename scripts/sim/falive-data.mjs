@@ -1,5 +1,5 @@
 /**
- * falive 实战数据读取（只读；docs/falive-replay-plan-2026-11-03.md §1）。
+ * falive 实战数据读取（只读；docs/replay/falive-replay-plan-2026-11-03.md §1）。
  * 源：replay/falive/raw/（仓库里跟版本） 下三个群的两份拉取（raw API 版：parent_id / root_id / 原始 content；+chat-messages-list 版：渲染文本、
  * sender 名、已下载附件）、~/Library/Logs/falive-lark/{gateway,worker}.log、lark-bot-falive 的台账与审计。
  * 产出统一的时间线消息（toEvent 可直接喂 ingestLarkEvent，形态同 lark-cli 拍平事件）与每条消息的 falive 基线。
@@ -65,7 +65,7 @@ const renderRawContent = (msgType, rawContent, mentions = []) => {
 }
 
 // 卡片（interactive）的渲染版文本：+chat-messages-list 把卡片里的 @ 渲染成「@名字(ou_xxx)」，人在群里看到的只是「@名字」。
-// 11-04 核对（docs/falive-replay-design-v2.md §8 前置 5）：渲染版与 raw API 卡片 JSON（title / text / at / a / img / note）逐项比，
+// 11-04 核对（docs/replay/falive-replay-design-v2.md §8 前置 5）：渲染版与 raw API 卡片 JSON（title / text / at / a / img / note）逐项比，
 // 字段、列表项、链接都在（falive 的卡片只有 markdown / div / note，没有按钮），唯一的偏差就是这个 open_id 后缀，这里去掉。
 // 只动 app 发的卡片；真人消息的文本原样不动。
 const CARD_AT_RE = /@([^@()\n]+?)\((ou_[0-9A-Za-z]+)\)/g // 名字里可能有空格（「@Williamwang HT(ou_…)」）

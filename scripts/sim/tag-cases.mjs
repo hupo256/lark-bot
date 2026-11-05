@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * case 风险标签（docs/falive-replay-design-v2.md §6 验收硬线、§7「已部署 → 自动复测」口径、§8 前置 4）：
+ * case 风险标签（docs/replay/falive-replay-design-v2.md §6 验收硬线、§7「已部署 → 自动复测」口径、§8 前置 4）：
  *   risk    钱 money / 状态 status / 权限 permission / 不可逆 irreversible（验收硬线：这些 case 不能有「lark-bot 更差」）
  *   pending 「已部署」→ 自动复测链路 / 部署状态记账（aven 11-04：待办，不搬，不计分）
  *   kind    question / verification / change / record / ops / chat
@@ -167,7 +167,7 @@ const modelCalls = rows.filter((r) => r.rule.ask.length && cache.has(r.x.c.id)).
 writeFileSync(cachePath, `${[...cache.values()].filter((r) => rows.some((x) => x.x.c.id === r.id && x.rule.ask.length)).map((r) => JSON.stringify(r)).join('\n')}\n`)
 const md = [
   `# case 风险标签（${out.length} 条）`, '',
-  '由 `node scripts/sim/tag-cases.mjs` 生成，别手改；规则在脚本里，规则定不了的按批送模型（结论缓存在 case-tags.model.jsonl）。口径见 docs/falive-replay-design-v2.md §6、§7。', '',
+  '由 `node scripts/sim/tag-cases.mjs` 生成，别手改；规则在脚本里，规则定不了的按批送模型（结论缓存在 case-tags.model.jsonl）。口径见 docs/replay/falive-replay-design-v2.md §6、§7。', '',
   `- kind：${kinds.map((k) => `${k} ${count((r) => r.kind === k)}`).join('、')}${count((r) => !r.kind) ? `、未定 ${count((r) => !r.kind)}` : ''}`,
   `- risk：${risks.map((t) => `${t} ${count((r) => r.risk.includes(t))}`).join('、')}；至少一项 ${count((r) => r.risk.length)}`,
   `- pending（「已部署」→ 自动复测 / 部署状态记账，待办不计分）：${count((r) => r.pending)}`,

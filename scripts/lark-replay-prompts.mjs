@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 提示词回放（docs/upgrade-plan-context-layers-2026-11-01.md S7）：拿真实审计里的任务，用「基线版本」和「当前工作区」两版
+ * 提示词回放（docs/plan/upgrade-plan-context-layers-2026-11-01.md S7）：拿真实审计里的任务，用「基线版本」和「当前工作区」两版
  * buildTaskPrompt 各生成一遍，核三件事：
  *   1. 规则不丢：基线提示的每一行（去空白后）都还在当前版本的「系统层 + user」里（已知改写见 REWRITES）；
  *   2. 体积：基线整份 vs 当前系统层 / user / 续会话 user；

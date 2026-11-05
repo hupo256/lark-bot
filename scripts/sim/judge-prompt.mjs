@@ -1,5 +1,5 @@
 /**
- * 回放裁判提示（冻结、进版本；docs/falive-replay-design-v2.md §5「裁判」3、§7 口径、§8 前置 3）。
+ * 回放裁判提示（冻结、进版本；docs/replay/falive-replay-design-v2.md §5「裁判」3、§7 口径、§8 前置 3）。
  * 改这个文件里任何会影响提示 / 结构的内容，都要升 JUDGE_PROMPT_VERSION，并把 FROZEN 里新版本的指纹补上
  *（assertPromptFrozen 报错时会打印新指纹）；裁判缓存按版本分目录，新旧结论不混着比。改了版本要重判金标准涉及的 case。
  * 指纹 = 本文件去掉注释行与 FROZEN 登记行之后的 sha256 前 12 位。

@@ -1,6 +1,6 @@
 # Lark-bot 接入工作流
 
-> Lark Bot 子系统文档之一，索引见 [README.md](./README.md)。
+> Lark Bot 子系统文档之一，索引见 [README.md](../README.md)。
 > 本文是**入门介绍**：这个系统是什么、怎么跑起来的、一条群消息如何变成一次代码修复。深入细节请按 README 路由到三份专题文档。
 
 ## 1. 这是什么

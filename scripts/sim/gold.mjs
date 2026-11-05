@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 金标准（docs/falive-replay-design-v2.md §5「金标准」、§8 前置 9 / P3）：全量裁判（max）之后，aven 亲自过分歧，定成 replay/falive/gold.jsonl，之后都对照它判。
+ * 金标准（docs/replay/falive-replay-design-v2.md §5「金标准」、§8 前置 9 / P3）：全量裁判（max）之后，aven 亲自过分歧，定成 replay/falive/gold.jsonl，之后都对照它判。
  *   review  node scripts/sim/gold.mjs review --round <轮> [--out replay/falive/gold-review.md] [--again]
  *           挑「falive 更好 / 都不对 / 裁判拿不准（confidence=low）」的 case 出评审表：每条一屏（原话 + 简短上下文、falive 怎么回、
  *           lark-bot 怎么回 / 做了什么、裁判理由），aven 勾「falive 对 / lark-bot 对 / 都不对」（两边都行可勾「一样」），可写一句理想做法。

@@ -1,6 +1,6 @@
 # Task 边界与回复策略
 
-> Lark Bot 子系统文档之一，索引见 [README.md](./README.md)。
+> Lark Bot 子系统文档之一，索引见 [README.md](../README.md)。
 > 本文是 Worker 执行任务时**必须遵守的策略层**：生命周期、解析、自动执行 / 必须确认边界、完成汇报与回复格式、阻塞超时。
 
 群里有人 @ 应用后，系统必须先生成 task，再由 Worker 执行；不得让群消息直接驱动无记录的代码修改。
@@ -23,7 +23,7 @@
 | `blocked` | 无法继续，需要外部资料或权限 | 回群说明阻塞 |
 | `failed` | 执行异常或命令失败 | 回群说明失败和下一步 |
 
-`done_with_warnings` 是 AI 侧状态而非独立生命周期态：它带着告警清单收敛到 `done`（见 [lark-status-meta.mjs](../lib/lark-status-meta.mjs)）。
+`done_with_warnings` 是 AI 侧状态而非独立生命周期态：它带着告警清单收敛到 `done`（见 [lark-status-meta.mjs](../../lib/lark-status-meta.mjs)）。
 
 **一次执行一个结论**：任何一次任务执行最终只往群里 / 私信发一条结论（人话，见 §4），`done` / `failed` / `waiting_confirmation` / `blocked` / `no_change_needed` 互斥。`no_change_needed` 绝不说成「已修好」：那会让群里读到已修好，而实际一行代码都没动。worker 随状态回写结构化 `outcome`（summary / blockers / report / 分支 / 改了几个文件），出口只读它；文本 `result` 并存给审计与 `lark-bot status`。
 
@@ -63,7 +63,7 @@ Gateway / Worker 至少提取：
 - 无新指令时 QA / PRD 冲突；API 文档与当前 Mock / PRD 冲突（已有明确修改指令时以最新群反馈为准）。
 - 需要新增全局设计 token / Tailwind preset、公共架构调整或跨项目重构。
 - 需要读取生产数据、密钥、账号、Cookie 或内网敏感地址。
-- 需要安装依赖、push、开 PR、部署、改 CI/CD。（**本地 commit 例外**：bot 提交自己产生的改动是既定行为，口径见 §3.2 与 [lark-commit-policy.mjs](../lib/lark-commit-policy.mjs)；push / PR 一律不做。）
+- 需要安装依赖、push、开 PR、部署、改 CI/CD。（**本地 commit 例外**：bot 提交自己产生的改动是既定行为，口径见 §3.2 与 [lark-commit-policy.mjs](../../lib/lark-commit-policy.mjs)；push / PR 一律不做。）
 - 任务影响范围超出当前 `apps/web` 或当前 feature。
 
 进入上述任一场景时，Worker 必须把 task 状态置为 `waiting_confirmation`，并自动发送待确认 / 补信息通知。通知里要写清缺什么、影响哪个阶段、需要谁处理；能识别责任人时必须 @ 具体人，不能识别时 @ 项目负责人 / 群内负责人。**已落地实现**：AI 结构化结果（`lark-ai-result.schema.json`）status 支持 `waiting_confirmation`，并可带 `blockers`（逐条列缺什么）、`owner`（推断责任人 / 角色）；Worker 原样回写该状态（不跑规范闸、不提交改动）并把 `owner` 随状态回写带给 Gateway；Gateway `handleStatusUpdate` 对 `waiting_confirmation` / `blocked` 发**橙色独立回执卡**（区别于绿/红的完成/失败卡）。**责任人 @ 落地**（`resolveOwnerMention`）：AI 自报 `owner`（角色 / 关键词）命中项目配置 `config.ownerMap`（`角色/关键词 → open_id`，可选表）则 `<at>` 对应责任人；未命中则回落 `<at>` 触发人（`task.operator`）并注明「未在责任人表识别，暂 @ 提单人」；bug 表任务由 poller 把负责 RD 写入 `operator`，保证无法识别业务 owner 时仍有人接收。**续任务闭环**（`store.resumeWithSupplement` + `resolveResumeTarget` / `handleResume`）：Gateway 保存待确认卡和催办卡的真实 Lark `message_id → task.id` 关联；只有以下情形算**续跑意图**：① 发送 `继续任务 <taskId> <补充内容>` 显式指令；② 明确回复（`reply_to`）机器人回执卡；③ 明确回复仍处 `waiting_confirmation`/`blocked` 的原任务消息；④ 无 `reply_to`、仅会话线程根 `root_id`，且它命中机器人回执卡**或原任务消息本身**、对应任务仍处 `waiting_confirmation`/`blocked`（话题内直接发补料时 Lark 不带 `reply_to`；收窄点在「仍卡着」，已完成的话题根一律按新任务处理）。②③④ 是隐式续跑，还要过「像是对机器人说的」门槛（`implicitResumeVerdict`，§5 `resume`）：同事在挂起卡下互相 @ / 抄送 / 寒暄不算续跑意图。命中续跑意图即复用**原任务**（append 补料 + 合并附件 + 保存本轮结论到 `waitingHistory` + 复用同一分支/worktree），置回 `queued` 并 bump `epoch`；回执关联持久化且只接受当前 epoch，重启不丢、旧轮次卡片也不能误续跑新一轮。**边界硬规则**：一旦识别出续跑意图，本条消息只走续跑分支——目标不存在 / 不在待确认·阻塞态 / 无补充内容时**显式回执说明并 return，绝不 fall through 新建孤儿任务**（否则补料落空、原任务继续卡着而群里无感知）。**关键约束**：AI 遇缺材料严禁猜测生成文案 / 默认值硬做，也严禁误判成 `failed`；`failed` 只留给工具 / 环境 / 权限等技术性失败。
@@ -72,7 +72,7 @@ Gateway / Worker 至少提取：
 
 ## 3.1 任务性质（workKind）与阻塞四分类
 
-§3 的「自动执行 / 必须确认」不再靠一条正则白名单硬压，而是先判**任务性质**、再对 AI 给出的每条 blocker 做**四分类**。实装在 [lark-work-policy.mjs](../lib/lark-work-policy.mjs)（纯函数，`node --test __tests__/lark-work-policy.test.mjs` 直测），语义为单一事实源。
+§3 的「自动执行 / 必须确认」不再靠一条正则白名单硬压，而是先判**任务性质**、再对 AI 给出的每条 blocker 做**四分类**。实装在 [lark-work-policy.mjs](../../lib/lark-work-policy.mjs)（纯函数，`node --test __tests__/lark-work-policy.test.mjs` 直测），语义为单一事实源。
 
 **任务性质 `workKind`**（`resolveWorkKind`，优先级从人的显式表达到 AI 分类结论再到文本信号，最后 fail-safe）：
 
@@ -99,11 +99,11 @@ Gateway / Worker 至少提取：
 
 **对接答复类的降级**（`classifyTaskBlockers`，只对契约 `api` / `api:` 前缀的任务）：对方在答复我方的对接问题，答复本身就是材料。blocker 首句（冒号前）是「再要文档 / 契约 / 调用时机 / 再确认」的，从 `hard` 降为 `soft`，转成假设随实施下发、不停机（10-31 falive 回放：Arthur 答「完善资料部分需要前端接入」，bot 反过来要接口文档，四条全判 hard 停机）。两种不降：首句在要账号 / 权限 / 凭证 / token / 授权；整条（首句或细节）提到金额 / 余额 / 手续费 / 费率 / 价格 / 状态 / 枚举 / 权限（含 `fee` / `amount` / `balance` / `price` / `status` / `enum` / `permission` 及 `feeRate` / `orderStatus` 这类驼峰）——这几类取不到证据就该 blocked，不按 Mock 猜着实施（fix10 review：fee 口径、available 是否扣冻结、status 枚举含义原来被降成 soft → ready）。分析提示同时加了一条「答复正文就是材料，能推就推，不把再要文档 / 再确认写成 blocker；前文别的事不并进本条」。
 
-**新需求放行闸（混合兜底）**（`requirementGate`，在 [lark-task-runner.mjs](../lib/lark-task-runner.mjs) 里于**跑 AI、动 worktree 之前**执行）：判为 `requirement` 且人尚未放行过（无 `resumeCount`/`waitingHistory`/`qaReturnCount`）时——**仅当连自评材料都没有（`requirementHasSpecContext` 为 false：无附件，且正文短于 `REQUIREMENT_SELF_ASSESS_MIN_CHARS`=24 的裸一句话）**——才直接回一张 `waiting_confirmation` 卡、一次 AI 都不跑（这种消息 AI 也只能空手，先问一句比烧一次 AI 省）。**其余新需求（有附件 / 正文有细节）不再盲拦**，一律放行到 AI 由能读上下文的它自评。历史上这里对**每条**新需求盲拦，靠纯正则读不到话题讨论 / 设计稿，把已说清的新需求也退回补料——正是「太烦人」的根因。自评在只读分析阶段做（四种执行器同一阶段，`buildAnalysisPrompt` 的「新需求自评」段）：能从上下文唯一推导规格就 `ready` 直接做，不够再 `blocked` 并**具体**列出缺口，经 `resolveAnalysisGate` 归类。人回复卡片补一句预期行为即视为放行、续跑。
+**新需求放行闸（混合兜底）**（`requirementGate`，在 [lark-task-runner.mjs](../../lib/lark-task-runner.mjs) 里于**跑 AI、动 worktree 之前**执行）：判为 `requirement` 且人尚未放行过（无 `resumeCount`/`waitingHistory`/`qaReturnCount`）时——**仅当连自评材料都没有（`requirementHasSpecContext` 为 false：无附件，且正文短于 `REQUIREMENT_SELF_ASSESS_MIN_CHARS`=24 的裸一句话）**——才直接回一张 `waiting_confirmation` 卡、一次 AI 都不跑（这种消息 AI 也只能空手，先问一句比烧一次 AI 省）。**其余新需求（有附件 / 正文有细节）不再盲拦**，一律放行到 AI 由能读上下文的它自评。历史上这里对**每条**新需求盲拦，靠纯正则读不到话题讨论 / 设计稿，把已说清的新需求也退回补料——正是「太烦人」的根因。自评在只读分析阶段做（四种执行器同一阶段，`buildAnalysisPrompt` 的「新需求自评」段）：能从上下文唯一推导规格就 `ready` 直接做，不够再 `blocked` 并**具体**列出缺口，经 `resolveAnalysisGate` 归类。人回复卡片补一句预期行为即视为放行、续跑。
 
 ## 3.1.1 只读分析阶段与修改范围契约
 
-实装在 [lark-scope-contract.mjs](../lib/lark-scope-contract.mjs)（纯函数，`node --test __tests__/lark-scope-contract.test.mjs` 直测），编排在 `runAI` 与 task-runner 收尾。
+实装在 [lark-scope-contract.mjs](../../lib/lark-scope-contract.mjs)（纯函数，`node --test __tests__/lark-scope-contract.test.mjs` 直测），编排在 `runAI` 与 task-runner 收尾。
 
 - **所有执行器先只读分析**：非只读任务不分 `claude` / `codex` / `pi` / `cursor`，一律「只读分析 → 实施」两阶段，分析前后 git status/diff 必须一致；只读查询除 codex 外仍单趟。bug 表任务是「分诊 → 分析 → 实施」三次调用。
 - **分析输出 `scope`**：`targets`（必须改的文件 + symbols + 理由）与 `siblings`（同因搜索词 + 全部命中逐项 include/exclude + 理由）。集合型任务（`detectSetOperationCue` 命中「统一 / 全部 / 涉及 N 处」等）提示里点名命中词，`siblings.items` 不得为空。
@@ -115,7 +115,7 @@ Gateway / Worker 至少提取：
 ## 3.2 人类 WIP 隔离与 L2 契约改动的 type-check 闸
 
 - **绝不自动提交人类 WIP**：命中的已有 worktree 在任务开始前若已有未提交改动，任务会**改路由到隔离的临时 worktree**（`tempWorktreeContextFor`）；hotfix 从该项目 worktree 当前分支当时的已提交 HEAD 创建（不退回 `origin/online`），未提交 WIP 不会复制进来，原工作区也完全不被触碰。
-- **自动提交口径的唯一事实源**是 [lark-commit-policy.mjs](../lib/lark-commit-policy.mjs)（`resolveCommitMode`，纯函数直测）：
+- **自动提交口径的唯一事实源**是 [lark-commit-policy.mjs](../../lib/lark-commit-policy.mjs)（`resolveCommitMode`，纯函数直测）：
 
   | 场景 | 模式 | 行为 |
   |---|---|---|
@@ -182,7 +182,7 @@ Lark 保留自己的任务生命周期、AI 分析、质量闸和本地提交链
 
 ### 5.0 任务控制通道（回复 Bot 卡片 ≠ 新任务入口）
 
-能锚定到 Bot 卡片 / 原任务消息的回复进入**任务控制通道**：结单、残余请求确认、暂停、重开、补料、查状态或意图确认，**绝不 fall through 新建 task**。实现位于 [lark-ingest.mjs](../lib/lark-ingest.mjs) 与 [lark-message.mjs](../lib/lark-message.mjs)，路由决策为纯函数。
+能锚定到 Bot 卡片 / 原任务消息的回复进入**任务控制通道**：结单、残余请求确认、暂停、重开、补料、查状态或意图确认，**绝不 fall through 新建 task**。实现位于 [lark-ingest.mjs](../../lib/lark-ingest.mjs) 与 [lark-message.mjs](../../lib/lark-message.mjs)，路由决策为纯函数。
 
 - **两条入口**：① **L3 显式指令**（`maybeHandleControlDirective`，最强意图，先于回复锚定）——`结单 <id>` / `取消任务 <id>` / `重开任务 <id>`（`parseControlDirective`，与 `parseResumeDirective` 对称，带显式 taskId、不依赖回复）；目标缺失也显式回话并 return，绝不建孤儿任务。指令词后面必须是本仓真实 id 形状（`om_…` / `rec…`（≥6 位）/ `daily-…` / `sf-…`，`isTaskIdShape`），否则整句按普通消息走分类（11-03 R5：「@bot 关闭 Google 登录入口」原来把 Google 当 taskId、回「没找到任务」，需求丢了；「继续 debug 一下」同理）。② **回复锚定**（`resolveControlTarget`）：直接回复**已登记的 Bot 回执卡**时无需再次 @bot；普通用户消息的回复仍要求 @bot。回执反查忽略代次，任务续跑过 epoch++ 后回复旧卡也能命中；direct 精确锚定失败再回落同话题唯一活动任务，话题内 ≥2 条活动任务则列候选让人指定，绝不猜测或新建。
 - **结单语义（`classifyClosureIntent`）**：先按语族正则给出结构化判定 `{ intent, closureReason, scope, confidence }`。三种 `closureReason`：`completed_elsewhere`（已解决 / 已由其他人·AI 完成 / 已上线 / 重复工单）、`cancelled`（取消 / 终止 / 撤销 / 停止处理 / 结束）、`no_longer_needed`（不用做了 / 不需要处理 / 需求变了 / 算了）。**一票否决**（降级为 unclear 去确认，绝不自动结单）：疑问句（修复了吗 / 解决了没 / 是不是已上线）、否定关闭、条件未来时、未完成、只完成部分、还需继续、转述他人。独立暂停表达走 `pause`，保持状态且不续跑、不新建。若明确结单后仍有缺陷/修改请求（如“上个已解决，现在下拉框还是空的”），先结原任务，再把残余正文显式展示并询问是否另发新任务，绝不静默吞请求或自动扩张执行范围。

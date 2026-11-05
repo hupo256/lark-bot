@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 两轮模拟并排（docs/falive-replay-plan-2026-11-03.md C 阶段）：同一批真人消息，基线代码 vs 修复代码各自的下文。
+ * 两轮模拟并排（docs/replay/falive-replay-plan-2026-11-03.md C 阶段）：同一批真人消息，基线代码 vs 修复代码各自的下文。
  *   node scripts/sim/compare-rounds.mjs --base full-a --fix fix-a [--md out.md]
  * 每条触发 bot 的消息一行：两轮各回了几条、第一句、任务终态；末尾汇总回复条数 / 重复回复 / 私信条数 / 任务状态分布。
  */

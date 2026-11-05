@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * L2 / L3 对照（docs/falive-replay-plan-2026-11-03.md §2）：模拟器跑完一个窗口后，把 lark-bot 在模拟里对每条真人消息的下文
+ * L2 / L3 对照（docs/replay/falive-replay-plan-2026-11-03.md §2）：模拟器跑完一个窗口后，把 lark-bot 在模拟里对每条真人消息的下文
  * （群里回了什么、私信负责人什么、任务最终状态 / 结论）和 falive 当时的下文（bot 当时的卡片、人的后续反应、审计结论）并排写成 md。
  *   node scripts/sim/compare-sim.mjs --sim smoke [--md]
  */

@@ -3,7 +3,7 @@
 > 写给接手的新 chat。先读本文，再按「下一步」做。用户是 aven，回复用中文。
 > 仓库 / 本机规则以 `AGENTS.md`、`~/.claude/CLAUDE.md` 为准；本文只写这件事本身。
 
-> **已结束（11-05）**：离线回放停止。aven 选 b6 + 波 6（原 lark/falive-fix-w6）合进 fameex-stable（60c6230）上线，之后在实战中迭代，不再跑 falive case。回放分支 / worktree / falive-react 的 sim-base-* 已清；本文下面的分支、worktree 路径都已不存在，只作历史记录。收尾见 `docs/falive-replay-plan-2026-11-03.md` 第 64、65 条。
+> **已结束（11-05）**：离线回放停止。aven 选 b6 + 波 6（原 lark/falive-fix-w6）合进 fameex-stable（60c6230）上线，之后在实战中迭代，不再跑 falive case。回放分支 / worktree / falive-react 的 sim-base-* 已清；本文下面的分支、worktree 路径都已不存在，只作历史记录。收尾见 `docs/replay/falive-replay-plan-2026-11-03.md` 第 64、65 条。
 
 ## 1. 这件事是什么
 
@@ -14,14 +14,14 @@
   - 跑之前先验输入。一轮作废了先报告，再开下一轮。
   - 不要白跑浪费额度。
   - 断点续跑、分段并行、场景还原是基本功，方案要「好、快、准、省 token」。
-- **现状**：还没有一轮有效的完整结果。11-03 跑了 r1–r11，都因数据、环境或跑法问题作废，或被中途停掉（见 §5）。新方案 v2 **11-04 定稿**（`docs/falive-replay-design-v2.md`），从 §8 的 P0-a 开始做。
+- **现状**：还没有一轮有效的完整结果。11-03 跑了 r1–r11，都因数据、环境或跑法问题作废，或被中途停掉（见 §5）。新方案 v2 **11-04 定稿**（`docs/replay/falive-replay-design-v2.md`），从 §8 的 P0-a 开始做。
 
 ## 2. 东西都在哪
 
 | 什么 | 位置 |
 |---|---|
-| **新方案 v2（接手后先读）** | `~/github/lark-bot-latest/docs/falive-replay-design-v2.md` |
-| 计划 + 进度流水（第 1–45 条，43 是复盘与防再犯策略） | `docs/falive-replay-plan-2026-11-03.md` |
+| **新方案 v2（接手后先读）** | `~/github/lark-bot-latest/docs/replay/falive-replay-design-v2.md` |
+| 计划 + 进度流水（第 1–45 条，43 是复盘与防再犯策略） | `docs/replay/falive-replay-plan-2026-11-03.md` |
 | case 清单（285 条，含 falive 当时第一句回复） | `replay/falive/cases.md` / `cases.jsonl`，由 `scripts/sim/list-cases.mjs` 生成 |
 | case 数据（进版本，144M） | `replay/falive/raw/`：三个群、204 个话题、126 篇云文档、153 条 bug 记录、441 份附件。`replay/falive/dataset/`：`timeline.json` 4152 条、`episodes.json` falive 基线。说明见 `replay/falive/README.md` |
 | 回放脚本 | `scripts/sim/`（见 §3） |

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 回放出网审计：记一条出网目标（docs/falive-replay-design-v2.md §8 前置 7）。两种用法：
+ * 回放出网审计：记一条出网目标（docs/replay/falive-replay-design-v2.md §8 前置 7）。两种用法：
  *   壳脚本 scripts/sim/egress/{curl,wget,lark-cli} 调：node egress-log.mjs <curl|wget|lark-cli> <原参数…>，从参数里解析方法与 URL
  *   egress-hook.mjs（NODE_OPTIONS 预载）import noteEgress 记 node fetch / http(s).request
  * 落 $SIM_DIR/egress.log，一行一个 JSON：{ at, via, pid, method, host, port, path }。只记方法 + 主机 + 路径：

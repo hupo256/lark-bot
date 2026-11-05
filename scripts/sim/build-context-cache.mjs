@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 回放上下文缓存（docs/falive-replay-plan-2026-11-03.md §6-1）：用 aven 的用户身份**只读**补拉模拟里 bot 读不到的上下文，
+ * 回放上下文缓存（docs/replay/falive-replay-plan-2026-11-03.md §6-1）：用 aven 的用户身份**只读**补拉模拟里 bot 读不到的上下文，
  * 落到 replay/falive/raw/（仓库里跟版本） 下，由 scripts/sim/fake-lark-cli.mjs 原样回放。只调 lark-cli 的读命令
  * （docs +fetch / base +record-list / +record-get / +record-download-attachment / im +messages-mget / +messages-resources-download），不发消息、不写任何东西。
  *

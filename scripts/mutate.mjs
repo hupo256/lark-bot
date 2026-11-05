@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * 变异测试：故意把一处代码改坏（=== ↔ !==、&& ↔ ||、边界、return true/false），看测试能不能发现。
- * 发现不了（存活）= 那行代码的行为没被测试钉住（aven 2026-10-24：兼顾健壮与效率）。说明见 docs/mutation-testing.md。
+ * 发现不了（存活）= 那行代码的行为没被测试钉住（aven 2026-10-24：兼顾健壮与效率）。说明见 docs/guide/mutation-testing.md。
  *
  * 用法：
  *   node scripts/mutate.mjs --diff <基线>          只扫相对基线改动 / 新增的 lib 行（合并前必跑；有未豁免的存活就退出 1）

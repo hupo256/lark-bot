@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 事件组切分（docs/falive-replay-design-v2.md §2、§8 P0-b）：把 285 个 case 按「事」并成组，每组单独起一个 lark-bot 实例回放。
+ * 事件组切分（docs/replay/falive-replay-design-v2.md §2、§8 P0-b）：把 285 个 case 按「事」并成组，每组单独起一个 lark-bot 实例回放。
  *   规则 1 同话题 / 回复链 / 正文里引用的消息 id（含 aven 私聊「继续任务 / 结单 om_x…」；「就这样回」这类不带 id 的，指向它之前最近一张 falive 私信草稿的任务）
  *   规则 2 同群（或负责人私聊）相邻两条 case 间隔 < 30 分钟
  *   规则 3 falive 当时真实的归并 / 续跑（网关日志、worker 领单正文、审计 intake.continues、任务台账 continues / supersededBy / mergedFrom）：并过的必须同组
@@ -272,7 +272,7 @@ writeFileSync(join(casesDir, 'episodes.json'), `${JSON.stringify(out, null, 1)}\
 const hhmm = (iso) => iso.slice(5, 16).replace('T', ' ')
 const md = [
   `# falive 回放事件组（${groups.length} 组 / ${cases.length} 个 case）`, '',
-  '由 `node scripts/sim/episodes.mjs` 生成（规则见 docs/falive-replay-design-v2.md §2），别手改；明细与每次并组的理由在 `episodes.json`。时间 UTC。', '',
+  '由 `node scripts/sim/episodes.mjs` 生成（规则见 docs/replay/falive-replay-design-v2.md §2），别手改；明细与每次并组的理由在 `episodes.json`。时间 UTC。', '',
   `- 最大一组 ${out.stats.maxSize} 条；跨天的 ${crossDay.length} 组；单条成组 ${groups.filter((g) => g.size === 1).length} 组`,
   `- 逐步组数：${stages.map((s) => `${s.name} → ${s.groups}`).join('；')}`,
   `- 各规则实际并掉的组数：${Object.entries(tally).map(([k, v]) => `${k} ${v}`).join('、')}`,

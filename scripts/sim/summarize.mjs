@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 多轮模拟总览（docs/falive-replay-plan-2026-11-03.md）：基线 full-* / 第二轮 fix-* / 第三轮 r3-*，每轮按段 a（10-20→10-24）/
+ * 多轮模拟总览（docs/replay/falive-replay-plan-2026-11-03.md）：基线 full-* / 第二轮 fix-* / 第三轮 r3-*，每轮按段 a（10-20→10-24）/
  * b（10-25→10-29）/ c（10-30→11-02）汇总 judge.jsonl 的胜负、larkIssue 分布、运营指标（回复 / 重复回复 / 私信 aven / 任务终态），
  * 列出最新一轮仍比 falive 差的条目，并附 L1（l1/<run>/judge.jsonl）的 better / larkReplyQuality 分布。
  *   node scripts/sim/summarize.mjs [--md <out>]

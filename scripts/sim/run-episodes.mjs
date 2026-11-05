@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 按事件组跑一轮回放（docs/falive-replay-design-v2.md §2、§8 P0-d；取代按天切段的 run-round.sh / run-days.sh）：
+ * 按事件组跑一轮回放（docs/replay/falive-replay-design-v2.md §2、§8 P0-d；取代按天切段的 run-round.sh / run-days.sh）：
  *   node scripts/sim/run-episodes.mjs --round <轮> [--only ep-…,ep-…] [--max-parallel N] [--port-base 3200] [--no-guard] [--ai-cache] [--no-judge]
  *   [--mem-reserve-mb 3072] [--episode-mem-mb 2560]：内存闸——系统可用内存（memory_pressure 的空闲百分比 × 物理内存）
  *   不够「余量 + 一组的预估峰值」就不起下一组，等在跑的组收尾（并发上限现在由内存决定，design-v2 §0；11-03 八段全开内存紧张杀过进程）。
@@ -25,7 +25,7 @@ import { fileURLToPath } from 'node:url'
 import { auditEgress } from './egress-audit.mjs'
 import { casesDir, datasetDir, replayRoot, roundsDir } from './falive-data.mjs'
 
-// P0-e（11-04）：小组实测单组进程树峰值见 docs/falive-replay-plan-2026-11-03.md 49；16G 留 3G 余量
+// P0-e（11-04）：小组实测单组进程树峰值见 docs/replay/falive-replay-plan-2026-11-03.md 49；16G 留 3G 余量
 export const DEFAULT_PARALLEL = 4
 const here = dirname(fileURLToPath(import.meta.url))
 const repo = dirname(dirname(here))

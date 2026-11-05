@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 把 falive 实战数据拼成回放数据集（docs/falive-replay-plan-2026-11-03.md §1）：
+ * 把 falive 实战数据拼成回放数据集（docs/replay/falive-replay-plan-2026-11-03.md §1）：
  *   runtime/falive-replay/dataset/timeline.json   三个群的全部消息（按时间）
  *   runtime/falive-replay/dataset/episodes.json   每条「falive 分类过 / @bot / aven 在通知群说的」消息 + 基线（网关分类、路由行、台账、审计、bot 的回复、人的后续）
  *   node scripts/sim/build-dataset.mjs [--stats]

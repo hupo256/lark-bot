@@ -266,7 +266,7 @@ describe('工单落盘与文案', () => {
     assert.match(prompt, /第一行 第二行/)
     assert.match(prompt, /原任务审计 JSON：\/a\/x\.json[\s\S]*事件流：\/a\/x\.log[\s\S]*worker\.log：\/l\/worker\.log[\s\S]*失败台账：\/r\/failures/)
     assert.match(prompt, /\[harness\][\s\S]*\[prompt\][\s\S]*\[env\][\s\S]*\[model\][\s\S]*\[external\]/)
-    assert.match(prompt, /docs\/self-fix-log\.md/)
+    assert.match(prompt, /docs\/notes\/self-fix-log\.md/)
     assert.match(prompt, /mutate\.mjs --diff 0123456789abcdef --lanes 1/)
     assert.match(prompt, /不碰 runtime\/[\s\S]*\/r\/lark-bot\/runtime[\s\S]*不改 rules\/；不 git commit[\s\S]*不 push、不 restart/)
     assert.match(prompt, /tail-line/)
@@ -307,13 +307,13 @@ describe('执行器（临时 git 仓 + 假执行器）', () => {
       const { id } = open(repo)
       const calls = []
       const notes = []
-      const r = runner(repo, { exec: fakeExec({ calls, files: { 'lib/a.mjs': 'export const a = 2\n', '__tests__/a.test.mjs': '// t\n', 'docs/self-fix-log.md': '| x |\n' } }), notify: async (text, opts) => { notes.push({ text, opts }) } })
+      const r = runner(repo, { exec: fakeExec({ calls, files: { 'lib/a.mjs': 'export const a = 2\n', '__tests__/a.test.mjs': '// t\n', 'docs/notes/self-fix-log.md': '| x |\n' } }), notify: async (text, opts) => { notes.push({ text, opts }) } })
       const ticket = await r.runTicket(readTicket({ dir: repo.dir, id }))
       const path = join(repo.base, `lark-bot-${id}`)
       assert.equal(ticket.status, 'ready')
       assert.equal(ticket.layer, 'harness')
       assert.deepEqual(ticket.ai, { status: 'done', summary: '[harness] 结果文件路径拼错', blockers: [], checks: ['node scripts/test-all.mjs 绿'] })
-      assert.deepEqual(ticket.changedFiles, ['__tests__/a.test.mjs', 'docs/self-fix-log.md', 'lib/a.mjs'])
+      assert.deepEqual(ticket.changedFiles, ['__tests__/a.test.mjs', 'docs/notes/self-fix-log.md', 'lib/a.mjs'])
       assert.deepEqual(ticket.verdict, { stage: 'done', tests: { ok: true, summary: '测试 3 个：通过 3' }, mutate: MUTATE_OK })
       assert.deepEqual(ticket.history.map((item) => item.status), ['pending', 'running', 'ready'])
       assert.equal(ticket.attempts, 1)
@@ -339,7 +339,7 @@ describe('执行器（临时 git 仓 + 假执行器）', () => {
       const { id: id2 } = open(repo, { fingerprint: fp('odd failure without operators') })
       const unchecked = { ok: true, checked: false, summary: '改动行没有可变异的运算符（未做变异检查）' }
       const notes2 = []
-      const t2 = await runner(repo, { exec: fakeExec({ files: { 'docs/self-fix-log.md': '| y |\n' } }), runMutate: async () => unchecked, notify: async (text) => { notes2.push(text) } }).runTicket(readTicket({ dir: repo.dir, id: id2 }))
+      const t2 = await runner(repo, { exec: fakeExec({ files: { 'docs/notes/self-fix-log.md': '| y |\n' } }), runMutate: async () => unchecked, notify: async (text) => { notes2.push(text) } }).runTicket(readTicket({ dir: repo.dir, id: id2 }))
       assert.equal(t2.status, 'ready')
       assert.match(g(join(repo.base, `lark-bot-${id2}`), ['log', '-1', '--format=%s']).stdout.trim(), /worker 验收：全量单测绿、改动行没有可变异的运算符，未做变异检查）$/)
       assert.match(notes2[0], /变异：改动行没有可变异的运算符（未做变异检查）/)

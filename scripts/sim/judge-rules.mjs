@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 规则预判（docs/falive-replay-design-v2.md §5「裁判」1，不花 token）：对每个 sim 目录里每条 case 算结构事实——
+ * 规则预判（docs/replay/falive-replay-design-v2.md §5「裁判」1，不花 token）：对每个 sim 目录里每条 case 算结构事实——
  * lark-bot 回没回、回了几条、有没有重复、多久回（虚拟时间）、任务终态、交付物类型、并入谁、私信 aven 几条；
  * 同列 falive 当时的对应事实；再给 lark-bot 输出一个指纹（群里回复 + 私信的规范化文本 + 终态 / 交付物），
  * 模型裁判按指纹判「变没变」（scripts/sim/judge-sim.mjs）。

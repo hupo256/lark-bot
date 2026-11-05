@@ -1,5 +1,5 @@
 /**
- * 裁判结论缓存（docs/falive-replay-design-v2.md §5「裁判」2：模型只判有变化的）。
+ * 裁判结论缓存（docs/replay/falive-replay-design-v2.md §5「裁判」2：模型只判有变化的）。
  * 键 = case id + lark-bot 输出指纹（judge-rules.mjs）+ 裁判提示版本 + 参照（none / gold:<金标准条目指纹>；v3 起有模拟局限旗标的再接 |lim:<旗标指纹>，
  * 旗标规则（sim-limits.mjs）改了、这条的旗标 / 原因跟着变，喂给裁判的提示就变了，旧结论不复用）。
  * 落盘：runtime/falive-replay/judge-cache/<提示版本>/<case id>.jsonl，每判一次追加一行（中途断了不丢）。

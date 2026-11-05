@@ -143,6 +143,6 @@ B1 不依赖别的批，可以先做；B2 依赖 B1（任务要回对群）；B3
 ## 七、进度追记
 
 - 11-01 B1 已上线（lark-bot `5166997`）：13:21 首次同步建表，按群名唯一对上自动绑定 7 个项目群、记 11 个已知群。
-- 11-01 B2 已合入（lark-bot `053aaac`）：两档调度、读通知断点续读、按标题定位、对账基线、入口失败进自修（见 `docs/runtime-and-scheduling.md` §2）。
+- 11-01 B2 已合入（lark-bot `053aaac`）：两档调度、读通知断点续读、按标题定位、对账基线、入口失败进自修（见 `docs/guide/runtime-and-scheduling.md` §2）。
 - 11-01 B3 已合入：占用标记（私信「我在修 / 修完了 BUG-x」「认领列表」）+ 新单查重（附提交让 AI 核对）+ 提交带 `bug:` trailer。按 D1 只服务 fameex 后收窄：同项目串行 / 跨项目并行现有 worker 已按 worktree 调度做到；`per-bug-mr`（一单一分支推 MR）没有使用方不做；端口分段不需要（fameex worker 不按单起自测服务）。
 - 11-01 B4 已合入：验退带 QA 测试 / 返工结果与重开次数、备注带最后 800 字；`fixScope.modules`（all / owned）；`watch.team` 团队范围（默认关）；修复整体性四条进系统层。回放 192 条真实任务、规则零丢失、系统层跨任务逐字相同。4.6 回写口径按 D1 只有 fameex 一种（领取改修复中、完成改待推版），现有 `inProgressValue / doneValue` 配置已覆盖，不另做。

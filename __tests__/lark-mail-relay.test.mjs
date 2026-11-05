@@ -16,7 +16,7 @@ import { getScorer } from '../lib/lark-mail-relay-presets.mjs'
 import { addressOf, matchRoute, normalizeRoutes, relayChatIds, routeMatches, validateMailRelay } from '../lib/lark-mail-relay-routes.mjs'
 import { runSteps } from './support/steps.mjs'
 
-// 审批邮件转群（aven 11-02）：OL 上线评分口径（docs/mail-ol-scoring-2026-11-02.md）+ 通用路由 / 转发 / 引擎 / 拆分接口。
+// 审批邮件转群（aven 11-02）：OL 上线评分口径（docs/notes/mail-ol-scoring-2026-11-02.md）+ 通用路由 / 转发 / 引擎 / 拆分接口。
 // 正文样本按 11-02 拉的 100 封 OL 邮件里的真实写法缩写。
 const FULL_BODY = [
   'Hi，尊敬的客户您好： 本次已通过测试验收，请安排以下更新，谢谢。 一、环境 ONLINE',

@@ -18,7 +18,7 @@ import { branchForEnv, describeBuild, parseLegacyVersion, parseWebNextCommit } f
 import { KNOWLEDGE_MAX_CHARS, buildEnvKnowledgeBlock, readKnowledge } from '../lib/lark-knowledge.mjs'
 import { ENV_VERSION_TOOL } from '../lib/lark-paths.mjs'
 
-// 11-01 上下文分层升级（docs/upgrade-plan-context-layers-2026-11-01.md）S3 / S4 / S6 的纯函数：
+// 11-01 上下文分层升级（docs/plan/upgrade-plan-context-layers-2026-11-01.md）S3 / S4 / S6 的纯函数：
 // AGENTS.md 遮蔽检测、PRD 缓存标龄、截图先看、审计度量、体检执行层。
 const ctx = { projectId: 'TR-99999', projectName: 'test', projectDocs: [], cwd: '/tmp/repo', hotfixBranch: 'hotfix/x', baseRef: 'origin/online' }
 const line = (event) => JSON.stringify(event)

@@ -1,6 +1,6 @@
 # 运行时与调度
 
-> Lark Bot 子系统文档之一，索引见 [README.md](./README.md)。
+> Lark Bot 子系统文档之一，索引见 [README.md](../README.md)。
 > 本文覆盖当前实现（lark-cli 长连接）、bug 表跨项目路由与按需轮询、Worker 按 worktree 并行调度。
 
 ## 1. 当前实现：lark-cli 长连接（替代公网 tunnel）

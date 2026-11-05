@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 验收（docs/falive-replay-design-v2.md §6，aven 11-04 同意）：合进运行分支的门槛，对照金标准判（先跑 gold.mjs compare 出 judge.jsonl）。
+ * 验收（docs/replay/falive-replay-design-v2.md §6，aven 11-04 同意）：合进运行分支的门槛，对照金标准判（先跑 gold.mjs compare 出 judge.jsonl）。
  *   node scripts/sim/acceptance.mjs --round <轮> | --sim <名> | --dir <路径> | --judge a.jsonl,b.jsonl
  *        [--prev <上一轮> | --prev-judge x.jsonl,…] [--explained replay/falive/explained.jsonl] [--total 285] [--metrics metrics.json] [--md out.md]
  * 检查（全部过才算过，退出码 0；否则 1，并列出违规 case）：

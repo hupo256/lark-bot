@@ -20,7 +20,7 @@ FameEX 本机常驻的 Lark 自动处理服务：群里 @ 机器人（或 bug �
 
 非只读任务都走两阶段：先**只读分析**，产出结构化的修改范围契约（scope contract）；再进入实施。收尾时 worker 按实际改动核对契约，越界、碰禁区或超出行数上限都不提交，任务挂起，等人回复卡片「确认扩大范围」。回复 bot 卡片是任务控制通道（结单 / 重开 / 续跑 / 查状态 / 确认），不会新建任务。
 
-完整链路见 [docs/overview-workflow.md](./docs/overview-workflow.md)。
+完整链路见 [docs/guide/overview-workflow.md](./docs/guide/overview-workflow.md)。
 
 ## 安装与启动
 
@@ -59,7 +59,7 @@ launchd 直接运行本仓代码。**往本目录合代码 = 几分钟内上线*
 
 ## 2026-11-05 更新：falive 实战回放后上线
 
-用 falive bot 10-14 → 11-03 的 285 个真实 case 离线回放、逐条和 falive 当时对比，分六批修完后上线（60c6230）。同一批 125 个 case 上，lark-bot 更好 54 / falive 更好 23；首句中位 12 秒（falive 47 秒），结论中位 1.4 分钟（falive 4.4 分钟）。过程与逐轮成绩见 [docs/falive-replay-plan-2026-11-03.md](./docs/falive-replay-plan-2026-11-03.md) 第 60–65 条。
+用 falive bot 10-14 → 11-03 的 285 个真实 case 离线回放、逐条和 falive 当时对比，分六批修完后上线（60c6230）。同一批 125 个 case 上，lark-bot 更好 54 / falive 更好 23；首句中位 12 秒（falive 47 秒），结论中位 1.4 分钟（falive 4.4 分钟）。过程与逐轮成绩见 [docs/replay/falive-replay-plan-2026-11-03.md](./docs/replay/falive-replay-plan-2026-11-03.md) 第 60–65 条。
 
 ### 新功能
 
@@ -93,7 +93,7 @@ launchd 直接运行本仓代码。**往本目录合代码 = 几分钟内上线*
 | `scripts/` | `lark-bot` CLI、`lark-bot-shim`、`code-rules.mjs`（代码规则扫描器副本）、`figma-spec.mjs`、`test-affected.mjs` / `test-all.mjs`（按 import 关系挑相关测试 / 合并前全量） |
 | `scripts/sim/` / `replay/falive/` | falive 实战离线回放台与 285 个 case 数据（11-05 回放已结项，留作历史与将来离线回归；`replay/falive/` 是内部群聊数据，不要 push） |
 | `tools/` | 给 worker 里 AI 用的工具：`env-login.mjs`（测试号登录）、`env-version.mjs`（查环境版本）、`verify-page.mjs`（页面验证）、`read-bug-record.mjs`（读 bug 单）、`egress-guard/`（出网拦截） |
-| `docs/` | 运维手册，入口 [docs/README.md](./docs/README.md) |
+| `docs/` | 文档：`guide/` 运维手册、`plan/` 方案与待办、`replay/` falive 回放（已结项）、`notes/` 台账与分析；入口 [docs/README.md](./docs/README.md) |
 | `__tests__/` | `node --test` 单测 |
 
 ## 路径与配置
@@ -105,13 +105,13 @@ launchd 直接运行本仓代码。**往本目录合代码 = 几分钟内上线*
 | 业务主仓 `consumerRoot` | `LARK_BOT_CONSUMER_ROOT` | `consumerRoot` | `/Users/aven/github/fameex-web`（worktree 建在它的同级目录） |
 | PRD 缓存 `prdCacheRoot` | `LARK_BOT_PRD_CACHE` | — | `~/.prd-cache`（只读） |
 
-`runtime/lark-bot.local.json` 的常用键：`project` / `title`、`botOpenId`、`taskMentionOpenIds`、`allowedChatIds` / `allowedOpenIds`、`aiExecutor`、各执行器的模型键（`codexModel`、`piModel` 等）、`scopeBudgets`、`bugTable`、`verify`（页面验证工具：本地 dev 命令 / 已部署站点 / 登录模块，见 `tools/verify-page.mjs` 文件头与 `docs/port-from-falive-2026-10-24.md` #61）。字段含义见 [docs/gateway-and-worker.md](./docs/gateway-and-worker.md) §6。
-2026-10-24 从 falive 实践移植回来的可选键（都可不配，见 [docs/port-from-falive-2026-10-24.md](./docs/port-from-falive-2026-10-24.md)）：`claudeModel` / `claudeEffort`（实施模型与强度）、`claudeAnalysisModel` / `claudeAnalysisEffort`（只读分析 / 分诊阶段单独指定）、`claudeIntentModel` / `claudeIntentEffort`（前置意图分类单独指定，11-02 起；fameex 配 Opus + low：53 条回归集实测比 high 中位快 40%、无新增误判，换 Sonnet / Haiku 不更快还漏判，换前先跑 `node scripts/lark-replay-intake.mjs --fixture __tests__/fixtures/intake-regression-1102.json --live`）、`finalChecks`（worker 独立终检：`{ typecheck: [cmd, ...args], tests: [cmd, ...args], timeoutMs }`）、`claudeMemoryDir`（bot 的 worktree 与主仓共用的 Claude 项目记忆目录，缺省按业务主仓推导）。
+`runtime/lark-bot.local.json` 的常用键：`project` / `title`、`botOpenId`、`taskMentionOpenIds`、`allowedChatIds` / `allowedOpenIds`、`aiExecutor`、各执行器的模型键（`codexModel`、`piModel` 等）、`scopeBudgets`、`bugTable`、`verify`（页面验证工具：本地 dev 命令 / 已部署站点 / 登录模块，见 `tools/verify-page.mjs` 文件头与 `docs/notes/port-from-falive-2026-10-24.md` #61）。字段含义见 [docs/guide/gateway-and-worker.md](./docs/guide/gateway-and-worker.md) §6。
+2026-10-24 从 falive 实践移植回来的可选键（都可不配，见 [docs/notes/port-from-falive-2026-10-24.md](./docs/notes/port-from-falive-2026-10-24.md)）：`claudeModel` / `claudeEffort`（实施模型与强度）、`claudeAnalysisModel` / `claudeAnalysisEffort`（只读分析 / 分诊阶段单独指定）、`claudeIntentModel` / `claudeIntentEffort`（前置意图分类单独指定，11-02 起；fameex 配 Opus + low：53 条回归集实测比 high 中位快 40%、无新增误判，换 Sonnet / Haiku 不更快还漏判，换前先跑 `node scripts/lark-replay-intake.mjs --fixture __tests__/fixtures/intake-regression-1102.json --live`）、`finalChecks`（worker 独立终检：`{ typecheck: [cmd, ...args], tests: [cmd, ...args], timeoutMs }`）、`claudeMemoryDir`（bot 的 worktree 与主仓共用的 Claude 项目记忆目录，缺省按业务主仓推导）。
 对应的环境开关：`LARK_KEEP_AWAKE=0`（关掉开盖防空闲睡眠）、`LARK_WAKE_CATCHUP=0`（关掉开盖补拉）、`LARK_TASK_BUDGET_MS`（单任务总预算，默认 150 分钟）。
-2026-11-01 对话层（人话出口、五类分类、任务契约、负责人私信主通道）的可选键：`ownerMap` / `memberRoles` / `internalNames`、`intake`、`envSites`、`docIdentity`、`joinGreeting`、`digest`、`personaPath`，见 [docs/gateway-and-worker.md](./docs/gateway-and-worker.md) §6 末尾；运行态多了 `runtime/lark-outbox/`（发件簿）、`runtime/lark-obligations/`（回复义务）、`runtime/persona/aven.md`（负责人 persona，手写）、`runtime/people.json`。分类回放：`node scripts/lark-replay-intake.mjs [--live]`。
+2026-11-01 对话层（人话出口、五类分类、任务契约、负责人私信主通道）的可选键：`ownerMap` / `memberRoles` / `internalNames`、`intake`、`envSites`、`docIdentity`、`joinGreeting`、`digest`、`personaPath`，见 [docs/guide/gateway-and-worker.md](./docs/guide/gateway-and-worker.md) §6 末尾；运行态多了 `runtime/lark-outbox/`（发件簿）、`runtime/lark-obligations/`（回复义务）、`runtime/persona/aven.md`（负责人 persona，手写）、`runtime/people.json`。分类回放：`node scripts/lark-replay-intake.mjs [--live]`。
 2026-11-02 上下文与环境知识的可选键：`recentContextHours`（「群里这条之前的消息」近几小时全留，默认 4；更早的只留 bot 自己最近 3 条和本人最近 2 条；配 0 = 不截，旧行为）、`envBranches`（环境 → 分支，默认同名，如 `{ "prod": "online" }`）。负责人维护的固定知识放 `runtime/knowledge/*.md`（gitignore，每条任务现读、改了不用重启），只读答疑 / 实测 / 状态查询的提示里带上；查各环境当前跑的提交：`node tools/env-version.mjs [环境…] [--no-fetch] [--json]`（读 `envSites`，抓站点 `/version` 与新站资源路径 `/wn/<sha>/`，再核在不在对应分支、落后几个）。
-2026-11-02 fameex 日报的可选键 `dailyReport`（`{ enabled, at: "19:00", days: [1, 2, 3, 4, 5] }`，默认开、工作日 19:00）：只私发负责人（`notifyOpenId`），私信「发日报 / 重发日报」随时要，见 [docs/gateway-and-worker.md](./docs/gateway-and-worker.md) §6 末尾；记账 `runtime/lark-daily-report-state.json`。
-2026-11-02 闲置群自动退出的可选键 `chatRetention`（`{ enabled, idleDays: 14, graceHours: 48, at: "09:35", keep: [chat_id] }`，默认开）：14 天没人 @bot 的群先私信负责人，48 小时后还没人找就退群；bug 表群、`keep` 里的、私信「留下 关键字」标过的永远不退，私信「退群列表」查看。退群要应用开通 `im:chat`、`im:chat.members:write_only`。见 [docs/gateway-and-worker.md](./docs/gateway-and-worker.md) §6 末尾；记账 `runtime/lark-chat-activity-state.json`。
+2026-11-02 fameex 日报的可选键 `dailyReport`（`{ enabled, at: "19:00", days: [1, 2, 3, 4, 5] }`，默认开、工作日 19:00）：只私发负责人（`notifyOpenId`），私信「发日报 / 重发日报」随时要，见 [docs/guide/gateway-and-worker.md](./docs/guide/gateway-and-worker.md) §6 末尾；记账 `runtime/lark-daily-report-state.json`。
+2026-11-02 闲置群自动退出的可选键 `chatRetention`（`{ enabled, idleDays: 14, graceHours: 48, at: "09:35", keep: [chat_id] }`，默认开）：14 天没人 @bot 的群先私信负责人，48 小时后还没人找就退群；bug 表群、`keep` 里的、私信「留下 关键字」标过的永远不退，私信「退群列表」查看。退群要应用开通 `im:chat`、`im:chat.members:write_only`。见 [docs/guide/gateway-and-worker.md](./docs/guide/gateway-and-worker.md) §6 末尾；记账 `runtime/lark-chat-activity-state.json`。
 2026-11-05 的可选键：`testAccounts.<环境>`（测试号与登录方式，`tools/env-login.mjs` 用，口径见 `lib/lark-env-login.mjs` 文件头）、`testData`（`{ envs: ['pre'], account? }`，原话明确要造测试数据时放开的环境）、`egress.loginCodeTypes`（算作登录的验证码类型）、`commitPrefix`（收尾提交标题前缀）。运行态多了 `runtime/lark-env-login/<环境>.json`（登录态，0600）。
 
 执行器的选择优先级：任务里的 `[claude]` / `[codex]` / `[pi]` / `[cursor]` 标签 > 配置 `aiExecutor` > 内置默认 `claude`。执行器在入队时锁定。
@@ -131,12 +131,12 @@ launchd 直接运行本仓代码。**往本目录合代码 = 几分钟内上线*
 
 | 文档 | 内容 |
 |---|---|
-| [docs/overview-workflow.md](./docs/overview-workflow.md) | 入门：架构、一条消息的旅程、信任模型、配置运维 |
-| [docs/gateway-and-worker.md](./docs/gateway-and-worker.md) | 长连接接入、命令与 Job、执行器与审计 |
-| [docs/task-boundaries-and-reply.md](./docs/task-boundaries-and-reply.md) | 生命周期、自动执行 / 确认边界、范围契约、任务控制通道与回复策略 |
-| [docs/runtime-and-scheduling.md](./docs/runtime-and-scheduling.md) | 长连接健壮性、附件保留期、bug 表路由、并行调度 |
-| [docs/port-from-falive-2026-10-24.md](./docs/port-from-falive-2026-10-24.md) | 从 falive 实践移植回来的通用能力台账：每项的来源教训、配置键、真机验法；以及刻意没搬的 |
-| [docs/plan-iteration-2026-11-05.md](./docs/plan-iteration-2026-11-05.md) | 上线后实战迭代（11-05 定稿）：线上验收线、批 1 衡量与纠错 → 准 → 省 → 数字分身 |
+| [docs/guide/overview-workflow.md](./docs/guide/overview-workflow.md) | 入门：架构、一条消息的旅程、信任模型、配置运维 |
+| [docs/guide/gateway-and-worker.md](./docs/guide/gateway-and-worker.md) | 长连接接入、命令与 Job、执行器与审计 |
+| [docs/guide/task-boundaries-and-reply.md](./docs/guide/task-boundaries-and-reply.md) | 生命周期、自动执行 / 确认边界、范围契约、任务控制通道与回复策略 |
+| [docs/guide/runtime-and-scheduling.md](./docs/guide/runtime-and-scheduling.md) | 长连接健壮性、附件保留期、bug 表路由、并行调度 |
+| [docs/notes/port-from-falive-2026-10-24.md](./docs/notes/port-from-falive-2026-10-24.md) | 从 falive 实践移植回来的通用能力台账：每项的来源教训、配置键、真机验法；以及刻意没搬的 |
+| [docs/plan/plan-iteration-2026-11-05.md](./docs/plan/plan-iteration-2026-11-05.md) | 上线后实战迭代（11-05 定稿）：线上验收线、批 1 衡量与纠错 → 准 → 省 → 数字分身 |
 | [AGENTS.md](./AGENTS.md) | 在本仓改代码的 agent 规则 |
 
 ## 开发与测试

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 假 lark-cli（离线模拟器，docs/falive-replay-plan-2026-11-03.md §2 L2）：LARK_CLI_BIN 指到 scripts/sim/lark-cli（壳脚本 exec 本文件）。
+ * 假 lark-cli（离线模拟器，docs/replay/falive-replay-plan-2026-11-03.md §2 L2）：LARK_CLI_BIN 指到 scripts/sim/lark-cli（壳脚本 exec 本文件）。
  * 从 SIM_DIR 供数 / 记账：
  *   timeline.json   数据集时间线（真人消息 + falive bot 的消息；哪些 bot 话不供见 hideFaliveBot）
  *   meta.json       simStartMs；按事件组跑时另有 episode / hideBotIds

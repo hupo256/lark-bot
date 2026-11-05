@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 回放用 claude 调用录放（docs/falive-replay-design-v2.md §4、§8 P0-f）：run-sim --ai-cache 把 LARK_CLAUDE_BIN 指到 scripts/sim/claude（本文件的 sh 壳），
+ * 回放用 claude 调用录放（docs/replay/falive-replay-design-v2.md §4、§8 P0-f）：run-sim --ai-cache 把 LARK_CLAUDE_BIN 指到 scripts/sim/claude（本文件的 sh 壳），
  * SIM_REAL_CLAUDE 指到额度闸 scripts/sim/claude-q——未命中的真调一律经额度闸（撞限额冻时钟、到点重试、按真实耗时执行原超时）。
  *
  * 录：每次可录的调用按「规范化后的完整输入」算指纹（见下「键」），成功的输出连同副作用（结果文件、会话文件、可写调用对工作区的改动）落盘。

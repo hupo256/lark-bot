@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * L2 / L3 裁判（docs/falive-replay-design-v2.md §5「裁判」）：对 sim 目录里每条 case，把消息 + 上下文 + 标签 + 实测类当时证据 +
+ * L2 / L3 裁判（docs/replay/falive-replay-design-v2.md §5「裁判」）：对 sim 目录里每条 case，把消息 + 上下文 + 标签 + 实测类当时证据 +
  * 【A：falive 当时】+【B：lark-bot 这次】交给模型，以 aven 的利益为准判谁更合适。提示冻结在 scripts/sim/judge-prompt.mjs（带版本）。
  *   node scripts/sim/judge-sim.mjs --round <轮> | --sim <名> | --dir <路径> [--effort high] [--all] [--gold [gold.jsonl]]
  *        [--conc 4] [--limit n] [--ids a,b] [--score-from <ISO>] [--dry] [--print-prompt <case id>]

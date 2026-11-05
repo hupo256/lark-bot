@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 回放出网审计归类（docs/falive-replay-design-v2.md §8 前置 7）：读一个 sim 目录的 egress.log（curl / wget 壳、node fetch 预载、lsof 兜底）
+ * 回放出网审计归类（docs/replay/falive-replay-design-v2.md §8 前置 7）：读一个 sim 目录的 egress.log（curl / wget 壳、node fetch 预载、lsof 兜底）
  * 与假 lark-cli 的 cli-calls.log / outbox.jsonl，归成 allowed / local / violation / review，写 egress-summary.json。
  *   node scripts/sim/egress-audit.mjs --sim <轮>/<组>      （run-episodes 每组跑完自动调；round-report 汇总）
  * 口径：

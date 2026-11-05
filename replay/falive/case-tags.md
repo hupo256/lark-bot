@@ -1,6 +1,6 @@
 # case 风险标签（285 条）
 
-由 `node scripts/sim/tag-cases.mjs` 生成，别手改；规则在脚本里，规则定不了的按批送模型（结论缓存在 case-tags.model.jsonl）。口径见 docs/falive-replay-design-v2.md §6、§7。
+由 `node scripts/sim/tag-cases.mjs` 生成，别手改；规则在脚本里，规则定不了的按批送模型（结论缓存在 case-tags.model.jsonl）。口径见 docs/replay/falive-replay-design-v2.md §6、§7。
 
 - kind：question 64、verification 56、change 57、record 36、ops 39、chat 33
 - risk：money 14、status 15、permission 61、irreversible 16；至少一项 96

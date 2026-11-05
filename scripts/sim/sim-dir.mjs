@@ -1,5 +1,5 @@
 /**
- * 「sim 目录」抽象（docs/falive-replay-design-v2.md §2、§5）：裁判 / 规则预判 / 金标准 / 验收都只认这一层，不关心布局。
+ * 「sim 目录」抽象（docs/replay/falive-replay-design-v2.md §2、§5）：裁判 / 规则预判 / 金标准 / 验收都只认这一层，不关心布局。
  * 一个 sim 目录 = 一个 lark-bot 实例跑完的产物：fed.json（喂了哪些消息）、outbox.jsonl（bot 发了什么）、
  * runtime/lark-tasks/*.json（任务）、runtime/lark-audits/<项目>/<任务>-e<代>.json（审计）；另读 meta.json、egress.log（模拟局限旗标、裁判的出网证据）。
  * 两种布局都认：
