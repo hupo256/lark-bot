@@ -22,7 +22,7 @@ const { resolveWorkContext } = await import('../lib/lark-work-context.mjs')
 const { deliverOutcome } = await import('../lib/lark-delivery.mjs')
 const { envRef } = await import('../lib/lark-ops-task.mjs')
 
-const { buildDailyTask, decideDailyRun, dueReportDate, dailySettings, maybeHandleDailyDirective, parseDailyDirective, readDailyState, startDailyReport } = schedule
+const { buildDailyTask, decideDailyRun, staleDailyFailures, dueReportDate, dailySettings, maybeHandleDailyDirective, parseDailyDirective, readDailyState, startDailyReport } = schedule
 const { collectBugFacts, humanBugReadError, collectGitFacts, pickBaseline, readTaskFiles, renderBugSection, renderDailyReport, renderGitSection, renderTaskSection, runDailyReportTask, summarizeBugRecords, summarizeTasks, taskBucket } = report
 
 const at = (d, h, m = 0) => new Date(2026, 10, d, h, m).getTime() // 2026-11-d 本地时间；11-02 是周一
@@ -274,6 +274,32 @@ describe('fameex 日报', () => {
         assert.deepEqual(tasks.map((task) => task.daily), [{ date: DATE, mode: 'scheduled', attempt: 1 }])
       } finally {
         ticker.stop()
+      }
+      // 11-04 事故：同日前两次网络失败、第 3 次发出 → 下一分钟把前两次结单；发出后才失败的（重发失败）、别的日期、非日报不动。
+      const failed = (id, date, failedAt, extra = {}) => ({ id, commandType: 'daily', status: 'failed', daily: { date, mode: 'scheduled' }, updatedAt: failedAt, ...extra })
+      const stale = [
+        failed('daily-20261104-a1', '2026-11-04', iso(4, 19, 7)),
+        failed('daily-20261104-a2', '2026-11-04', iso(4, 19, 28)),
+        failed('om_force', '2026-11-04', iso(4, 20)),
+        failed('daily-20261103-a1', '2026-11-03', iso(3, 19, 7)),
+        failed('other', '2026-11-04', iso(4, 19, 7), { commandType: 'fix' }),
+        { ...failed('daily-20261104-a3', '2026-11-04', iso(4, 19, 39)), status: 'done' },
+      ]
+      const sentState = { sent: { '2026-11-04': { at: iso(4, 19, 39) } } }
+      assert.deepEqual(staleDailyFailures({ state: sentState, tasks: stale }).map(({ task }) => task.id), ['daily-20261104-a1', 'daily-20261104-a2'])
+      assert.deepEqual(staleDailyFailures({ state: {}, tasks: stale }), [])
+      const closed = []
+      const staleStore = { list: () => stale, upsert: () => assert.fail('已发不建'), closeAsExternallyResolved: (args) => (closed.push(args), { task: {} }) }
+      const staleTicker = startDailyReport({ config: CONFIG, store: staleStore, readState: () => sentState, readPause: () => false, clock: () => at(5, 9) })
+      try {
+        assert.equal(staleTicker.tick(), null)
+        assert.deepEqual(closed.map(({ id, closureReason, operator }) => [id, closureReason, operator]), [
+          ['daily-20261104-a1', 'completed_elsewhere', 'daily-schedule'],
+          ['daily-20261104-a2', 'completed_elsewhere', 'daily-schedule'],
+        ])
+        assert.match(closed[0].note, /^2026-11-04 的日报已在 \d\d:\d\d 由后续一次发出，本次失败作废。$/)
+      } finally {
+        staleTicker.stop()
       }
       assert.deepEqual(readDailyState(join(dir, 'missing.json')), {})
       const broken = join(dir, 'broken.json')
