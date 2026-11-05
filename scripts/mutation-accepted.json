@@ -257,5 +257,17 @@
     "code": "if (notForBot) return console.log(`[lark-gateway] ${msg.messageId} 回 bot 消息但不是对机器人说的（${notForBot === 'social' ? '寒暄 / 抄送' : '@ 的是别的同事'}），静默、不分类`)",
     "op": "=== → !==",
     "reason": "只影响日志里的原因措辞（寒暄 / 抄送 vs @ 的是别的同事），不影响行为"
+  },
+  {
+    "file": "lib/lark-audit-cost.mjs",
+    "code": "if (!line.startsWith('{') || !line.includes('\"total_cost_usd\"')) continue",
+    "op": "|| → &&",
+    "reason": "等价：只是快速跳过。放过去的非 JSON 行 JSON.parse 失败 continue，不带 total_cost_usd 的 JSON 行 typeof 不是 number 也 continue，结果不变（原样从 scripts/sim/round-metrics.mjs 挪来）"
+  },
+  {
+    "file": "lib/lark-feedback-log.mjs",
+    "code": "log(`[lark-feedback] 记账写失败（忽略）：${String(error?.message || error).slice(0, 120)}`)",
+    "op": "|| → &&",
+    "reason": "只影响日志文案：appendFileSync 抛的都是带 message 的 Error，测试注入不出没有 message 的错；记账失败本身已由返回 false 钉住"
   }
 ]

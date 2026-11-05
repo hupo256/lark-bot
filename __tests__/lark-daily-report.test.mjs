@@ -131,13 +131,25 @@ const GIT_LINES = [
 ]
 const DIGEST_TEXT = '等你决定的 1 条\n等材料超 24h：\n- 充值弹窗文案要不要改（活动页群）· 18:00'
 const REPORT = ['fameex 日报 · 11-02 周一', '', ...TASK_LINES, '', ...BUG_LINES, '', ...GIT_LINES, '', DIGEST_TEXT].join('\n')
+// 私发那份末尾的线上指标节（批 1.1）：假件给一次当天的放行拍板 + 一单花费，核取数从当天 00:00 起、任务节口径（8 件里没做成 2）进了准那行。
+const LIVE_FACTS = { latency: [], obligations: [], outbox: [], calls: [{ taskId: 'om_live1', at: at(2, 10, 0), usd: 0.42 }], corrections: [], decisions: [{ at: new Date(at(2, 11, 0)).toISOString(), kind: 'release' }] }
+const SCORECARD_LINES = [
+  '线上指标（今天）',
+  '- 准：群里 @bot 0 条，漏回 0、重复回 0、回错人 0；回了「收到」没给结论 0；没做成 2/8',
+  '- 快：没有交付记录',
+  '- 省：1 单共 $0.42，每单中位 $0.42，最贵 $0.42（om_live1）',
+  '- 反馈：纠错 0 条（没处理的共 0）；你拍板 1 次（放行 1、改了再发 0、不做 0、续跑 0、指示 0），直接采纳率 100%',
+]
+const REPORT_DM = `${REPORT}\n\n${SCORECARD_LINES.join('\n')}`
 
 // runDailyReportTask 的假件：记下发送 / 记账 / 回写。
 const harness = ({ state = {}, now = at(2, 19, 5), sendResult = { ok: true, messageId: 'om_daily' }, cli = fakeCli(), git = fakeGit(), config = CONFIG } = {}) => {
   const sends = []
   const saves = []
   const statuses = []
+  const liveSince = []
   const deps = {
+    liveFacts: (sinceMs) => (liveSince.push(sinceMs), LIVE_FACTS),
     readTasks: () => TASKS,
     repo: REPO,
     run: git.run,
@@ -151,7 +163,7 @@ const harness = ({ state = {}, now = at(2, 19, 5), sendResult = { ok: true, mess
     now: () => now,
   }
   const run = (daily, id = 'daily-20261102-a1') => runDailyReportTask({ task: { id, daily }, workerConfig: { localConfig: config }, reportStatus: async (...args) => statuses.push(args), deps })
-  return { run, sends, saves, statuses, deps }
+  return { run, sends, saves, statuses, deps, liveSince }
 }
 const gitFacts = () => collectGitFacts({ repo: REPO, date: DATE, run: fakeGit().run, mtimeOf: () => at(2, 18, 40) })
 
@@ -411,7 +423,8 @@ describe('fameex 日报', () => {
       const old = Object.fromEntries(['10-24', '10-25', '10-26', '10-27', '10-28', '10-29', '10-30'].map((day) => [`2026-${day}`, { at: 'x' }]))
       const h = harness({ state: { sent: old, bugSnapshots: { '2026-11-01': BASELINE } } })
       assert.deepEqual(await h.run({ date: DATE, mode: 'scheduled' }), { status: 'done' })
-      assert.deepEqual(h.sends.map(({ text, kind, idempotencyKey, config }) => [text, kind, idempotencyKey, config]), [[REPORT, 'daily', 'daily-20261102', CONFIG]])
+      assert.deepEqual(h.sends.map(({ text, kind, idempotencyKey, config }) => [text, kind, idempotencyKey, config]), [[REPORT_DM, 'daily', 'daily-20261102', CONFIG]])
+      assert.deepEqual(h.liveSince, [at(2, 0, 0)], '线上指标从当天 00:00 起取数')
       const [saved] = h.saves
       assert.deepEqual(Object.keys(saved.sent), ['2026-10-25', '2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29', '2026-10-30', DATE])
       assert.deepEqual(saved.sent[DATE], { at: iso(2, 19, 5), messageId: 'om_daily' })
@@ -430,7 +443,7 @@ describe('fameex 日报', () => {
       assert.deepEqual([manual.saves.length, manual.statuses[0][0]], [0, 'done'])
       const force = harness({ state })
       await force.run({ date: DATE, mode: 'force' }, 'om_0123456789abcdefghijklmnopqrstuvwxyz')
-      assert.deepEqual(force.sends.map(({ text, idempotencyKey }) => [text, idempotencyKey]), [[REPORT, 'daily-20261102-cdefghijklmnopqrstuvwxyz']])
+      assert.deepEqual(force.sends.map(({ text, idempotencyKey }) => [text, idempotencyKey]), [[REPORT_DM, 'daily-20261102-cdefghijklmnopqrstuvwxyz']])
       assert.deepEqual(force.saves[0].sent[DATE].messageId, 'om_daily')
     }],
     ['runDailyReportTask 群里要的（postTo）：回那条群消息、只带这个群的任务、不带「等你决定的」；那天发过也照发；不记已发', async () => {

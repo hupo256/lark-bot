@@ -57,6 +57,16 @@ launchd 直接运行本仓代码。**往本目录合代码 = 几分钟内上线*
 | `lark-bot clean [hours]` / `clean --failed [hours]` | 清理陈旧终态任务（默认只清 done） |
 | `lark-bot claude-auth [local\|proxy]` | 切换 claude 执行器鉴权（本机钥匙串 / `claude.env` 网关 key），切换后自动重启 |
 
+## 2026-11-05 实战迭代批 1：线上指标、纠错入口、决策日志
+
+离线回放停了，改用线上数据衡量、负责人纠错驱动修复（方案 [docs/plan/plan-iteration-2026-11-05.md](./docs/plan/plan-iteration-2026-11-05.md)）。
+
+| 功能 | 说明 |
+|---|---|
+| 线上指标 | 19:00 日报末尾多一节「线上指标（今天）」：准（@bot 条数、漏回 / 重复回 / 回错人、回了「收到」没给结论、没做成）、快（首句中位、答疑 / 实测结论中位与 P90，对照验收线标 ✅ / ⚠️）、省（每单花费）、反馈（纠错条数、你拍板几次与直接采纳率）。任意天数：`node scripts/lark-metrics.mjs --live --days 7`。口径见 `lib/lark-live-scorecard.mjs` 文件头；分类器一句自答 / 追问现在也记时延 |
+| 纠错入口 | 私信 bot「纠错：<哪里不对、应该怎样>」，或「这条不对 <消息链接 / om_ 消息 id> …」→ 记进 `runtime/lark-corrections.jsonl`（带当时能对上的任务快照），回一句「记下了，纠错第 N 条」。不续跑、不建任务；单说「不对，应该是 508 账号」仍是对上一条通知的补料 |
+| 决策日志 | 你在私信里对 bot 的每次拍板（「就这样回」放行 / 草稿扣着时改了再发 / 不做 / 续跑 / 指示）追加进 `runtime/lark-decisions.jsonl`，是「像不像你」的数据底座（直接采纳率 = 放行 ÷（放行 + 改了再发）） |
+
 ## 2026-11-05 更新：falive 实战回放后上线
 
 用 falive bot 10-14 → 11-03 的 285 个真实 case 离线回放、逐条和 falive 当时对比，分六批修完后上线（60c6230）。同一批 125 个 case 上，lark-bot 更好 54 / falive 更好 23；首句中位 12 秒（falive 47 秒），结论中位 1.4 分钟（falive 4.4 分钟）。过程与逐轮成绩见 [docs/replay/falive-replay-plan-2026-11-03.md](./docs/replay/falive-replay-plan-2026-11-03.md) 第 60–65 条。
@@ -116,7 +126,7 @@ launchd 直接运行本仓代码。**往本目录合代码 = 几分钟内上线*
 
 执行器的选择优先级：任务里的 `[claude]` / `[codex]` / `[pi]` / `[cursor]` 标签 > 配置 `aiExecutor` > 内置默认 `claude`。执行器在入队时锁定。
 
-运行态（均 gitignore）：任务队列 `runtime/lark-tasks/`，附件 `runtime/lark-attachments/<PR>/<messageId>/`，审计 `runtime/lark-audits/<PR>/`。
+运行态（均 gitignore）：任务队列 `runtime/lark-tasks/`，附件 `runtime/lark-attachments/<PR>/<messageId>/`，审计 `runtime/lark-audits/<PR>/`，时延 `runtime/lark-latency.jsonl`，纠错清单 `runtime/lark-corrections.jsonl`，决策日志 `runtime/lark-decisions.jsonl`。
 
 > CLI、plist 和 shim 里写死了 `/Users/aven/...`，本仓目前只面向这一台机器。换机器或换路径时，要同步改 `scripts/lark-bot`、`scripts/lark-bot-shim`、`runtime/*.plist`，或者用 `LARK_BOT_ROOT` 覆盖。
 

@@ -5,6 +5,8 @@
  * 默认读本仓 runtime/lark-audits（所有项目子目录），按 .log 修改时间取最近 N 天（默认 30）。只读，不写任何文件。
  *   node scripts/lark-metrics.mjs --latency [--days N] [--json]
  * 端到端时延（lib/lark-latency，读 runtime/lark-latency.jsonl）：发出 → 回「收到」/ 分类 / 领取 / 执行 / 交付 / 建文档 各段中位与慢的 1/10。
+ *   node scripts/lark-metrics.mjs --live [--days N] [--runtime <目录>] [--json]
+ * 线上指标（lib/lark-live-scorecard，批 1.1，19:00 日报末尾同一份口径）：准 / 快 / 省 / 反馈，默认近 1 天。
  */
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
@@ -12,6 +14,7 @@ import { join } from 'node:path'
 import { formatAuditMetrics, parseAuditLog, summarizeAuditMetrics } from '../lib/lark-audit-metrics.mjs'
 import { larkAuditsRoot, larkLatencyPath } from '../lib/lark-paths.mjs'
 import { formatLatency, readLatency, summarizeLatency } from '../lib/lark-latency.mjs'
+import { buildScorecard, collectLiveFacts, renderScorecard } from '../lib/lark-live-scorecard.mjs'
 
 const argv = process.argv.slice(2)
 const option = (name, fallback) => {
@@ -21,6 +24,13 @@ const option = (name, fallback) => {
 const root = option('--dir', larkAuditsRoot)
 const days = Number(option('--days', '30'))
 const since = Date.now() - days * 86_400_000
+if (argv.includes('--live')) {
+  const liveDays = Number(option('--days', '1'))
+  const range = { fromMs: Date.now() - liveDays * 86_400_000, toMs: Date.now() + 1 }
+  const card = buildScorecard({ range, ...collectLiveFacts({ runtimeDir: option('--runtime', null), sinceMs: range.fromMs }) })
+  console.log(argv.includes('--json') ? JSON.stringify(card, null, 2) : renderScorecard(card, { title: `线上指标（近 ${liveDays} 天）` }).join('\n'))
+  process.exit(0)
+}
 if (argv.includes('--latency')) {
   const summary = summarizeLatency(readLatency({ path: option('--file', larkLatencyPath), sinceMs: since }))
   console.log(argv.includes('--json') ? JSON.stringify(summary, null, 2) : formatLatency(summary))

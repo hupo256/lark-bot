@@ -18,10 +18,11 @@
  *   录放命中（ai-cache 命中，回放的是录时 stdout）实际花 0，「等价花费」照算录时的数；本轮实花 = 等价 − 命中。
  *   falive 侧同法读 ~/github/lark-bot-falive/runtime/lark-audits（10-27 起才有）；在 falive 审计覆盖期内、且至少一边花了钱的 case 上比中位数与合计。
  */
-import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
+import { auditCalls, parseCostLog, sessionIncrements } from '../../lib/lark-audit-cost.mjs'
 import { collapseVerdicts, simLimitOf } from './acceptance.mjs'
 import { isAck } from './case-context.mjs'
 import { cacheRoot } from './claude-cache.mjs'
@@ -49,58 +50,8 @@ export const median = (values) => {
 }
 export const summarize = (values) => ({ n: values.length, median: median(values), p90: quantile(values, 0.9), total: values.reduce((a, b) => a + b, 0) })
 
-// —— 花费 ——
-/** 审计日志里每次调用的结果行：{ at, order, session, total }。分段头「=== <ISO> <executor> <kind> ===」给时间。 */
-export const parseCostLog = (text) => {
-  const out = []
-  let at = 0
-  let kind = null
-  let order = 0
-  const seen = new Set()
-  for (const line of String(text || '').split('\n')) {
-    const head = line.match(/^=== (\S+) \S+ (\S+)/)
-    if (head) { at = Date.parse(head[1]) || at; kind = head[2]; continue }
-    if (!line.startsWith('{') || !line.includes('"total_cost_usd"')) continue
-    let ev
-    try { ev = JSON.parse(line) } catch { continue }
-    if (typeof ev.total_cost_usd !== 'number') continue
-    const session = ev.session_id || null
-    const key = `${session}|${ev.total_cost_usd}`
-    if (seen.has(key)) continue // 同一份日志里同一结果写了两遍
-    seen.add(key)
-    out.push({ at, order: order++, kind, session, total: ev.total_cost_usd })
-  }
-  return out
-}
-
-/** 按会话累计取增量：events 带 taskId，跨任务 / 跨代同一会话也接得上。返回带 usd（本次增量）的 events，按时间排好。 */
-export const sessionIncrements = (events) => {
-  const sorted = [...events].sort((a, b) => a.at - b.at || a.fileOrder - b.fileOrder || a.order - b.order)
-  const last = new Map()
-  return sorted.map((e) => {
-    const prev = e.session ? last.get(e.session) : undefined
-    const usd = prev != null && e.total >= prev ? e.total - prev : e.total
-    if (e.session) last.set(e.session, Math.max(prev ?? 0, e.total))
-    return { ...e, usd }
-  })
-}
-
-const subdirs = (dir) => (existsSync(dir) ? readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => join(dir, d.name)) : [])
-
-/** 一个审计根目录下全部 .log 的调用（带 taskId），已按会话取增量。 */
-export const auditCalls = (auditsRoot) => {
-  const events = []
-  let fileOrder = 0
-  for (const projectDir of subdirs(auditsRoot)) {
-    for (const f of readdirSync(projectDir).sort()) {
-      const m = f.match(/^(.*)-e(\d+)\.log$/)
-      if (!m) continue
-      fileOrder += 1
-      for (const e of parseCostLog(readFileSync(join(projectDir, f), 'utf8'))) events.push({ ...e, taskId: m[1], epoch: Number(m[2]), fileOrder })
-    }
-  }
-  return sessionIncrements(events)
-}
+// —— 花费 ——（解析与按会话取增量在 lib/lark-audit-cost.mjs，线上指标共用）
+export { auditCalls, parseCostLog, sessionIncrements }
 
 /**
  * 录放命中立刻回放（没设 SIM_AI_CACHE_HIT_DELAY=orig）省掉的录时耗时，按任务汇总：ai-cache.log 的命中行「耗时 Nms 原耗时 Mms」，

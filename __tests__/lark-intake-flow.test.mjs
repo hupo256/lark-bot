@@ -469,7 +469,10 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
         deliverHeldGroupReply: async (args) => { releases.push(args.task.id); return releaseResult },
         downloadAttachments: async (args) => { downloads.push(args); return [{ type: 'image', imageKey: 'dl', localPath: '/x' }] },
         resolveAnchor: () => anchor,
+        appendDecision: (record) => { decisions.push(record); return true },
       }
+      const decisions = []
+      const lastDecision = () => { const d = decisions.at(-1); return d && [d.kind, d.taskId, d.draft ?? null] }
       const msg = (text, extra = {}) => ({ messageId: 'om_p', chatId: 'oc_p2p', chatType: 'p2p', senderOpenId: 'ou_aven', senderType: 'user', text, mentions: [], attachments: [], ...extra })
       const run = (text, extra) => maybeHandlePrincipalChannel({ msg: msg(text, extra), config, store, deps })
       assert.equal(await run('已部署', { chatType: 'group', chatId: 'oc_g' }), false, '群里的不走主通道')
@@ -515,9 +518,12 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       noteHeld({ task: held, text: '草稿' })
       assert.equal(await run('就这样回'), true)
       assert.deepEqual([releases, notes.pop()], [['om_h'], { config, store, text: '已按原文回群（登录页报错）。', taskId: 'om_h', kind: 'private', idempotencyKey: 'om_p-pn' }])
+      assert.deepEqual(lastDecision(), ['release', 'om_h', '草稿'], '决策日志：放行草稿 = 直接采纳，记下草稿原文')
+      const decisionsBefore = decisions.length
       releaseResult = { ok: false, reason: '撤回了' }
       assert.equal(await run('就这样回'), true)
       assert.equal(notes.pop().text, '没发出去：撤回了。')
+      assert.equal(decisions.length, decisionsBefore, '没发出去不记放行')
       releaseResult = { ok: false }
       await run('就这样回')
       assert.equal(notes.pop().text, '没发出去：找不到要发的群。')
@@ -540,6 +546,7 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       assert.equal(await run('不是'), true)
       assert.deepEqual([store.get('om_sus1').status, store.get('om_sus1').closureReason, store.get('om_sus1').externalResolution.operator, store.get('om_sus1').externalResolution.messageId, resumes.length], ['superseded', 'cancelled', 'ou_aven', 'om_p', 0], '否定 → 结单，不续跑')
       assert.deepEqual(notes.pop(), { config, store, text: '好，「登录页报错」取消了，不再做。', taskId: 'om_sus1', kind: 'private', idempotencyKey: 'om_p-pn' })
+      assert.deepEqual(lastDecision(), ['decline', 'om_sus1', null])
       const blocked = store.upsert({ id: 'om_blk1', status: 'blocked', chatId: 'oc_g', summary: '充值页', text: '充值页', createdAt: iso(now) })
       anchor = { task: blocked, via: 'reply' }
       assert.equal(await run('不用做了'), true)
@@ -548,7 +555,9 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       anchor = { task: ask, via: 'recent' }
       assert.equal(await run('先别做了吧？'), true)
       assert.deepEqual([store.get('om_ask1').status, resumes.length, notes.pop().text], ['waiting_confirmation', 0, '这句像是不做了，我拿不准，先没动「导出按钮」。不做回「取消任务 om_ask1」；要做回「继续任务 om_ask1 做」。'])
+      assert.deepEqual(lastDecision(), ['decline', 'om_blk1', null], '拿不准只问一句：不记拍板')
       assert.equal(await run('是'), true)
+      assert.deepEqual(lastDecision(), ['resume', 'om_ask1', null])
       assert.deepEqual([resumes.pop().parentTask.taskId, store.get('om_ask1').status], ['om_ask1', 'waiting_confirmation'], '肯定 → 照旧续跑（续跑本身由 handleResume 桩接）')
       anchor = { task: ask, via: 'explicit', directive: { taskId: 'om_ask1', supplementText: '不做了' } }
       assert.equal(await run('继续任务 om_ask1 不做了'), true)
@@ -629,6 +638,11 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       const created = store.get('om_p')
       assert.deepEqual([created.status, created.chatId, created.operator, created.commandType, created.commandTypeSource, created.privateOrigin.anchorId, created.attachments.map((a) => a.imageKey)], ['received', 'oc_g', 'ou_qa', 'fix', 'explicit', 'om_d', ['dl', 'g']])
       assert.deepEqual(notes.pop(), { config, store, text: '收到，当作对「导出按钮」这条的指示处理；不是这条就回「取消任务 om_p」。', taskId: 'om_p', kind: 'ack', idempotencyKey: 'om_p-pn' })
+      assert.deepEqual(lastDecision(), ['instruct', 'om_d', null], '没扣草稿的单下指示 = 普通指示')
+      noteHeld({ task: doneTask, text: '扣下的草稿' })
+      assert.equal(await run('改成先道歉再说原因', { messageId: 'om_rv' }), true)
+      assert.deepEqual(lastDecision(), ['revise', 'om_d', '扣下的草稿'], '草稿扣着时给指示 = 改了再发（直接采纳率的分母）')
+      clearHeldDraft({ task: doneTask })
       anchor = { task: { ...doneTask, id: 'om_d2', project: null }, via: 'recent' }
       assert.equal(await run('没附件', { messageId: 'om_p2', attachments: undefined }), true)
       assert.deepEqual([downloads.at(-1), store.get('om_p2').commandType], [{ project: 'PR-01947', messageId: 'om_p2', attachments: [] }, null])
@@ -824,8 +838,11 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
         said.length = 0
         delivered.length = 0
         logs.length = 0
-        return handleIntakeResolution({ config: cfg, store: st, id: 'om_me', body, deliverTo, deps })
+        return handleIntakeResolution({ config: cfg, store: st, id: 'om_me', body, deliverTo, latencyPath: latPath, deps })
       }
+      // 分类器自答 / 追问发出去才记时延（批 1.1）；没发出去不记
+      let latPath = null
+      const latIds = () => (existsSync(latPath) ? readFileSync(latPath, 'utf8').trim().split('\n').map((line) => JSON.parse(line)).map((r) => [r.id, r.deliverable]) : [])
       const upserts = []
       st.upsert = (task) => { upserts.push(task); return task }
       const body = (extra = {}) => ({ status: 200, body: { ok: true, actionable: false, suspected: false, selfAnswer: false, ...extra } })
@@ -874,6 +891,7 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       assert.deepEqual([getObligation(selfBare).answerText, said[0][1].topic, said[1][1].reply, said[2], logs.at(-1)], ['S', '主题', null, ['deliverFollowUpReply', { config: cfg, store: st, task: selfBare, text: 'S', kind: 'self_answer' }], '[lark-gateway] 分类落地 om_me2：自答（follow_up）：S'])
       // 11-02 复核：分类超过 45s、「收到」已被巡检发了固定句（或被闸按人拦了）→ 答案单独回一条到原消息；发成才记 answered
       ackLive = false
+      latPath = join(root, 'latency-self.jsonl')
       const selfLate = task({ id: 'om_me3', status: 'answered', result: 'R' })
       assert.deepEqual(await run({ ok: true, selfAnswer: true, task: selfLate }), body({ selfAnswer: true, answered: true }))
       assert.deepEqual([said.slice(1), getObligation(selfLate).state, logs.at(-1)], [[['flushPendingAck', { config: cfg, store: st, task: selfLate, reply: 'R', send: true, reason: 'self_answer' }], ['deliverFollowUpReply', { config: cfg, store: st, task: selfLate, text: 'R', kind: 'self_answer' }]], 'answered', '[lark-gateway] 分类落地 om_me3：自答（follow_up）：R'])
@@ -881,6 +899,8 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       const selfGated = task({ id: 'om_me4', status: 'answered', result: 'R' })
       assert.deepEqual(await run({ ok: true, selfAnswer: true, task: selfGated }), body({ selfAnswer: true, answered: false }))
       assert.deepEqual([getObligation(selfGated), logs.at(-1)], [null, '[lark-gateway] 分类落地 om_me4：自答没发出去（出口闸拦下：同内容），义务留着：R'], '没发出去不记 answered')
+      assert.deepEqual(latIds(), [['om_me3', 'self_answer']], '自答发出去记时延，没发出去不记')
+      latPath = null
       ackLive = true
       followUpOk = true
       // 已落过：重放只在仍在队列 / 在跑且 actionable 时重发开跑
@@ -949,6 +969,7 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       assert.deepEqual([said[1], said.length, logs.at(-1)], [['flushPendingAck', { config: cfg, store: st, task: ask, reply: 'R', send: true, reason: 'ask_back' }], 2, '[lark-gateway] 分类落地 om_me：负责人的话拿不准，先追问（ack）：R'])
       // 11-02 复核：「收到」已发过固定句 → 追问单独回一条；发不出去记在任务上（askBackUndelivered），不假装问过
       ackLive = false
+      latPath = join(root, 'latency-ask.jsonl')
       const askLate = task({ id: 'om_ask2', status: 'waiting_confirmation', fromPrincipal: true, result: 'Q' }, cls({ reply: null }))
       assert.deepEqual(await run({ ok: true, askBack: true, task: askLate }), body({ askBack: true, asked: true }))
       assert.deepEqual([said[2], 'askBackUndelivered' in askLate, logs.at(-1)], [['deliverFollowUpReply', { config: cfg, store: st, task: askLate, text: 'Q', kind: 'ask_back' }], false, '[lark-gateway] 分类落地 om_ask2：负责人的话拿不准，先追问（follow_up）：Q'])
@@ -956,6 +977,8 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       const askGated = task({ id: 'om_ask3', status: 'waiting_confirmation', fromPrincipal: true })
       assert.deepEqual(await run({ ok: true, askBack: true, task: askGated }), body({ askBack: true, asked: false }))
       assert.deepEqual([askGated.askBackUndelivered.reason, upserts.at(-1), logs.at(-1)], ['出口闸拦下：同内容', askGated, '[lark-gateway] 分类落地 om_ask3：追问没发出去（出口闸拦下：同内容）：R'])
+      assert.deepEqual(latIds(), [['om_ask2', 'ask_back']], '追问发出去记时延，没发出去不记')
+      latPath = null
       ackLive = true
       followUpOk = true
       const sus = task({ status: 'waiting_confirmation', suspected: true }, cls({ decision: 'bug', confidence: 'low' }))
