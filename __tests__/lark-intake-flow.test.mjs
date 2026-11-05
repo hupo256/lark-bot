@@ -1223,6 +1223,8 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
       await ingestLarkEvent({ raw: event('om_j', '导出也有这个问题', { sender: 'ou_j', reply_to: 'om_rc' }), config, store })
       const j = store.get('om_j')
       assert.deepEqual([j.intake.trigger, j.intake.anchorTaskId, j.addressedToBot, j.intake.lane, j.quotedOwnCard, Boolean(j.ackPending)], ['bot_reply', 'om_old', true, 'fast', true, true])
+      const jWait = Date.parse(j.ackPending.deadline) - Date.parse(j.ackPending.at)
+      assert.ok(jWait >= intakeTiming(config).maxWaitMs && jWait < intakeTiming(config).maxWaitMs + 1000, `回卡没 @ bot：「收到」兜底等到慢道上限（b4 c7683910）：${jWait}`)
     }],
     ['project-chat-sync：parseBotAddedEvent 两种信封；handleBotAddedEvent 外部群不绑、进群同步、配了问候才说', async () => {
       await eachCase([
