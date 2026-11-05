@@ -788,6 +788,9 @@ describe('parseCommandType', () => {
     assert.equal(classifyClosureIntent('已经有人在改了').intent, 'close')
     assert.equal(classifyClosureIntent('走线下处理了').intent, 'close')
     assert.equal(classifyClosureIntent('不用继续做了').intent, 'close') // 否定+继续=停，不算 partial
+    // b4 a9c28669：处理好了、要我们重来一遍的不是结单；被否掉的照旧结单
+    for (const text of ['404问题已经处理，请重新尝试接入', '已修复，麻烦再测一下', '已上线，帮忙复测', '解决了，retest please']) assert.equal(classifyClosureIntent(text).intent, null, text)
+    for (const text of ['已修复，不用再测了', '已上线，别再测了', '已解决，不用复测']) assert.equal(classifyClosureIntent(text).intent, 'close', text)
     // 11-04 falive 回放 ep-1021-193c03：Mateo「@Aven.Bot 关闭直播间内的礼物入口，由服务端控制…」是需求补充，原先「关闭」命中 cancelled，
     // 挂起的礼物任务被取消、群里宣布不做。结单动词带产品宾语 / 前面是具体功能名词 → 不是结单（null，按补料 / 新消息走）。
     for (const text of [
