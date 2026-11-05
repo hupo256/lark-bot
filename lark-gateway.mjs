@@ -216,7 +216,8 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   // 审批邮件 → 审批群（11-02，config.mailRelay 路由表；OL 上线附评分）：默认每 2 分钟 mail +triage 拉一次（邮箱主人 user 身份）；
   // 不在本应用里开 mail +watch——它另开的 WebSocket 会分走私信 / @bot 事件（11-02 实测丢了 6 条），见 lib/lark-mail-relay。
   // 拆成独立应用时这里关掉，改跑 scripts/lark-mail-relay.mjs run（见 lib/lark-mail-relay.mjs 头注释）。
-  const mailRelay = startMailRelay({ relay: config.mailRelay })
+  // 连续读收件箱失败（默认 5 次）私信负责人一次、恢复再报一次；收件人可用 mailRelay.alert.openId 另配。
+  const mailRelay = startMailRelay({ relay: config.mailRelay, notifyOpenId: config.notifyOpenId })
 
   // 日志轮转：launchd 把 stdout/stderr 定向到固定文件，进程可连跑数周不重启，日志无上限。
   // 只有 plist 注入了 LARK_LOG_FILE 才生效（前台手跑不截断任何文件）。

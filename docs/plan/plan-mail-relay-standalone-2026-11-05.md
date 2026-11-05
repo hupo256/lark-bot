@@ -27,6 +27,13 @@
 
 ## 2. 需要 aven 先拍板的 3 件事（P2 之前）
 
+**11-05 aven 已定**：
+- D1 = a + 预留 b：目前只给现在这个审批群用，将来开放给别的组——**接口预留好、不写死**（群、路由、评分器、告警收件人、凭证目录、台账都走配置；P1 拆分时按多路由 / 多邮箱实例设计）。
+- D2 = a：用 aven 的邮箱授权。
+- D3 = b：放到常开的 Mac mini 上（Mac mini 服务器化计划 11-01 暂停过，迁移时参照 `docs/mac-mini-migration-2026-10-29.md`；转发是第一个要搬的独立进程）。
+
+原始选项：
+
 | # | 问题 | 选项 | 建议 |
 |---|---|---|---|
 | D1 | 给谁用 | a. 只服务现在这个审批群，拆出来只为稳定；b. 开放给别的组，每组自己的邮件类型 / 群 / 评分 | 先 a，结构按 b 设计（多路由多邮箱） |
@@ -99,7 +106,7 @@
 | 卡片显示「aven 分享」，别的组不认 | D2-b / c |
 | 拆分后两边逻辑分叉 | P1 lark-bot 只 re-export，代码只有一份 |
 
-## 6. 不依赖拆分、可以马上做的
+## 6. 不依赖拆分、可以马上做的（11-05 已做）
 
-1. P4 第 2 条：日志保留真实错误（今天 15 次失败看不出原因），改 `lib/lark-mail-relay.mjs` 的 `catchUpRelay`，约 10 行 + 测试；
-2. P4 第 1 条的简版：连续 5 次拉取失败私信 aven 一次，复用现有私信通道（`sendPrincipalNote`）。
+1. P4 第 2 条：日志保留真实错误。根因：原来记 `stderr || stdout`，lark-cli 每次都在 stderr 打「tip: … confirm your email identity」，stdout 里的 JSON error 从没记下来。现在 `relayFailureText`：结构化 error 优先、stderr 去掉 tip 行、带退出码。
+2. P4 第 1 条的简版：poll 模式连续 `mailRelay.alert.afterFailures`（默认 5）轮读收件箱失败，私信 `mailRelay.alert.openId`（没配用 `notifyOpenId`）一次，带最近错误；恢复后再报一次。发信走引擎自己的 lark-cli 调用器（bot 身份），拆成独立应用后自动换成新应用的 bot，不依赖网关的私信通道。

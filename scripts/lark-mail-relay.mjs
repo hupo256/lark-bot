@@ -59,7 +59,8 @@ if (command === 'check') {
     console.error('mailRelay.enabled 不是 true，不启动')
     process.exit(1)
   }
-  const relayRun = startMailRelay({ relay })
+  // 告警收件人：mailRelay.alert.openId，没配就用整份配置里的 notifyOpenId（--config 给的是 lark-bot 配置时）。
+  const relayRun = startMailRelay({ relay, notifyOpenId: loaded.notifyOpenId || null })
   const shutdown = () => {
     relayRun.stop()
     process.exit(0)

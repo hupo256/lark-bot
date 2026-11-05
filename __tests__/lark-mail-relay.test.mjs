@@ -10,11 +10,11 @@ import { validateConfig } from '../lib/lark-config.mjs'
 import { startConsumer } from '../lib/lark-consumer.mjs'
 import { headlinePostContent } from '../lib/lark-cli.mjs'
 import { classifyOlKind, hasOlSubject, renderOlScore, scoreOlMail } from '../lib/lark-mail-ol-score.mjs'
-import { RELAY_POLL_MS, RELAY_POLL_OVERLAP_MS, catchUpRelay, createRelayCli, createRelayHandler, fileRelayIo, mailFromWatchLine, pickRoute, relayPollMs, startMailRelay } from '../lib/lark-mail-relay.mjs'
+import { RELAY_ALERT_AFTER_FAILURES, RELAY_POLL_MS, RELAY_POLL_OVERLAP_MS, catchUpRelay, createFailureAlarm, relayAlertSettings, relayFailureText, createRelayCli, createRelayHandler, fileRelayIo, mailFromWatchLine, pickRoute, relayPollMs, startMailRelay } from '../lib/lark-mail-relay.mjs'
 import { forwardMail, renderRelayNote } from '../lib/lark-mail-relay-forward.mjs'
 import { getScorer } from '../lib/lark-mail-relay-presets.mjs'
 import { addressOf, matchRoute, normalizeRoutes, relayChatIds, routeMatches, validateMailRelay } from '../lib/lark-mail-relay-routes.mjs'
-import { runSteps } from './support/steps.mjs'
+import { eachCase, runSteps } from './support/steps.mjs'
 
 // 审批邮件转群（aven 11-02）：OL 上线评分口径（docs/notes/mail-ol-scoring-2026-11-02.md）+ 通用路由 / 转发 / 引擎 / 拆分接口。
 // 正文样本按 11-02 拉的 100 封 OL 邮件里的真实写法缩写。
@@ -152,7 +152,7 @@ describe('审批邮件转群：OL 评分、路由、转发、引擎、拆分接�
     ['配置校验：形状、路由 id 唯一、chatId、预设 / 评分器名、match 各字段与正则、没有任何匹配条件拒收；接进 validateConfig；转发群不自动退群', () => {
       const errorsOf = (relay) => validateMailRelay(relay)
       assert.deepEqual(errorsOf(undefined), [])
-      assert.deepEqual(errorsOf([]), ['mailRelay 必须是对象 { enabled, routes: [...], mode?, pollMs?, cliConfigDir?, stateFile? }'])
+      assert.deepEqual(errorsOf([]), ['mailRelay 必须是对象 { enabled, routes: [...], mode?, pollMs?, alert?, cliConfigDir?, stateFile? }'])
       assert.deepEqual(errorsOf(OL_RELAY), [])
       assert.deepEqual(errorsOf({ enabled: 'y', cliConfigDir: '', stateFile: 3, routes: {} }), ['mailRelay.enabled 必须是 true / false', 'mailRelay.cliConfigDir 必须是非空路径字符串', 'mailRelay.stateFile 必须是非空路径字符串', 'mailRelay.routes 必须是数组'])
       const errors = errorsOf({ routes: [
@@ -184,7 +184,7 @@ describe('审批邮件转群：OL 评分、路由、转发、引擎、拆分接�
         'mailRelay.routes[6].match.firstOnly 必须是 true / false',
         'mailRelay.routes[7] 没有预设也没写 match（subject / from / to 至少一项），会把所有邮件都转出去',
       ])
-      assert.ok(validateConfig({ project: 'PR-01947', mailRelay: [] }).errors.includes('mailRelay 必须是对象 { enabled, routes: [...], mode?, pollMs?, cliConfigDir?, stateFile? }'))
+      assert.ok(validateConfig({ project: 'PR-01947', mailRelay: [] }).errors.includes('mailRelay 必须是对象 { enabled, routes: [...], mode?, pollMs?, alert?, cliConfigDir?, stateFile? }'))
       assert.ok(!validateConfig({ project: 'PR-01947', mailRelay: OL_RELAY }).errors.some((e) => /mailRelay/.test(e)))
       const state = { chats: {} }
       assert.equal(exemptReason({ config: { mailRelay: OL_RELAY }, state, chatId: 'oc_ol' }), '审批邮件转发群')
@@ -282,13 +282,46 @@ describe('审批邮件转群：OL 评分、路由、转发、引擎、拆分接�
       assert.deepEqual(calls[0][0], ['mail', '+triage', '--filter', '{"folder":"INBOX"}', '--max', '100', '--format', 'json'], '补转不限主题：所有路由一起判')
       assert.equal(later.read().checkedAt, '2026-11-02T13:00:00Z')
       const stuck = memIo({ checkedAt: '2026-11-02T10:00:00Z', forwarded: {} })
-      assert.deepEqual(await quiet(() => catchUpRelay({ handler, io: stuck, run: async () => ({ code: 1, stdout: '', stderr: 'HTTP 429' }), now: () => '2026-11-02T13:00:00Z' })), { failed: true })
-      assert.deepEqual(await catchUpRelay({ handler, io: stuck, run: async () => ({ code: 0, stdout: 'not json', stderr: '' }), now: () => '2026-11-02T13:00:00Z' }), { failed: true })
+      assert.deepEqual(await quiet(() => catchUpRelay({ handler, io: stuck, run: async () => ({ code: 1, stdout: '', stderr: 'HTTP 429' }), now: () => '2026-11-02T13:00:00Z' })), { failed: true, error: '退出码 1；HTTP 429' })
+      assert.deepEqual(await quiet(() => catchUpRelay({ handler, io: stuck, run: async () => ({ code: 0, stdout: 'not json', stderr: '' }), now: () => '2026-11-02T13:00:00Z' })), { failed: true, error: '返回不是 JSON：not json' })
       assert.equal(stuck.read().checkedAt, '2026-11-02T10:00:00Z', '读失败不推时钟，下一轮接着补')
       handled.length = 0
       const overlap = memIo({ checkedAt: '2026-11-02T12:00:00Z', forwarded: {} })
       assert.deepEqual(await catchUpRelay({ handler, io: overlap, run, now: () => '2026-11-02T13:00:00Z', overlapMs: 90 * 60_000 }), { checked: 2 })
       assert.deepEqual(handled, ['new1', 'new2'], '往前多看 90 分钟：发信时间早于上次拉取的也补（重复的靠台账去重）')
+    }],
+    ['读收件箱失败的真实原因：结构化 error 优先、stderr 去掉 lark-cli 的 tip 行、带退出码（11-05：15 次失败日志里只剩 tip）', async () => {
+      const TIP = 'tip: run "lark-cli mail user_mailboxes profile --params \'{"user_mailbox_id":"me"}\'" to confirm your email identity'
+      await eachCase([
+        [{ code: 1, stdout: JSON.stringify({ ok: false, error: { type: 'network', subtype: 'transport', message: 'API call failed:\n  dial tcp: lookup open.larksuite.com' } }), stderr: TIP }, '退出码 1；network/transport API call failed: dial tcp: lookup open.larksuite.com'],
+        [{ code: 0, stdout: JSON.stringify({ ok: false, error: { type: 'authorization', code: 99991679, message: 'token expired' } }), stderr: `${TIP}\n` }, 'authorization code 99991679 token expired'],
+        [{ code: 1, stdout: '', stderr: `[lark-cli] [WARN] uat-client: refresh attempt 1/2 failed\n${TIP}` }, '退出码 1；[lark-cli] [WARN] uat-client: refresh attempt 1/2 failed'],
+        [{ code: -1, stdout: '', stderr: '[lark-cli timeout after 60000ms]' }, '退出码 -1；[lark-cli timeout after 60000ms]'],
+        [{ code: 1, stdout: '', stderr: TIP }, '退出码 1'],
+        [{ code: 0, stdout: '', stderr: '' }, '没有输出'],
+        [{}, '没有输出'],
+      ], ([result, want]) => assert.equal(relayFailureText(result), want))
+      assert.equal(relayFailureText({ code: 1, stderr: 'x'.repeat(900) }).length, 400)
+    }],
+    ['拉取失败告警：连续满阈值发一次（带最近错误）、之后不重复、告过警才报恢复、没告过的恢复不说话；收件人 alert.openId 优先、阈值缺省 5', () => {
+      const alarm = createFailureAlarm({ afterFailures: 3 })
+      const at = (m) => new Date(2026, 10, 5, 9, m).toISOString()
+      const said = [1, 2, 3, 4].map((m) => alarm.observe({ at: at(m), failed: true, error: `e${m}` }))
+      assert.deepEqual(said.slice(0, 2), [null, null])
+      assert.equal(said[2], '审批邮件转发：连续 3 次读收件箱失败（09:01 起），新邮件暂时转不进群；恢复后会自动补转这段时间的。\n最近一次错误：e3')
+      assert.equal(said[3], null, '告过警不再重复')
+      assert.deepEqual(alarm.state(), { count: 4, since: at(1), alerted: true })
+      assert.equal(alarm.observe({ at: at(9), checked: 2 }), '审批邮件转发恢复了：09:01 起连续失败 4 次，这段时间的邮件会自动补转。')
+      assert.deepEqual(alarm.state(), { count: 0, since: null, alerted: false })
+      assert.equal(alarm.observe({ at: at(10), failed: true }), null)
+      assert.equal(alarm.observe({ at: at(11), skipped: 'first-run' }), null, '没告过警的恢复不说话')
+      assert.equal(createFailureAlarm().observe({ at: at(1), failed: true }), null)
+      assert.deepEqual(relayAlertSettings({}, 'ou_me'), { openId: 'ou_me', afterFailures: RELAY_ALERT_AFTER_FAILURES })
+      assert.deepEqual(relayAlertSettings({ alert: { openId: 'ou_ops', afterFailures: 3 } }, 'ou_me'), { openId: 'ou_ops', afterFailures: 3 })
+      assert.deepEqual(relayAlertSettings({ alert: { afterFailures: 0 } }), { openId: null, afterFailures: 5 })
+      assert.deepEqual(validateMailRelay({ ...OL_RELAY, alert: { openId: 'ou_ops', afterFailures: 3 } }), [])
+      assert.deepEqual(validateMailRelay({ ...OL_RELAY, alert: [] }), ['mailRelay.alert 必须是对象 { openId?, afterFailures? }'])
+      assert.deepEqual(validateMailRelay({ ...OL_RELAY, alert: { openId: 'oc_x', afterFailures: 1.5 } }), ['mailRelay.alert.openId 必须是 open_id（ou_ 开头）', 'mailRelay.alert.afterFailures 必须是正整数'])
     }],
     ['台账文件：读坏 / 字段不对当空表、写后可读、无路径不落盘、写失败不抛；startConsumer 自定义命令与启动器照传', async () => {
       const dir = mkdtempSync(join(tmpdir(), 'mail-relay-'))
@@ -357,7 +390,24 @@ describe('审批邮件转群：OL 评分、路由、转发、引擎、拆分接�
       assert.equal(calls.length, 2)
       const failing = await quiet(() => startMailRelay({ relay: OL_RELAY, io, cli, consume, catchUp: async () => { throw new Error('boom') }, schedule: () => null }))
       await new Promise((resolve) => setImmediate(resolve))
-      assert.equal(failing.observe().last.failed, true, '拉取抛错记一笔、不炸')
+      assert.deepEqual([failing.observe().last.failed, failing.observe().last.error, failing.observe().failures.count], [true, 'boom', 1], '拉取抛错记一笔、不炸、计入连续失败')
+      // 告警接线：连续 2 次失败（alert.afterFailures=2）私信一次，恢复再报一次；默认发信走本引擎的 lark-cli（bot 身份）私信 alert.openId，发信失败不炸。
+      const outcomes = [{ failed: true, error: 'e1' }, { failed: true, error: 'e2' }, { failed: true, error: 'e3' }, { checked: 0 }]
+      const sends = []
+      const alertCli = { run: async (args, options = {}) => (sends.push([args, options]), { code: 0, stdout: '{"ok":true,"data":{"message_id":"om_alert"}}', stderr: '' }), env: {} }
+      const alertTimers = []
+      const alerting = await quiet(() => startMailRelay({ relay: { ...OL_RELAY, alert: { afterFailures: 2 } }, notifyOpenId: 'ou_me', io, cli: alertCli, consume, catchUp: async () => outcomes.shift(), schedule: (fn) => { alertTimers.push(fn); return null } }))
+      await new Promise((resolve) => setImmediate(resolve))
+      for (let round = 0; round < 3; round += 1) await quiet(() => alertTimers[0]())
+      assert.equal(sends.length, 2, '满 2 次发一次、第 3 次不重复、恢复发一次')
+      assert.deepEqual([sends[0][0].slice(0, 4), sends[0][1].identity], [['im', '+messages-send', '--user-id', 'ou_me'], undefined])
+      assert.match(sends[0][0].join(' '), /连续 2 次读收件箱失败.*最近一次错误：e2/s)
+      assert.match(sends[1][0].join(' '), /审批邮件转发恢复了：.*连续失败 3 次/)
+      const noted = []
+      const injected = await quiet(() => startMailRelay({ relay: { ...OL_RELAY, alert: { afterFailures: 1 } }, io, cli, consume, notify: async (text) => { noted.push(text); throw new Error('send down') }, catchUp: async () => ({ failed: true, error: 'x' }), schedule: () => null }))
+      await new Promise((resolve) => setImmediate(resolve))
+      assert.equal(noted.length, 1, '注入的 notify 被调用；抛错不炸')
+      assert.equal(injected.observe().failures.alerted, true)
       assert.deepEqual([relayPollMs({}), relayPollMs({ pollMs: 1000 }), relayPollMs({ pollMs: 300_000 }), relayPollMs({ pollMs: 'x' }), relayPollMs(null), relayPollMs({ pollMs: 0 }), relayPollMs({ pollMs: -5 }), relayPollMs({ pollMs: Infinity })], [RELAY_POLL_MS, 30_000, 300_000, RELAY_POLL_MS, RELAY_POLL_MS, RELAY_POLL_MS, RELAY_POLL_MS, RELAY_POLL_MS])
       assert.deepEqual(validateMailRelay({ ...OL_RELAY, mode: 'push', pollMs: -1 }), ['mailRelay.mode 只能是 poll（默认，定时拉）/ watch（实时监听，只在独立应用里用）', 'mailRelay.pollMs 必须是正数（毫秒）'])
       assert.deepEqual(validateMailRelay({ ...OL_RELAY, mode: 'watch', pollMs: 60_000 }), [])
