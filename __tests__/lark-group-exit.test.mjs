@@ -201,6 +201,8 @@ describe('群 / 私信唯一出口', () => {
       assert.deepEqual([clipped.length, clipped.endsWith('…'), `${ask}\n${clipped}`.length], [500 - 80 - ask.length - 1, true, 500 - 80])
       assert.equal((await keepGroupTextShort({ text: ['h'.repeat(390), `- ${'r'.repeat(600)}`].join('\n'), title: 't', publish: doc, keepLeading: true })).text, `${'h'.repeat(390)}\n完整内容：https://doc/k`)
       assert.equal((await keepGroupTextShort({ text: ['h'.repeat(379), `- ${'r'.repeat(600)}`].join('\n'), title: 't', publish: doc, keepLeading: true })).text.split('\n')[1], `- ${'r'.repeat(37)}…`, '恰好剩 40 字还留')
+      const exact = `- ${'p'.repeat(500 - 80 - ask.length - 1 - 3)}。`
+      assert.equal((await keepGroupTextShort({ text: [ask, `${exact}${'q'.repeat(300)}`].join('\n'), title: 't', publish: doc, keepLeading: true })).text.split('\n')[1], exact, '头一句恰好放得下不截')
       assert.deepEqual(await publishMarkdownDoc({ title: 't', markdown: '<at user_id="ou_a">A</at> 看 <at id=ou_b></at>x', create: async ({ file, identity, dir }) => ({ ok: readFileSync(join(dir, file), 'utf8') === 'A 看 x' && identity === 'user', url: 'u' }) }), { ok: true, url: 'u', reason: null })
       assert.deepEqual(await publishMarkdownDoc({ title: 't', markdown: 'x', create: async () => ({ ok: false, reason: 'r' }) }), { ok: false, url: null, reason: 'r' })
       assert.deepEqual(await publishMarkdownDoc({ title: 't', markdown: 'x', create: async () => { throw new Error('炸') } }), { ok: false, url: null, reason: '炸' })
