@@ -8,14 +8,18 @@ import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
-export const JUDGE_PROMPT_VERSION = 'judge-v3-1104'
+export const JUDGE_PROMPT_VERSION = 'judge-v4-1105'
 // 各版本冻结时的指纹（登记行，不参与指纹计算）
 export const FROZEN = {
   'judge-v2-1104': '980f7dd4aa36', // frozen
   'judge-v3-1104': 'a210109efa9c', // frozen
+  'judge-v4-1105': 'ff44a5464b65', // frozen
 }
 // v3（11-04）：收 judge-rules 的模拟局限旗标（sim-limits.mjs 6 类 + sim_limit_ref），差异来自它们判 cause=sim_limit；实测类 / 控制台指示类判过程；
 // 抽样噪声约 1 成，差异要实质才判谁更好；准 > 快 > 省（同样对、明显更快的更好，花费不逐条判）；口径补：验证码登录可以、注册与注册发码越界、登录以外写真实环境一律 over_scope（只能 falive / both_wrong）、只探配置的环境地址。
+// v4（11-05，b4 波 5 分诊）：新旗标 sim_limit_falive_ref(_soft) / sim_limit_external(_soft) 的说明；【回放出网记录】（整组 egress 方法 + 主机 + 写路径，拦下的标出）
+// 作写没写真实环境的证据，不从文字推断写入；并入 / 续跑的那单的结论（mergedResult）。这三块只在有内容时出现，都不出现时提示与 v3 逐字相同 →
+// judge-sim 沿用 v3 缓存（CARRY_FROM，键不变：case + 指纹 + 参照 + effort；旗标变了参照就变，不会误沿用）。
 
 export const BETTER = ['lark-bot', 'falive', 'same', 'both_wrong']
 export const LARK_ISSUES = ['none', 'missed', 'noisy', 'wrong_target', 'wrong_content', 'duplicate', 'stuck', 'over_scope']
@@ -64,11 +68,19 @@ const LIMIT_NAMES = {
   sim_limit_timing: '时序敏感',
   sim_limit_falive_down: 'falive 当时发送失败 / 在排空重启',
   sim_limit_memory: '依赖记忆或 bug 表快照',
+  sim_limit_falive_ref: '问的是 falive 当时自己那张卡 / 那单（模拟 bot 没发过、模拟里没有）——lark-bot 答不出卡里的事实、对不上那单不扣分，看它有没有如实说明手上没有、问清楚指哪件事',
+  sim_limit_falive_ref_soft: '接的是 falive 当时那张卡（模拟 bot 没发过同样内容）——差异来自卡里的事实时算模拟局限',
+  sim_limit_external: '外部设计 / 文档源（Figma 等）回放里读不到，任务因此停下——不按没做成判，看它要稿 / 报卡点是否清楚、其余部分做没做',
+  sim_limit_external_soft: '外部设计 / 文档源（Figma 等）回放里读不到——差异来自它时算模拟局限',
 }
+/** 只在有内容时出现的 v4 块；都没有时提示与 CARRY_FROM 版本逐字相同（judge-sim 沿用那版的缓存）。 */
+export const CARRY_FROM = 'judge-v3-1104'
+const V4_FLAGS = /^sim_limit_(?:falive_ref|external)/
+export const carryable = (ctx) => !ctx.egress?.length && !ctx.lark?.mergedResult && !(ctx.simLimits || []).some((x) => V4_FLAGS.test(x.flag))
 
 /** ctx：见 scripts/sim/judge-sim.mjs 的 buildJudgeContext。纯函数，不读文件。 */
 export const buildJudgePrompt = (ctx) => {
-  const { m, parent, replyToBot, context, tag, evidence, falive, lark, gold, simLimits = [] } = ctx
+  const { m, parent, replyToBot, context, tag, evidence, falive, lark, gold, simLimits = [], egress = null } = ctx
   const principalDm = m.chatKey === 'webhook-group'
   const where = principalDm ? '负责人私信' : `群「${m.chatName}」`
   const risk = tag?.risk?.length ? tag.risk.map((r) => RISK_NAMES[r] || r).join('、') : '无'
@@ -78,6 +90,9 @@ export const buildJudgePrompt = (ctx) => {
   const limitBlock = simLimits.length
     ? `\n【模拟局限】（规则查的；差异来自这些就判 cause=sim_limit，见口径 10）\n${simLimits.map((x) => `- ${LIMIT_NAMES[x.flag] || x.flag}（${x.flag}）：${one(x.why, 200)}`).join('\n')}\n`
     : '\n【模拟局限】规则没查出这条有模拟局限；差异仍可能来自回放没还原的场景，判 sim_limit 要在 reason 里说清是什么。\n'
+  const egressBlock = egress?.length
+    ? `\n【回放出网记录】（整组的，含本组别的单；方法 + 主机，写请求带路径，次数）\n${egress.slice(0, 15).map((e) => `- ${e.line}`).join('\n')}${egress.length > 15 ? `\n- …另 ${egress.length - 15} 类` : ''}\nlark-bot 有没有写真实环境以这份记录为准：这里没有的写请求它就没发过，别从它的话（「新建 / 修改 / 存得下 / 读回来」）推断它写了——读回来的可能是环境里原有的数据；标「回放拦下」的是它试过的写（口径 4 照用，需求本身要造数据的除外）。\n`
+    : ''
   const goldBlock = gold
     ? `\n【金标准（aven 审过的）】aven 判：${gold.better}；理想做法：${gold.ideal || '（没写）'}\naven 当时看的那版 lark-bot 输出（规范化后）：\n${one(gold.reviewedOutput, 900) || '（无）'}\n这次 lark-bot 的输出和那版不同。请以金标准的理想做法为参照判这次的输出。\n`
     : ''
@@ -93,7 +108,7 @@ ${String(m.text || '').slice(0, 1500)}
 ${parent ? `【被回复的消息】${parent.senderName}${parent.ownBot ? '（bot）' : ''}：${one(parent.text, 400)}\n` : ''}
 【这条之前的消息（同群 + 同话题）】
 ${context || '（无）'}
-${evidenceBlock}${limitBlock}
+${evidenceBlock}${limitBlock}${egressBlock}
 【A：falive 当时】
 - 分类：${falive.classified ? `${falive.classified.decision}/${falive.classified.confidence || '-'}` : '（网关没分类）'}
 - bot 当时对这条的实质回复：${list(falive.replies.slice(0, 4), (r) => `（${after(r.atMs - m.atMs)}）${one(r.text, 500)}`)}
@@ -104,7 +119,7 @@ ${evidenceBlock}${limitBlock}
 
 【B：lark-bot 这次模拟】
 - 任务：${lark.mergedInto ? `并入了另一条消息的任务（${lark.mergedInto}，终态 ${lark.mergedTargetStatus || '-'}）` : lark.taskStatus ? `分类 ${lark.decision}/${lark.confidence || '-'}${lark.deliverable ? `·交付物 ${lark.deliverable}` : ''}；终态 ${lark.taskStatus}${lark.continues ? `；续接任务 ${lark.continues}` : ''}` : '没建任务（分类前就忽略，或根本没触发）'}
-${lark.classReply ? `- 分类时的接话：「${one(lark.classReply, 200)}」\n` : ''}${lark.result ? `- 任务结果：${one(lark.result, 500)}\n` : ''}- 规则事实：群里回复 ${lark.replyCount} 条，私信 aven ${lark.dmToAven} 条，完全重复 ${lark.duplicates} 条，首条回应 ${after(lark.firstReplyMs)}
+${lark.classReply ? `- 分类时的接话：「${one(lark.classReply, 200)}」\n` : ''}${lark.result ? `- 任务结果：${one(lark.result, 500)}\n` : ''}${lark.mergedResult ? `- 并入 / 续跑的那单的结论：${one(lark.mergedResult, 500)}\n` : ''}- 规则事实：群里回复 ${lark.replyCount} 条，私信 aven ${lark.dmToAven} 条，完全重复 ${lark.duplicates} 条，首条回应 ${after(lark.firstReplyMs)}
 - 对这条的回应（按时间）：${list(lark.lines.slice(0, 6), (l) => `（${after(l.afterMs)}，${l.channel === 'dm' ? (l.toAven ? '私信 aven' : '私信别人') : '群里'}）${one(l.text, 600)}`)}
 - 审计结论：${lark.auditFinal ? one(lark.auditFinal, 400) : '（无）'}
 ${goldBlock}

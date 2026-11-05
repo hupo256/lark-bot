@@ -8,9 +8,9 @@ import { describe, it } from 'node:test'
 import { collapseVerdicts, evaluateAcceptance, simLimitOf } from '../scripts/sim/acceptance.mjs'
 import { goldRefOf, lookupVerdict, storeVerdict, withLimitsRef } from '../scripts/sim/judge-cache.mjs'
 import { CHOICES, mergeGold, parseReviewMd, renderReviewItem, selectForReview } from '../scripts/sim/gold.mjs'
-import { JUDGE_PROMPT_VERSION, JUDGE_SCHEMA, assertPromptFrozen, buildJudgePrompt } from '../scripts/sim/judge-prompt.mjs'
-import { attributeOutbox, larkFacts, normalizeOutputText, ruleFlags } from '../scripts/sim/judge-rules.mjs'
-import { faliveAnchorsOf, parseFaliveDown, simLimitsOf } from '../scripts/sim/sim-limits.mjs'
+import { JUDGE_PROMPT_VERSION, JUDGE_SCHEMA, assertPromptFrozen, buildJudgePrompt, carryable } from '../scripts/sim/judge-prompt.mjs'
+import { attributeOutbox, egressEvidenceOf, egressRelevant, larkFacts, normalizeOutputText, resumedTaskOf, ruleFlags } from '../scripts/sim/judge-rules.mjs'
+import { externalLimitOf, faliveAnchorsOf, faliveRefOf, parseFaliveDown, refFactsOf, simLimitsOf } from '../scripts/sim/sim-limits.mjs'
 import { runSteps } from './support/steps.mjs'
 
 const AVEN = 'ou_91861d6da6cf6822e08045ba1868241e'
@@ -47,6 +47,23 @@ describe('回放裁判链路（P0-g）', () => {
       assert.deepEqual(byCase.get(a.id).map((o) => o.id), ['om_sim1', 'om_sim2', 'om_sim3', 'om_sim5'])
       assert.deepEqual(byCase.get(b.id).map((o) => o.id), ['om_sim4'])
       assert.deepEqual(orphans.map((o) => o.id), ['om_sim6'])
+      // 任务链优先于正文点名 / 时间窗（b4 93d62945：私信列了候选任务的 id；742acdf9：并入单的私信 ✅ 按时间窗归错）
+      const c = msg('om_x100b0000000000000000000000000c3', T0 + 20 * 60_000, 'oc_hook')
+      const tasks = new Map([['om_x100b00000000000000000000000f4', { id: 'om_x100b00000000000000000000000f4', supersededBy: 'om_x100b0000000000000000000000000e9', answerFor: [b.id] }]])
+      const chain = attributeOutbox({
+        cases: [a, b, c], tasks, webhookChatId: 'oc_hook',
+        outbox: [
+          out('om_sim7', T0 + 21 * 60_000, { kind: 'send', chatId: AVEN, userId: AVEN, text: `是不是这条：继续任务 ${a.id}`, idempotencyKey: `${c.id}-pn` }),
+          out('om_sim8', T0 + 22 * 60_000, { kind: 'send', chatId: AVEN, userId: AVEN, text: '✅ 做完了', idempotencyKey: 'om_x100b00000000000000000000000f4-e2-pn-do' }),
+        ],
+      })
+      assert.deepEqual(chain.byCase.get(c.id).map((o) => o.id), ['om_sim7'])
+      assert.deepEqual(chain.byCase.get(b.id).map((o) => o.id), ['om_sim8'])
+      // 「继续任务 <id>」没建自己的单：点名的任务在模拟里有 → 当并进它
+      const sim = { tasks: new Map([[a.id, {}]]) }
+      assert.equal(resumedTaskOf({ m: { id: 'x', text: `继续任务 ${a.id} 做` }, sim }), a.id)
+      assert.equal(resumedTaskOf({ m: { id: 'x', text: `看下 ${a.id}` }, sim }), null)
+      assert.equal(resumedTaskOf({ m: { id: 'x', text: `继续任务 ${a.id}` }, sim: { tasks: new Map([[a.id, {}], [b.id, {}]]), mergedInto: new Map([[a.id, b.id]]) } }), b.id)
     }],
 
     ['指纹：发件 id 与时间整体平移不变；多一条完全重复的回复就变，并记 duplicates；负责人私信的回应算「回了」', () => {
@@ -93,6 +110,12 @@ describe('回放裁判链路（P0-g）', () => {
       const limited = buildJudgePrompt({ ...ctx, simLimits: [{ flag: 'sim_limit_edited', why: '发出后 8 秒被编辑过' }] })
       assert.ok(limited.includes('触发消息发出后被编辑过（sim_limit_edited）：发出后 8 秒被编辑过'))
       assert.ok(buildJudgePrompt({ ...ctx, gold: { better: 'falive', ideal: '别注册新号', reviewedOutput: 'status=done' } }).includes('理想做法：别注册新号'))
+      // v4 块只在有内容时出现；都没有才可沿用 v3 缓存
+      assert.ok(!prompt.includes('【回放出网记录】') && carryable(ctx))
+      const v4 = buildJudgePrompt({ ...ctx, egress: [{ line: 'GET falivepre.fdsser.com ×30' }], lark: { ...ctx.lark, mergedResult: '范围未定' }, simLimits: [{ flag: 'sim_limit_falive_ref', why: '卡藏了' }] })
+      for (const must of ['【回放出网记录】', 'GET falivepre.fdsser.com ×30', '别从它的话', '并入 / 续跑的那单的结论：范围未定', '问的是 falive 当时自己那张卡']) assert.ok(v4.includes(must), must)
+      assert.equal(carryable({ ...ctx, egress: [{ line: 'x' }] }), false)
+      assert.equal(carryable({ ...ctx, simLimits: [{ flag: 'sim_limit_external_soft', why: 'x' }] }), false)
     }],
     ['同 case + 指纹 + 版本 + 参照才复用；high 判过的不顶 max，max 判过的能顶 high', () => {
       const root = mkdtempSync(join(tmpdir(), 'judge-cache-'))
@@ -216,13 +239,55 @@ describe('回放裁判链路（P0-g）', () => {
       assert.deepEqual(flags(msg(id(21), T0, 'oc_php', { text: '能不能创建帖子' })), [])
     }],
 
+    ['falive 卡引用（旗标 8）：藏了且模拟 bot 没说过卡里事实 → 追问 / 空 @ / 引原句硬、其余软；说过就不算；跟人说的不算；照供的卡只认结束 / 继续任务且那单模拟里没有', () => {
+      const id = (n) => `om_x100b${String(n).padStart(25, '0')}`
+      const card = { id: id(1), ownBot: true, chatId: 'oc_php', atMs: T0, text: '<card> @Arthur hichat_token 调 GET /api/member/profile/my 返回 401，17:39 复测，存「I\'m QA.」读回 「I\'m QA.」 📝 由 aven 的助手整理 </card>' }
+      assert.deepEqual(refFactsOf(card.text).sort(), ['/api/member/profile/my', '17:39', '401', "i'm qa.", 'hichat_token'].sort())
+      const shown = { id: id(2), ownBot: true, chatId: 'oc_hook', atMs: T0, text: '✅ 改动在分支 lark/falive-4d5ce277' }
+      const data = { timeline: [card, shown], groupById: new Map() }
+      const sim = (outbox = []) => ({ meta: { hideBotIds: [card.id] }, outbox, tasks: new Map([['om_x100b0000000000000000000a2a74bb7', {}]]) })
+      const ask = (text, extra = {}) => ({ id: id(9), chatId: 'oc_php', chatKey: 'php-group', atMs: T0 + 60_000, atBot: true, mentions: [], text, ...extra })
+      const ref = (m, s = sim()) => faliveRefOf({ m, sim: s, data })
+      assert.equal(ref(ask('@Aven.Bot 针对这条消息，什么时候调的', { parentId: card.id })).hard, true)
+      assert.match(ref(ask('@Aven.Bot', {})).why, /紧挨着的上一张[\s\S]*空 @/)
+      assert.equal(ref(ask('存「I\'m QA.」读回来还是一样 @Aven.Bot')).hard, true)
+      assert.equal(ref(ask('@Aven.Bot 后端改好了 你再看看', { parentId: card.id })).hard, false)
+      assert.equal(ref(ask('@Aven.Bot 后端改好了 你再看看')), null) // 没回复也没在问那张卡
+      assert.equal(ref(ask('cc @Kaiser', { parentId: card.id, atBot: false, mentions: [{ id: 'ou_kaiser' }] })), null)
+      assert.equal(ref(ask('@Aven.Bot 针对这条消息', { parentId: card.id }), sim([out('om_sim1', T0 + 1000, { text: 'hichat_token 调 /api/member/profile/my 401，17:39' })])), null)
+      const end = (text) => faliveRefOf({ m: { id: id(8), chatId: 'oc_hook', chatKey: 'webhook-group', atMs: T0 + 1000, parentId: shown.id, text, mentions: [] }, sim: sim(), data })
+      assert.match(end('@Aven.Test 结束这个任务').why, /4d5ce277.*模拟里没有/)
+      assert.equal(end('@Aven.Test 好的'), null)
+      assert.deepEqual(simLimitsOf({ m: ask('@Aven.Bot', {}), sim: sim(), data: { ...data, tags: new Map() }, src: { editDelays: new Map(), faliveDown: new Map() } }).map((x) => x.flag), ['sim_limit_falive_ref'])
+    }],
+
+    ['外部设计源（旗标 9）：blocked 且说读不到 Figma → 硬；只提到 / egress 拦了设计站 → 软；裁判出网证据按方法 + 主机计数、写带路径、拦下标出，只给像是写了东西的 case', () => {
+      const blocker = '读不到 Figma 稿 1094-73405：从 bot 这边访问 api.figma.com 被出网限制拦截'
+      assert.equal(externalLimitOf({ task: { status: 'blocked', result: blocker } }).hard, true)
+      assert.equal(externalLimitOf({ task: { status: 'done', result: blocker } }).hard, false)
+      assert.match(externalLimitOf({ egressBlocked: [{ host: 'api.figma.com' }] }).why, /egress 拦了 api\.figma\.com 1 次/)
+      assert.equal(externalLimitOf({ lark: { output: '按设计稿改好了', lines: [] }, task: { status: 'blocked' } }), null)
+      const ev = egressEvidenceOf([
+        { via: 'fetch', method: 'GET', host: 'falivepre.fdsser.com', path: '/a' }, { via: 'fetch', method: 'GET', host: 'falivepre.fdsser.com', path: '/b' },
+        { via: 'fetch', method: 'POST', host: 'falivepre.fdsser.com', path: '/api/user/NewMailLogin' },
+        { via: 'fetch', method: 'POST', host: 'falivepre.fdsser.com', path: '/bbsv2/thread/create', extra: 'blocked' },
+        { via: 'fetch', method: 'POST', host: '127.0.0.1', path: '/lark' }, { via: 'sock', method: 'TCP', host: '1.2.3.4' }, { via: 'fetch', method: 'POST', host: 'www.uniaix.com', path: '/v1/messages' },
+      ])
+      assert.deepEqual(ev.map((x) => x.line), ['GET falivepre.fdsser.com ×2', 'POST falivepre.fdsser.com /api/user/NewMailLogin ×1', 'POST falivepre.fdsser.com /bbsv2/thread/create（回放拦下，没发出） ×1'])
+      assert.equal(egressRelevant({ row: { flags: [], lark: { output: '新建 / 修改时带的介绍存得下' } }, evidence: ev }), true)
+      assert.equal(egressRelevant({ row: { flags: [], lark: { output: '接口回 200' } }, evidence: ev }), false)
+      assert.equal(egressRelevant({ row: { flags: ['sim_limit_testdata'], lark: { output: '' } }, evidence: [] }), false)
+    }],
+
     ['模拟局限不计分：裁判判 sim_limit，或硬旗标（v2 结论一刀切；v3 看过旗标仍归 bot 且变差的照常计分）；软旗标只听裁判；缓存参照接旗标指纹', () => {
       const v3 = (better, cause) => ({ better, cause, promptVersion: 'judge-v3-1104' })
       assert.equal(simLimitOf({ verdict: v3('falive', 'sim_limit'), flags: [] }), '裁判：差异来自模拟局限')
       assert.match(simLimitOf({ verdict: { better: 'falive', cause: 'bot', promptVersion: 'judge-v2-1104' }, flags: ['sim_limit_edited'] }), /sim_limit_edited/)
       assert.equal(simLimitOf({ verdict: v3('falive', 'bot'), flags: ['sim_limit_anchor'] }), null)
       assert.ok(simLimitOf({ verdict: v3('same', 'n/a'), flags: ['sim_limit_anchor'] }))
-      assert.equal(simLimitOf({ verdict: v3('falive', 'bot'), flags: ['sim_limit_verify', 'sim_limit_timing', 'sim_limit_memory'] }), null)
+      assert.equal(simLimitOf({ verdict: v3('falive', 'bot'), flags: ['sim_limit_verify', 'sim_limit_timing', 'sim_limit_memory', 'sim_limit_falive_ref_soft', 'sim_limit_external_soft'] }), null)
+      assert.match(simLimitOf({ verdict: v3('falive', 'env'), flags: ['sim_limit_falive_ref'] }), /sim_limit_falive_ref/)
+      assert.match(simLimitOf({ verdict: v3('both_wrong', 'n/a'), flags: ['sim_limit_external'] }), /sim_limit_external/)
       const current = collapseVerdicts([v('lim', 'falive', { risk: ['permission'], cause: 'sim_limit', promptVersion: 'judge-v3-1104' }), v('ref', 'falive', { promptVersion: 'judge-v2-1104' }), v('reg', 'falive', { cause: 'bot', promptVersion: 'judge-v3-1104', flags: ['sim_limit_verify'] })])
       const rules = new Map([['lim', { id: 'lim', lark: { duplicates: 1 } }], ['ref', { id: 'ref', flags: ['sim_limit_ref'], lark: { duplicates: 0 } }], ['reg', { id: 'reg', flags: ['sim_limit_verify'], lark: { duplicates: 0 } }]])
       const r = evaluateAcceptance({ current, rules, total: 285 })

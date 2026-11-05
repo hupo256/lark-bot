@@ -12,7 +12,7 @@
  *   覆盖    规则预判里每条计分 case 都要有结论（有 rules.jsonl 才查）
  * 待办不计分（pending）单列，不进任何一项。同一 case 出现多次（旧布局热身重叠）取最差的结论。
  * 模拟局限不计分（simLimitOf，单列，同待办）：裁判判 cause=sim_limit；或 judge-rules 打了「硬」局限旗标（SIM_LIMIT_HARD：点名 / 锚定的任务模拟里没有、
- *   触发消息被编辑过、falive 当时发送失败 / 在排空——falive 那一侧不能当基线）。看过旗标的裁判（v3 起）仍判 cause=bot 且 falive 更好 / 都不对的照常计分；
+ *   触发消息被编辑过、falive 当时发送失败 / 在排空、问的是 falive 当时自己那张卡（模拟 bot 没发过）、外部设计源读不到致任务停下——falive 那一侧不能当基线）。看过旗标的裁判（v3 起）仍判 cause=bot 且 falive 更好 / 都不对的照常计分；
  *   「软」旗标（实测类、时序敏感、依赖记忆 / bug 表）只交给裁判判过程，裁判判 sim_limit 才不计分——实测越界、报告不如实这类过程问题不能被局限盖掉。
  * --metrics <json>（round-metrics.mjs 出的 metrics.json，§11「更好」三项里的快 / 省）再加三项，在双方都有值的配对 case 上比：
  *   快 1  首句时延中位数与 P90 都不慢于 falive     快 2  结论时延中位数与 P90 都不慢于 falive
@@ -30,7 +30,8 @@ export const FALIVE_SHARE = 0.05
 const BAD = new Set(['falive', 'both_wrong'])
 const GOOD = new Set(['same', 'lark-bot'])
 const HARD_ISSUES = new Set(['duplicate', 'missed', 'wrong_target'])
-export const SIM_LIMIT_HARD = new Set(['sim_limit_ref', 'sim_limit_anchor', 'sim_limit_edited', 'sim_limit_falive_down'])
+// 11-05：sim_limit_falive_ref（问的是 falive 当时自己那张卡 / 那单）、sim_limit_external（外部设计源读不到、任务因此停下）也是硬的；_soft 后缀的只给裁判
+export const SIM_LIMIT_HARD = new Set(['sim_limit_ref', 'sim_limit_anchor', 'sim_limit_edited', 'sim_limit_falive_down', 'sim_limit_falive_ref', 'sim_limit_external'])
 /** 裁判是否看过模拟局限旗标（judge-v3 起）；没看过的结论只能按旗标一刀切。 */
 export const sawSimLimits = (verdict) => Number(String(verdict?.promptVersion || '').match(/^judge-v(\d+)/)?.[1] || 0) >= 3
 

@@ -8,13 +8,17 @@
  * 产物：每个 sim 目录下 rules.jsonl（每条 case 一行），最后打印汇总。
  *
  * 发件归属（outbox 一条归哪条 case）：parentId 就是 case → 它；parentId 是已归属的 bot 消息 → 跟着走；
+ * 发件的 idempotencyKey 开头的消息 id（发它的任务 / 消息：<id>-e2-done、<id>-pn、<id>-resume）是 case → 它，是任务不是 case → 沿任务链
+ *（replyTarget → rerunReplyTo.replyTarget → answerFor → supersededBy / mergedInto）找到 case；
  * 正文里点了本 sim 某条 case 的 id → 它；否则归同一会话（私信不限会话）里在它之前、2 小时内最近的一条 case；都不是 → 孤儿（汇总里报数）。
+ * 任务链优先于「正文点名」与时间窗（b4 波 5：私信列候选任务的 id、并入单的私信 ✅ 按时间窗归错 case，93d62945 / 742acdf9）。
  */
 import { createHash } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
+import { LOCAL_HOST_RE } from './egress-log.mjs'
 import { AVEN_OPEN_ID, GROUPS } from './falive-data.mjs'
 import { WEBHOOK_CHAT_KEY, casesOfSim, loadJudgeData } from './judge-data.mjs'
 import { listSimDirs, loadSim, simSelectorFromArgs } from './sim-dir.mjs'
@@ -23,7 +27,7 @@ import { loadSimLimitSources, simLimitsOf } from './sim-limits.mjs'
 export { refMissing } from './sim-limits.mjs'
 
 export const FOLLOW_MS = 2 * 60 * 60_000
-export const RULES_VERSION = 'rules-v2-1104' // v2：模拟局限旗标 6 类（sim-limits.mjs），行里多 simLimits: [{ flag, why }]
+export const RULES_VERSION = 'rules-v3-1105' // v2：模拟局限旗标 6 类（sim-limits.mjs），行里多 simLimits: [{ flag, why }]；v3：发件按任务链归属，旗标加 falive_ref / external
 const WEBHOOK_CHAT_ID = GROUPS.find((g) => g.key === WEBHOOK_CHAT_KEY)?.chatId
 const NOT_CONCLUDED = new Set(['received', 'queued', 'ready', 'running', 'verifying', 'failed', 'intake_failed'])
 
@@ -49,11 +53,25 @@ export const normalizeOutputText = (text, { simDir = null } = {}) => {
 
 export const channelOf = (item, webhookChatId = WEBHOOK_CHAT_ID) => (item.userId || (webhookChatId && item.chatId === webhookChatId) ? 'dm' : 'group')
 
+/** 任务 id → case：本身是 case 就是它；否则沿 replyTarget / rerunReplyTo / answerFor / supersededBy / mergedInto 走几步。 */
+export const caseOfTask = ({ id, caseIds, tasks = new Map(), hops = 4 }) => {
+  if (!id) return null
+  if (caseIds.has(id)) return id
+  const t = tasks.get(id)
+  if (!t || hops <= 0) return null
+  const next = [t.replyTarget?.messageId, t.rerunReplyTo?.replyTarget?.messageId, ...(t.answerFor || []), t.supersededBy, t.mergedInto].filter((x) => x && x !== id)
+  for (const n of next) if (caseIds.has(n)) return n
+  for (const n of next) { const c = caseOfTask({ id: n, caseIds, tasks, hops: hops - 1 }); if (c) return c }
+  return null
+}
+
+const KEY_ID_RE = /^(om_x[0-9a-f]{20,})-/
+
 /**
- * 发件归属。cases：本 sim 的 case 消息（时间线形态：id / chatId / atMs），outbox：按时间排好的发件。
+ * 发件归属。cases：本 sim 的 case 消息（时间线形态：id / chatId / atMs），outbox：按时间排好的发件，tasks：sim 的任务（Map，可省）。
  * 返回 { byCase: Map<caseId, item[]>, orphans: item[] }。
  */
-export const attributeOutbox = ({ cases, outbox, webhookChatId = WEBHOOK_CHAT_ID }) => {
+export const attributeOutbox = ({ cases, outbox, tasks = new Map(), webhookChatId = WEBHOOK_CHAT_ID }) => {
   const caseIds = new Set(cases.map((m) => m.id))
   const sorted = [...cases].sort((a, b) => a.atMs - b.atMs)
   const byCase = new Map(cases.map((m) => [m.id, []]))
@@ -63,6 +81,7 @@ export const attributeOutbox = ({ cases, outbox, webhookChatId = WEBHOOK_CHAT_ID
     let caseId = null
     if (item.parentId && caseIds.has(item.parentId)) caseId = item.parentId
     else if (item.parentId && owner.has(item.parentId)) caseId = owner.get(item.parentId)
+    if (!caseId) caseId = caseOfTask({ id: String(item.idempotencyKey || '').match(KEY_ID_RE)?.[1], caseIds, tasks })
     if (!caseId) {
       const named = [...String(item.text || '').matchAll(/om_x[0-9a-f]{20,}/g)].map((x) => x[0]).find((id) => caseIds.has(id))
       if (named) caseId = named
@@ -80,6 +99,42 @@ export const attributeOutbox = ({ cases, outbox, webhookChatId = WEBHOOK_CHAT_ID
   }
   return { byCase, orphans }
 }
+
+/**
+ * 「继续任务 <id> …」没建自己的任务（目标在跑，只回了「正在做」）：点名的任务在模拟里有 → 当作并进了它（裁判看它的终态 / 结论）。
+ * b4 742acdf9：私信续跑在跑的 0308f79a，3 分钟后那单出了结论，裁判只看到「正在做」判 stuck。
+ */
+export const resumedTaskOf = ({ m, sim }) => {
+  if (!/继续任务|接着做|续跑/.test(String(m.text || ''))) return null
+  let id = [...String(m.text || '').matchAll(/om_x[0-9a-f]{20,}/g)].map((x) => x[0]).find((x) => x !== m.id && sim.tasks.has(x)) || null
+  // 点名的单后来被并进 / 顶替了：跟到最后接手的那单（b4 cb660733 点名 108fd4fd，它已并进 2b0063a6）
+  for (let hops = 0; id && hops < 4 && sim.mergedInto?.get(id) && sim.mergedInto.get(id) !== m.id; hops += 1) id = sim.mergedInto.get(id)
+  return id
+}
+
+const EVIDENCE_SKIP_HOST_RE = /(?:^|\.)(?:anthropic\.com|claude\.ai|uniaix\.com|larksuite\.com|feishu\.cn|larkoffice\.com)$/i
+/**
+ * 裁判的出网证据（P4，b4 4650decc：裁判从「新建 / 修改时带的介绍存得下」推成 lark-bot 写了 pre）：整组 egress.log 按方法 + 主机（写请求再加路径）计数，
+ * 回放拦下的标出来。跳过本机、IP 级连接、模型 / Lark 网关。返回 [{ line, write, blocked }]，按次数降序。
+ */
+export const egressEvidenceOf = (egress = []) => {
+  const rows = new Map()
+  for (const e of egress) {
+    if (!e.host || e.via === 'sock' || e.via === 'lark-cli-shim' || LOCAL_HOST_RE.test(e.host) || EVIDENCE_SKIP_HOST_RE.test(e.host)) continue
+    const write = !['GET', 'HEAD', 'OPTIONS'].includes(e.method)
+    const blocked = e.extra === 'blocked'
+    const key = `${e.method} ${e.host}${write ? ` ${e.path || ''}` : ''}${blocked ? '（回放拦下，没发出）' : ''}`
+    const row = rows.get(key) || { line: key, write, blocked, n: 0 }
+    row.n += 1
+    rows.set(key, row)
+  }
+  return [...rows.values()].sort((a, b) => b.n - a.n).map((r) => ({ line: `${r.line} ×${r.n}`, write: r.write, blocked: r.blocked }))
+}
+
+const WRITE_TALK_RE = /新建|创建|修改|写入|存得下|存进|保存|设成|设为|发帖|发了帖|评论了|上传|提交了|注册|改资料|删除|造了|建了/
+/** 哪些 case 给裁判看出网证据：组里有打环境的请求，且这条带造数旗标，或 lark-bot 的话里像是写了东西（裁判会从这类话推断写入）。 */
+export const egressRelevant = ({ row, evidence }) => evidence.length > 0
+  && ((row.flags || []).includes('sim_limit_testdata') || WRITE_TALK_RE.test(row.lark?.output || ''))
 
 const shortHash = (text) => createHash('sha256').update(text).digest('hex').slice(0, 16)
 
@@ -165,15 +220,15 @@ export const ruleFlags = ({ lark, falive, pending }) => {
 /** 一个 sim 目录的全部 case 行。 */
 export const computeSimRules = ({ sim, data, scoreFromMs = 0, limitSources = loadSimLimitSources() }) => {
   const cases = casesOfSim({ sim, data, scoreFromMs })
-  const { byCase, orphans } = attributeOutbox({ cases, outbox: sim.outbox })
+  const { byCase, orphans } = attributeOutbox({ cases, outbox: sim.outbox, tasks: sim.tasks })
   const rows = cases.map((m) => {
     const tag = data.tags.get(m.id) || null
     const task = sim.tasks.get(m.id) || null
-    const mergedIntoId = sim.mergedInto.get(m.id) || null
+    const mergedIntoId = sim.mergedInto.get(m.id) || (task ? null : resumedTaskOf({ m, sim })) || null
     const lark = larkFacts({ m, items: byCase.get(m.id) || [], task, mergedIntoId, mergedTask: mergedIntoId ? sim.tasks.get(mergedIntoId) : null, audit: sim.audits.get(m.id) || null, simDir: sim.dir })
     const falive = faliveFacts({ m, baseline: data.baselines.get(m.id) })
     const pending = Boolean(tag?.pending)
-    const simLimits = simLimitsOf({ m, sim, data, lark, src: limitSources })
+    const simLimits = simLimitsOf({ m, sim, data, lark, task: (mergedIntoId && sim.tasks.get(mergedIntoId)) || task, src: limitSources })
     return {
       id: m.id,
       sim: sim.label,
