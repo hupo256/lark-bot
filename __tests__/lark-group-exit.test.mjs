@@ -49,7 +49,7 @@ describe('群 / 私信唯一出口', () => {
   it('阶段表校验与源码字面量、reply→send 回落、出口闸、超长转文档、@ 渲染、幂等键、私信回执', () => runSteps([
     ['validatePhaseTable：缺列 / 非法值 / 表外列各报一条；好表零错', () => {
       const errors = validatePhaseTable({ bad: { overflow: 'to_doc', dedupe: 'weekly', anchor: 'reply_origin', extra: 1 } })
-      assert.deepEqual(errors, ['bad.dedupe = weekly 不合法（合法值：content_24h / per_person_2min / per_message_24h）', 'bad 缺列 receipt（合法值：task / none）', 'bad 多了表外的列 extra：先在 POLICY_COLUMNS 登记'])
+      assert.deepEqual(errors, ['bad.dedupe = weekly 不合法（合法值：content_24h / per_person_2min / per_message_24h / content_per_anchor_24h）', 'bad 缺列 receipt（合法值：task / none）', 'bad 多了表外的列 extra：先在 POLICY_COLUMNS 登记'])
       assert.deepEqual(validatePhaseTable({ good: { overflow: 'as_is', dedupe: 'content_24h', anchor: 'send', receipt: 'none' } }), [])
       assert.deepEqual(validatePhaseTable({}), [])
     }],
