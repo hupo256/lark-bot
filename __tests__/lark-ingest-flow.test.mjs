@@ -273,7 +273,7 @@ describe('摄入链路 / 上下文包 / 入群事件（真 store + 假 lark-cli�
       const wait = Date.parse(task.intake.notBefore) - Date.parse(task.intake.receivedAt)
       assert.deepEqual([task.intake.trigger, task.intake.lane, task.intake.awaitingRest, wait >= 59_000 && wait <= 61_000], ['bot_reply', 'fast', true, true], '快道也等安静期')
       const ackWait = Date.parse(task.ackPending.deadline) - Date.parse(task.ackPending.at)
-      assert.ok(ackWait >= 100_000 && ackWait <= 106_000, `「收到」兜底从开始分类算起（${ackWait}）`)
+      assert.ok(ackWait >= 239_000 && ackWait <= 246_000, `「收到」兜底从开始分类算起，回卡没 @ bot 等到慢道上限（b4 c7683910）（${ackWait}）`)
       const other = raw({ text: '调用 updateInfo 成功一项就直接调用完成', reply_to: 'om_cardh', root_id: 'om_cardh', sender: 'ou_arthur' })
       await ingestLarkEvent({ raw: other, config, store })
       assert.equal(store.get(other.message_id)?.status, 'received', '别人的另起一条')
