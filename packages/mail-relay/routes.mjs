@@ -1,7 +1,8 @@
 /**
  * 邮件转发路由（aven 11-02）：一条路由 = 一类审批邮件 → 一个群。纯函数：配置归一、校验、匹配。
  *
- * mailRelay 顶层：{ enabled, routes: [...], mode?: poll | watch, pollMs?, alert?: { openId?, afterFailures? }, cliConfigDir?, stateFile? }
+ * mailRelay 顶层：{ enabled, routes: [...], mode?: poll | watch, pollMs?, alert?: { openId?, afterFailures? }, shadow?, cliConfigDir?, stateFile? }
+ *   shadow：影子模式，只读信评分记台账、不往群里发（切换前对账用）。
  *   alert：连续读收件箱失败告警（engine.mjs）；cliConfigDir：另一个飞书应用的 lark-cli 凭证目录；stateFile：台账路径。
  *
  * config.mailRelay.routes[] 每条：
@@ -74,6 +75,7 @@ export const validateMailRelay = (relay) => {
   if (typeof relay !== 'object' || Array.isArray(relay)) return ['mailRelay 必须是对象 { enabled, routes: [...], mode?, pollMs?, alert?, cliConfigDir?, stateFile? }']
   const errors = []
   if (relay.enabled != null && typeof relay.enabled !== 'boolean') errors.push('mailRelay.enabled 必须是 true / false')
+  if (relay.shadow != null && typeof relay.shadow !== 'boolean') errors.push('mailRelay.shadow 必须是 true / false')
   if (relay.mode != null && !['poll', 'watch'].includes(relay.mode)) errors.push('mailRelay.mode 只能是 poll（默认，定时拉）/ watch（实时监听，只在独立应用里用）')
   if (relay.pollMs != null && !(Number.isFinite(relay.pollMs) && relay.pollMs > 0)) errors.push('mailRelay.pollMs 必须是正数（毫秒）')
   for (const key of ['cliConfigDir', 'stateFile']) {

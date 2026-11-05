@@ -14,7 +14,9 @@ import { fileURLToPath } from 'node:url'
 
 import * as botCli from '../../lib/lark-cli.mjs'
 import { startConsumer } from '../../packages/mail-relay/consumer.mjs'
-import { createRelayCli, fileRelayIo, MAIL_RELAY_STANDALONE_STATE_FILE, startMailRelay } from '../../packages/mail-relay/engine.mjs'
+import { comparisonClean, compareLedgers, renderComparison } from '../../packages/mail-relay/compare.mjs'
+import { createFailureAlarm, createRelayCli, fileRelayIo, isRelayAuthError, MAIL_RELAY_STANDALONE_STATE_FILE, RELAY_USER_SCOPES, startMailRelay } from '../../packages/mail-relay/engine.mjs'
+import { validateMailRelay } from '../../packages/mail-relay/routes.mjs'
 import * as pkgCli from '../../packages/mail-relay/lark.mjs'
 import { eachCase } from './steps.mjs'
 
@@ -31,6 +33,11 @@ const quiet = async (fn) => {
   }
 }
 const ROUTE = { id: 'ol', preset: 'ol-release', chatId: 'oc_group' }
+const memIo = (initial) => {
+  let state = JSON.parse(JSON.stringify(initial))
+  return { read: () => JSON.parse(JSON.stringify(state)), write: (next) => { state = JSON.parse(JSON.stringify(next)) } }
+}
+const B2B_ROUTE = { id: 'b2b', label: 'B2B', chatId: 'oc_group', match: { subject: ['Prod-b2b'] }, scorer: null }
 
 export const mailRelayPackageSteps = [
   ['包边界：packages/mail-relay 下的文件只 import node: 内置和包内文件，不碰 lark-bot（拆成独立应用的前提）', () => {
@@ -146,8 +153,84 @@ export const mailRelayPackageSteps = [
       writeFileSync(off, JSON.stringify({ enabled: false, routes: [ROUTE] }))
       const stopped = node(['run', '--config', off])
       assert.deepEqual([stopped.status, stopped.stderr.trim()], [1, 'mailRelay.enabled 不是 true，不启动'])
+      // compare：本配置台账（stateFile 相对配置目录）对另一份；全一致退 0、有差异退 3 并逐条列出；缺 --against 退 2
+      writeFileSync(join(dir, 'mine.json'), JSON.stringify({ forwarded: { m1: { at: '2026-11-06T02:00:00Z', route: 'b2b', ok: true, dryRun: true } } }))
+      writeFileSync(join(dir, 'live.json'), JSON.stringify({ forwarded: { m1: { at: '2026-11-06T02:00:05Z', route: 'b2b', ok: true } } }))
+      writeFileSync(join(dir, 'live2.json'), JSON.stringify({ forwarded: {} }))
+      const shadowConfig = join(dir, 'shadow.json')
+      writeFileSync(shadowConfig, JSON.stringify({ enabled: true, shadow: true, stateFile: 'mine.json', routes: [B2B_ROUTE] }))
+      const same = node(['compare', '--config', shadowConfig, '--against', join(dir, 'live.json')])
+      assert.deepEqual([same.status, same.stdout.trim()], [0, '一致 1 封；只在本机影子 0 封；只在对照台账 0 封；两边结果不同 0 封'])
+      const gap = node(['compare', '--config', shadowConfig, '--against', join(dir, 'live2.json'), '--since', '2026-11-06T00:00:00Z'])
+      assert.equal(gap.status, 3)
+      assert.match(gap.stdout, /只在本机影子：m1（b2b，2026-11-06T02:00:00Z）/)
+      assert.equal(node(['compare', '--config', shadowConfig]).status, 2)
+      // 部署模板：示例配置通过校验、是影子模式；launchd 模板占位符全被 render-plist.sh 换掉
+      const example = JSON.parse(readFileSync(join(pkgDir, 'deploy', 'config.example.json'), 'utf8'))
+      assert.deepEqual([validateMailRelay(example.mailRelay), example.mailRelay.shadow, example.mailRelay.routes.map((route) => route.id)], [[], true, ['access', 'ol-release', 'b2b-prod']])
+      const rendered = spawnSync('sh', [join(pkgDir, 'deploy', 'render-plist.sh'), '/abs/config.json', '/abs/relay.log'], { encoding: 'utf8' })
+      if (rendered.status === 0) {
+        assert.doesNotMatch(rendered.stdout, /__[A-Z_]+__/)
+        assert.match(rendered.stdout, /<string>\/abs\/config\.json<\/string>[\s\S]*<string>\/abs\/relay\.log<\/string>/)
+      } else assert.match(rendered.stderr, /找不到 (node|lark-cli)/, '机器上没装 lark-cli 时如实报错')
+      assert.equal(spawnSync('sh', [join(pkgDir, 'deploy', 'render-plist.sh'), 'relative.json'], { encoding: 'utf8' }).status, 1, '配置路径必须是绝对路径')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
+  }],
+  ['影子模式：照常读信判路由记台账（dryRun: true）、不分享不回评分；shadow 只收 true / false', async () => {
+    const calls = []
+    const mail = { message_id: 'm1', subject: '【B2B_直播中心】【Prod-b2b正式环境】nginx', date: '2026-11-06T02:00:00Z' }
+    const run = async (args) => {
+      calls.push(args.slice(0, 2).join(' '))
+      if (args[1] === '+triage') return { code: 0, stdout: JSON.stringify({ messages: [mail] }), stderr: '' }
+      if (args[1] === '+message') return { code: 0, stdout: JSON.stringify({ data: { ...mail, head_from: { name: 'Encone' } } }), stderr: '' }
+      return { code: 0, stdout: '{"ok":true,"data":{"im_message_id":"om_card","message_id":"om_x"}}', stderr: '' }
+    }
+    const io = memIo({ checkedAt: '2026-11-06T01:00:00Z', forwarded: {} })
+    const relay = await quiet(() => startMailRelay({ relay: { enabled: true, shadow: true, routes: [B2B_ROUTE] }, io, cli: { run, env: null }, schedule: () => null }))
+    for (let i = 0; i < 20 && !io.read().forwarded.m1; i += 1) await new Promise((resolve) => setImmediate(resolve))
+    relay.stop()
+    assert.deepEqual(calls, ['mail +triage', 'mail +message'], '不分享卡片、不回评分')
+    assert.deepEqual(Object.keys(io.read().forwarded.m1).sort(), ['at', 'dryRun', 'ok', 'route'])
+    assert.deepEqual([io.read().forwarded.m1.dryRun, io.read().forwarded.m1.route], [true, 'b2b'])
+    assert.deepEqual(validateMailRelay({ enabled: true, shadow: 'yes', routes: [B2B_ROUTE] }), ['mailRelay.shadow 必须是 true / false'])
+  }],
+  ['授权过期告警：授权类错误附重新授权命令（带凭证目录与全部用户权限）、别的错误不附；影子模式前缀', () => {
+    const hint = 'LARKSUITE_CLI_CONFIG_DIR=/c lark-cli auth login --scope "x"'
+    const alarm = createFailureAlarm({ afterFailures: 1, reloginHint: hint, prefix: '[影子] ' })
+    const said = alarm.observe({ at: '2026-11-06T01:00:00Z', failed: true, error: '退出码 1；authentication code 99991679 token expired' })
+    assert.match(said, /^\[影子\] 审批邮件转发：连续 1 次读收件箱失败/)
+    assert.ok(said.endsWith(`像是邮箱授权过期了，在跑转发的那台机器上重新授权：\n${hint}`))
+    alarm.observe({ at: '2026-11-06T01:02:00Z', checked: 0 })
+    assert.doesNotMatch(alarm.observe({ at: '2026-11-06T01:04:00Z', failed: true, error: '退出码 -1；[lark-cli timeout after 60000ms]' }), /重新授权/)
+    assert.deepEqual(['authorization failed', 'need re-login', 'user access_token invalid', '99991668', 'network/transport dial tcp', 'HTTP 429', null].map(isRelayAuthError), [true, true, true, true, false, false, false])
+    assert.deepEqual(RELAY_USER_SCOPES, ['mail:user_mailbox:readonly', 'mail:user_mailbox.message:readonly', 'mail:user_mailbox.message.subject:read', 'mail:user_mailbox.message.body:read', 'mail:user_mailbox.message.address:read', 'mail:event', 'mail:user_mailbox.event.mail_address:read', 'offline_access'])
+  }],
+  ['对账：按 message_id 对齐，分出一致 / 只在一边 / 结果不同（路由、成没成、分数、档位）；since / until 窗口；报告逐条', () => {
+    const left = { forwarded: {
+      a: { at: '2026-11-06T02:00:00Z', route: 'ol', ok: true, score: 12, tier: 'B', dryRun: true },
+      b: { at: '2026-11-06T03:00:00Z', route: 'b2b', ok: true, dryRun: true },
+      c: { at: '2026-11-06T04:00:00Z', route: 'ol', ok: true, score: 9, tier: 'C', dryRun: true },
+      old: { at: '2026-11-05T02:00:00Z', route: 'ol', ok: true },
+    } }
+    const right = { forwarded: {
+      a: { at: '2026-11-06T02:00:03Z', route: 'ol', ok: true, score: 12, tier: 'B' },
+      c: { at: '2026-11-06T04:00:02Z', route: 'ol', ok: true, score: 10, tier: 'C' },
+      d: { at: '2026-11-06T05:00:00Z', route: 'access', ok: false, step: 'filter' },
+      bad: { at: 'x', route: 'ol', ok: true },
+    } }
+    const result = compareLedgers({ left, right, since: '2026-11-06T00:00:00Z' })
+    assert.deepEqual([result.same.map((item) => item.id), result.onlyLeft.map((item) => item.id), result.onlyRight.map((item) => item.id), result.differ.map((item) => item.id)], [['a'], ['b'], ['d'], ['c']])
+    assert.equal(comparisonClean(result), false)
+    assert.equal(renderComparison({ comparison: result, leftName: '影子', rightName: '线上' }), [
+      '一致 1 封；只在影子 1 封；只在线上 1 封；两边结果不同 1 封',
+      '- 只在影子：b（b2b，2026-11-06T03:00:00Z）',
+      '- 只在线上：d（access 没转成(filter)，2026-11-06T05:00:00Z）',
+      '- 不同：c（影子 ol 9分 C；线上 ol 10分 C）',
+    ].join('\n'))
+    assert.deepEqual(compareLedgers({ left, right, since: '2026-11-06T00:00:00Z', until: '2026-11-06T02:30:00Z' }).same.map((item) => item.id), ['a'])
+    assert.equal(compareLedgers({ left: {}, right: { forwarded: null } }).same.length, 0)
+    assert.equal(comparisonClean(compareLedgers({ left, right: left })), true)
   }],
 ]

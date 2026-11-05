@@ -60,7 +60,11 @@
 3. 测试：`__tests__/lark-mail-relay.test.mjs` 搬到包内，lark-bot 全量测试照常覆盖它；加一条守卫测试：包内文件不准 import `../../lib/`。
 4. 验收：`node scripts/test-all.mjs` 全绿；用 `scripts/lark-mail-relay.mjs forward --message-id <今天那封 BBO> --dry-run` 对比拆分前后的评分 markdown，逐字相同；上线后台账、日志和拆前一致。
 
-### P2 独立飞书应用（约 0.5 天动手 + 等管理员审批）
+### P2 独立飞书应用（约 0.5 天动手 + 等管理员审批）· 11-05 进行中
+
+> 进度：应用「审批邮件助手」`cli_aa663bfff1b89f04` 已建（只加机器人能力），权限按 `engine.mjs` 的 `RELAY_USER_SCOPES`（8 个用户身份只读 / 监听 / 续期）+ 机器人发消息开好，**已提交企业管理员审批，在等**。
+> 笔记本上已建独立凭证目录 `~/.config/mail-relay/lark-cli`（0700，`config init` 完成）；邮箱授权试过一次，飞书回「权限审核中」，审批通过后重新 `auth login`。
+> 事件订阅（长连接）先不配：要有进程连上才能保存，放到 Mac mini 上开 watch 时再配（见 `packages/mail-relay/deploy/INSTALL.md` §8）。
 
 1. 开发者后台新建自建应用，名字如「审批邮件助手」，配头像；
 2. 开通权限：`mail:user_mailbox:readonly`、`mail:user_mailbox.message:readonly`、`mail:event`（用 `+watch` 时）、分享邮件到群需要的 scope、`im:message`（bot 回复评分）；用户级邮件 scope 走租户管理员审批；
@@ -69,6 +73,9 @@
 5. 验收：`node scripts/lark-mail-relay.mjs check --config <新配置>` 通过；对一封历史邮件跑 `forward --dry-run` 成功。
 
 ### P3 独立运行 + 灰度切换（约 0.5 天 + 观察 1 个工作日）
+
+> 11-05 已备好（等 P2 审批 + Mac mini）：影子模式 `mailRelay.shadow`、对账命令 `bin/mail-relay.mjs compare`、授权过期告警附重新授权命令、部署包 `packages/mail-relay/deploy/`（配置模板、launchd 模板与渲染脚本、INSTALL.md 全流程含切换顺序与回滚）。
+> 切换顺序按 INSTALL.md §6：先关笔记本内置转发 → compare 找出空档手动补转 → Mac mini 去掉 shadow。
 
 1. 新配置 `~/.config/mail-relay/config.json`：`cliConfigDir` 指向 P2 的凭证目录，`stateFile` 用自己的台账，`mode: "watch"`（独立应用才能开），路由沿用现在的两条；
 2. 新 launchd `com.fameex.mail-relay.plist` 跑 `scripts/lark-mail-relay.mjs run --config …`；

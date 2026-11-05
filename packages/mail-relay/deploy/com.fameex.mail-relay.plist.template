@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- 审批邮件转发常驻进程（packages/mail-relay/deploy/render-plist.sh 渲染；占位符 __NODE__ __RELAY_DIR__ __CONFIG__ __LOG__ __PATH__） -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.fameex.mail-relay</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__NODE__</string>
+    <string>__RELAY_DIR__/bin/mail-relay.mjs</string>
+    <string>run</string>
+    <string>--config</string>
+    <string>__CONFIG__</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__RELAY_DIR__</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>__PATH__</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>StandardOutPath</key>
+  <string>__LOG__</string>
+  <key>StandardErrorPath</key>
+  <string>__LOG__</string>
+</dict>
+</plist>

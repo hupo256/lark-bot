@@ -21,6 +21,8 @@
  *   调用器（bot 身份），拆成独立应用时跟着换成新应用的 bot。没有收件人就只打日志。
  * 包边界（11-05 P1 拆分）：本目录不 import lark-bot 的任何模块；路径一律按调用方给的 baseDir 解析（独立运行 = 配置文件所在目录）。
  *   lark-bot 内置时经 lib/lark-mail-relay.mjs 薄转发，注入它自己的 runLarkCli / 长连接 / 台账路径（runtime/lark-mail-relay-state.json）。
+ * 影子模式（mailRelay.shadow=true，11-05 P3 切换前在新机器上跑 1 个工作日）：照常读信、判路由、评分、记台账（记录带 dryRun: true），
+ *   但不分享卡片、不回评分；之后用 `bin/mail-relay.mjs compare` 和线上台账逐封对。
  * 台账（独立运行缺省 <baseDir>/mail-relay-state.json，stateFile 可改）：{ checkedAt, forwarded: { [message_id]: { at, route, ok, step?, score?, tier? } } }，留最近 500 条。
  */
 
@@ -39,6 +41,17 @@ export const RELAY_POLL_MS = 2 * 60_000
 export const RELAY_POLL_MIN_MS = 30_000
 export const RELAY_POLL_OVERLAP_MS = 15 * 60_000
 export const RELAY_ALERT_AFTER_FAILURES = 5
+// 邮箱主人要授权的用户权限（只读 + 监听 + 续期；11-05 新应用「审批邮件助手」按这份申请）。授权过期告警里的重新授权命令用它。
+export const RELAY_USER_SCOPES = [
+  'mail:user_mailbox:readonly',
+  'mail:user_mailbox.message:readonly',
+  'mail:user_mailbox.message.subject:read',
+  'mail:user_mailbox.message.body:read',
+  'mail:user_mailbox.message.address:read',
+  'mail:event',
+  'mail:user_mailbox.event.mail_address:read',
+  'offline_access',
+]
 const CATCHUP_MAX = 100
 
 // 台账读写（可注入）。path 为空不落盘（单测）；读坏了当空台账；写先写 .tmp 再改名；写失败只打日志。
@@ -84,7 +97,7 @@ export const pickRoute = ({ routes, mail, forwarded }) => {
   return matchRoute(routes, mail, { partial: true })
 }
 
-export const createRelayHandler = ({ routes, io = fileRelayIo(), forward = forwardMail, run = runLarkCli, now = () => new Date().toISOString() }) => {
+export const createRelayHandler = ({ routes, io = fileRelayIo(), forward = forwardMail, run = runLarkCli, now = () => new Date().toISOString(), dryRun = false }) => {
   let chain = Promise.resolve()
   // 串行：同一封邮件事件重投 / 补转与实时撞车时不会转两遍（先查台账再转、转完立刻记）。
   const handle = (mail) => {
@@ -93,7 +106,7 @@ export const createRelayHandler = ({ routes, io = fileRelayIo(), forward = forwa
       if (!route) return null
       let outcome
       try {
-        outcome = await forward({ messageId: mail.message_id, route, run })
+        outcome = await forward({ messageId: mail.message_id, route, run, ...(dryRun ? { dryRun: true } : {}) })
       } catch (error) {
         outcome = { ok: false, step: 'exception', reason: error.message }
       }
@@ -109,11 +122,13 @@ export const createRelayHandler = ({ routes, io = fileRelayIo(), forward = forwa
         ok: outcome.ok,
         ...(outcome.step ? { step: outcome.step } : {}),
         ...(outcome.result ? { score: outcome.result.score, tier: outcome.result.tier } : {}),
+        ...(outcome.dryRun ? { dryRun: true } : {}),
       }
       fresh.forwarded = trimRecords(fresh.forwarded)
       io.write(fresh)
-      const done = outcome.result ? `已转 ${outcome.result.score}/${outcome.result.max}（${outcome.result.tier}）` : '已转'
-      console.log(`[lark-mail-relay] ${route.id} ${mail.message_id} ${outcome.ok ? `${done} ${outcome.scoreVia}` : `跳过（${outcome.step}）`}：${mail.subject}`)
+      const verb = outcome.dryRun ? '影子·本该转' : '已转'
+      const done = outcome.result ? `${verb} ${outcome.result.score}/${outcome.result.max}（${outcome.result.tier}）` : verb
+      console.log(`[lark-mail-relay] ${route.id} ${mail.message_id} ${outcome.ok ? `${done}${outcome.scoreVia ? ` ${outcome.scoreVia}` : ''}` : `跳过（${outcome.step}）`}：${mail.subject}`)
       return outcome
     })
     return chain
@@ -189,7 +204,11 @@ const hhmm = (iso) => new Date(iso).toLocaleTimeString('sv-SE', { hour: '2-digit
 
 // 连续失败计数 + 告警（纯状态机，可单测）：observe(outcome) 每轮调一次，返回这轮要发的话（没有就 null）。
 // 满阈值那一轮发一次「拉不到了」；告过警之后第一次成功发「恢复了」；没告过警的恢复不说话。
-export const createFailureAlarm = ({ afterFailures = RELAY_ALERT_AFTER_FAILURES } = {}) => {
+// 授权类错误（user token 过期 / 撤销 / 需要重新登录）：告警里附重新授权命令（reloginHint），别的错误不附。
+const AUTH_ERROR_RE = /authenticat|authoriz|token (?:expired|invalid)|access[_ ]token|re-?login|auth login|99991663|99991668|99991677|99991679/i
+export const isRelayAuthError = (error) => AUTH_ERROR_RE.test(String(error || ''))
+
+export const createFailureAlarm = ({ afterFailures = RELAY_ALERT_AFTER_FAILURES, reloginHint = null, prefix = '' } = {}) => {
   let streak = { count: 0, since: null, alerted: false }
   return {
     observe: ({ at, failed, error }) => {
@@ -197,12 +216,13 @@ export const createFailureAlarm = ({ afterFailures = RELAY_ALERT_AFTER_FAILURES 
         streak = { ...streak, count: streak.count + 1, since: streak.since || at }
         if (streak.alerted || streak.count < afterFailures) return null
         streak.alerted = true
-        return `审批邮件转发：连续 ${streak.count} 次读收件箱失败（${hhmm(streak.since)} 起），新邮件暂时转不进群；恢复后会自动补转这段时间的。\n最近一次错误：${error || '未知'}`
+        const relogin = reloginHint && isRelayAuthError(error) ? `\n像是邮箱授权过期了，在跑转发的那台机器上重新授权：\n${reloginHint}` : ''
+        return `${prefix}审批邮件转发：连续 ${streak.count} 次读收件箱失败（${hhmm(streak.since)} 起），新邮件暂时转不进群；恢复后会自动补转这段时间的。\n最近一次错误：${error || '未知'}${relogin}`
       }
       const was = streak
       streak = { count: 0, since: null, alerted: false }
       if (!was.alerted) return null
-      return `审批邮件转发恢复了：${hhmm(was.since)} 起连续失败 ${was.count} 次，这段时间的邮件会自动补转。`
+      return `${prefix}审批邮件转发恢复了：${hhmm(was.since)} 起连续失败 ${was.count} 次，这段时间的邮件会自动补转。`
     },
     state: () => ({ ...streak }),
   }
@@ -215,13 +235,15 @@ export const startMailRelay = ({ relay, io, cli, baseDir = process.cwd(), notify
   if (routes.length === 0) return { stop: () => {}, observe: () => null }
   const ledger = io || fileRelayIo(resolve(baseDir, relay.stateFile || MAIL_RELAY_STANDALONE_STATE_FILE))
   const { run, env } = cli || createRelayCli({ cliConfigDir: relay.cliConfigDir, baseDir })
-  const handler = createRelayHandler({ routes, io: ledger, run })
-  const routeText = routes.map((route) => `${route.id}（${route.label}）→ ${route.chatId}`).join('；')
+  const shadow = relay.shadow === true
+  const handler = createRelayHandler({ routes, io: ledger, run, dryRun: shadow })
+  const reloginHint = `${env?.LARKSUITE_CLI_CONFIG_DIR ? `LARKSUITE_CLI_CONFIG_DIR=${env.LARKSUITE_CLI_CONFIG_DIR} ` : ''}lark-cli auth login --scope "${RELAY_USER_SCOPES.join(' ')}"`
+  const routeText = `${routes.map((route) => `${route.id}（${route.label}）→ ${route.chatId}`).join('；')}${shadow ? '（影子模式：只记台账、不往群里发）' : ''}`
   if (relay.mode !== 'watch') {
     // poll（默认）：不开 WebSocket，定时 +triage。上一轮没跑完就跳过本轮，不叠加。
     const pollMs = relayPollMs(relay)
     const alertSettings = relayAlertSettings(relay, notifyOpenId)
-    const alarm = createFailureAlarm(alertSettings)
+    const alarm = createFailureAlarm({ ...alertSettings, reloginHint, prefix: shadow ? '[影子] ' : '' })
     const send =
       notify ||
       (async (text) => {

@@ -5,13 +5,16 @@
  *   node bin/mail-relay.mjs check   --config <json>
  *   node bin/mail-relay.mjs forward --config <json> --message-id <id> [--route <id>] [--dry-run] [--force]
  *   node bin/mail-relay.mjs run     --config <json>
+ *   node bin/mail-relay.mjs compare --config <json> --against <另一份台账.json> [--since <ISO>] [--until <ISO>]
+ *     本配置的台账（影子跑的）和另一份（线上 lark-bot 的 runtime/lark-mail-relay-state.json）逐封对；全一致退 0，有差异退 3。
  * 配置：{ mailRelay: {...} } 或直接就是 mailRelay 对象；可带顶层 notifyOpenId（告警收件人缺省值，mailRelay.alert.openId 优先）。
  * 字段见 routes.mjs 头注释（routes / mode / pollMs / alert / cliConfigDir / stateFile）。
  */
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 
-import { createRelayCli, startMailRelay } from '../engine.mjs'
+import { comparisonClean, compareLedgers, renderComparison } from '../compare.mjs'
+import { createRelayCli, fileRelayIo, MAIL_RELAY_STANDALONE_STATE_FILE, startMailRelay } from '../engine.mjs'
 import { fetchMail, forwardMail } from '../forward.mjs'
 import { matchRoute, normalizeRoutes, validateMailRelay } from '../routes.mjs'
 
@@ -21,12 +24,12 @@ const option = (name) => {
   return at >= 0 ? argv[at + 1] : undefined
 }
 const usage = () => {
-  console.error('用法：node bin/mail-relay.mjs check|forward|run --config <json> [--message-id <id> --route <id> --dry-run --force]')
+  console.error('用法：node bin/mail-relay.mjs check|forward|run|compare --config <json> [--message-id <id> --route <id> --dry-run --force] [--against <台账> --since <ISO> --until <ISO>]')
   process.exit(2)
 }
 
 const configOption = option('--config')
-if (!configOption || !['check', 'forward', 'run'].includes(command)) usage()
+if (!configOption || !['check', 'forward', 'run', 'compare'].includes(command)) usage()
 const configPath = resolve(configOption)
 const baseDir = dirname(configPath)
 const loaded = JSON.parse(readFileSync(configPath, 'utf8'))
@@ -58,6 +61,14 @@ if (command === 'check') {
   if (outcome.markdown) console.log(outcome.markdown)
   console.log(JSON.stringify({ ...outcome, markdown: undefined, result: outcome.result ? { score: outcome.result.score, tier: outcome.result.tier } : undefined }))
   process.exit(outcome.ok ? 0 : 1)
+} else if (command === 'compare') {
+  const against = option('--against')
+  if (!against) usage()
+  const left = fileRelayIo(resolve(baseDir, relay.stateFile || MAIL_RELAY_STANDALONE_STATE_FILE)).read()
+  const right = fileRelayIo(resolve(against)).read()
+  const comparison = compareLedgers({ left, right, since: option('--since') || null, until: option('--until') || null })
+  console.log(renderComparison({ comparison, leftName: relay.shadow ? '本机影子' : '本机', rightName: '对照台账' }))
+  process.exit(comparisonClean(comparison) ? 0 : 3)
 } else {
   if (!relay.enabled) {
     console.error('mailRelay.enabled 不是 true，不启动')
