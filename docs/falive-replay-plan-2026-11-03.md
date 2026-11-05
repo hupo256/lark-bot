@@ -279,3 +279,8 @@
      3. b6 半轮里 28 条 falive 更好 + 8 条硬线 2 分诊（triage.mjs --round b6），对照 wave6-triage 去掉已修的，派波 7。
      4. 待 aven 定：只读复测调 `GET getLiveUrl` 会改 pre 场次数据，要不要写进固定知识；pre 上 b2 事故留下的 25 个测试帖删不删。
    - 环境现状：两个线上 bot 仍停；auth=local（订阅）；没有回放 / 裁判进程在跑；运行产物在 ~/github/lark-bot/runtime/falive-replay/sim/{b4,b6}/。
+64. **11-05 aven 定：停离线回放，选 b6 + 波 6（lark/falive-fix-w6）上线，在真实使用中迭代**
+   - 选版依据（b3 / b4 / b6 共同计分的 125 条，同一批 case）：falive 更好 b3 29（裁判 v3，偏宽）/ b4 32 / **b6 23**；风险类 falive 更好 7 / 11 / 8；结论 P90 7.0 / 15.6 / 7.0min；花费合计 $115 / $122 / $109。falive 首句中位 47s、结论中位 4.4min。
+   - 合并前全套验证（11-05 已跑的）：test-all 646 绿（8.7s）；提示回放规则不丢、系统层 1 种；intake --live 6/6；fixture 回归集没跑完（worktree 里没有 runtime/lark-bot.local.json，要在运行目录跑或先拷配置）；mutate --diff fameex-stable（977 个变异）跑到 380 停。
+   - **待办（aven：token 用完，有余量再跑）**：① `node scripts/mutate.mjs --diff fameex-stable`（约 977 个，约 7 分钟机器时间，不耗 token）；② fixture 回归集 56 条真跑分类器（耗 token，worktree 先 `cp ~/github/lark-bot/runtime/lark-bot.local.json runtime/`）；③ 全绿后 fix-w6 合进 fameex-stable（= 上线，排空重启），启动 bot 由 aven 做。合之前若 fameex-stable 有新提交先合进 w6 再跑 test-all。
+   - 上线后：真实使用中漏回 / 风险类问题直接转修；「@bot 没回」巡检会私信 aven。
