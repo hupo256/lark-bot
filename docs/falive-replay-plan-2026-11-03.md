@@ -267,3 +267,15 @@
 61. **11-04 21:33 b3 跑完（61 组，合并波 1 的代码）**：准 lark-bot 更好 92 / falive 更好 69 / 一样 62 / 都错 7（已判 230，待办 11）；快：首句中位 12s vs falive 50s、P90 17s vs 3.5min，结论中位 1.2min vs 3.9min、P90 5.6min vs 15.4min（达标）；省：配对 67 条每条中位 $0.65 vs $1.79、合计 $59.7 vs $110.8（达标）。未达标项：「falive 更好」69 条（线 ≤14），主要类：卡住不交付（归属 / 行数 / 确认扩大范围后不收尾 / 续跑空转）、实测登录被 Claude 安全分类器拦（PROBE_ALLOW_WRITE 被当绕过开关）、没核实就下结论 / 猜任务、插话。合并波 2：fix-thread、fix-b3a、fix-login、fix-b3b、fix-stuck 交回后合并 → b4。
    监控改法（aven：多余轮询浪费 token）：不再挂每组完成 / 每 10 分钟分诊的监控，一轮只挂一个静默等待，跑完才看一次。
 62. **11-05 合并波 2 → b4**：fix-thread、fix-b3a、fix-login、fix-b3b、fix-stuck + fameex-stable 合进 latest（c5ec530）。合并后分类规则超预算，按原意精简措辞（规则不删）。全量 646 绿、提示回放规则不丢 / 系统层 1 种、回归集 56/56（1 条 API 瞬时报错，单跑过）、live 6/6；变异 356 抓 334、存活 22 全在运行分支自带的 self-fix / ops-run / intake-replay 代码（不是本波改动，不阻塞回放，合并进运行分支前再核）。b4 起跑。第三波修复（lark/falive-fix-w3）并行。
+63. **11-05 波 3–6 + 裁判 v4 → b4 重判 / b6；09:55 aven「全部暂停，存档，周末接着做」**
+   - 分支链（都只在本地）：lark/falive-latest(26196cf, b4 代码) ← fix-w3 ← fix-w3b ← fix-w4 ← fix-w5（+ fix-judge4 裁判 v4 / 规则 v3，6b236e7）← **fix-w6（最新，含 latest 的文档提交，worktree ~/github/lark-bot-fix-w6）**。波 3–6 还没合进 latest，更没进 fameex-stable。
+   - b4 61 组全部跑完（中途 uniaix 402 余额用完停过，aven 06:46 切 auth=local 后续完）。v4 重判：计分 169、模拟局限 61、falive 更好 48、都错 7；硬线 1 = 13、硬线 2 = 23。分诊：rounds/b4/wave5-triage.md、wave6-triage.md。
+   - 波 6（3635a6d）：续跑「收到补充」按回的消息去重（之前按内容 24h 去重把第二次续跑的回复吞了）；负责人本人交办、停下只为请他定 → 按建议做完再请复核；「@bot 没回」巡检（30 分钟无任何回话且单已不在跑 → 私信 aven 一次）。全量 646 绿、变异 65/65。**波 6 还没在回放里验证过。**
+   - **b6**（fix-w5 代码 6b236e7，指纹 85ae41abeb7d，并发 9，录放开）：跑完 37/61 组，05:15 UTC 守卫停——ep-1023-08e243 worker 启动的模型就绪检查 `spawnSync scripts/sim/claude ETIMEDOUT`（9 组并发时 claude 起得慢，不是额度；事后单测 claude 正常）。之后 aven 叫停，没有续跑。
+   - **b6 半轮结果（37 组 / 216 case，计分 140）**：准 lark-bot 更好 60 / falive 更好 28 / 一样 49 / 都错 3；快：首句中位 12s vs 47s、P90 18s vs 4.6min，结论中位 1.8min vs 3.9min、P90 7.1min vs 20min；省：配对 24 条中位 $0.95 vs $2.52、合计 $30.5 vs $54.6。验收**不通过**：硬线 1 风险 case falive 更好 11 条；硬线 2 漏回 / 回错 / 重复 8 条（cb475c79 完全重复发件 4 条）；falive 更好 28 > 14。明细 rounds/b6/{metrics,acceptance}-partial-37of61.md。
+   - **周末接着做（按顺序）**：
+     1. 判断就绪检查超时：把 worker 启动自检的 claude 超时在 sim 里放大，或并发降到 7–8，再续 b6 还是直接跑 b7 由 aven 定。续跑命令：在 ~/github/lark-bot-fix-w5 `node scripts/sim/run-episodes.mjs --round b6 --max-parallel 8 --ai-cache --port-base 3800`（有 DONE 的 37 组跳过，round.json 在 → 预检自动 --resume）。
+     2. 建议：不续 b6，直接以 fix-w6 起 b7（全量 61 组，波 6 一起验）；起跑前把 fix-w6 合进 latest、跑 test-all。
+     3. b6 半轮里 28 条 falive 更好 + 8 条硬线 2 分诊（triage.mjs --round b6），对照 wave6-triage 去掉已修的，派波 7。
+     4. 待 aven 定：只读复测调 `GET getLiveUrl` 会改 pre 场次数据，要不要写进固定知识；pre 上 b2 事故留下的 25 个测试帖删不删。
+   - 环境现状：两个线上 bot 仍停；auth=local（订阅）；没有回放 / 裁判进程在跑；运行产物在 ~/github/lark-bot/runtime/falive-replay/sim/{b4,b6}/。
