@@ -592,7 +592,7 @@ describe('网关侧收口：摄入、上下文包、收到、主通道、分类�
         { name: '取消那个弹窗，直接跳转 → 补料', text: '取消那个弹窗，直接跳转', want: null },
         { name: '关闭直播间内的礼物入口，由服务端控制 → 补料', text: '关闭直播间内的礼物入口，由服务端控制', want: null },
         { name: '这个任务关闭吧 → 只问', text: '这个任务关闭吧', want: { kind: 'unclear', closureReason: 'cancelled' } },
-        { name: '后端已经修了，不用改了，复测一下 → 只问', text: '后端已经修了，不用改了，复测一下', want: { kind: 'unclear', closureReason: 'no_longer_needed' } },
+        { name: '后端已经修了，不用改了，复测一下 → 要我们复测，按指示走（b4 a9c28669：后面还要重来一遍的不是结单）', text: '后端已经修了，不用改了，复测一下', want: null },
         { name: '已经有人在改了 → 只问', text: '已经有人在改了', want: { kind: 'unclear', closureReason: 'no_longer_needed' } },
         { name: '别做了？', text: '别做了？', want: { kind: 'unclear', closureReason: 'cancelled' } },
         { name: '是', text: '是', want: null },
