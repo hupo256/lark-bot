@@ -16,6 +16,8 @@
 
 ## 1. 拷代码
 
+> 首次部署之后的升级用 lark-bot 仓的 `bash scripts/mail-relay-publish.sh`（测试 → 备份 → 替换 → 重启 → 验活，失败自动回滚），见 `../README.md`「升级发布」。
+
 在笔记本上：
 
 ```sh
