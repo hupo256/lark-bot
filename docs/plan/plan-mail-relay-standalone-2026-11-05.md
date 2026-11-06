@@ -60,7 +60,14 @@
 3. 测试：`__tests__/lark-mail-relay.test.mjs` 搬到包内，lark-bot 全量测试照常覆盖它；加一条守卫测试：包内文件不准 import `../../lib/`。
 4. 验收：`node scripts/test-all.mjs` 全绿；用 `scripts/lark-mail-relay.mjs forward --message-id <今天那封 BBO> --dry-run` 对比拆分前后的评分 markdown，逐字相同；上线后台账、日志和拆前一致。
 
-### P2 独立飞书应用（约 0.5 天动手 + 等管理员审批）· 11-05 进行中
+## 现状（11-06 已切换上线）
+
+审批群（`oc_936db…`）由 **Mac mini 上的「审批邮件助手」**转发：`ex-user@ex-userdeMac-mini.local`，launchd `com.fameex.mail-relay`，实时监听 + 每 5 分钟兜底拉取，配置 / 凭证 / 台账在 Mac mini 的 `~/.config/mail-relay`。
+笔记本 lark-bot 的内置转发已关（`mailRelay.enabled=false`），审批群写进了 `chatRetention.keep`。升级：在笔记本改 `packages/mail-relay` → `bash scripts/mail-relay-publish.sh`。
+切换过程（11-06 07:36–07:47 UTC）：先停 Mac mini → 关笔记本转发（排空重启 11:37 本地）→ 笔记本台账 28 条并入 Mac mini 台账防重复 → 路由改回审批群并启动 → 对 06:00Z 后收件箱 21 封逐封核对，唯一一封该转的（PR-02514）已转，无漏转、无重复。
+回滚：Mac mini `launchctl bootout gui/$(id -u)/com.fameex.mail-relay`；笔记本 `mailRelay.enabled` 改回 true。
+
+### P2 独立飞书应用（约 0.5 天动手 + 等管理员审批）· 11-06 已完成
 
 > 进度：应用「审批邮件助手」`cli_aa663bfff1b89f04` 已建（只加机器人能力），权限按 `engine.mjs` 的 `RELAY_USER_SCOPES`（8 个用户身份只读 / 监听 / 续期）+ 机器人发消息开好，**已提交企业管理员审批，在等**。
 > 笔记本上已建独立凭证目录 `~/.config/mail-relay/lark-cli`（0700，`config init` 完成）；邮箱授权试过一次，飞书回「权限审核中」，审批通过后重新 `auth login`。
