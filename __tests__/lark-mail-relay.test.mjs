@@ -415,7 +415,7 @@ describe('审批邮件转群：OL 评分、路由、转发、引擎、拆分接�
       assert.deepEqual(validateMailRelay({ ...OL_RELAY, pollMs: 0 }), ['mailRelay.pollMs 必须是正数（毫秒）'])
       relay.stop()
     }],
-    ['入口（mode=watch，只在独立应用里用）：没开 / 没启用路由不起；开了用 user 身份常驻 +watch、行进 handler、补转与定时只写本地时钟、停止落时钟', async () => {
+    ['入口（mode=watch，只在独立应用里用）：没开 / 没启用路由不起；开了用 user 身份常驻 +watch、行进 handler；照样定时拉取兜底（同一个台账 / 调用器 / 15 分钟重叠）；停止两路都停', async () => {
       let consumed = null
       const consume = (options) => { consumed = options; return { stop: () => { consumed.stopped = true }, observe: () => ({ alive: true }) } }
       assert.equal(startMailRelay({ relay: { ...OL_RELAY, enabled: false }, consume }).observe(), null)
@@ -423,23 +423,31 @@ describe('审批邮件转群：OL 评分、路由、转发、引擎、拆分接�
       assert.equal(startMailRelay({ relay: undefined, consume }).observe(), null)
       assert.equal(consumed, null)
       const io = memIo()
-      let caught = null
+      const caught = []
       const timers = []
+      const cleared = []
+      const originalClear = globalThis.clearInterval
       const cli = { run: async () => ({ code: 0, stdout: '', stderr: '' }), env: { LARKSUITE_CLI_CONFIG_DIR: '/d' } }
-      const relay = await quiet(() => startMailRelay({ relay: { ...OL_RELAY, mode: 'watch' }, io, cli, consume, catchUp: async (args) => { caught = args }, schedule: (fn, ms) => { timers.push([fn, ms]); return null } }))
+      const relay = await quiet(() => startMailRelay({ relay: { ...OL_RELAY, mode: 'watch' }, io, cli, consume, catchUp: async (args) => { caught.push(args); return { checked: 0 } }, schedule: (fn, ms) => { timers.push([fn, ms]); return 'poll-timer' } }))
       assert.deepEqual(consumed.command, ['--as', 'user', 'mail', '+watch', '--msg-format', 'metadata', '--format', 'data'])
       assert.equal(consumed.eventKey, 'mail.user_mailbox.event.message_received_v1')
       assert.equal(consumed.env, cli.env, '拆分时 +watch 也走同一套凭证')
       assert.equal(consumed.onLine({ header: {} }), null, '不是邮件的行不处理')
       assert.ok(consumed.onLine({ message: { message_id: 'x', subject: 'nothing' } }) instanceof Promise)
-      assert.ok(caught?.handler && caught.io === io && caught.run === cli.run, '启动补转用同一个台账和调用器')
+      assert.ok(caught[0]?.handler && caught[0].io === io && caught[0].run === cli.run && caught[0].overlapMs === RELAY_POLL_OVERLAP_MS && caught[0].label === '兜底拉取', '启动就拉一轮，同一个台账和调用器、带重叠')
       assert.deepEqual(relay.routes.map((route) => route.id), ['ol'])
-      assert.equal(timers[0][1], 600_000)
-      timers[0][0]()
-      assert.ok(io.read().checkedAt, '定时只写本地时钟')
-      assert.deepEqual(relay.observe(), { alive: true })
-      relay.stop()
-      assert.equal(consumed.stopped, true)
+      assert.equal(timers[0][1], RELAY_POLL_MS, '兜底按 pollMs 定时拉')
+      await timers[0][0]()
+      assert.equal(caught.length, 2)
+      const seen = relay.observe()
+      assert.deepEqual([seen.mode, seen.watch, seen.last.checked, seen.failures.count], ['watch', { alive: true }, 0, 0])
+      globalThis.clearInterval = (handle) => cleared.push(handle)
+      try {
+        relay.stop()
+      } finally {
+        globalThis.clearInterval = originalClear
+      }
+      assert.deepEqual([consumed.stopped, cleared], [true, ['poll-timer']])
     }],
     // 独立包 packages/mail-relay（11-05 P1 拆分）：包边界、lark-cli 层对照、独立运行缺省、长连接、独立入口。
     ...mailRelayPackageSteps,

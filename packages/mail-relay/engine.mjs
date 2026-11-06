@@ -15,8 +15,9 @@
  *     可能早于到达时间，重叠部分靠台账去重）；只在拉成功后推进时钟，拉失败下一轮接着补。不开 WebSocket。
  *   · watch：常驻 `mail +watch`。**和 bot 同一个应用时不要用**：+watch 另开一条 WebSocket，飞书在同一应用的两条连接间分流事件，
  *     落到它这条的 im 消息事件（私信 / @bot）会被丢掉、靠飞书重投（11-02 实测 4 小时丢 6 条，一条私信晚了 5 分钟）。拆成独立应用后才用。
+ *     watch 模式照样每 pollMs 拉一次收件箱兜底（11-06）：实时转发靠事件，漏掉的事件靠拉取补，两路共用 handler + 台账去重。
  *   首次启用（台账没有时钟）只落时钟、不回填历史。
- * 拉取失败告警（11-05 aven「连续拉取失败 5 次时私信一次」）：poll 模式连续 alert.afterFailures（默认 5）轮读收件箱失败，私信 alert.openId
+ * 拉取失败告警（11-05 aven「连续拉取失败 5 次时私信一次」）：连续 alert.afterFailures（默认 5）轮读收件箱失败，私信 alert.openId
  *   （缺省用调用方给的 notifyOpenId：网关传 config.notifyOpenId）一次，带最近一次的真实错误；之后恢复再报一次。发信用本引擎的 lark-cli
  *   调用器（bot 身份），拆成独立应用时跟着换成新应用的 bot。没有收件人就只打日志。
  * 包边界（11-05 P1 拆分）：本目录不 import lark-bot 的任何模块；路径一律按调用方给的 baseDir 解析（独立运行 = 配置文件所在目录）。
@@ -36,7 +37,6 @@ import { matchRoute, normalizeRoutes } from './routes.mjs'
 
 export const MAIL_RELAY_STANDALONE_STATE_FILE = 'mail-relay-state.json'
 const KEEP_RECORDS = 500
-const CHECKPOINT_EVERY_MS = 10 * 60_000
 export const RELAY_POLL_MS = 2 * 60_000
 export const RELAY_POLL_MIN_MS = 30_000
 export const RELAY_POLL_OVERLAP_MS = 15 * 60_000
@@ -242,69 +242,65 @@ export const startMailRelay = ({ relay, io, cli, baseDir = process.cwd(), notify
   const handler = createRelayHandler({ routes, io: ledger, run, dryRun: shadow })
   const reloginHint = `${env?.LARKSUITE_CLI_CONFIG_DIR ? `LARKSUITE_CLI_CONFIG_DIR=${env.LARKSUITE_CLI_CONFIG_DIR} ` : ''}lark-cli auth login --scope "${RELAY_USER_SCOPES.join(' ')}"`
   const routeText = `${routes.map((route) => `${route.id}（${route.label}）→ ${route.chatId}`).join('；')}${shadow ? '（影子模式：只记台账、不往群里发）' : ''}`
-  if (relay.mode !== 'watch') {
-    // poll（默认）：不开 WebSocket，定时 +triage。上一轮没跑完就跳过本轮，不叠加。
-    const pollMs = relayPollMs(relay)
-    const alertSettings = relayAlertSettings(relay, notifyOpenId)
-    const alarm = createFailureAlarm({ ...alertSettings, reloginHint, prefix: shadow ? '[影子] ' : '' })
-    const send =
-      notify ||
-      (async (text) => {
-        if (!alertSettings.openId) return console.warn(`[lark-mail-relay] 没有告警收件人（mailRelay.alert.openId / notifyOpenId），只记日志：${text}`)
-        const sent = await sendMarkdown({ chatId: alertSettings.openId, markdown: text, logPrefix: 'mail-relay alert', logTag: '[lark-mail-relay]', run })
-        if (!sent.ok) console.error(`[lark-mail-relay] 告警私信没发出去：${sent.reason || '未知'}`)
-      })
-    let running = false
-    let last = null
-    const tick = async () => {
-      if (running) return
-      running = true
-      try {
-        last = { at: new Date().toISOString(), ...(await catchUp({ handler, io: ledger, run, overlapMs: RELAY_POLL_OVERLAP_MS, label: '定时拉取' })) }
-      } catch (error) {
-        last = { at: new Date().toISOString(), failed: true, error: error.message }
-        console.error('[lark-mail-relay] 定时拉取失败:', error.message)
-      }
-      try {
-        const text = alarm.observe(last)
-        if (text) await send(text)
-      } catch (error) {
-        console.error('[lark-mail-relay] 告警发送异常:', error.message)
-      } finally {
-        running = false
-      }
+  // 定时拉取：poll 模式是唯一的收信路；watch 模式是兜底（11-06：原来 watch 只在启动时补拉一次、每 10 分钟把时钟直接推到现在，
+  // 长连接漏掉的事件既没实时转、重启也补不回来）。上一轮没跑完就跳过本轮，不叠加；读成功才推时钟；连续失败告警两种模式都有。
+  const watch = relay.mode === 'watch'
+  const pollMs = relayPollMs(relay)
+  const alertSettings = relayAlertSettings(relay, notifyOpenId)
+  const alarm = createFailureAlarm({ ...alertSettings, reloginHint, prefix: shadow ? '[影子] ' : '' })
+  const send =
+    notify ||
+    (async (text) => {
+      if (!alertSettings.openId) return console.warn(`[lark-mail-relay] 没有告警收件人（mailRelay.alert.openId / notifyOpenId），只记日志：${text}`)
+      const sent = await sendMarkdown({ chatId: alertSettings.openId, markdown: text, logPrefix: 'mail-relay alert', logTag: '[lark-mail-relay]', run })
+      if (!sent.ok) console.error(`[lark-mail-relay] 告警私信没发出去：${sent.reason || '未知'}`)
+    })
+  let running = false
+  let last = null
+  const tick = async () => {
+    if (running) return
+    running = true
+    try {
+      last = { at: new Date().toISOString(), ...(await catchUp({ handler, io: ledger, run, overlapMs: RELAY_POLL_OVERLAP_MS, label: watch ? '兜底拉取' : '定时拉取' })) }
+    } catch (error) {
+      last = { at: new Date().toISOString(), failed: true, error: error.message }
+      console.error('[lark-mail-relay] 定时拉取失败:', error.message)
     }
-    tick()
-    const pollTimer = schedule(tick, pollMs)
-    pollTimer?.unref?.()
-    console.log(`[lark-mail-relay] 已启用 ${routes.length} 条路由（每 ${Math.round(pollMs / 1000)} 秒拉一次收件箱）：${routeText}`)
-    return { routes, mode: 'poll', observe: () => ({ mode: 'poll', pollMs, last, failures: alarm.state() }), stop: () => clearInterval(pollTimer) }
+    try {
+      const text = alarm.observe(last)
+      if (text) await send(text)
+    } catch (error) {
+      console.error('[lark-mail-relay] 告警发送异常:', error.message)
+    } finally {
+      running = false
+    }
   }
-  const checkpoint = () => ledger.write({ ...ledger.read(), checkedAt: new Date().toISOString() })
-  const consumer = consume({
-    eventKey: 'mail.user_mailbox.event.message_received_v1',
-    command: ['--as', 'user', 'mail', '+watch', '--msg-format', 'metadata', '--format', 'data'],
-    env,
-    maxRestarts: 8,
-    onLine: (raw) => {
-      const mail = mailFromWatchLine(raw)
-      return mail ? handler.handle(mail) : null
-    },
-    onDownAlert: () => {},
-  })
-  catchUp({ handler, io: ledger, run }).catch((error) => console.error('[lark-mail-relay] 启动补转失败:', error.message))
-  // 只写本地时钟（下次重启补转的起点），不碰飞书。
-  const timer = schedule(checkpoint, CHECKPOINT_EVERY_MS)
-  timer?.unref?.()
-  console.log(`[lark-mail-relay] 已启用 ${routes.length} 条路由（实时监听 +watch）：${routeText}`)
+  // watch：常驻 user 身份 +watch，新邮件事件一到就进 handler（和兜底拉取共用 handler：串行 + 台账去重，同一封不会转两遍）。
+  const consumer = watch
+    ? consume({
+        eventKey: 'mail.user_mailbox.event.message_received_v1',
+        command: ['--as', 'user', 'mail', '+watch', '--msg-format', 'metadata', '--format', 'data'],
+        env,
+        maxRestarts: 8,
+        onLine: (raw) => {
+          const mail = mailFromWatchLine(raw)
+          return mail ? handler.handle(mail) : null
+        },
+        onDownAlert: () => {},
+      })
+    : null
+  tick()
+  const pollTimer = schedule(tick, pollMs)
+  pollTimer?.unref?.()
+  const how = watch ? `实时监听 +watch，另每 ${Math.round(pollMs / 1000)} 秒拉一次收件箱兜底` : `每 ${Math.round(pollMs / 1000)} 秒拉一次收件箱`
+  console.log(`[lark-mail-relay] 已启用 ${routes.length} 条路由（${how}）：${routeText}`)
   return {
     routes,
-    mode: 'watch',
-    observe: () => consumer.observe?.() || null,
+    mode: watch ? 'watch' : 'poll',
+    observe: () => ({ mode: watch ? 'watch' : 'poll', pollMs, last, failures: alarm.state(), ...(consumer ? { watch: consumer.observe?.() || null } : {}) }),
     stop: () => {
-      clearInterval(timer)
-      checkpoint()
-      consumer.stop()
+      clearInterval(pollTimer)
+      consumer?.stop()
     },
   }
 }
