@@ -299,6 +299,7 @@ describe('审批邮件转群：OL 评分、路由、转发、引擎、拆分接�
         [{ code: 1, stdout: '', stderr: `[lark-cli] [WARN] uat-client: refresh attempt 1/2 failed\n${TIP}` }, '退出码 1；[lark-cli] [WARN] uat-client: refresh attempt 1/2 failed'],
         [{ code: -1, stdout: '', stderr: '[lark-cli timeout after 60000ms]' }, '退出码 -1；[lark-cli timeout after 60000ms]'],
         [{ code: 1, stdout: '', stderr: TIP }, '退出码 1'],
+        [{ code: 1, stdout: '', stderr: `${TIP}\n${JSON.stringify({ ok: false, identity: 'user', error: { type: 'api', subtype: 'unknown', code: 1230008, message: 'API call failed: too many requests, please retry later' } }, null, 2)}` }, '退出码 1；api/unknown code 1230008 API call failed: too many requests, please retry later'],
         [{ code: 0, stdout: '', stderr: '' }, '没有输出'],
         [{}, '没有输出'],
       ], ([result, want]) => assert.equal(relayFailureText(result), want))

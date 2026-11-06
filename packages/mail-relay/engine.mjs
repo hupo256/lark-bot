@@ -146,19 +146,24 @@ export const createRelayHandler = ({ routes, io = fileRelayIo(), forward = forwa
 const TIP_LINE = /^\s*tip:/i
 export const relayFailureText = (result = {}) => {
   const stdout = String(result.stdout || '').trim()
-  let detail = null
-  try {
-    const error = JSON.parse(stdout)?.error
-    if (error && (error.type || error.message)) {
-      detail = [[error.type, error.subtype].filter(Boolean).join('/'), error.code != null ? `code ${error.code}` : null, String(error.message || '').replace(/\s+/g, ' ').trim()]
+  // 去掉 tip 行后的 stderr；lark-cli 有时把结构化错误 JSON 打在 stderr 里（11-06 Mac mini 限流那次），也要能解析。
+  const stderr = String(result.stderr || '').split('\n').filter((line) => line.trim() && !TIP_LINE.test(line)).join('\n').trim()
+  const structured = (text) => {
+    try {
+      const error = JSON.parse(text)?.error
+      if (!error || !(error.type || error.message)) return null
+      return [[error.type, error.subtype].filter(Boolean).join('/'), error.code != null ? `code ${error.code}` : null, String(error.message || '').replace(/\s+/g, ' ').trim()]
         .filter(Boolean)
         .join(' ')
+    } catch {
+      return null
     }
-  } catch {
-    detail = stdout ? stdout.replace(/\s+/g, ' ') : null
   }
-  const stderr = String(result.stderr || '').split('\n').map((line) => line.trim()).filter((line) => line && !TIP_LINE.test(line)).join(' | ')
-  const parts = [result.code ? `退出码 ${result.code}` : null, detail, stderr || null].filter(Boolean)
+  const fromStdout = structured(stdout)
+  const fromStderr = fromStdout ? null : structured(stderr)
+  const detail = fromStdout || fromStderr || (stdout ? stdout.replace(/\s+/g, ' ') : null)
+  const rest = fromStderr ? null : stderr.split('\n').map((line) => line.trim()).join(' | ') || null
+  const parts = [result.code ? `退出码 ${result.code}` : null, detail, rest].filter(Boolean)
   return (parts.length ? parts.join('；') : '没有输出').slice(0, 400)
 }
 
