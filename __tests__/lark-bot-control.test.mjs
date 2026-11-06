@@ -31,37 +31,19 @@ describe('lark-bot control script', () => {
     }],
   ]))
 
-  it('restart：按原 poller 状态恢复并以严格 status 收尾', () => runSteps([
-    ['restart 仅在原 poller 运行时恢复，并且恢复发生在 core 启动之后', () => {
+  it('restart：先停再起，并以严格 status 收尾', () => runSteps([
+    ['restart 顺序：stop → start → status', () => {
       const result = runBash(`
       export LARK_BOT_SOURCE_ONLY=1
       source ${JSON.stringify(script)}
-      _running() { return 0; }
       stop() { echo stop; }
       sleep() { :; }
       start() { echo start; }
-      poll_on() { echo poll-on; }
-      status() { echo status; }
-      restart
-    `)
-      assert.equal(result.status, 0, result.stderr)
-      assert.match(result.stdout, /stop\nstart\npoll-on\n.*restored poller.*\nstatus/s)
-    }],
-    ['原 poller 未运行时也执行最终严格 status', () => {
-      const result = runBash(`
-      export LARK_BOT_SOURCE_ONLY=1
-      source ${JSON.stringify(script)}
-      _running() { return 1; }
-      stop() { echo stop; }
-      sleep() { :; }
-      start() { echo start; }
-      poll_on() { echo unexpected-poll-on; }
       status() { echo status; }
       restart
     `)
       assert.equal(result.status, 0, result.stderr)
       assert.match(result.stdout, /stop\nstart\nstatus/s)
-      assert.doesNotMatch(result.stdout, /unexpected-poll-on/)
     }],
     ['restart 最终 status 不健康时返回非零', () => {
       const result = runBash(`
@@ -87,7 +69,6 @@ describe('lark-bot control script', () => {
         case "$1" in
           "$GW") echo 101 ;;
           "$WK") echo 202 ;;
-          "$POLLER") echo 303 ;;
         esac
       }
       curl() {
@@ -98,10 +79,10 @@ describe('lark-bot control script', () => {
       assert.equal(result.status, 0, result.stderr)
       assert.match(
         result.stdout,
-        /lark-worker:  running  pid=202\npoller:       running  pid=303\n\nexecutor:     codex  model=gpt-5\.6-sol  reasoning=high  probe=passed\ntasks:/,
+        /lark-worker:  running  pid=202\n\nexecutor:     codex  model=gpt-5\.6-sol  reasoning=high  probe=passed\ntasks:/,
       )
     }],
-    // 挂起任务催办满 N 轮后 gateway 就闭嘴了，此后只有 status 能盘点到它们；计数与明细必须都在。
+    // bot 不催办，挂起任务只有 status 能盘点到；计数与明细必须都在。
     ['status 列出 waiting_confirmation 计数与明细（含续跑/结单指令）', () => {
       const result = runBash(`
       export LARK_BOT_SOURCE_ONLY=1
@@ -117,16 +98,16 @@ describe('lark-bot control script', () => {
       status
     `)
       assert.match(result.stdout, /tasks:.*waiting=1/)
-      assert.match(result.stdout, /waiting-confirmation（等人补料\/确认/)
-      assert.match(result.stdout, /recAAA\s+\[PR-02172\]\s+已挂起 \d+h\s+已催 2\/3 轮/)
+      assert.match(result.stdout, /waiting-confirmation（等人补料 \/ 确认/)
+      assert.match(result.stdout, /recAAA\s+\[PR-02172\]\s+已挂起 \d+h\n/)
       assert.match(result.stdout, /修复：埋点没上报/)
       assert.match(result.stdout, /→ 需人工确认 \/ 补充材料后才能继续。/)
-      assert.match(result.stdout, /继续任务 recAAA <补充内容>.*结单 recAAA/)
+      assert.match(result.stdout, /falive-bot resume recAAA .*falive-bot close recAAA/)
       // 非挂起态不得混进明细
       assert.doesNotMatch(result.stdout, /不该出现/)
     }],
-    // 疑似单不进催办，task-store 用 parkedRemindedRound=99 作哨兵；status 不能把哨兵当轮次显示成「已催 99/3 轮」。
-    ['status 对疑似单显示「不催办」而不是哨兵轮次', () => {
+    // 疑似单（task-store 用 parkedRemindedRound=99 作哨兵）：status 只标「疑似单」，不显示轮次。
+    ['status 对疑似单标「疑似单」而不是哨兵轮次', () => {
       const result = runBash(`
       export LARK_BOT_SOURCE_ONLY=1
       source ${JSON.stringify(script)}
@@ -140,7 +121,7 @@ describe('lark-bot control script', () => {
       }
       status
     `)
-      assert.match(result.stdout, /omSUS\s+\[FALIVE\]\s+已挂起 \d+h\s+疑似单，不催办/)
+      assert.match(result.stdout, /omSUS\s+\[FALIVE\]\s+已挂起 \d+h\s+疑似单/)
       assert.doesNotMatch(result.stdout, /已催 99/)
     }],
     ['挂起明细取不到时降级为提示，不吞掉其余状态', () => {

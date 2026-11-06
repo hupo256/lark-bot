@@ -133,7 +133,7 @@ describe('发件簿（阶段 3）', () => {
           calls.push({ file: file.slice(larkBotRoot.length + 1), phase })
         }
       }
-      assert.ok(calls.length >= 8, `只扫到 ${calls.length} 处发群调用，扫描规则失效了`)
+      assert.ok(calls.length >= 7, `只扫到 ${calls.length} 处发群调用，扫描规则失效了`)
       for (const call of calls) {
         assert.ok(call.phase, `${call.file} 有一处 sendGroupCard 调用没写字面量 phase：出口规则表管不到它`)
         assert.ok(groupPhasePolicy(call.phase), `${call.file} 用了 phase ${call.phase}，出口规则表（lib/lark-group-phases.mjs）里没有`)

@@ -195,17 +195,6 @@ describe('分类回写：被动闸先于并单、疑似单不并单、幂等重�
         rmSync(reportDir, { recursive: true, force: true })
       }
     })],
-    ['本机脚本发私聊（/lark/notify）：发到请求仓的控制台、正文原样、成功 reason 为 null；没正文 400；仓没配控制台 404（变异补测 10-24）', () => withServer(async ({ post }) => {
-      const mark = posted.length
-      assert.equal((await post('/lark/notify', { repo: 'rvwnonotify', markdown: 'x' })).status, 404)
-      assert.equal((await post('/lark/notify', { repo: 'rvwfix' })).status, 400, '没正文不能发出「undefined」')
-      assert.equal(posted.length, mark)
-      const res = await post('/lark/notify', { repo: 'rvwfix', markdown: '  bug 表轮询：3 条已修  ', source: 'bugpoll' })
-      assert.equal(res.status, 200)
-      assert.deepEqual(res.body, { ok: true, reason: null })
-      assert.deepEqual(posted.slice(mark).map((item) => item.url), ['https://hook/console'])
-      assert.match(JSON.stringify(posted.at(-1).body), /bug 表轮询：3 条已修/)
-    })],
     ['终端结单：记下操作人和说明；没给操作人记 cli（变异补测 10-24）', () => withServer(async ({ store: own, post }) => {
       own.upsert({ id: 'cz_1', status: 'waiting_confirmation', chatId: 'oc_plain', text: 'x', createdAt: at })
       own.upsert({ id: 'cz_2', status: 'blocked', chatId: 'oc_plain', text: 'x', createdAt: at })

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
-import { checkDeployAndRetest, deployedCommits, findDeployPromises, findPromiseSentence, probePreBuild, runOnDeploy } from '../lib/lark-deploy-watch.mjs'
+import { checkDeployAndRetest, deployedCommits, findDeployPromises, findPromiseSentence, probePreBuild } from '../lib/lark-deploy-watch.mjs'
 import { loadSweepState, saveSweepState } from '../lib/lark-daily-sweep.mjs'
 import { createTaskStore } from '../lib/lark-task-store.mjs'
 import { registerRepoProfiles, repoProfile, resetRepoProfiles } from '../lib/lark-repo-profile.mjs'
@@ -130,8 +130,8 @@ describe('盯所有部署', () => {
     rmSync(runtimeDir, { recursive: true, force: true })
   }
   const hooks = { before: setup, after: teardown }
-  const check = ({ buildTime, sha = null, now, git = fakeGit({ heads: { 0: 'h1', [buildTime - 1]: 'h2' } }).git, profile = repoProfile('falive'), runOnDeploy: hook, seo, send }) =>
-    checkDeployAndRetest({ store, profile, now: new Date(now), deps: { runtimeDir, outboxDir, git, probePreBuild: async () => ({ buildTime, sha }), ...(hook ? { runOnDeploy: hook } : {}), ...(seo ? { runSeoCheck: async () => seo } : {}), ...(send ? { send } : {}) } })
+  const check = ({ buildTime, sha = null, now, git = fakeGit({ heads: { 0: 'h1', [buildTime - 1]: 'h2' } }).git, profile = repoProfile('falive'), seo, send }) =>
+    checkDeployAndRetest({ store, profile, now: new Date(now), deps: { runtimeDir, outboxDir, git, probePreBuild: async () => ({ buildTime, sha }), ...(seo ? { runSeoCheck: async () => seo } : {}), ...(send ? { send } : {}) } })
 
   it('盯部署：首次只记基线不补建，构建变新按提交建复测与承诺单，无新提交只记部署点', () => runSteps([
     ['今天的形状：state 只有旧 lastPush、发件簿有 10:28 的承诺 → 合入后首次只记基线，14:37 这次不补建；之后的部署也不再捡这句', async () => {
@@ -217,26 +217,6 @@ describe('盯所有部署', () => {
       const out = await check({ buildTime: 5000, now: 6000, git: fakeGit({ heads: { 0: 'h2' } }).git })
       assert.deepEqual([out.deployed, out.taskId, out.promiseTaskIds], [true, null, []])
       assert.equal(loadSweepState('falive', { runtimeDir }).lastDeploy.buildTime, 5000)
-    }],
-    ['配了 onDeploy（bugpoll 改 bug 表）：部署后带 --sha / --build-time 跑一次、输出私信负责人；失败也私信并给补跑命令；首次基线不跑（10-28）', async () => {
-      const calls = []
-      const sentTo = []
-      const exec = async (file, args) => { calls.push([file, ...args].join(' ')); return calls.length === 1 ? { ok: true, stdout: 'pre 已部署：Bug-4987 → 已推版\n', stderr: '' } : { ok: false, stdout: '', stderr: '读 bug 表失败' } }
-      const send = async (msg) => { sentTo.push(msg); return { ok: true } }
-      const profile = { ...repoProfile('falive'), dailyReport: { sweep: { preSiteUrl: 'https://pre.example.com/', onDeploy: ['python3', '-I', '/b/deployed.py'] } } }
-      const hook = (args) => runOnDeploy({ ...args, exec, send })
-      assert.equal((await check({ buildTime: 1000, now: 1500, profile, runOnDeploy: hook })).baseline, true)
-      assert.deepEqual(calls, [], '首次只记基线，不改表')
-      const out = await check({ buildTime: 5000, sha: 'abc1234', now: 6000, profile, runOnDeploy: hook, git: fakeGit({ heads: { 0: 'h1' } }).git })
-      assert.deepEqual(calls, ['python3 -I /b/deployed.py --sha abc1234 --build-time 5000'])
-      assert.deepEqual([sentTo[0].chatId, sentTo[0].markdown], ['oc_console', 'pre 已部署：Bug-4987 → 已推版'])
-      assert.equal(out.onDeploy.ok, true)
-      await check({ buildTime: 9000, sha: 'def5678', now: 9500, profile, runOnDeploy: hook, git: fakeGit({ heads: { 0: 'h1' } }).git })
-      assert.match(sentTo[1].markdown, /没跑成[\s\S]*读 bug 表失败[\s\S]*python3 -I \/b\/deployed\.py --sha def5678/)
-      assert.equal(await runOnDeploy({ profile: repoProfile('falive'), deploy: { head: 'x', buildTime: 1 }, exec }), null, '没配 onDeploy 不跑')
-      assert.equal(calls.length, 2)
-      await runOnDeploy({ profile, deploy: { head: 'y', buildTime: 2 }, exec: async () => ({ ok: true, stdout: '\n', stderr: '' }), send })
-      assert.equal(sentTo.length, 2, '没有待推版要改（输出为空）不打扰')
     }],
     ['探站：首页引用的入口脚本名没变就不再下载入口 JS；变了才重读构建时间和提交号（2 分钟一探，10-28）', async () => {
       const fetched = []

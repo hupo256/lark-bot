@@ -86,30 +86,6 @@ describe('lark-cli 子进程限流（第 1 批）', () => {
       assert.equal(await resolveChatName('oc_outside'), '')
       assert.equal(callCount(caseDir, '+chat-list'), 3, '外部群 TTL 内负缓存，不再每次 miss 都拉表')
     }],
-    ['bug 表回写失败落 done_pending_writeback 时，done 结果卡仍按本轮回执登记（可被回复锚定），不当成已换代丢弃（变异补测 10-24）', async () => {
-      const caseDir = mkdtempSync(join(dir, 'writeback-'))
-      writeFileSync(bin, scriptedCli(caseDir))
-      const store = createTaskStore({ tasksDir: join(caseDir, 'tasks'), leaseMs: 60_000 })
-      store.upsert({ id: 't', status: 'running', epoch: 0, project: 'PR-00001', source: 'lark-bugtable', recordId: 'rec1', commandType: 'fix', chatId: 'oc_x', text: '修复按钮', createdAt: '2026-01-01T00:00:00Z' })
-      const outcome = await handleStatusUpdate({
-        config: { project: 'PR-00001', bugTable: { appToken: 'app', tableId: 'tbl', statusField: '状态', doneValue: '已修复' } },
-        store,
-        id: 't',
-        status: 'done',
-        result: '已修复。',
-        epoch: 0,
-        resolveGroupChat: async () => null,
-        postGroup: async () => ({ ok: true }),
-        sendMessage: async () => ({ ok: true, messageId: 'om_result' }),
-      })
-      assert.ok(callCount(caseDir, '+record-batch-update') >= 1, '确实走了 bug 表回写')
-      assert.equal(outcome.ok, true)
-      assert.equal(outcome.receiptSuperseded, undefined, '回写挂起不是换代，结果卡不能被当旧发送结果忽略')
-      assert.equal(store.get('t').status, 'done_pending_writeback')
-      assert.equal(store.findByReceiptMessageId('om_result')?.id, 't')
-      assert.equal(store.get('t').lastDeliveredReceipt?.idempotencyKey, 't-e0-done')
-      assert.equal(store.get('t').pendingReceipt, undefined)
-    }],
     ['任务审计记录执行落点：临时 worktree 记 hotfixBranch，就地改（无 hotfix 分支）落 null 而不是缺字段（变异补测 10-24）', () => {
       const withBranch = createTaskAudit({
         workerConfig: {},

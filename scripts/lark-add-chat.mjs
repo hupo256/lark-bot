@@ -2,6 +2,7 @@
 /**
  * falive-bot add-chat：把一个新群接进 falive-bot（拉自定义机器人进群后跑一次）。
  *   falive-bot add-chat --name "Falive 前端交接群" --webhook <地址> --secret <密钥> [--repo falive] [--label 显示名] [--chat-id oc_xxx]
+ *   falive-bot add-chat --console --name "我的 bot 控制台" --webhook <地址> --secret <密钥>   （负责人控制台群：写 notifyChatId，不当仓库群）
  * 做的事和原因见 lib/lark-chat-onboard.mjs；写完配置不用手动重启（worker 排空重启自动接上）。
  */
 import { homedir } from 'node:os'
@@ -12,7 +13,7 @@ import { formatLarkCliError, larkCallFailed, listChatCustomBots, runLarkCli } fr
 import { validateConfig } from '../lib/lark-config.mjs'
 import { larkRuntimeDir } from '../lib/lark-repo.mjs'
 
-const USAGE = 'usage: falive-bot add-chat --name <群名> | --chat-id <oc_…>  --webhook <地址> [--secret <密钥>] [--repo falive] [--label <显示名>]'
+const USAGE = 'usage: falive-bot add-chat [--console] --name <群名> | --chat-id <oc_…>  --webhook <地址> [--secret <密钥>] [--repo falive] [--label <显示名>]'
 const args = process.argv.slice(2)
 const flag = (key) => {
   const index = args.indexOf(`--${key}`)
@@ -39,7 +40,8 @@ try {
     webhookUrl: flag('webhook'),
     secret: flag('secret'),
     label: flag('label'),
-    credDir: join(homedir(), '.config', 'fameex-lark'),
+    console: args.includes('--console'),
+    credDir: process.env.FALIVE_BOT_CONFIG_DIR || join(homedir(), '.config', 'falive-bot'),
     deps: {
       searchChats,
       listBots: (chatId) => listChatCustomBots(chatId),
@@ -53,7 +55,7 @@ try {
     process.exit(1)
   }
   console.log([
-    `✅ 已接入「${out.label || out.chatId}」（${out.chatId}）`,
+    `✅ 已接入${args.includes('--console') ? '控制台群' : ''}「${out.label || out.chatId}」（${out.chatId}）`,
     '- webhook 校验通过（没往群里发消息）',
     `- 群里的机器人：${out.botOpenId || '没认出，见下'}`,
     `- 凭据：${out.webhookFile}（0600）`,

@@ -11,7 +11,7 @@ import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { describe, it } from 'node:test'
 
 import { eachCase, runSteps, waitUntil } from './support/steps.mjs'
@@ -25,9 +25,7 @@ import {
   readBugCommandType,
   readStatusText,
 } from '../lib/lark-bugtable-parse.mjs'
-import { resolveWritebackOutcome } from '../lib/lark-bugtable-writeback.mjs'
 import { createTaskStore } from '../lib/lark-task-store.mjs'
-import { parkedReminderRound } from '../lib/lark-parked-reminder.mjs'
 import { rotateLogIfLarge } from '../lib/lark-log-rotate.mjs'
 import { sweepAttachments } from '../lib/lark-retention.mjs'
 import { buildCardContent, buildResultCard, buildWaitingCard } from '../lib/lark-cards.mjs'
@@ -158,7 +156,7 @@ describe('normalizeMessage', () => {
 })
 
 describe('bug table task status', () => {
-  it('任务状态分类与回写出口：等待 / no-change / in-flight / 回写重试三出口', () => runSteps([
+  it('任务状态分类：等待 / no-change / in-flight', () => runSteps([
     ['blocked/waiting_confirmation 保持等待，不会被 poller 当新任务重入队', () => {
       assert.equal(classifyBugTaskStatus('blocked'), 'waiting')
       assert.equal(classifyBugTaskStatus('waiting_confirmation'), 'waiting')
@@ -170,16 +168,6 @@ describe('bug table task status', () => {
     }],
     ['结果回执 pending 属于 in-flight，不会被 poller 当成新任务重复入队', () => {
       assert.equal(classifyBugTaskStatus('result_pending_receipt'), 'in-flight')
-    }],
-    ['回写重试的三个出口：成功落 done，未到上限继续重试，到上限停在 done_pending_writeback（不伪装成完成）', () => {
-      assert.deepEqual(resolveWritebackOutcome({ ok: true, attempts: 5 }), { status: 'done', attempts: 0, gaveUp: false, retry: false })
-      assert.deepEqual(resolveWritebackOutcome({ ok: false, attempts: 0, max: 3 }), {
-        status: 'done_pending_writeback', attempts: 1, gaveUp: false, retry: true,
-      })
-      // 到上限：状态**仍是中间态**——落 done 会让「群里说完成、bug 表还挂着待处理」这条不一致被 prune 抹掉
-      assert.deepEqual(resolveWritebackOutcome({ ok: false, attempts: 2, max: 3 }), {
-        status: 'done_pending_writeback', attempts: 3, gaveUp: true, retry: false,
-      })
     }],
   ]))
 
@@ -1508,9 +1496,8 @@ describe('validateConfig（启动期配置结构校验）', () => {
     project: 'PR-02306',
     botOpenId: 'ou_bot',
     allowedChatIds: 'auto',
-    bugTable: { appToken: 'app', tableId: 'tbl', statusField: '状态', assigneeField: '负责人', doneValue: '已处理' },
   }
-  it('配置结构校验：合法无告警；project / config / allowedChatIds / taskMentionOpenIds / bugTable 的 error 与 warning 分级', () => runSteps([
+  it('配置结构校验：合法无告警；project / config / allowedChatIds / taskMentionOpenIds 的 error 分级', () => runSteps([
     ['合法配置：无 error 无 warning', () => {
       const { errors, warnings } = validateConfig(base)
       assert.deepEqual(errors, [])
@@ -1531,25 +1518,8 @@ describe('validateConfig（启动期配置结构校验）', () => {
     ['taskMentionOpenIds 非字符串数组 → error', () => {
       assert.ok(validateConfig({ ...base, taskMentionOpenIds: [1, 2] }).errors.some((e) => e.includes('taskMentionOpenIds')))
     }],
-    ['botOpenId 缺失 → 只 warning 不 error（有只读降级兼容）', () => {
-      const { errors, warnings } = validateConfig({ ...base, botOpenId: undefined })
-      assert.deepEqual(errors, [])
-      assert.ok(warnings.some((w) => w.includes('botOpenId')))
-    }],
-    ['bugTable 配了就得配全 appToken/tableId/statusField/assigneeField', () => {
-      const { errors } = validateConfig({ ...base, bugTable: { appToken: 'app' } })
-      for (const field of ['tableId', 'statusField', 'assigneeField']) {
-        assert.ok(errors.some((e) => e.includes(`bugTable.${field}`)), `应报 bugTable.${field} 缺失`)
-      }
-      assert.ok(!errors.some((e) => e.includes('bugTable.appToken')), 'appToken 已配不该报缺失')
-    }],
-    ['bugTable.doneValue 缺失 → 只 warning（回写有优雅降级）', () => {
-      const { errors, warnings } = validateConfig({ ...base, bugTable: { ...base.bugTable, doneValue: undefined } })
-      assert.deepEqual(errors, [])
-      assert.ok(warnings.some((w) => w.includes('doneValue')))
-    }],
-    ['无 bugTable → 合法（bug 表集成可选，poller 侧另有刚需校验）', () => {
-      assert.deepEqual(validateConfig({ ...base, bugTable: undefined }).errors, [])
+    ['botOpenId 缺失 → 合法（外部群认的是各群自定义机器人的 open_id）', () => {
+      assert.deepEqual(validateConfig({ ...base, botOpenId: undefined }), { errors: [], warnings: [] })
     }],
   ]))
 })
@@ -1600,11 +1570,30 @@ describe('extractMarkdownSection', () => {
   ]))
 })
 
+// 业务仓规则文件的最小样例：按 falive profile 路由表里每条「仓内文件 + 标题」造出来（真实仓库不一定在本机）。
+const ruleRepoFixture = () => {
+  const dir = mkdtempSync(join(tmpdir(), 'lark-rule-repo-'))
+  const byFile = new Map()
+  for (const ref of allRuleRefs('falive', { repoRoot: dir })) {
+    if (!ref.file.startsWith(dir)) continue
+    if (!byFile.has(ref.file)) byFile.set(ref.file, [])
+    byFile.get(ref.file).push(ref.heading)
+  }
+  for (const [file, headings] of byFile) {
+    mkdirSync(dirname(file), { recursive: true })
+    writeFileSync(file, `# Doc\n\n${headings.map((heading) => `${heading}\n\n${heading} 的正文\n`).join('\n')}`)
+  }
+  return dir
+}
+const aiRulesPresent = existsSync(join(homedir(), '.ai-rules'))
+
 describe('allRuleRefs（规则路由表 ↔ 真实文档，锁住漂移）', () => {
-  it('每条路由的 file+heading 在真实文档上都能抽到非空章节，一个都不能丢', () => {
-    const refs = allRuleRefs()
-    assert.ok(refs.length >= 20) // 路由表本身不能被误删空
-    for (const ref of refs) {
+  it('仓内规则必读（required）；~/.ai-rules 有就每条都能抽到非空章节，一个都不能丢', () => {
+    const refs = allRuleRefs('falive', { repoRoot: '/repo' })
+    assert.ok(refs.length >= 15) // 路由表本身不能被误删空
+    assert.ok(refs.filter((ref) => ref.required).every((ref) => ref.file.startsWith('/repo/')), '只有业务仓自己的规则是必读，~/.ai-rules 可选')
+    if (!aiRulesPresent) return
+    for (const ref of refs.filter((item) => item.label.startsWith('~/.ai-rules'))) {
       assert.ok(existsSync(ref.file), `路由文件缺失：${ref.label}（${ref.file}）`)
       const excerpt = extractMarkdownSection(readFileSync(ref.file, 'utf8'), ref.heading)
       assert.ok(excerpt, `路由章节抽空：${ref.label} · ${ref.heading}（源文档可能改了标题）`)
@@ -1614,34 +1603,42 @@ describe('allRuleRefs（规则路由表 ↔ 真实文档，锁住漂移）', () 
 
 describe('buildFocusedRuleContext（正常场景零 warnings，全路由章节命中）', () => {
   it('正常场景：全信号任务全章节命中 0 warnings、规则版本绑定进指纹、readRuleRevisions 失败记 null', () => runSteps([
-    ['全信号任务加载全部路由章节，0 warnings', () => {
-      const ctx = buildFocusedRuleContext({ taskText: '文案 tooltip 样式颜色圆角 页面组件表单 API接口schema DTO mapper映射 React Query mutation缓存 Zustand store状态管理 MSW mock fixture' })
-      assert.equal(ctx.warnings.length, 0)
-      assert.equal(ctx.sources.length, allRuleRefs().length)
-      const expectedTopicSources = [
-        ['~/.ai-rules/skills/coding-quality/references/reuse-before-new-ui.md', '# Reuse Before New UI'],
-        ['~/.ai-rules/skills/coding-quality/references/i18n-keys.md', '# i18n Keys Are What-You-See-In-Source (i18n Ally WYSIWYG)'],
-        ['~/.ai-rules/skills/coding-quality/references/copy-contracts.md', '# Copy Contracts'],
-        ['~/.ai-rules/skills/coding-quality/references/styling-visual-qa.md', '# Styling And Visual QA'],
-        ['~/.ai-rules/skills/coding-quality/references/api-schema-mapper.md', '# API Schema And Mapper Checks'],
-        ['~/.ai-rules/skills/coding-quality/references/state-derivation-lookup.md', '# State Derivation And Lookup Resolvers'],
-      ]
-      for (const [path, section] of expectedTopicSources) {
-        assert.ok(ctx.sources.some((source) => source.path === path && source.section === section), `专题规则未加载：${path} · ${section}`)
+    ['全信号任务加载全部路由章节，0 warnings（本机有 ~/.ai-rules 时）', () => {
+      const repoRoot = ruleRepoFixture()
+      try {
+        const ctx = buildFocusedRuleContext({ ruleProfile: 'falive', repoRoot, taskText: '文案 tooltip 样式颜色圆角 页面组件表单 新增模块 API接口schema DTO mapper映射 React Query mutation缓存 Zustand store状态管理 MSW mock fixture' })
+        if (!aiRulesPresent) {
+          assert.ok(ctx.warnings.every((warning) => warning.includes('~/.ai-rules')), '没有 ~/.ai-rules 只降级，不缺仓内规则')
+          return
+        }
+        assert.equal(ctx.warnings.length, 0)
+        assert.equal(ctx.sources.length, allRuleRefs('falive', { repoRoot }).length)
+        const expectedTopicSources = [
+          ['~/.ai-rules/skills/coding-quality/references/reuse-before-new-ui.md', '# Reuse Before New UI'],
+          ['~/.ai-rules/skills/coding-quality/references/i18n-keys.md', '# i18n Keys Are What-You-See-In-Source (i18n Ally WYSIWYG)'],
+          ['~/.ai-rules/skills/coding-quality/references/copy-contracts.md', '# Copy Contracts'],
+          ['~/.ai-rules/skills/coding-quality/references/styling-visual-qa.md', '# Styling And Visual QA'],
+          ['~/.ai-rules/skills/coding-quality/references/api-schema-mapper.md', '# API Schema And Mapper Checks'],
+          ['~/.ai-rules/skills/coding-quality/references/state-derivation-lookup.md', '# State Derivation And Lookup Resolvers'],
+        ]
+        for (const [path, section] of expectedTopicSources) {
+          assert.ok(ctx.sources.some((source) => source.path === path && source.section === section), `专题规则未加载：${path} · ${section}`)
+        }
+      } finally {
+        rmSync(repoRoot, { recursive: true, force: true })
       }
     }],
     ['绑定规则来源版本；同一章节在规则仓库换版后上下文指纹必须变化', () => {
-      const first = buildFocusedRuleContext({
-        taskText: '调整页面样式',
-        ruleRevisions: { aiRulesRevision: 'aaa1111', larkBotRevision: 'bbb1111' },
-      })
-      const second = buildFocusedRuleContext({
-        taskText: '调整页面样式',
-        ruleRevisions: { aiRulesRevision: 'aaa1111', larkBotRevision: 'bbb2222' },
-      })
-      assert.equal(first.aiRulesRevision, 'aaa1111')
-      assert.equal(first.larkBotRevision, 'bbb1111')
-      assert.notEqual(first.fingerprint, second.fingerprint)
+      const repoRoot = ruleRepoFixture()
+      try {
+        const first = buildFocusedRuleContext({ ruleProfile: 'falive', repoRoot, taskText: '调整页面样式', ruleRevisions: { aiRulesRevision: 'aaa1111', larkBotRevision: 'bbb1111' } })
+        const second = buildFocusedRuleContext({ ruleProfile: 'falive', repoRoot, taskText: '调整页面样式', ruleRevisions: { aiRulesRevision: 'aaa1111', larkBotRevision: 'bbb2222' } })
+        assert.equal(first.aiRulesRevision, 'aaa1111')
+        assert.equal(first.larkBotRevision, 'bbb1111')
+        assert.notEqual(first.fingerprint, second.fingerprint)
+      } finally {
+        rmSync(repoRoot, { recursive: true, force: true })
+      }
     }],
     ['readRuleRevisions：读 git 短 sha；非 git 目录 / git 失败记 null 不抛', () => {
       const revisions = readRuleRevisions({ larkBotDir: larkBotRoot, aiRulesDir: tmpdir() })
@@ -1771,34 +1768,6 @@ describe('pruneStaleAudits', () => {
   ]))
 })
 
-
-// ---------------------------------------------------------------------------
-// 挂起催办轮次（waiting_confirmation / blocked 超时未处理）
-// ---------------------------------------------------------------------------
-describe('parkedReminderRound（挂起催办轮次）', () => {
-  const HOUR = 3600000
-  const at = (hoursAgo) => new Date(Date.parse('2026-01-02T00:00:00Z') - hoursAgo * HOUR).toISOString()
-  const now = Date.parse('2026-01-02T00:00:00Z')
-  const round = (task) => parkedReminderRound({ task, now, afterMs: 4 * HOUR, rounds: 3 })
-
-  it('催办轮次：未到间隔不催、按轮递增、本轮已催不重复、超上限停、非挂起 / superseded 不催、锚点回落 updatedAt', () => {
-    const cases = [
-      { name: '未到一轮间隔 → 不催', task: { status: 'waiting_confirmation', parkedAt: at(3) }, expected: 0 },
-      { name: '挂起 4h / 9h → 第 1 / 2 轮：{ status: "waiting_confirmation", parkedAt: at(4) }', task: { status: 'waiting_confirmation', parkedAt: at(4) }, expected: 1 },
-      { name: '挂起 4h / 9h → 第 1 / 2 轮：{ status: "blocked", parkedAt: at(9) }', task: { status: 'blocked', parkedAt: at(9) }, expected: 2 },
-      { name: '本轮已催过 → 不重复催：{ status: "blocked", parkedAt: at(5), parkedRemindedRound: 1 }', task: { status: 'blocked', parkedAt: at(5), parkedRemindedRound: 1 }, expected: 0 },
-      { name: '本轮已催过 → 不重复催：{ status: "blocked", parkedAt: at(9), parkedRemindedRound: 1 }', task: { status: 'blocked', parkedAt: at(9), parkedRemindedRound: 1 }, expected: 2 },
-      { name: '超过最大轮次 → 停止催办（不无限刷群）', task: { status: 'blocked', parkedAt: at(100) }, expected: 0 },
-      { name: '非挂起态 / 无锚点 → 不催：{ status: "done", parkedAt: at(50) }', task: { status: 'done', parkedAt: at(50) }, expected: 0 },
-      { name: '非挂起态 / 无锚点 → 不催：{ status: "blocked" }', task: { status: 'blocked' }, expected: 0 },
-      // supersede() 会清掉 parkedAt，但即使残留旧锚点，superseded 不在 PARKED_STATUSES → 恒 0。
-      { name: 'superseded（同话题收尾终态）→ 恒不催，即便还带着旧 parkedAt：{ status: "superseded", parkedAt: at(50) }', task: { status: 'superseded', parkedAt: at(50) }, expected: 0 },
-      { name: 'superseded（同话题收尾终态）→ 恒不催，即便还带着旧 parkedAt：{ status: "superseded", parkedAt: at(4), parkedRemindedRound: 0 }', task: { status: 'superseded', parkedAt: at(4), parkedRemindedRound: 0 }, expected: 0 },
-      { name: '锚点回落 updatedAt（老任务无 parkedAt）仍能催', task: { status: 'blocked', updatedAt: at(5) }, expected: 1 },
-    ]
-    return eachCase(cases, ({ task, expected }) => assert.equal(round(task), expected))
-  })
-})
 
 describe('handleStatusUpdate 的 parkedAt 锚点', () => {
   const freshStore = () => createTaskStore({ tasksDir: mkdtempSync(join(tmpdir(), 'lark-parked-')), leaseMs: 1000 })

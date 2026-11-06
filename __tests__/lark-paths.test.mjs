@@ -30,7 +30,7 @@ describe('lark-paths 基座', () => {
     ['consumerRoot：env > local.json > 默认；支持 ~ 展开', () => {
       assert.equal(resolveConsumerRoot({ env: { LARK_BOT_CONSUMER_ROOT: '/tmp/a' }, localConfig: { consumerRoot: '/tmp/b' } }), '/tmp/a')
       assert.equal(resolveConsumerRoot({ env: {}, localConfig: { consumerRoot: '~/x' } }), join(homedir(), 'x'))
-      assert.equal(resolveConsumerRoot({ env: { LARK_BOT_CONSUMER_ROOT: '  ' }, localConfig: {} }), '/Users/aven/github/fameex-web')
+      assert.equal(resolveConsumerRoot({ env: { LARK_BOT_CONSUMER_ROOT: '  ' }, localConfig: {} }), join(homedir(), 'github', 'repo'))
     }],
     ['prdCacheRoot：env > ~/.prd-cache', () => {
       assert.equal(resolvePrdCacheRoot({ env: { LARK_BOT_PRD_CACHE: '/tmp/cache' } }), '/tmp/cache')

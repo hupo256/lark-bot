@@ -1,0 +1,79 @@
+{
+  "project": "FALIVE",
+  "title": "Falive Web",
+  "aiExecutor": "claude",
+  "selfHeal": { "drainRestart": true, "selfFix": false },
+  "repos": {
+    "falive": {
+      "title": "Falive Web",
+      "root": "~/github/falive-react",
+      "baseRef": "feature/your-dev-branch",
+      "fetchBase": false,
+      "mergeBack": { "upstream": "origin/pre" },
+      "commitPrefix": "feat(bot)",
+
+      "chatIds": [],
+      "chatLabels": {},
+      "webhooksByChat": {},
+      "notifyChatId": "oc_your_console_chat_id",
+      "botName": "YourName.Bot",
+      "privateOnlyChats": [],
+
+      "ownership": {
+        "me": "yourname",
+        "meOpenIds": ["ou_your_open_id"],
+        "meAliases": ["YourName"],
+        "table": "docs/lark-migration-source/requirements/phase1-feature-table.md"
+      },
+      "ownerMap": {},
+      "memberRoles": {},
+
+      "docs": [
+        "CLAUDE.md",
+        "docs/delivery/README.md",
+        "docs/lark-migration-source/requirements/phase1-feature-table.md",
+        "docs/apis/对接状态总览.md"
+      ],
+      "docIntakeDir": "docs/delivery/pending",
+      "readableDirs": [],
+      "ruleProfile": "falive",
+      "installArgs": ["install", "--frozen-lockfile", "--prefer-offline"],
+      "checksHint": "动了 `src/mocks/**` 时额外跑 `node scripts/msw-audit.mjs`（登记表必须 clean）",
+      "finalChecks": {
+        "typecheck": ["node_modules/.bin/tsc", "--noEmit", "--pretty", "false"],
+        "tests": ["node_modules/.bin/vitest", "run", "--reporter=dot"],
+        "timeoutMs": 600000
+      },
+      "scopeBudgets": { "bugfix": 200, "qa_feedback": 300, "requirement": 1200 },
+
+      "claudeModel": "claude-opus-5-5",
+      "claudeEffort": "medium",
+      "claudeAnalysisModel": "claude-opus-5-5",
+      "claudeAnalysisEffort": "high",
+      "claudeIntentModel": "claude-opus-5-5",
+      "claudeIntentEffort": "high",
+      "aiTimeoutMs": 3600000,
+      "concurrency": 2,
+
+      "poll": {
+        "enabled": true,
+        "workHours": [9, 22],
+        "activeMs": 20000,
+        "idleMs": 60000,
+        "nightMs": 300000,
+        "errorMaxMs": 900000,
+        "alertAfterFailures": 10
+      },
+      "intake": { "fastLaneMs": 0, "quietGapMs": 60000, "maxWaitMs": 180000 },
+      "quietQueuedCards": true,
+      "groupPostAsUser": true,
+
+      "verify": {
+        "env": "pre",
+        "siteUrl": "https://your-pre-site.example.com/",
+        "probeCommand": "node scripts/pre-probe.mjs",
+        "requestMarker": "['\"]@/kernel/http(/index\\.ts)?['\"]"
+      }
+    }
+  }
+}

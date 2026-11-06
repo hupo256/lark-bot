@@ -1,34 +1,79 @@
 #!/usr/bin/env bash
-# falive 独立实例的控制脚本（gateway + worker，端口 3006，只服务 falive 外部群）。
-# aven 2026-10-20：falive 与 fameex 分开部署、互不影响；fameex 那套用 ~/github/lark-bot 的 lark-bot 命令。
-# Usage: lark-bot {start|stop|restart|status|doctor|logs|poll-on|poll-off|claude-auth [local|proxy]|add-chat --name <群名> --webhook <地址> --secret <密钥>}
+# falive-bot 控制脚本：gateway + worker 两个 launchd 常驻服务（默认端口 3006）。
+# 安装：ln -sf "$PWD/scripts/lark-bot" ~/.local/bin/falive-bot（符号链接即可，脚本按自身真实位置找仓库根）。
+# Usage: falive-bot {start|stop|restart|status|doctor|logs|failed|retry|close|resume|clean|claude-auth|add-chat|daily-report|sweep|intake-stats}
 set -euo pipefail
 
-REPO="/Users/aven/github/falive-react"
-# lark-bot 仓库根：固定默认值，与 runtime/*.plist 里写死的路径一致；env LARK_BOT_ROOT 可覆盖（调试用）。
-# 不按脚本自身位置推导：从别的 worktree 跑本脚本也要控制同一套常驻服务，而不是按 worktree 路径找进程。
-# 进程匹配（pgrep -f）与 plist 来源都以它为准，故仓库位置变更后，旧位置启动的进程要用旧 CLI 停。
-LARK_BOT_ROOT="${FALIVE_BOT_ROOT:-/Users/aven/github/lark-bot-falive}"
+NODE_BIN="${NODE_BIN:-$(command -v node || true)}"
+[ -n "$NODE_BIN" ] || { echo "✖ 找不到 node（需要 Node ≥ 22，见 docs/onboarding.md）"; exit 1; }
+# bot 仓库根：按脚本真实位置推导（经符号链接调用也对）；FALIVE_BOT_ROOT 可覆盖。
+SELF="$("$NODE_BIN" -e 'process.stdout.write(require("fs").realpathSync(process.argv[1]))' "${BASH_SOURCE[0]}")"
+LARK_BOT_ROOT="${FALIVE_BOT_ROOT:-$(cd "$(dirname "$SELF")/.." && pwd -P)}"
 RUNTIME_DIR="$LARK_BOT_ROOT/runtime"
+CONFIG_FILE="$RUNTIME_DIR/lark-bot.local.json"
 GW="$RUNTIME_DIR/lark-gateway.mjs"
 WK="$RUNTIME_DIR/lark-worker.mjs"
-POLLER="$RUNTIME_DIR/lark-bugtable-poller.mjs"
-LOGDIR="$HOME/Library/Logs/falive-lark"
-PORT=3006
-export LARK_GATEWAY_PORT="$PORT" LARK_INSTANCE_MODE=repo-only
+# 凭据目录（gateway 密钥、claude.env、各群 webhook）：只放 0600 文件，不进仓库。
+CONFIG_DIR="${FALIVE_BOT_CONFIG_DIR:-$HOME/.config/falive-bot}"
+LOGDIR="$HOME/Library/Logs/falive-bot"
+PORT="${FALIVE_BOT_PORT:-3006}"
+export LARK_GATEWAY_PORT="$PORT" LARK_INSTANCE_MODE=repo-only FALIVE_BOT_CONFIG_DIR="$CONFIG_DIR"
 HEALTH="http://127.0.0.1:$PORT/lark/health"
 TASKS="http://127.0.0.1:$PORT/lark/tasks"
 AGENT_DIR="$HOME/Library/LaunchAgents"
-GW_LABEL="com.fameex.lark-falive-gateway"
-WK_LABEL="com.fameex.lark-falive-worker"
-POLLER_LABEL="com.fameex.lark-falive-poller"  # 不安装：bug 表轮询只归 fameex 那套
+GW_LABEL="com.falive-bot.gateway"
+WK_LABEL="com.falive-bot.worker"
 GW_PLIST="$AGENT_DIR/$GW_LABEL.plist"
 WK_PLIST="$AGENT_DIR/$WK_LABEL.plist"
-POLLER_PLIST="$AGENT_DIR/$POLLER_LABEL.plist"
-SECRET_FILE="$HOME/.config/fameex-lark/gateway-secret"
-# claude 鉴权模式：launchd-node.sh 启动时读取；缺失视为 proxy（沿用 claude.env 网关 key）。
-CLAUDE_AUTH_FILE="$HOME/.config/fameex-lark/claude-auth"
+SECRET_FILE="$CONFIG_DIR/gateway-secret"
+# claude 鉴权模式：launchd-node.sh 启动时读取；缺失视为 local（本机 claude 登录）。
+CLAUDE_AUTH_FILE="$CONFIG_DIR/claude-auth"
 DOMAIN="gui/$(id -u)"
+
+# 业务仓根目录：取配置里第一个仓库 profile 的 root（launchd 的 WorkingDirectory 用它）。
+repo_root() {
+  "$NODE_BIN" -e '
+    try {
+      const c = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+      const r = Object.values(c.repos || {}).find((x) => x && x.root);
+      process.stdout.write(r ? r.root.replace(/^~(?=\/|$)/, require("os").homedir()) : "");
+    } catch { process.stdout.write(""); }' "$CONFIG_FILE"
+}
+
+# 按本机路径生成 launchd plist（不在仓库里放写死路径的 plist）。
+render_plist() {
+  local label="$1" script="$2" log="$3" repo="$4"
+  cat <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>$label</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>$RUNTIME_DIR/launchd-node.sh</string>
+    <string>$script</string>
+  </array>
+  <key>WorkingDirectory</key><string>$repo</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key><string>$(dirname "$NODE_BIN"):$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>NODE_BIN</key><string>$NODE_BIN</string>
+    <key>LARK_INSTANCE_MODE</key><string>repo-only</string>
+    <key>LARK_GATEWAY_PORT</key><string>$PORT</string>
+    <key>FALIVE_BOT_CONFIG_DIR</key><string>$CONFIG_DIR</string>
+    <key>LARK_LOG_FILE</key><string>$log</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>10</integer>
+  <key>ProcessType</key><string>Background</string>
+  <key>StandardOutPath</key><string>$log</string>
+  <key>StandardErrorPath</key><string>$log</string>
+</dict>
+</plist>
+PLIST
+}
 
 mkdir -p "$LOGDIR"
 
@@ -47,7 +92,7 @@ _stop_script() {
 LOG_ROTATE_BYTES="${LARK_LOG_ROTATE_BYTES:-10485760}"  # 10 MiB
 rotate_logs() {
   local f size
-  for f in "$LOGDIR"/gateway.log "$LOGDIR"/worker.log "$LOGDIR"/poller.log; do
+  for f in "$LOGDIR"/gateway.log "$LOGDIR"/worker.log; do
     [ -f "$f" ] || continue
     size="$(/usr/bin/stat -f%z "$f" 2>/dev/null || echo 0)"
     if [ "$size" -gt "$LOG_ROTATE_BYTES" ]; then
@@ -66,12 +111,12 @@ ensure_secret() {
 }
 
 install_agent() {
-  local label="$1" source="$2" target="$3"
+  local label="$1" script="$2" log="$3" target="$4" repo
+  repo="$(repo_root)"
   mkdir -p "$AGENT_DIR"
-  cp "$source" "$target"
+  render_plist "$label" "$script" "$log" "$repo" > "$target"
   plutil -lint "$target" >/dev/null
-  # 先 enable 再 bootstrap：被 launchctl disable 过的服务直接 bootstrap 会报「5: Input/output error」
-  # （10-25：fameex 三个服务 10-20 拆实例时被禁用，lark-bot start 一直起不来）。
+  # 先 enable 再 bootstrap：被 launchctl disable 过的服务直接 bootstrap 会报「5: Input/output error」。
   launchctl enable "$DOMAIN/$label"
   if ! _loaded "$label"; then
     launchctl bootstrap "$DOMAIN" "$target"
@@ -82,14 +127,14 @@ install_agent() {
 START_TIMEOUT_SECONDS="${LARK_BOT_START_TIMEOUT_SECONDS:-120}"
 
 gateway_ready() {
-  curl -sS -m 1 "$HEALTH" 2>/dev/null | /opt/homebrew/bin/node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.exit(JSON.parse(s).ok?0:1)}catch{process.exit(1)}})'
+  curl -sS -m 1 "$HEALTH" 2>/dev/null | "$NODE_BIN" -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.exit(JSON.parse(s).ok?0:1)}catch{process.exit(1)}})'
 }
 
 worker_ready() {
   local worker_pid
   worker_pid="$(_pid "$WK")"
   [ -n "$worker_pid" ] || return 1
-  curl -sS -m 1 "$HEALTH" 2>/dev/null | LARK_EXPECTED_WORKER_PID="$worker_pid" /opt/homebrew/bin/node -e '
+  curl -sS -m 1 "$HEALTH" 2>/dev/null | LARK_EXPECTED_WORKER_PID="$worker_pid" "$NODE_BIN" -e '
     let s="";
     process.stdin.on("data",d=>s+=d).on("end",()=>{
       try {
@@ -126,11 +171,13 @@ stop_core() {
 }
 
 start() {
-  [ -d "$REPO" ] || { echo "repo not found: $REPO"; exit 1; }
+  [ -s "$CONFIG_FILE" ] || { echo "✖ 没有配置文件 $CONFIG_FILE（照 docs/onboarding.md 第 4 步从 runtime/lark-bot.example.json 复制）"; exit 1; }
+  local repo; repo="$(repo_root)"
+  [ -n "$repo" ] && [ -d "$repo" ] || { echo "✖ 配置里的业务仓 root 不存在：${repo:-（没配 repos.<key>.root）}"; exit 1; }
   rotate_logs
   ensure_secret
   if ! _loaded "$GW_LABEL"; then _stop_script "$GW"; fi
-  install_agent "$GW_LABEL" "$RUNTIME_DIR/$GW_LABEL.plist" "$GW_PLIST"
+  install_agent "$GW_LABEL" "$GW" "$LOGDIR/gateway.log" "$GW_PLIST"
   echo "• gateway supervised by launchd → $LOGDIR/gateway.log"
   if ! wait_until "gateway" gateway_ready; then
     tail -n 20 "$LOGDIR/gateway.log" 2>/dev/null || true
@@ -138,7 +185,7 @@ start() {
     return 1
   fi
   if ! _loaded "$WK_LABEL"; then _stop_script "$WK"; fi
-  install_agent "$WK_LABEL" "$RUNTIME_DIR/$WK_LABEL.plist" "$WK_PLIST"
+  install_agent "$WK_LABEL" "$WK" "$LOGDIR/worker.log" "$WK_PLIST"
   echo "• worker supervised by launchd  → $LOGDIR/worker.log"
   if ! wait_until "worker/model" worker_ready; then
     tail -n 30 "$LOGDIR/worker.log" 2>/dev/null || true
@@ -151,29 +198,14 @@ start() {
 
 stop() {
   stop_core
-  launchctl bootout "$DOMAIN/$POLLER_LABEL" 2>/dev/null || true
-  _stop_script "$POLLER"
-  echo "• stopped gateway + worker + poller"
+  echo "• stopped gateway + worker"
 }
 
-# bug 轮询窗口：QA 期手动开、测完手动关（平时不跑）。空闲 4h 无新 bug 会自动收工。
-poll_on() {
-  echo "✖ falive 实例不跑 bug 表轮询（归 fameex 那套：lark-bot poll-on）"; return 1
-  cd "$REPO" || { echo "repo not found: $REPO"; exit 1; }
-  if _running "$POLLER"; then
-    echo "• poller already running"
-  else
-    install_agent "$POLLER_LABEL" "$RUNTIME_DIR/$POLLER_LABEL.plist" "$POLLER_PLIST"
-    echo "• poller supervised by launchd → $LOGDIR/poller.log（空闲 4h 无新 bug 自动收工）"
-  fi
-}
-
-poll_off() {
-  local was_running=0
-  if _running "$POLLER"; then was_running=1; fi
-  launchctl bootout "$DOMAIN/$POLLER_LABEL" 2>/dev/null || true
-  _stop_script "$POLLER"
-  if [ "$was_running" -eq 1 ]; then echo "• poller stopped"; else echo "• poller not running"; fi
+# 退役：停服务并卸载 launchd plist（不删配置、凭据、运行态与日志）。
+uninstall() {
+  stop_core
+  rm -f "$GW_PLIST" "$WK_PLIST"
+  echo "• 已停止并卸载 launchd 服务；配置 $CONFIG_FILE、凭据 $CONFIG_DIR、运行态 $RUNTIME_DIR 均保留"
 }
 
 # Gateway 写接口密钥必填；环境变量优先，否则读本机 0600 secret 文件。
@@ -198,16 +230,16 @@ failed() {
 
 # 人工重触发一个 failed/blocked 任务：重置为 queued，worker 下一轮重跑
 retry() {
-  [ -n "${1:-}" ] || { echo "usage: lark-bot retry <taskId>"; exit 1; }
+  [ -n "${1:-}" ] || { echo "usage: falive-bot retry <taskId>"; exit 1; }
   curl -s -m 5 -X POST ${SECRET_HDR[@]+"${SECRET_HDR[@]}"} "http://127.0.0.1:$PORT/lark/tasks/$1/retry"; echo
 }
 
 receipt_retry() {
-  [ -n "${1:-}" ] || { echo "usage: lark-bot receipt-retry <taskId>"; exit 1; }
+  [ -n "${1:-}" ] || { echo "usage: falive-bot receipt-retry <taskId>"; exit 1; }
   curl -s -m 5 -X POST ${SECRET_HDR[@]+"${SECRET_HDR[@]}"} "http://127.0.0.1:$PORT/lark/tasks/$1/receipt/retry"; echo
 }
 
-# 清理陈旧终态任务。默认清 done；传 --failed 一并清 failed/blocked（注意：poller 运行时会重投 bug 表待处理项）
+# 清理陈旧终态任务。默认清 done；传 --failed 一并清 failed/blocked
 clean() {
   local hours="${1:-0}" statuses='["done"]'
   if [ "${1:-}" = "--failed" ]; then statuses='["done","failed","blocked"]'; hours="${2:-0}"; fi
@@ -217,7 +249,7 @@ clean() {
 }
 
 status() {
-  local h t gateway_pid worker_pid poller_pid
+  local h t gateway_pid worker_pid
   h="$(curl -sS -m 3 "$HEALTH" 2>/dev/null || true)"
   # 挂起（waiting_confirmation）明细要 id/正文/催办轮次，只能走**带鉴权**的 /lark/tasks：
   # health 是可匿名探活端点，不能把任务正文塞进去（同 failed() 的口径）。取不到只降级为一行提示，
@@ -225,13 +257,11 @@ status() {
   t="$(curl -s -m 5 ${SECRET_HDR[@]+"${SECRET_HDR[@]}"} "$TASKS" 2>/dev/null || true)"
   gateway_pid="$(_pid "$GW")"
   worker_pid="$(_pid "$WK")"
-  poller_pid="$(_pid "$POLLER")"
 
   # 两段 JSON 各占一行喂给 node：JSON.stringify 的输出内不含裸换行，按首个 \n 切分是安全的。
   printf '%s\n%s' "$h" "$t" | \
     LARK_STATUS_GATEWAY_PID="$gateway_pid" \
     LARK_STATUS_WORKER_PID="$worker_pid" \
-    LARK_STATUS_POLLER_PID="$poller_pid" \
     LARK_STATUS_CLAUDE_AUTH="$(_claude_auth_mode)" \
     node -e '
       let input="";
@@ -244,7 +274,6 @@ status() {
 
         const gatewayPid = process.env.LARK_STATUS_GATEWAY_PID;
         const workerPid = process.env.LARK_STATUS_WORKER_PID;
-        const pollerPid = process.env.LARK_STATUS_POLLER_PID;
         const worker = health?.worker;
         const gatewayState = health ? (health.ok ? "running" : "unhealthy") : (gatewayPid ? "unhealthy" : "stopped");
         const workerHealthy = Boolean(
@@ -252,35 +281,29 @@ status() {
           !worker.heartbeatStale && !worker.codeStale && worker.readiness?.ok
         );
         const workerState = workerPid ? (workerHealthy ? "running" : "unhealthy") : "stopped";
-        const pollerState = pollerPid ? "running" : "stopped";
         const readiness = worker?.readiness;
         const counts = health?.counts || {};
 
         console.log(`started time: ${health?.version?.startedAt || "--"}`);
         console.log(`lark-gateway: ${gatewayState}  port=${process.env.LARK_GATEWAY_PORT}`);
         console.log(`lark-worker:  ${workerState}${workerPid ? `  pid=${workerPid}` : ""}${worker?.draining ? "  排空中（磁盘代码已更新，在飞任务跑完即自动 restart）" : ""}`);
-        console.log(`poller:       ${pollerState}${pollerPid ? `  pid=${pollerPid}` : ""}`);
         console.log("");
         console.log(`executor:     ${readiness?.executor || "--"}${readiness?.model ? `  model=${readiness.model}  reasoning=${readiness.reasoningEffort}  probe=${readiness.modelProbe}` : ""}${readiness?.executor === "claude" ? `  auth=${process.env.LARK_STATUS_CLAUDE_AUTH}` : ""}`);
-        console.log(`tasks:        queued=${counts.queued || 0} running=${counts.running || 0} waiting=${counts.waiting_confirmation || 0} failed=${counts.failed || 0} receipt-pending=${health?.pendingReceipts?.total || 0} writeback-pending=${counts.done_pending_writeback || 0}`);
+        console.log(`tasks:        queued=${counts.queued || 0} running=${counts.running || 0} waiting=${counts.waiting_confirmation || 0} failed=${counts.failed || 0} receipt-pending=${health?.pendingReceipts?.total || 0}`);
 
-        // 挂起任务明细：催办满 N 轮后 gateway 就不再提醒（见 lark-parked-reminder），此后它们只能靠
-        // 这里被盘点到，否则会静静躺着占着 bug 表条目。轮次上限与 lib 侧同一 env 默认值。
+        // 挂起任务明细：bot 不催办，挂着的单子只能在这里盘点到。
         const parked = (tasks || []).filter((task) => task.status === "waiting_confirmation");
         const parkedAgeMs = (task) => Date.now() - new Date(task.parkedAt || task.updatedAt || 0).getTime();
         const formatAge = (ms) => (Number.isFinite(ms) && ms > 0
           ? (ms >= 3600000 ? `${Math.floor(ms / 3600000)}h` : `${Math.floor(ms / 60000)}min`)
           : "?");
         if (parked.length) {
-          const rounds = Number(process.env.LARK_PARKED_REMIND_ROUNDS || 3);
-          console.log(`\nwaiting-confirmation（等人补料/确认，催办满 ${rounds} 轮即停，之后只能在此盘点）：`);
+          console.log(`\nwaiting-confirmation（等人补料 / 确认）：`);
           for (const task of parked.sort((a, b) => parkedAgeMs(b) - parkedAgeMs(a))) {
-            // 疑似单只发一次通知、不进催办（task-store 把 parkedRemindedRound 置 99 作哨兵），不显示轮次。
-            const remind = task.suspected ? "疑似单，不催办" : `已催 ${task.parkedRemindedRound || 0}/${rounds} 轮`;
-            console.log(`  ${task.id}  [${task.project || "-"}]  已挂起 ${formatAge(parkedAgeMs(task))}  ${remind}`);
+            console.log(`  ${task.id}  [${task.project || "-"}]  已挂起 ${formatAge(parkedAgeMs(task))}${task.suspected ? "  疑似单" : ""}`);
             console.log(`    ${(task.summary || "").slice(0, 70)}`);
             if (task.result) console.log(`    → ${task.result.replace(/\n/g, " ").slice(0, 90)}`);
-            console.log(`    群里续跑：继续任务 ${task.id} <补充内容>   |   结单：结单 ${task.id}`);
+            console.log(`    续跑：falive-bot resume ${task.id} "<补充>"   |   结单：falive-bot close ${task.id}`);
           }
         } else if ((counts.waiting_confirmation || 0) > 0) {
           console.log(`\n⚠ 有 ${counts.waiting_confirmation} 个挂起任务但取不到明细（gateway 不可达或缺 gateway secret）`);
@@ -304,7 +327,7 @@ status() {
       });'
 }
 
-_claude_auth_mode() { cat "$CLAUDE_AUTH_FILE" 2>/dev/null || echo proxy; }
+_claude_auth_mode() { cat "$CLAUDE_AUTH_FILE" 2>/dev/null || echo local; }
 
 # claude 执行器鉴权一键切换：local=本机钥匙串登录，proxy=claude.env 里的第三方网关 key。
 # 只写模式文件、不改 claude.env；切换后自动 restart，worker 启动探针会真实调用一次 claude 验证新模式。
@@ -312,33 +335,26 @@ claude_auth() {
   local mode="${1:-}" previous
   previous="$(_claude_auth_mode)"
   if [ -z "${mode}" ]; then
-    echo "claude-auth: ${previous}（切换：lark-bot claude-auth local|proxy）"
+    echo "claude-auth: ${previous}（切换：falive-bot claude-auth local|proxy）"
     return 0
   fi
   case "${mode}" in
     local|proxy) ;;
-    *) echo "usage: lark-bot claude-auth [local|proxy]"; exit 1 ;;
+    *) echo "usage: falive-bot claude-auth [local|proxy]"; exit 1 ;;
   esac
   (umask 077 && printf '%s\n' "${mode}" > "$CLAUDE_AUTH_FILE")
   echo "• claude-auth: ${previous} → ${mode}，重启以生效"
   if ! restart; then
-    echo "✖ 以 claude-auth=${mode} 启动失败（见上方 worker 日志的 Claude 模型就绪检查）；切回：lark-bot claude-auth ${previous}" >&2
+    echo "✖ 以 claude-auth=${mode} 启动失败（见上方 worker 日志的 Claude 模型就绪检查）；切回：falive-bot claude-auth ${previous}" >&2
     return 1
   fi
 }
 
 restart() {
-  local restore_poller=0
-  if _running "$POLLER"; then restore_poller=1; fi
   stop
   sleep 2
   start
-  if [ "$restore_poller" -eq 1 ]; then
-    poll_on
-    echo "• restored poller state from before restart"
-  fi
-  # restart 的最终验收无条件执行：即使 poller 原本关闭，也必须让 gateway/worker、
-  # executor/model readiness、代码/配置/规则新鲜度任一异常以非零退出。
+  # 最终验收无条件执行：gateway / worker、模型就绪、代码 / 配置新鲜度任一异常都以非零退出。
   status
 }
 
@@ -351,17 +367,16 @@ case "${1:-}" in
   stop)     stop ;;
   restart)  restart ;;
   resume)
-    [ -n "${2:-}" ] && [ -n "${3:-}" ] || { echo "usage: lark-bot resume <taskId> \"<补充说明>\""; exit 1; }
+    [ -n "${2:-}" ] && [ -n "${3:-}" ] || { echo "usage: falive-bot resume <taskId> \"<补充说明>\""; exit 1; }
     curl -s -X POST "$TASKS/$2/resume" -H "x-lark-gateway-secret: $(cat "$SECRET_FILE")" -H 'Content-Type: application/json' \
       -d "$(node -e 'process.stdout.write(JSON.stringify({ supplementText: process.argv[1], operator: "cli" }))' "$3")"; echo ;;
   status)   status ;;
   logs)     tail -n 40 -f "$LOGDIR"/gateway.log "$LOGDIR"/worker.log ;;
-  poll-on)  poll_on ;;
-  poll-off) poll_off ;;
+  uninstall) uninstall ;;
   failed)   failed ;;
   retry)    retry "${2:-}" ;;
   close)
-    [ -n "${2:-}" ] || { echo "usage: lark-bot close <taskId> [cancelled|no_longer_needed|completed_elsewhere] [\"<说明>\"]"; exit 1; }
+    [ -n "${2:-}" ] || { echo "usage: falive-bot close <taskId> [cancelled|no_longer_needed|completed_elsewhere] [\"<说明>\"]"; exit 1; }
     curl -s -m 5 -X POST "$TASKS/$2/close" -H "x-lark-gateway-secret: $(cat "$SECRET_FILE")" -H 'Content-Type: application/json' \
       -d "$(node -e 'process.stdout.write(JSON.stringify({ closureReason: process.argv[1] || "completed_elsewhere", note: process.argv[2] || "" }))' "${3:-}" "${4:-}")"; echo ;;
   receipt-retry) receipt_retry "${2:-}" ;;
@@ -374,5 +389,5 @@ case "${1:-}" in
   daily-report) ( cd "$LARK_BOT_ROOT" && node scripts/lark-daily-report-now.mjs "${2:-falive}" "${@:3}" ) ;;
   intake-stats) ( cd "$LARK_BOT_ROOT" && node scripts/lark-intake-stats.mjs "${2:-falive}" "${3:-1}" "${@:4}" ) ;;
   doctor)   ( cd "$LARK_BOT_ROOT" && LARK_GATEWAY_SECRET="${LARK_GATEWAY_SECRET:-$(cat "$SECRET_FILE" 2>/dev/null || true)}" node scripts/lark-doctor.mjs "${@:2}" ) ;;
-  *) echo "usage: lark-bot {start|stop|restart|status|logs|poll-on|poll-off|failed|retry <id>|close <id> [reason] [\"<说明>\"]|resume <id> \"<补充>\"|receipt-retry <id>|clean [hours]|clean --failed [hours]|claude-auth [local|proxy]|daily-report [repo] [--private] [--to <id>]|sweep [repo] [YYYY-MM-DD]|intake-stats [repo] [days] [--json]}"; exit 1 ;;
+  *) echo "usage: falive-bot {start|stop|restart|uninstall|status|doctor|logs|add-chat|failed|retry <id>|close <id> [reason] [\"<说明>\"]|resume <id> \"<补充>\"|receipt-retry <id>|clean [hours]|clean --failed [hours]|claude-auth [local|proxy]|daily-report [repo] [--private] [--to <id>]|sweep [repo] [YYYY-MM-DD]|intake-stats [repo] [days] [--json]}"; exit 1 ;;
 esac

@@ -1,116 +1,84 @@
-# lark-bot
+# falive-bot
 
-to: 人类
-用 lark-cli 的能力搭建的 AI Bot，用来自动处理 Lark 群里 @bot 或 @我 的消息，同时也处理 bug 列表里分配到我头上的 bug。拿到信息后会：自动分析 → 生成 task → 调用 AI coding → 更新 bug 状态 → 结果回群。
+> 一个常驻在你 Mac 上的飞书（Lark）前端助理：在外部群里被 @ 时，读懂上下文、在你的业务仓里开分支改代码 / 实测 / 答疑，做完把结论回到群里、把细节私信给你。
+> 接入步骤见 **[docs/onboarding.md](./docs/onboarding.md)**（第一次用从这里开始）。
 
-to: AI
-FameEX 本机常驻的 Lark 自动处理服务：群里 @ 机器人（或 bug 多维表格派单）→ 本地 worker 调 AI CLI（claude / codex / pi / cursor）在 fameex-web 的 git worktree 里改代码 → 终检 → **只做本地提交，从不 push、不开 PR** → 结果卡片回群。
+## 它做什么
 
-2026-10-11 从 docs_tdd `common/lark-bot/` 带历史拆出，不再依赖 docs_tdd 的任何代码。
+| 场景 | bot 的动作 |
+|---|---|
+| 群里有人 `@bot` 报 bug / 提需求 / 发对接文档 | 先回「收到」；意图分类（缺陷 / 需求 / 对接答复 / 提问 / 闲聊）→ 只读分析 → 在业务仓的临时 worktree 里实施 → 终检（类型检查、相关测试、代码规则、改动范围核对）→ 本地提交 → 合回你的开发分支 → 群里一句结论 + 私信你改了什么 |
+| `@bot` 问「这个接口前端现在怎么处理」「做了没」 | 只读查代码 / 文档 / 对接台账，必要时在测试环境实测接口，代答回群 |
+| 消息里带飞书文档 / Figma / bug 表记录链接 | Worker 先把文档、设计稿规格抓下来落盘给 AI 读；bug 记录按需读整条和截图 |
+| 别人负责的功能 | 按功能总表判归属，不替别人改，回群 @ 负责人 |
+| 拿不准是不是你的活 | 不动手，私信你一张「疑似」卡，你回「继续任务 <id> 做」才开工 |
+| 测试环境部署了新版本（可选） | 自动探到部署、按部署进去的提交建复测任务，结论私信你 |
+| 每天固定时刻（可选） | 日报：当天进度 / 卡点 / 需要支持 |
+
+bot **只在本地提交，从不 push**（除非你在控制台明确说「推 pre」，它才推你的开发分支并建 MR）。
 
 ## 工作方式
 
-三个进程由 macOS launchd 托管，机器级单例，不依赖公网 tunnel：
-
-| 进程 | 角色 | 常驻方式 |
-|---|---|---|
-| `lark-gateway.mjs` | `lark-cli` 长连接收群事件，白名单 / 幂等 / 入队；本地 HTTP 任务队列 `127.0.0.1:3005`（写接口要共享密钥）；发回执卡片 | 常驻 |
-| `lark-worker.mjs` | 认领任务，按 worktree 并行（同一 worktree 串行），spawn AI CLI 执行、终检、本地 commit | 常驻 |
-| `lark-bugtable-poller.mjs` | 轮询 bug 多维表格的待处理 / 验退记录并投递；done 后回写表格状态 | QA 期手动开，空闲 4h 自动收工 |
-
-非只读任务都走两阶段：先**只读分析**，产出结构化的修改范围契约（scope contract）；再进入实施。收尾时 worker 按实际改动核对契约，越界、碰禁区或超出行数上限都不提交，任务挂起，等人回复卡片「确认扩大范围」。回复 bot 卡片是任务控制通道（结单 / 重开 / 续跑 / 查状态 / 确认），不会新建任务。
-
-完整链路见 [docs/overview-workflow.md](./docs/overview-workflow.md)。
-
-## 安装与启动
-
-前置条件见下文「依赖」。首次在本机启用：
-
-```sh
-# 1. 机器级配置（gitignore，不进仓库）：项目、白名单、执行器与模型、bug 表字段映射
-$EDITOR runtime/lark-bot.local.json
-
-# 2. 安装 CLI 薄入口（入口路径或参数契约变了要重装）
-cp scripts/lark-bot-shim ~/.local/bin/lark-bot && chmod +x ~/.local/bin/lark-bot
-
-# 3. 启动：安装 launchd plist、生成 gateway 密钥、等待 gateway 与 worker 就绪
-lark-bot start
-lark-bot status
+```text
+外部群（你在群里；群里加了你的「自定义机器人」）
+  │  用户身份轮询（lark-cli --as user，工作时段 20s 一次）
+  ▼
+gateway（launchd 常驻，127.0.0.1:3006）
+  · 只认 @bot / 回复 bot / 控制台群里你的消息
+  · 任务库 runtime/lark-tasks、附件 runtime/lark-attachments、发件簿 / 台账
+  · 群里回话：走各群自定义机器人 webhook；私信你：发到你的「控制台群」
+  ▼
+worker（launchd 常驻）
+  · 领任务 → claude（或 codex / pi / cursor）在业务仓临时 worktree 里干活
+  · 终检 → 本地提交 → 合回开发分支 → 回写结论
 ```
 
-launchd 直接运行本仓代码。**改完代码不会自动生效**，要执行 `lark-bot restart`。如果 `status` 提示 `codeStale` / `configStale`，说明进程还在跑旧代码或旧配置。
+为什么是「轮询 + webhook」：外部群（跨租户）不允许加应用机器人，只能加自定义机器人；自定义机器人只能发不能收，所以消息由你本人的飞书身份去读。
 
-## CLI
+## 命令（`falive-bot …`）
 
 | 命令 | 作用 |
 |---|---|
-| `lark-bot start` / `stop` / `restart` | 启停 gateway + worker（`stop` 同时停 poller；`restart` 会恢复 poller 原来的状态） |
-| `lark-bot status` | 进程健康、执行器 / 模型就绪、任务积压、挂起任务明细、代码 / 配置是否过期；异常时退出码非零 |
-| `lark-bot logs` | tail gateway / worker 日志（`~/Library/Logs/fameex-lark/`） |
-| `lark-bot poll-on` / `poll-off` | 开关 bug 表轮询 |
-| `lark-bot failed` | 列出 failed / blocked 任务 |
-| `lark-bot retry <taskId>` | 把 failed / blocked 任务重置为 queued |
-| `lark-bot receipt-retry <taskId>` | 重发回执卡片 |
-| `lark-bot clean [hours]` / `clean --failed [hours]` | 清理陈旧终态任务（默认只清 done） |
-| `lark-bot claude-auth [local\|proxy]` | 切换 claude 执行器鉴权（本机钥匙串 / `claude.env` 网关 key），切换后自动重启 |
+| `start` / `stop` / `restart` | 启停 gateway + worker（launchd 托管，开机自启） |
+| `status` | 进程、模型就绪、任务积压、挂起明细；异常时退出码非零 |
+| `doctor` | 体检：心跳、代码 / 配置是否落后、轮询失败、挂起超时、失败台账 |
+| `logs` | 跟 gateway / worker 日志（`~/Library/Logs/falive-bot/`） |
+| `add-chat --name <群名> --webhook <地址> --secret <密钥>` | 接入一个外部群（查群 id、校验 webhook、认机器人、写配置）；加 `--console` 接入控制台群 |
+| `failed` / `retry <id>` / `resume <id> "<补充>"` / `close <id>` | 看失败、重跑、补料续跑、结单 |
+| `clean [hours]` / `clean --failed [hours]` | 清理陈旧终态任务 |
+| `claude-auth [local\|proxy]` | 切换 claude 鉴权：本机登录 / `claude.env` 网关 key |
+| `daily-report [repo] [--private]` / `sweep` / `intake-stats` | 日报补跑、日清扫、入口指标 |
+| `uninstall` | 停服务并卸载 launchd 条目（配置、凭据、运行态保留） |
+
+控制台群里也能直接说：`继续任务 <id> <补充>`、`结单 <id>`、`取消任务 <id>`，或回复 bot 的某条私信。
 
 ## 目录
 
 | 路径 | 内容 |
 |---|---|
-| `lark-gateway.mjs` / `lark-worker.mjs` / `lark-bugtable-poller.mjs` | 三个进程的装配入口（import 无副作用，调用 `runLark*()` 才启动） |
-| `lib/` | 各职责模块；`lib/lark-paths.mjs` 是唯一路径基座，`lib/vendor/` 是从 docs_tdd 复制来的少量函数 |
-| `rules/` | docs_tdd 冻结规则快照（只读，见 `rules/README.md`） |
-| `schemas/` | AI 结构化输出的 JSON Schema（分析 / 结果 / triage / 意图分类） |
-| `runtime/` | launchd 薄包装、plist、`launchd-node.sh`；本机配置与运行态（gitignore）也放在这里 |
-| `scripts/` | `lark-bot` CLI、`lark-bot-shim`、`code-rules.mjs`（代码规则扫描器副本）、`figma-spec.mjs` |
-| `docs/` | 运维手册，入口 [docs/README.md](./docs/README.md) |
-| `__tests__/` | `node --test` 单测 |
-
-## 路径与配置
-
-路径统一在 `lib/lark-paths.mjs` 解析，优先级 env > `runtime/lark-bot.local.json` > 默认值：
-
-| 名称 | env | local.json 键 | 默认 |
-|---|---|---|---|
-| 业务主仓 `consumerRoot` | `LARK_BOT_CONSUMER_ROOT` | `consumerRoot` | `/Users/aven/github/fameex-web`（worktree 建在它的同级目录） |
-| PRD 缓存 `prdCacheRoot` | `LARK_BOT_PRD_CACHE` | — | `~/.prd-cache`（只读） |
-
-`runtime/lark-bot.local.json` 的常用键：`project` / `title`、`botOpenId`、`taskMentionOpenIds`、`allowedChatIds` / `allowedOpenIds`、`aiExecutor`、各执行器的模型键（`codexModel`、`piModel` 等）、`scopeBudgets`、`bugTable`。字段含义见 [docs/gateway-and-worker.md](./docs/gateway-and-worker.md) §6。
-
-多仓：`repos.<key>` 给每个业务仓一个 profile（根目录、基线分支、群、webhook、文档、规则、模型、预算、归属规则），群 → 仓优先于群名解析项目号；不配即只有默认的 fameex 单仓行为。见 [docs/falive-repo-profile.md](./docs/falive-repo-profile.md)。
-
-执行器的选择优先级：任务里的 `[claude]` / `[codex]` / `[pi]` / `[cursor]` 标签 > 配置 `aiExecutor` > 内置默认 `claude`。执行器在入队时锁定。
-
-运行态（均 gitignore）：任务队列 `runtime/lark-tasks/`，附件 `runtime/lark-attachments/<PR>/<messageId>/`，审计 `runtime/lark-audits/<PR>/`。
-
-> CLI、plist 和 shim 里写死了 `/Users/aven/...`，本仓目前只面向这一台机器。换机器或换路径时，要同步改 `scripts/lark-bot`、`scripts/lark-bot-shim`、`runtime/*.plist`，或者用 `LARK_BOT_ROOT` 覆盖。
->
-> 2026-10-29 起准备把两条线迁到一台 Mac mini 常驻服务器并改为服务整个前端团队，现状盘点 / 计划 / 迁移手册见 [docs/mac-mini-migration-2026-10-29.md](./docs/mac-mini-migration-2026-10-29.md)。
+| `lark-gateway.mjs` / `lark-worker.mjs` | 两个进程的装配入口 |
+| `lib/` | 各职责模块（轮询、摄入、分类、执行器、终检、群出口、台账、日报…）；`lib/lark-paths.mjs` 是唯一路径基座 |
+| `schemas/` | AI 结构化输出的 JSON Schema |
+| `runtime/` | launchd 包装脚本、配置样例 `lark-bot.example.json`；本机配置与运行态也落在这里（gitignore） |
+| `scripts/` | `lark-bot`（即 `falive-bot` 命令）、`lark-add-chat.mjs`、体检 / 指标 / 回放 / 测试工具 |
+| `tools/` | 给 AI 调用的工具：读 bug 表记录、页面验证 |
+| `docs/` | 文档，入口 [docs/README.md](./docs/README.md) |
+| `__tests__/` | `node --test` 单测，`node scripts/test-all.mjs` 全量 |
 
 ## 依赖
 
-- Node（launchd 用 `/opt/homebrew/bin/node`），无 npm 依赖。
-- 已登录的 `lark-cli`（bot 身份存在 keychain）；用到的 AI CLI 已登录。
-- `~/.ai-rules`（只读规则，L1）；`~/.config/fameex-lark/`：`gateway-secret`（`lark-bot start` 自动生成）、`claude.env`、`claude-auth`。凭据只放在这些 0600 文件里，不写进 plist。
-- 内置 `scripts/code-rules.mjs` 代码规则扫描器：`~/.ai-rules` prd-to-commit 权威版本的钉版副本，零依赖，同步方法见 `AGENTS.md`。只报 error 级问题；豁免方式只有一种，即在行内或上一行写 `code-rules-ignore <RULE-ID>: <理由>`。脚本缺失或运行失败时记为 `ran:false`，不阻断。
+- macOS（launchd、`caffeinate`）、Node ≥ 22，无 npm 依赖。
+- [lark-cli](https://www.npmjs.com/package/@larksuite/cli)：已配置一个飞书自建应用，并以**你本人**身份登录（读群消息、读文档、建云文档）。
+- Claude Code CLI（`claude`）已登录；或在 `~/.config/falive-bot/claude.env` 配网关 key。
+- 业务仓本地 clone，仓库根有 `CLAUDE.md`（含 `## 固定前提（勿偏离）`、`## 硬规则速览（细则见各向导）` 两节，bot 必读）。
+- 可选：`~/.ai-rules`（个人规则库，有就注入）、`FIGMA_API_KEY`（读 Figma）、`~/.lark-verify` 下的 `playwright-core`（页面验证工具）。
 
-## 文档
-
-| 文档 | 内容 |
-|---|---|
-| [docs/overview-workflow.md](./docs/overview-workflow.md) | 入门：架构、一条消息的旅程、信任模型、配置运维 |
-| [docs/gateway-and-worker.md](./docs/gateway-and-worker.md) | 长连接接入、命令与 Job、执行器与审计 |
-| [docs/task-boundaries-and-reply.md](./docs/task-boundaries-and-reply.md) | 生命周期、自动执行 / 确认边界、范围契约、任务控制通道与回复策略 |
-| [docs/runtime-and-scheduling.md](./docs/runtime-and-scheduling.md) | 长连接健壮性、附件保留期、bug 表路由、并行调度 |
-| [AGENTS.md](./AGENTS.md) | 在本仓改代码的 agent 规则 |
-
-## 开发与测试
-
-测试只能逐文件运行，不支持目录参数：
+## 开发
 
 ```sh
-for f in __tests__/*.test.mjs; do node --test "$f"; done
+node scripts/test-all.mjs          # 全量（含 18 秒运行预算）
+node scripts/test-affected.mjs     # 只跑改动相关的
+node scripts/mutate.mjs --diff <基线分支>   # 变异检查
 ```
 
-改了 `.mjs` 先跑 `node --check <file>`。本仓没有 Biome / tsc。`rules/` 是只读快照；`scripts/code-rules.mjs` 不要直接改，要从权威版本同步（见 `AGENTS.md`）。
+改代码的规则见 [AGENTS.md](./AGENTS.md)；出错沉淀见 [docs/falive-lessons.md](./docs/falive-lessons.md)。

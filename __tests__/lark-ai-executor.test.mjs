@@ -48,6 +48,7 @@ import {
   resolveTaskMode,
 } from '../lib/lark-worker-prompts.mjs'
 import { eachCase, runSteps } from './support/steps.mjs'
+import { makeRuleRepo } from './support/rule-repo.mjs'
 
 describe('AI executor selection', () => {
   it('执行器选择：固定枚举校验、task > local config > wrapper > default 优先级、群消息首位指令解析、Gateway 入队解析默认值', () => runSteps([
@@ -302,11 +303,16 @@ describe('task-mention intent classification', () => {
 describe('focused rule loading and two-phase prompts', () => {
   it('精准规则加载与两阶段 Prompt：tips 任务命中文案契约、分析 Prompt 注入规则原文、实现 Prompt 注入 ready 结论', () => runSteps([
     ['tips/Tooltip 任务精准命中文案契约，并保留来源与指纹', () => {
-      const context = buildFocusedRuleContext({ taskText: '这些标题 hover 时加上 tips' })
-      assert.equal(context.scenario, 'write_ui')
-      assert.ok(context.sources.some((item) => item.section.includes('文案契约')))
-      assert.match(context.text, /文案契约/)
-      assert.match(context.fingerprint, /^[a-f0-9]{16}$/)
+      const repoRoot = makeRuleRepo()
+      try {
+        const context = buildFocusedRuleContext({ taskText: '这些标题 hover 时加上 tips', ruleProfile: 'falive', repoRoot })
+        assert.equal(context.scenario, 'write_ui')
+        assert.ok(context.sources.some((item) => item.section === '## 硬规则速览（细则见各向导）'), '业务仓 CLAUDE.md 必读章节进来源')
+        assert.match(context.text, /硬规则速览/)
+        assert.match(context.fingerprint, /^[a-f0-9]{16}$/)
+      } finally {
+        rmSync(repoRoot, { recursive: true, force: true })
+      }
     }],
     ['分析 Prompt 注入规则原文；实现 Prompt 注入 ready 结论', () => {
       const workContext = { projectId: 'PR-00001', projectName: 'test', projectDocs: [], cwd: '/tmp/repo' }

@@ -242,28 +242,6 @@ describe('状态回写写前核对（第 0 批：await 期间被换代 / 结单�
       assert.equal(store.get('u').integration, null)
       assert.equal(store.get('u').payload, null)
     })],
-    ['bug 表状态同步：领取置修复中、环境版本无需改动置不是问题、挂起置待确认；只对 bug 表来源且只在对应状态（变异补测 10-24）', () => withStore(async (store) => {
-      const cli = fakeCli()
-      const config = { project: 'PR-1', bugTable: { appToken: 'app', tableId: 'tbl', statusField: '状态', inProgressValue: '修复中', notIssueValue: '不是问题', waitingValue: '待确认' } }
-      const cases = [
-        { id: 'r1', source: 'lark-bugtable', status: 'running', expected: ['修复中'] },
-        { id: 'r2', source: 'lark-group', status: 'running', expected: [] },
-        { id: 'r3', source: 'lark-bugtable', status: 'failed', noChangeReason: 'env_version', expected: [] },
-        { id: 'r4', source: 'lark-bugtable', status: 'no_change_needed', noChangeReason: 'env_version', expected: ['不是问题'] },
-        { id: 'r5', source: 'lark-bugtable', status: 'no_change_needed', noChangeReason: 'not_frontend', expected: [] },
-        { id: 'r6', source: 'lark-group', status: 'no_change_needed', noChangeReason: 'env_version', expected: [] },
-        { id: 'r7', source: 'lark-bugtable', status: 'blocked', expected: ['待确认'] },
-        { id: 'r8', source: 'lark-group', status: 'blocked', expected: [] },
-      ]
-      for (const { id, source, status, noChangeReason } of cases) {
-        store.upsert({ id, ...running({ status: 'queued', source, recordId: `rec_${id}` }) })
-        await handleStatusUpdate({ ...stubs, config, store, id, status, noChangeReason, result: '结果', epoch: 0, sendMessage: async () => ({ ok: true, messageId: `om_${id}` }) })
-      }
-      for (const { id, expected } of cases) {
-        const values = cli.calls('+record-batch-update').filter((line) => line.includes(`"rec_${id}"`)).map((line) => line.match(/"状态":"([^"]+)"/)?.[1])
-        assert.deepEqual(values, expected, `${id} 的 bug 表状态同步`)
-      }
-    })],
     ['挂起锚点：老任务没有 parkedAt 时同态回写补上锚点；从待确认转阻塞算新一轮等待，锚点重起、轮次 +1（变异补测 10-24）', () => withStore(async (store) => {
       const sendMessage = async () => ({ ok: true })
       store.upsert({ id: 'legacy', ...running({ status: 'blocked' }) })

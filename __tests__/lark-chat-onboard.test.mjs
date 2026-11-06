@@ -56,6 +56,13 @@ describe('新群接入 add-chat', () => {
       assert.deepEqual(config.repos.falive.chatIds, ['oc_old'], '不改入参')
       assert.deepEqual(applyChatToRepoConfig(next, { repoKey: 'falive', chatId: CHAT, webhookFile: '/c/h.json' }).repos.falive.chatIds, ['oc_old', CHAT], '重复接入不重复加')
       assert.equal(applyChatToRepoConfig(config, { repoKey: 'falive', chatId: CHAT, webhookFile: '/f' }).repos.falive.botMentionOpenIds[CHAT], undefined, '没认出机器人不写 id')
+      // 控制台群（--console）：写 notifyChatId + webhook，不进仓库群；仓库群和控制台互斥
+      const asConsole = applyChatToRepoConfig(config, { repoKey: 'falive', chatId: 'oc_console', label: '控制台', webhookFile: '/c/con.json', console: true })
+      assert.equal(asConsole.repos.falive.notifyChatId, 'oc_console')
+      assert.ok(!(asConsole.repos.falive.chatIds || []).includes('oc_console'), '控制台不进 chatIds')
+      assert.deepEqual(asConsole.repos.falive.webhooksByChat.oc_console, { file: '/c/con.json' })
+      assert.throws(() => applyChatToRepoConfig(asConsole, { repoKey: 'falive', chatId: 'oc_console', webhookFile: '/f' }), /是控制台群/)
+      assert.throws(() => applyChatToRepoConfig(next, { repoKey: 'falive', chatId: CHAT, webhookFile: '/f', console: true }), /已经是仓库群/)
       assert.throws(() => applyChatToRepoConfig(config, { repoKey: 'falive', chatId: 'oc_other', webhookFile: '/f' }), /已经属于仓 other/)
       assert.throws(() => applyChatToRepoConfig(config, { repoKey: 'nope', chatId: CHAT, webhookFile: '/f' }), /没有仓 nope/)
     }],

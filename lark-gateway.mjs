@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Lark Bot Gateway（本地专用）。事件源用 `lark-cli event consume` 长连接，对外暴露与 worker/poller
+ * Lark Bot Gateway（本地专用）。事件源是用户身份轮询外部群（lib/lark-chat-poller），对外暴露与 worker
  * 约定的本地 HTTP 契约（/lark/health、/lark/tasks[/next|/:id/claim|/:id/release|/:id/retry|/prune|/:id/status]）。
  *
  * 本文件只做「装配 + 生命周期」：装载配置、建 store/consumer、挂 HTTP 路由（lib/lark-routes）、
@@ -10,8 +10,8 @@
  *   · lark-cards     回执卡片构建（纯）
  *   · lark-cli       lark-cli 子进程 + 发消息/附件/群名缓存/引用消息
  *   · lark-task-store 文件队列 + 租约回收
- *   · lark-consumer  长连接自愈消费   · lark-ingest 事件摄入
- *   · lark-bugtable-writeback bug 表回写   · lark-status 状态回写处理
+ *   · lark-chat-poller 外部群轮询   · lark-ingest 事件摄入
+ *   · lark-status 状态回写处理
  *   · lark-routes    HTTP 路由分发   · lark-http body/响应工具
  *
  * 硬规则来源：本仓 docs/README.md；主动通知规则原在 docs_tdd@165b070 common/rules/lark-active-notification.md（已冻结，未随拆仓复制）。
@@ -25,23 +25,18 @@ import { normalizeAiExecutor } from './lib/lark-http.mjs'
 import { buildCardContent } from './lib/lark-cards.mjs'
 import { listChatCustomBots, searchChatIdsByName, sendBotMarkdown, sendChatMessage } from './lib/lark-cli.mjs'
 import { createTaskStore } from './lib/lark-task-store.mjs'
-import { startConsumer } from './lib/lark-consumer.mjs'
 import { ingestLarkEvent } from './lib/lark-ingest.mjs'
-import { isBugtableTombstone } from './lib/lark-bugtable-parse.mjs'
-import { retryPendingWriteback } from './lib/lark-bugtable-writeback.mjs'
 import { retryPendingReceipts } from './lib/lark-status.mjs'
-import { remindParkedTasks } from './lib/lark-parked-reminder.mjs'
 import { startLogRotation } from './lib/lark-log-rotate.mjs'
 import { sweepAttachments } from './lib/lark-retention.mjs'
 import { larkAttachmentsRoot } from './lib/lark-paths.mjs'
 import { createRequestHandler } from './lib/lark-routes.mjs'
 import { createRuntimeVersion } from './lib/lark-runtime-version.mjs'
-import { GATEWAY_HOST, defaultGatewayPort, defaultTaskLeaseMs, isRepoOnlyInstance } from './lib/lark-constants.mjs'
+import { GATEWAY_HOST, defaultGatewayPort, defaultTaskLeaseMs } from './lib/lark-constants.mjs'
 import { addRepoChatIds, listRepoProfiles, registerRepoProfiles, repoProfileForTask } from './lib/lark-repo-profile.mjs'
 import { startChatPoller } from './lib/lark-chat-poller.mjs'
 import { findCustomBot } from './lib/lark-chat-onboard.mjs'
 import { startKeepAwake } from './lib/lark-keep-awake.mjs'
-import { startWakeCatchup } from './lib/lark-wake-catchup.mjs'
 import { startDailyReportScheduler } from './lib/lark-daily-schedule.mjs'
 import { startDeployWatch } from './lib/lark-deploy-watch.mjs'
 import { ACK_SWEEP_EVERY_MS, sweepPendingAcks } from './lib/lark-repo-intake.mjs'
@@ -50,7 +45,7 @@ import { deliverOverdueObligations } from './lib/lark-repo-delivery.mjs'
 // 任务领取租约：worker 领走后置 running；超过此时长仍 running 视为孤儿，下次 claim 时自动重入队。
 // 必须 > worker 的 AI 执行超时（默认 30min），避免误回收正在跑的长任务。
 
-// 告警卡快捷发送：dead-letter / consumer-down / writeback 告警共用同一「alert 卡 + 幂等键」形态。
+// 告警卡快捷发送：dead-letter 告警用「alert 卡 + 幂等键」形态。
 const sendAlertCard = ({ config, chatId, lines, logPrefix, idempotencyKey }) =>
   sendChatMessage({
     chatId,
@@ -74,14 +69,14 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   if (!gatewaySecret) {
     console.error(
       '[lark-gateway] ✖ 缺少 LARK_GATEWAY_SECRET，拒绝启动。\n' +
-        '  写入 0600 的 ~/.config/fameex-lark/gateway-secret（launchd-node.sh 与 lark-bot 均从该文件注入）：\n' +
-        "  mkdir -p ~/.config/fameex-lark && (umask 077 && node -e 'process.stdout.write(require(\"crypto\").randomBytes(32).toString(\"base64url\"))' > ~/.config/fameex-lark/gateway-secret)\n" +
+        '  写入 0600 的 ~/.config/falive-bot/gateway-secret（launchd-node.sh 与 lark-bot 均从该文件注入）：\n' +
+        "  mkdir -p ~/.config/falive-bot && (umask 077 && node -e 'process.stdout.write(require(\"crypto\").randomBytes(32).toString(\"base64url\"))' > ~/.config/falive-bot/gateway-secret)\n" +
         '  然后 `lark-bot restart`（worker/poller 会从同一文件读同一密钥）。',
     )
     process.exit(1)
   }
   // 本机运行时文件权限收紧（配置含 bug 表 appToken/URL；历史文件多为 0644）。
-  const tightened = hardenRuntimeFiles([configPath, ...['lark-bot.local.json', 'lark-worker-state.json', 'lark-bugtable-state.json'].map((name) => join(larkRuntimeDir, name))])
+  const tightened = hardenRuntimeFiles([configPath, ...['lark-bot.local.json', 'lark-worker-state.json', 'lark-chat-poller-state.json'].map((name) => join(larkRuntimeDir, name))])
   if (tightened.length) console.warn(`[lark-gateway] ⚠ 已收紧运行时文件权限：${tightened.join('、')}`)
   if (!membershipMode && !config.allowedChatIds?.length && !config.allowedOpenIds?.length) {
     console.warn('[lark-gateway] ⚠ 未配置任何白名单（allowedChatIds/allowedOpenIds），将拒绝所有事件（fail-closed）。请填 allowedChatIds:"auto"（bot 所在群）或显式群 id。')
@@ -101,15 +96,9 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
     },
   })
 
-  // 长连接消费者在 HTTP 起来、群名 / 自定义机器人解析完之后再启动（见下方）：以前它最先启动，
-  // 群名还没解析、HTTP 还没 listen 的窗口里外部群消息按非仓库群处理、worker 请求 ECONNREFUSED。
-  // 独立实例（aven 2026-10-20：falive 与 fameex 分开部署、互不影响）：repo-only 只服务仓库 profile 的外部群——
-  // 不建应用机器人长连接、不补拉内部群、不回写 bug 表，这些都归 fameex 那套（~/github/lark-bot）。
-  const repoOnly = isRepoOnlyInstance()
-  let consumer = null
-  const consumerHandle = repoOnly
-    ? { observe: () => ({ alive: true, disabled: true }), stop: () => {} }
-    : { observe: () => consumer?.observe() ?? { alive: false, starting: true }, stop: () => consumer?.stop() }
+  // falive-bot 只服务仓库 profile 的外部群：不建应用机器人长连接（外部群加不了应用机器人），消息全靠用户身份轮询。
+  // health 的 consumer 字段保留形状，固定报「已关闭」。
+  const consumerHandle = { observe: () => ({ alive: true, disabled: true }), stop: () => {} }
 
   // 群名 → chat_id：profile 只填了群名（外部群事先拿不到 id）时，启动用用户身份解析后并入 chatIds；
   // scope 未批时解析失败只告警，轮询器对该仓不启动，批下来 restart 即可。
@@ -139,8 +128,6 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   const keepAwake = startKeepAwake()
   // 外部群（仓库 profile 配了 chatIds）：用户身份轮询拉消息喂同一条 ingest 链路。
   const chatPoller = startChatPoller({ config, store, ingest: ingestLarkEvent })
-  // 内部群走长连接，睡着时收不到：开盖后从睡前时刻补拉一遍（lib/lark-wake-catchup.mjs）。
-  const wakeCatchup = repoOnly ? { stop: () => {} } : startWakeCatchup({ config, store, ingest: ingestLarkEvent })
   // 日报：每天固定时刻把当天进度 / 卡点 / 需要支持整理成卡片（试运行期私发负责人）。
   const dailyReport = startDailyReportScheduler({ store })
   // 盯 pre 部署（不管谁发的）：构建时间比上次新 = 一次部署，自动复测并接上群里「部署后再测」的原话（lib/lark-deploy-watch.mjs，#84）。
@@ -149,26 +136,11 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   const server = createServer(createRequestHandler({ config, store, consumer: consumerHandle, port, runtimeVersion, chatPoller }))
   server.listen(port, GATEWAY_HOST, () => {
     console.log(`[lark-gateway] listening on http://${GATEWAY_HOST}:${port} for ${config.project}`)
-    console.log(repoOnly
-      ? '[lark-gateway] instanceMode=repo-only：只轮询仓库 profile 的群，不建长连接、不补拉内部群、不回写 bug 表'
-      : `[lark-gateway] whitelist chats=${config.allowedChatIds === 'auto' ? 'auto(bot 所在群)' : ((config.allowedChatIds || []).join(',') || '(none)')} consume=im.message.receive_v1`)
+    console.log('[lark-gateway] 只轮询仓库 profile 的群（用户身份），不建应用机器人长连接')
     for (const profile of listRepoProfiles().filter((item) => !item.isDefault)) {
       console.log(`[lark-gateway] repo ${profile.key}: project=${profile.projectKey} root=${profile.root} base=${profile.baseRef} chats=${profile.chatIds.join(',') || '(none)'} deliver=${profile.webhook ? 'webhook' : profile.notifyChatId ? `redirect:${profile.notifyChatId}` : 'bot'}`)
     }
     console.log(`[lark-gateway] code=${runtimeVersion.codeHash} startedAt=${runtimeVersion.startedAt}（health.version 会在磁盘代码变更后报 codeStale）`)
-  })
-
-  if (!repoOnly) consumer = startConsumer({
-    eventKey: 'im.message.receive_v1',
-    onLine: (raw) => ingestLarkEvent({ raw, config, store }),
-    onDownAlert: (attempt) =>
-      sendAlertCard({
-        config,
-        chatId: resolveNotifyChatId(config),
-        lines: [`**详情**：Lark 事件长连接已连续 ${attempt} 次重连仍未恢复，可能暂时收不到群内 @；请检查网络或 lark-cli 登录态。`],
-        logPrefix: 'consumer-down alert',
-        idempotencyKey: `consumer-down-${attempt}`,
-      }),
   })
 
   // 定期清理陈旧终态任务，防止 /lark/health 计数单调增长（failed 保留待人工 retry/clear）。
@@ -178,7 +150,6 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
     const removed = store.pruneTerminal({
       olderThanMs: pruneDoneAfterMs,
       statuses: ['done', 'done_with_warnings', 'no_change_needed', 'ignored', 'intake_failed', 'superseded'],
-      keep: isBugtableTombstone, // 表格仍是待处理的终局 bug 任务留着，否则 poller 当新 bug 重跑
     })
     if (removed.length) console.log(`[lark-gateway] 清理陈旧终态任务 ${removed.length} 条`)
   }, 60 * 60 * 1000)
@@ -205,14 +176,6 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   const reclaimTimer = setInterval(() => store.reclaimOrphans(), 5 * 60 * 1000)
   reclaimTimer.unref?.()
 
-  // 回写重试：done_pending_writeback 的 bug 任务每 5min 重试回写，成功即落地 done。
-  const writebackTimer = repoOnly ? null : setInterval(() => {
-    retryPendingWriteback({ config, store }).catch((error) =>
-      console.error(`[lark-gateway] 回写重试异常：${String(error).slice(0, 120)}`),
-    )
-  }, 5 * 60 * 1000)
-  writebackTimer?.unref?.()
-
   // 挂着的「收到」到点照发（截止时间持久化在任务上，重启前挂着的这里接上；10-21 架构加固 P0）。
   const sweepAcks = () => sweepPendingAcks({ store }).catch((error) => console.error(`[lark-gateway] 收到巡检异常：${String(error).slice(0, 120)}`))
   void sweepAcks()
@@ -227,12 +190,8 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   }, 5 * 60 * 1000)
   receiptTimer.unref?.()
 
-  // 挂起催办：waiting_confirmation / blocked 的任务每 15min 盘一遍，超时未处理按轮次催办。
-  // 无此定时器时，挂起任务只有最初那一条回执，被群里讨论刷下去就再无人记得。
+  // 每 15min：回复义务巡检 + 疑似任务过期。
   const parkedTimer = setInterval(() => {
-    remindParkedTasks({ config, store }).catch((error) =>
-      console.error(`[lark-gateway] 挂起催办异常：${String(error).slice(0, 120)}`),
-    )
     // 回过「收到」却 4 小时没结论（执行器崩了 / 任务丢了）：私聊负责人一次，不发群（10-21 P5）。
     deliverOverdueObligations({ profiles: listRepoProfiles(), getTask: store.get }).catch((error) => console.error(`[lark-gateway] 回复义务巡检异常：${String(error).slice(0, 120)}`))
     // 疑似任务 48h 无人放行自动关闭（整改 #8），按仓汇总私聊负责人一句。
@@ -262,7 +221,6 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   const shutdown = () => {
     clearInterval(pruneTimer)
     clearInterval(sweepTimer)
-    clearInterval(writebackTimer)
     clearInterval(receiptTimer)
     clearInterval(ackTimer)
     clearInterval(parkedTimer)
@@ -272,7 +230,6 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
     dailyReport.stop()
     deployWatch.stop()
     keepAwake.stop()
-    wakeCatchup.stop()
     server.close()
     process.exit(0)
   }

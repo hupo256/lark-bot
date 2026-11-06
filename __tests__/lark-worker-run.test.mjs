@@ -11,8 +11,11 @@ import { describe, it } from 'node:test'
 
 import { runAI } from '../lib/lark-worker-run.mjs'
 import { runSteps } from './support/steps.mjs'
+import { makeRuleRepo } from './support/rule-repo.mjs'
 
-const workContext = (extra = {}) => ({ projectId: 'PR-99999', projectName: '测试项目', projectDocs: [], cwd: tmpdir(), ...extra })
+// 规则上下文要读业务仓的 CLAUDE.md（必读）：给一个造好的最小业务仓。
+const ruleRepo = makeRuleRepo()
+const workContext = (extra = {}) => ({ projectId: 'PR-99999', projectName: '测试项目', projectDocs: [], cwd: tmpdir(), repoRoot: ruleRepo, ruleProfile: 'falive', ...extra })
 const scope = { targets: [{ path: 'apps/web/src/a.ts', symbols: ['amount'], reason: '首个出错位置' }], siblings: { searchQueries: ['amount'], items: [] } }
 const readyAnalysis = (extra = {}) => ({ status: 'ready', summary: '定位到 a.ts', applicableRules: [], requirements: ['修正金额格式'], blockers: [], scope, ...extra })
 const doneResult = { status: 'done', summary: '已修复', checks: ['biome'], changedFiles: ['apps/web/src/a.ts'], warnings: [] }
