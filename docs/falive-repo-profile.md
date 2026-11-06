@@ -43,7 +43,7 @@ webhook 发出的卡片没有 `message_id`，不能作为「回复卡片」的�
 
 | 键 | 说明 | falive 当前值 |
 |---|---|---|
-| `root` | 业务仓绝对路径（必填） | `/Users/aven/github/falive-react` |
+| `root` | 业务仓绝对路径（必填） | `~/github/falive-react` |
 | `baseRef` / `fetchBase` | 临时 worktree 基线；远端 ref 才 fetch | `feature/phase-6-ol` / `false` |
 | `mergeBack.upstream` | 合回负责人工作分支：开任务前把它同步进 baseRef，任务做完合回主目录的 baseRef（不配 = 只提交到任务分支、不合回） | `origin/online`（10-31 起；上 pre 仍是「推 pre」发 MR） |
 | `projectKey` | 任务的 `project` 值（大写，缺省 = key 大写） | `FALIVE` |

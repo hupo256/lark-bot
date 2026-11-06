@@ -25,7 +25,7 @@
  *   node verify-page.mjs check  ... --click-sweep <路径>...   （点击走查：把页面上每个可点控件点一遍，点了没反应的报「死控件」；见下）
  *   node verify-page.mjs stop   --cwd <工作区>
  *   node verify-page.mjs status
- * 登录用 pre 测试号（VERIFY_MAIL / VERIFY_PWD 可覆盖），portal 登录拿 token 后写进 localStorage，与前端登录成功写的槽位一致。
+ * 登录用 pre 测试号（环境变量 VERIFY_MAIL / VERIFY_PWD 必填），portal 登录拿 token 后写进 localStorage，与前端登录成功写的槽位一致。
  * 退出码：0 通过；1 有问题；2 工具本身出错（服务起不来、登录失败等）。
  */
 
@@ -48,8 +48,9 @@ const PAGE_TIMEOUT_MS = 60_000
 const IDLE_TIMEOUT_MS = 20_000
 const PORTAL = process.env.VERIFY_PORTAL || 'http://falivego.fdsser.com'
 const COMPARE_BASE = process.env.VERIFY_COMPARE_BASE || 'https://falivepre.fdsser.com'
-const MAIL = process.env.VERIFY_MAIL || 'aven-pretest@probe.test'
-const PWD = process.env.VERIFY_PWD || 'Probe12345'
+// 测试号不写进代码：--login 前在环境里给 VERIFY_MAIL / VERIFY_PWD（pre 测试号）。
+const MAIL = process.env.VERIFY_MAIL || ''
+const PWD = process.env.VERIFY_PWD || ''
 // portal 响应 data 为空时在 sec 里：AES-ECB-Pkcs7，key 同 falive src/lib/x9/config DECRYPT_KEY；zlib 压缩先 inflate。
 const DECRYPT_KEY = 'ckG8PDZedJWBOvi5'
 // 登录态槽位，与 falive src/lib/x9/identity.ts、src/modules/auth/data/session.ts applyLoginSession（portal 链路）一致。
@@ -249,6 +250,7 @@ const decryptSec = (sec) => {
 
 // portal 登录（与前端、pre-token-probe 同一接口与平台编码），返回要写进 localStorage 的槽位；token 不打印。
 const portalLogin = async () => {
+  if (!MAIL || !PWD) throw new Error('--login 要先设置 VERIFY_MAIL / VERIFY_PWD（测试环境的测试号）')
   const res = await fetch(`${PORTAL}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
