@@ -13,6 +13,7 @@ runtime/lark-worker-state.json
 runtime/lark-bugtable-poller-state.json
 runtime/lark-doctor-state.json
 runtime/lark-self-fix/
+runtime/lark-deploy-watch/
 # 测试号登录态（tools/env-login.mjs，token 文件 0600）
 runtime/lark-env-login/
 # bug 工作流运行态（aven 11-01）：项目群绑定表、bug 发现档位 / 断点、手动修占用标记，及损坏时留证的副本

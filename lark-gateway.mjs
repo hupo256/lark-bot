@@ -46,6 +46,7 @@ import { expireSuspectedAndNotify, startDailyDigest } from './lib/lark-daily-dig
 import { startDailyReport } from './lib/lark-daily-schedule.mjs'
 import { startChatRetention } from './lib/lark-chat-retention.mjs'
 import { startMailRelay } from './lib/lark-mail-relay.mjs'
+import { startGatewayDeployWatch } from './lib/lark-deploy-watch.mjs'
 import { GATEWAY_HOST, defaultGatewayPort, defaultTaskLeaseMs } from './lib/lark-constants.mjs'
 
 // 任务领取租约：worker 领走后置 running；超过此时长仍 running 视为孤儿，下次 claim 时自动重入队。
@@ -218,6 +219,8 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   // 拆成独立应用时这里关掉，改跑 scripts/lark-mail-relay.mjs run（见 lib/lark-mail-relay.mjs 头注释）。
   // 连续读收件箱失败（默认 5 次）私信负责人一次、恢复再报一次；收件人可用 mailRelay.alert.openId 另配。
   const mailRelay = startMailRelay({ relay: config.mailRelay, notifyOpenId: config.notifyOpenId })
+  // 部署等待（11-06「部署 dev / test」）：有等待时每分钟看一眼建置通知群，部署成功开复测任务、失败 / 超时私信（lib/lark-deploy-watch.mjs）。
+  const deployWatch = startGatewayDeployWatch({ config, store })
 
   // 日志轮转：launchd 把 stdout/stderr 定向到固定文件，进程可连跑数周不重启，日志无上限。
   // 只有 plist 注入了 LARK_LOG_FILE 才生效（前台手跑不截断任何文件）。
@@ -235,6 +238,7 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
     dailyReport.stop()
     chatRetention.stop()
     mailRelay.stop()
+    deployWatch.stop()
     if (logTimer) clearInterval(logTimer)
     wakeCatchup.stop()
     keepAwake.stop()
