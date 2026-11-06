@@ -1,7 +1,8 @@
-# 待办：falive bot 下线（立于 2026-11-01，未做）
+# 待办：falive bot 下线（立于 2026-11-01，2026-11-06 已下线）
 
 > 一句话：**falive bot 下线 = 停服务，不删目录。** `~/github/lark-bot-falive` 和 docs_tdd 一样冻结成只读存档，它的审计原地保留，作为 lark-bot 回放 / 度量的样本。
-> 状态：未下线（11-01 两个 bot 都在跑）。做完下面的清单后，把本行改成「已下线 yyyy-mm-dd」。
+> 状态：**已下线 2026-11-06**。gateway / worker / bugpoll 三个 launchd 服务已停并卸载（plist 移到 `~/.lark-bot-backups/falive-launchagents-20261106/`）；`~/github/lark-bot-falive`、它的 `runtime/lark-audits` / `lark-attachments`、`~/github/falive-react`、`~/.lark-bugpoll` 都原地保留；存档根目录有 `ARCHIVED.md`。fameex bot（3005）不受影响。
+> 同日另起分支 `falive-bot`（worktree `~/github/falive-bot`）：从 `feature/falive-repo-profile` 剥掉 fameex 线逻辑与 bugpoll，做成可发给同事的独立包（`~/Desktop/falive-bot-20261106.tar.gz`，接入文档 `docs/onboarding.md`）。存档分支本身没改。
 
 ## 1. 为什么 lark-bot 要用 falive 的审计
 
