@@ -24,7 +24,7 @@ bash scripts/mail-relay-publish.sh --dry-run   # 只跑测试、连通性和远�
 bash scripts/mail-relay-publish.sh             # 测试 → 备份 → 替换 → 重启 → 验活，失败自动回滚到上一版
 ```
 
-目标机 `MAIL_RELAY_HOST`（缺省 `ex-user@ex-userdeMac-mini.local`，只在同一局域网可达）；只替换 `~/mail-relay` 代码，配置 / 凭证 / 台账在 `~/.config/mail-relay` 不动。
+目标机 `MAIL_RELAY_HOST`（缺省 `ex-user@ex-userdeMac-mini.local`，只在同一局域网可达；按主机名连不上会自动改走 Mac mini 广播的 IPv6 本地链路地址——笔记本开着 OpenVPN 全隧道时局域网 IPv4 会被导进 VPN）；只替换 `~/mail-relay` 代码，配置 / 凭证 / 台账在 `~/.config/mail-relay` 不动。
 Mac mini 上 `~/mail-relay/DEPLOYED` 记着当前版本（git sha + 时间）。改配置（路由、群、间隔）不走这个脚本：ssh 上去改 `~/.config/mail-relay/config.json` 后 `launchctl kickstart -k gui/$(id -u)/com.fameex.mail-relay`。
 
 ## 扩展（不写死）

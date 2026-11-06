@@ -3,6 +3,8 @@
 #   bash scripts/mail-relay-publish.sh            测试 → 备份 → 同步 → 自检 → 重启 → 验活，失败自动回滚
 #   bash scripts/mail-relay-publish.sh --dry-run  只跑测试、连通性和远端自检，不同步不重启
 # 目标机：MAIL_RELAY_HOST（缺省 ex-user@ex-userdeMac-mini.local，IP 是 DHCP 会变，用主机名；只在同一局域网可达）。
+# 连不上时自动改走 IPv6 本地链路地址（11-06：笔记本开着 OpenVPN Connect 全隧道，局域网 10.167.242.0/25 被导进 utun0，
+# Mac mini 换到 .93 后 IPv4 报 Network is unreachable；IPv6 本地链路不走 VPN）。主机密钥按原主机名核对（HostKeyAlias），不放宽校验。
 # 只动 Mac mini 的 ~/mail-relay（代码）；配置 / 凭证 / 台账在 ~/.config/mail-relay，不碰。部署说明见 packages/mail-relay/deploy/INSTALL.md。
 set -euo pipefail
 
@@ -15,8 +17,21 @@ DRY_RUN=0
 
 say() { printf '\n▶ %s\n' "$*"; }
 die() { printf '\n✖ %s\n' "$*" >&2; exit 1; }
+SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=8)
+# 先按主机名连；不通就用 dns-sd 找它广播的 IPv6 本地链路地址（带网卡后缀，如 fe80::…%en0），
+# 给 ssh 加 HostName 覆盖实际连接地址、HostKeyAlias 按原主机名核对密钥；ssh / rsync 的目标写法都不变（rsync 不认带 %en0 的地址）。
+resolve_target() {
+  ssh "${SSH_OPTS[@]}" "$HOST" true 2>/dev/null && return 0
+  local name="${HOST#*@}" v6
+  v6="$( (dns-sd -G v6 "$name" & pid=$!; sleep 3; kill $pid 2>/dev/null) 2>/dev/null | awk '$2 == "Add" && $6 ~ /^[Ff][Ee]80:/ {print $6; exit}')"
+  [ -n "$v6" ] || return 1
+  # HostName 里 % 是占位符（%h %p…），网卡后缀 %en0 要写成 %%en0
+  SSH_OPTS+=(-o "HostName=${v6//%/%%}" -o "HostKeyAlias=$(printf '%s' "$name" | tr '[:upper:]' '[:lower:]')")
+  ssh "${SSH_OPTS[@]}" "$HOST" true 2>/dev/null || return 1
+  echo "按主机名连不上（笔记本 VPN 劫持了局域网路由？），改走 IPv6 本地链路 $v6"
+}
 # 远端跑一段脚本：走登录 shell（PATH 里有用户目录下的 node / lark-cli），locale 警告滤掉。
-remote() { ssh -o BatchMode=yes -o ConnectTimeout=8 "$HOST" 'export LANG=en_US.UTF-8; zsh -l -s' 2> >(grep -vE "^perl|locale|LC_ALL|LANG =|are supported|Falling back" >&2); }
+remote() { ssh "${SSH_OPTS[@]}" "$HOST" 'export LANG=en_US.UTF-8; zsh -l -s' 2> >(grep -vE "^perl|locale|LC_ALL|LANG =|are supported|Falling back" >&2); }
 
 SHA="$(git -C "$ROOT" rev-parse --short HEAD)"
 DIRTY=""
@@ -31,11 +46,12 @@ fi
 tail -1 "$TEST_LOG"
 
 say "2/5 连通性：$HOST"
+resolve_target || die "连不上 $HOST（不在同一局域网？Mac mini 关机了？IPv6 本地链路也找不到）"
 remote <<<'echo "已连上 $(hostname)，node $(node -v)，$(lark-cli --version)"' || die "连不上 $HOST（不在同一局域网？Mac mini 关机了？）"
 
 say "3/5 远端自检：用新代码校验线上配置（还没替换线上代码）"
 STAGE=".mail-relay-stage"
-rsync -a --delete "$SRC" "$HOST:~/$STAGE/" || die "同步到暂存目录失败"
+rsync -a --delete -e "ssh ${SSH_OPTS[*]}" "$SRC" "$HOST:~/$STAGE/" || die "同步到暂存目录失败"
 remote <<EOF || die "新代码在 Mac mini 上自检不过（线上没动）"
 set -e
 cd ~/$STAGE && node bin/mail-relay.mjs check --config ~/.config/mail-relay/config.json
