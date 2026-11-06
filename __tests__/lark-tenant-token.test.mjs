@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
+import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, describe, it } from 'node:test'
@@ -23,10 +24,14 @@ import {
   withTokenLock,
   writeTokenCache,
 } from '../lib/lark-tenant-token.mjs'
+import { fingerprintFailure } from '../lib/lark-failure-fingerprint.mjs'
+import { probeReachable, skippedUserCallResult, uatClientNotes } from '../lib/lark-user-auth-guard.mjs'
 import { runSteps } from './support/steps.mjs'
 
 // 应用令牌跨进程缓存（aven 11-03「第一次撞 429 限流，给个好的解决方案」）：一条 runSteps 合并多段，钉配置解析 / 铸令牌 /
 // 新鲜判定边界 / 缓存文件与作废 / 令牌无效码 / 目录锁 / 取令牌主流程与退避 / 提供者 / runLarkCli 注入接线。
+// 同表并入 runLarkCli 用户身份护栏（aven 11-06「授权反复失效」，lib/lark-user-auth-guard）：断网时不让 lark-cli 刷新用户凭证
+//（它会把本机凭证清掉），刷新相关的 uat-client 行原样进日志。钉探测 / 跳过结果的分类 / uat 行提取 / 接线。
 
 const SETTINGS = { appId: 'cli_app', appSecret: 'sec', host: 'https://open.example.test' }
 const okFetch = (token = 't-new', expire = 7200) => {
@@ -76,11 +81,22 @@ const providerOf = (tokens) => {
   }
 }
 const parse = (result) => JSON.parse(result.stdout)
+// 用户身份护栏用的假 lark-cli：被调用就留记号，stderr 打一行 uat-client、一行无关，stdout 回 ok。
+const GUARD_CLI = (marker) => `#!/bin/sh
+touch "${marker}"
+echo "[lark-cli] [WARN] uat-client: refresh attempt 1/2 failed for ou_x: dns; retrying" >&2
+echo "something else" >&2
+printf '{"ok":true}'
+`
+const listen = () => new Promise((resolve) => {
+  const server = createServer((socket) => socket.end())
+  server.listen(0, '127.0.0.1', () => resolve(server))
+})
 
 describe('应用令牌跨进程缓存（lib/lark-tenant-token）', () => {
   after(() => rmSync(cliDir, { recursive: true, force: true }))
   let dir
-  it('配置解析 / 铸令牌 / 新鲜边界 / 缓存文件 / 无效码 / 目录锁 / 取令牌与退避 / 提供者 / runLarkCli 注入', () => runSteps([
+  it('配置解析 / 铸令牌 / 新鲜边界 / 缓存文件 / 无效码 / 目录锁 / 取令牌与退避 / 提供者 / runLarkCli 注入 / 用户身份护栏', () => runSteps([
     ['resolveTenantTokenSettings：缺 secret 或 app_id → null', () => {
       assert.equal(resolveTenantTokenSettings({ readSecret: noFile, env: {}, localConfig: { botAppId: 'cli_x' } }), null)
       assert.equal(resolveTenantTokenSettings({ readSecret: noFile, env: { LARK_APP_SECRET: 's' }, localConfig: {} }), null)
@@ -354,6 +370,56 @@ describe('应用令牌跨进程缓存（lib/lark-tenant-token）', () => {
       const result = await runLarkCli(['im', 'x'], { tokenProvider: provider })
       assert.equal(parse(result).error.code, 99991672)
       assert.deepEqual(provider.invalidated, [])
+    }],
+    ['probeReachable：端口在听 → ok；端口没人听 → 不 ok 带原因', async () => {
+      const server = await listen()
+      const { port } = server.address()
+      assert.deepEqual(await probeReachable({ host: '127.0.0.1', port }), { ok: true })
+      await new Promise((resolve) => server.close(resolve))
+      const closed = await probeReachable({ host: '127.0.0.1', port })
+      assert.equal(closed.ok, false)
+      assert.equal(closed.reason, 'ECONNREFUSED')
+    }],
+    ['跳过结果：算瞬时失败，按读通知会话的报错进失败指纹归「接口瞬时错误」，不归「权限 / 登录」（那类不会自己好）', async () => {
+      const cli = await import('../lib/lark-cli.mjs')
+      for (const reason of ['ENOTFOUND', 'ETIMEDOUT', '5000ms 内没连上']) {
+        const result = skippedUserCallResult({ reason })
+        assert.equal(cli.larkCallFailed(result), true)
+        assert.equal(cli.isTransientLarkError(result), true)
+        assert.equal(fingerprintFailure(new Error(`读通知会话 失败：${cli.formatLarkCliError(result)}`)).cls, 'transient_api', reason)
+      }
+    }],
+    ['uatClientNotes：只挑 uat-client 行', () => {
+      assert.deepEqual(uatClientNotes('a\n [lark-cli] uat-client: refresh_token expired for ou_x, clearing \nb'), ['[lark-cli] uat-client: refresh_token expired for ou_x, clearing'])
+      assert.deepEqual(uatClientNotes(''), [])
+      assert.deepEqual(uatClientNotes(undefined), [])
+    }],
+    ['runLarkCli 用户身份：探测不通 → 不起 lark-cli、返回跳过结果并记一行日志', async () => {
+      const runLarkCli = await loadRunLarkCli()
+      const marker = join(dir, 'called')
+      writeFileSync(bin, GUARD_CLI(marker))
+      const lines = []
+      const result = await runLarkCli(['im', '+chat-messages-list'], { identity: 'user', userAuthProbe: async () => ({ ok: false, reason: 'ENOTFOUND' }), log: (line) => lines.push(line) })
+      assert.equal(existsSync(marker), false)
+      assert.equal(result.code, -1)
+      assert.match(result.stderr, /ENOTFOUND/)
+      assert.equal(lines.length, 1)
+    }],
+    ['runLarkCli 用户身份：探测通 → 照常调用，stderr 里的 uat-client 行原样进日志、其它行不进', async () => {
+      const runLarkCli = await loadRunLarkCli()
+      const marker = join(dir, 'called')
+      writeFileSync(bin, GUARD_CLI(marker))
+      const lines = []
+      const result = await runLarkCli(['im', '+chat-messages-list'], { identity: 'user', userAuthProbe: async () => ({ ok: true }), log: (line) => lines.push(line) })
+      assert.equal(existsSync(marker), true)
+      assert.equal(JSON.parse(result.stdout).ok, true)
+      assert.deepEqual(lines, ['[lark-cli] 用户身份 im +chat-messages-list：[lark-cli] [WARN] uat-client: refresh attempt 1/2 failed for ou_x: dns; retrying'])
+    }],
+    ['runLarkCli bot 身份：不探测', async () => {
+      const runLarkCli = await loadRunLarkCli()
+      let probed = false
+      await runLarkCli(['im', 'x'], { tokenProvider: { acquire: async () => null }, userAuthProbe: async () => { probed = true; return { ok: false, reason: 'x' } }, log: () => {} })
+      assert.equal(probed, false)
     }],
   ], {
     before: () => {
