@@ -223,7 +223,7 @@ export const mailRelayPackageSteps = [
     alarm.observe({ at: '2026-11-06T01:02:00Z', checked: 0 })
     assert.doesNotMatch(alarm.observe({ at: '2026-11-06T01:04:00Z', failed: true, error: '退出码 -1；[lark-cli timeout after 60000ms]' }), /重新授权/)
     assert.deepEqual(['authorization failed', 'need re-login', 'user access_token invalid', '99991668', 'network/transport dial tcp', 'HTTP 429', null].map(isRelayAuthError), [true, true, true, true, false, false, false])
-    assert.deepEqual(RELAY_USER_SCOPES, ['mail:user_mailbox:readonly', 'mail:user_mailbox.message:readonly', 'mail:user_mailbox.message.subject:read', 'mail:user_mailbox.message.body:read', 'mail:user_mailbox.message.address:read', 'mail:event', 'mail:user_mailbox.event.mail_address:read', 'offline_access'])
+    assert.deepEqual(RELAY_USER_SCOPES, ['mail:user_mailbox:readonly', 'mail:user_mailbox.message:readonly', 'mail:user_mailbox.message.subject:read', 'mail:user_mailbox.message.body:read', 'mail:user_mailbox.message.address:read', 'mail:event', 'mail:user_mailbox.event.mail_address:read', 'im:message', 'im:message.send_as_user', 'offline_access'])
   }],
   ['对账：按 message_id 对齐，分出一致 / 只在一边 / 结果不同（路由、成没成、分数、档位）；since / until 窗口；报告逐条', () => {
     const left = { forwarded: {

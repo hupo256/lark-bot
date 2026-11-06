@@ -41,10 +41,10 @@ App Secret 由邮箱主人自己输（从开发者后台「凭证与基础信息
 LARKSUITE_CLI_CONFIG_DIR=$HOME/.config/mail-relay/lark-cli lark-cli config init --app-id cli_aa663bfff1b89f04 --brand lark --app-secret-stdin
 ```
 
-邮箱授权（只读 + 监听 + 续期，权限清单同 `engine.mjs` 的 `RELAY_USER_SCOPES`）。命令会给一个链接，邮箱主人在浏览器里点授权：
+邮箱授权（读信 + 监听 + 以用户身份把邮件卡片发进群 + 续期，权限清单同 `engine.mjs` 的 `RELAY_USER_SCOPES`；应用的「用户身份权限」里要先开好这 10 个，`im:message` / `im:message.send_as_user` 漏开会在分享卡片时报 missing_scope）。命令会给一个链接，邮箱主人在浏览器里点授权：
 
 ```sh
-LARKSUITE_CLI_CONFIG_DIR=$HOME/.config/mail-relay/lark-cli lark-cli auth login --scope "mail:user_mailbox:readonly mail:user_mailbox.message:readonly mail:user_mailbox.message.subject:read mail:user_mailbox.message.body:read mail:user_mailbox.message.address:read mail:event mail:user_mailbox.event.mail_address:read offline_access"
+LARKSUITE_CLI_CONFIG_DIR=$HOME/.config/mail-relay/lark-cli lark-cli auth login --scope "mail:user_mailbox:readonly mail:user_mailbox.message:readonly mail:user_mailbox.message.subject:read mail:user_mailbox.message.body:read mail:user_mailbox.message.address:read mail:event mail:user_mailbox.event.mail_address:read im:message im:message.send_as_user offline_access"
 ```
 
 ## 3. 自检

@@ -41,7 +41,7 @@ export const RELAY_POLL_MS = 2 * 60_000
 export const RELAY_POLL_MIN_MS = 30_000
 export const RELAY_POLL_OVERLAP_MS = 15 * 60_000
 export const RELAY_ALERT_AFTER_FAILURES = 5
-// 邮箱主人要授权的用户权限（只读 + 监听 + 续期；11-05 新应用「审批邮件助手」按这份申请）。授权过期告警里的重新授权命令用它。
+// 邮箱主人要授权的用户权限（读信 + 监听 + 以用户身份把卡片发进群 + 续期；11-05 新应用「审批邮件助手」按这份申请）。授权过期告警里的重新授权命令用它。
 export const RELAY_USER_SCOPES = [
   'mail:user_mailbox:readonly',
   'mail:user_mailbox.message:readonly',
@@ -50,6 +50,9 @@ export const RELAY_USER_SCOPES = [
   'mail:user_mailbox.message.address:read',
   'mail:event',
   'mail:user_mailbox.event.mail_address:read',
+  // +share-to-chat 用邮箱主人的身份把邮件卡片发进群（11-06 Mac mini 首次真发报 missing_scope 才发现；老 bot 应用早有这两个，一直没暴露）
+  'im:message',
+  'im:message.send_as_user',
   'offline_access',
 ]
 const CATCHUP_MAX = 100
