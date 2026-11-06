@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
 import { buildAnalysisPrompt, buildIntentClassificationPrompt, buildTaskPrompt, buildTaskPromptParts, buildWorkerSystemPrompt } from '../lib/lark-worker-prompts.mjs'
+import { OPS_CAPABILITIES } from '../lib/lark-ops-task.mjs'
 import { eachCase, runSteps } from './support/steps.mjs'
 
 // 规则预算（从 falive 移植，aven 2026-10-14：规则越补越多，干活越来越慢的坑不能再踩）。超了就得合并旧规则，不能只往上叠。
@@ -9,6 +10,10 @@ import { eachCase, runSteps } from './support/steps.mjs'
 // 11-01 对话层：分类器从三类扩到五类 + 交付物 + 接话（reply / continues / selfAnswer）+ 能力清单，规则约 2.4k（falive 同口径 2.4k），
 // 上限提到 2600；persona / 候选任务 / 正在进行的事 / 锚点是数据块，量预算时不传。
 const CLASSIFIER_RULE_BUDGET = 2600
+// 11-06：能力清单（lark-ops-task OPS_CAPABILITIES，代码生成、每加一个运维动作就长一行）原来嵌在分类规则里、和规则共用上面那个上限，
+// 加「部署 dev / test」一行就超（aven：「一点余量都不剩，本身就是设计的问题」）。现在它是数据块，量规则时不传，单独一份上限：
+// 实测约 0.3k，上限 1500，留出再加五六个动作的余量；超了先把动作说明写短，不是往上调。
+const CAPABILITY_LIST_BUDGET = 1500
 const TASK_PROMPT_BUDGET = 9500
 const ANALYSIS_PROMPT_BUDGET = 2600
 // 11-01 上下文分层（docs/plan/upgrade-plan-context-layers-2026-11-01.md S5）后按层各有上限：驾驶规则进系统层（实测 6.1k，配页面工具 +
@@ -93,11 +98,13 @@ describe('提示词规则预算', () => {
       assert.doesNotMatch(text, /PR-0\d{4}/, `${name}·${stage}提示里不得出现事故编号`)
     }
     assert.doesNotMatch(followUp, /<<<UNTRUSTED_TASK_INPUT|<<<TRUSTED_RULE_CONTEXT|\bRULES\b/, `${name} 增量提示不重复任务正文与规则原文块`)
-    const classifier = buildIntentClassificationPrompt(task)
+    const classifier = buildIntentClassificationPrompt(task, { capabilities: '' })
+    assert.ok(OPS_CAPABILITIES.length <= CAPABILITY_LIST_BUDGET, `能力清单 ${OPS_CAPABILITIES.length} 字符，超过预算 ${CAPABILITY_LIST_BUDGET}`)
+    assert.match(buildIntentClassificationPrompt(task), /【能力清单】\n我能办的运维动作/, '分类提示照常带能力清单（数据块）')
     // 对象块四选一，每种都量（11-04 起；原来只量了「只 @ 负责人」那种，私聊指示那种已经 2626 超了没人发现）。
     const variants = { 直接叫: { addressedToBot: true }, 回复没at: { addressedToBot: true, intake: { trigger: 'bot_reply', mentionedBot: false } }, 私聊指示: { addressedToBot: true, privateOrigin: { anchorId: 'a' } } }
     for (const [variant, extraTask] of Object.entries(variants)) {
-      const size = buildIntentClassificationPrompt({ ...task, ...extraTask }).length
+      const size = buildIntentClassificationPrompt({ ...task, ...extraTask }, { capabilities: '' }).length
       assert.ok(size <= CLASSIFIER_RULE_BUDGET, `分类器规则（${variant}）${size} 字符，超过预算 ${CLASSIFIER_RULE_BUDGET}`)
     }
     assert.ok(classifier.length <= CLASSIFIER_RULE_BUDGET, `分类器规则 ${classifier.length} 字符，超过预算 ${CLASSIFIER_RULE_BUDGET}`)
