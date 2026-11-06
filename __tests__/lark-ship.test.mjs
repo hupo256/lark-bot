@@ -74,14 +74,14 @@ const OPS_TASK = { id: 'om_ops', chatId: 'oc_dm', messageId: 'om_ops', text: '�
 
 describe('部署 dev / test（lib/lark-ship + lark-gitlab + lark-build-notice + lark-deploy-watch）', () => {
   it('解析 / 定分支 / Labels / MR 状态 / 卡片 / 合并流程 / 冲突 / 部署等待 / 复测任务 / 运维入口', () => runSteps([
-    ['原话：部署 dev / test 带分支或项目号 → ship；部署 pre / online 仍是发部署信', () => {
+    ['原话：部署 dev / test 带分支或项目号 → ship；部署 pre / online 不代办（manual）', () => {
       assert.deepEqual(parseShipAction('部署 test PR-02463'), { action: 'ship', env: 'test', projectId: 'PR-02463' })
       assert.deepEqual(parseShipAction('运维：部署dev feature/PR-02374。'), { action: 'ship', env: 'dev', branch: 'feature/PR-02374', projectId: 'PR-02374' })
       assert.deepEqual(parseShipAction('部署 test'), { action: 'ship', env: 'test' })
       assert.equal(parseShipAction('部署 testing'), null)
       assert.equal(parseShipAction('部署 online'), null)
       assert.deepEqual(parseOpsAction('部署 test fix/TR-02646'), { action: 'ship', env: 'test', branch: 'fix/TR-02646', projectId: 'TR-02646' })
-      assert.equal(parseOpsAction('部署 online').action, 'deploy')
+      assert.equal(parseOpsAction('部署 online').action, 'manual')
     }],
     ['定分支：分支名 > 项目号唯一命中 > 回复的那单的分支；环境分支 / 多条命中 / 没说都问', () => {
       const branches = ['online', 'test', 'feature/PR-02463', 'feat/PR-02521-aboutUs', 'feat/2521-aboutUs', 'fix/TR-02646', 'feature/PR-02463-to-test', 'origin']
@@ -275,7 +275,7 @@ describe('部署 dev / test（lib/lark-ship + lark-gitlab + lark-build-notice + 
       assert.equal(pickSourceTask({ watch, tasks: list }).id, 'b')
       assert.equal(pickSourceTask({ watch: { ...watch, sourceTaskId: 'a' }, tasks: list, get: (id) => list.find((t) => t.id === id) }).id, 'a')
     }],
-    ['运维入口：负责人私信「部署 test」走 ship，不要 opsActions 配置；别人说不做', async () => {
+    ['运维入口：负责人私信「部署 test」走 ship；别人说不做', async () => {
       const reports = []
       const shipped = []
       const reportStatus = async (status, text) => reports.push([status, text])

@@ -55,14 +55,13 @@ bug 表按 `项目ID` 跨项目路由，与群 @ 共用 `resolveWorkContext`：
 - **status 的挂起盘点**：`status` 的 `tasks:` 行含 `waiting=N`，并在 N>0 时列出每条 `waiting_confirmation` 的 id / 项目 / 已挂起时长 / 已催轮次 / 结论摘要 + 续跑与结单指令。理由：挂起催办满 `LARK_PARKED_REMIND_ROUNDS`（默认 3）轮后 Gateway 就不再提醒，此后这些任务只能靠这里被盘点到。明细走**带鉴权**的 `GET /lark/tasks`（任务正文属业务内容，不塞进可匿名的 `/lark/health`）；取不到时降级为一行提示，不影响其余状态输出，也不改变退出码——挂起是等人的正常业务态，不是不健康。
 - **陈旧终态清理**：Gateway 每小时自动清 `updatedAt` 早于 `pruneDoneAfterHours`（默认 24h）的 `done`、`done_with_warnings`、`no_change_needed`、`ignored`、`intake_failed`，`/lark/health` 计数不再单调增长；`lark-bot clean [hours]` 手动立即清已完成任务，`lark-bot clean --failed [hours]` 一并清 failed/blocked。**failed 默认不自动删**：删掉后 bug 表若仍待处理，poller 下一轮会把它当新任务重投 = 变相自动重试，故 failed 只在人工确认后 `clean --failed` 或 `retry`。
 
-## 2b. 运维指令（负责人私信下达的固定动作，aven 2026-11-01）
+## 2b. 运维指令（负责人私信下达的固定动作，aven 2026-11-01；11-06 改成 fameex 口径）
 
-负责人私信 bot「部署 pre / uat / online」「发 pre / uat / online」这类事，lark-bot 按**固定动作**办（`lib/lark-ops-task.mjs` 识别 + `lib/lark-ops-run.mjs` 执行）：不跑模型、不执行任意命令，消息只会被解析成下面几种之一，由固定代码执行；认不出就回「支持哪些」。
+负责人私信 bot「部署 dev / test …」，lark-bot 按**固定动作**办（`lib/lark-ops-task.mjs` 识别 + `lib/lark-ops-run.mjs` 执行）；认不出就回「支持哪些」。
 
-- **只认负责人私信**（`notifyOpenId` / `allowedOpenIds`）：首行「运维：」显式，或负责人原话里出现部署 / 发信 / 发推合 pre·uat·online 时推断；别人发的、群里发的一律不当运维。
-- **部署 X**：〔原话说了「Y 通过了…合到 X」时〕先 `git cherry origin/X origin/Y` 查 Y 的提交是否都已进 X，没进齐就停并列出；→ `deploy_mail.py info`（build 不绿 / 没新内容就停）→ 按提交标题生成主题摘要与更新说明（去掉 docs / test / chore / bot 提交）→ 原话说「不用确认 / 直接发」才 `draft` + `send`（send 后只提示「部署好后要复测就私信我「X 复测」」——lark-bot 没有部署探测 → 自动复测的链路，falive 靠 bugpoll 部署钩子、没移植，11-03 falive 回放发现原文案在空口承诺）；没说就只回将要发的内容，等负责人回「部署 X 直接发」。
-- **发 X**：`git push -o merge_request.create -o merge_request.target=X origin <devBranch>`，回 MR 链接。
-- 配置 `opsActions = { repo, deployMail, devBranch }`；运维任务不建 worktree、不进提交链、不过需求闸，结果私信回负责人（一项一行）。
+- **只认负责人私信**（`notifyOpenId` / `allowedOpenIds`）：首行「运维：」显式，或负责人原话里出现部署 / 发信 / 发推某环境时推断；别人发的、群里发的一律不当运维。
+- **部署 dev / test**（`lib/lark-ship.mjs`，11-06）：定分支 → 推（不强推）→ 按改动打 Labels 建 / 复用 MR → 能合就合，冲突在 `<分支>-to-<环境>` 上让模型只解冲突后另建 MR 合 → 登记部署等待；网关盯「建置通知」群（`lib/lark-deploy-watch.mjs`），部署成功开实测任务复测、失败 / 40 分钟没等齐私信。GitLab 令牌 `~/.config/mgit-token`（`config.gitlab` 可改）。
+- **部署 / 发信 / 发推 pre·uat·online**：不代办，固定回一句——pre / online 要人在 Jenkins 手动构建、拿版本号发邮件给 OPS；fameex 没有 uat。11-06 前这里是 falive 的部署信（deploy_mail.py）/ 发 MR（`opsActions` 配置），falive 下线后删了，运行配置里残留的 `opsActions` 不再读。
 
 ## 3. Worker 并行调度（按 worktree）
 
