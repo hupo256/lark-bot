@@ -1642,7 +1642,9 @@ describe('buildFocusedRuleContext（正常场景零 warnings，全路由章节�
     }],
     ['readRuleRevisions：读 git 短 sha；非 git 目录 / git 失败记 null 不抛', () => {
       const revisions = readRuleRevisions({ larkBotDir: larkBotRoot, aiRulesDir: tmpdir() })
-      assert.match(revisions.larkBotRevision, /^[a-f0-9]{7,}$/)
+      // 解压包（不是 git 仓）里跑时读不到 sha，记 null
+      if (existsSync(join(larkBotRoot, '.git'))) assert.match(revisions.larkBotRevision, /^[a-f0-9]{7,}$/)
+      else assert.equal(revisions.larkBotRevision, null)
       assert.equal(revisions.aiRulesRevision, null)
       const throwing = () => { throw new Error('spawn failed') }
       assert.deepEqual(readRuleRevisions({ spawn: throwing }), { aiRulesRevision: null, larkBotRevision: null })
