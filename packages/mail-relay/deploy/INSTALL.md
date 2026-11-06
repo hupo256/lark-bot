@@ -13,6 +13,10 @@
 - 飞书应用「审批邮件助手」（`cli_aa663bfff1b89f04`）已审批发布，可用范围包含邮箱主人；机器人已拉进审批群 `oc_936db…`。
 - Mac mini 上装好 Node 20+ 和 lark-cli（`npm i -g @larksuite/cli`），并保持常开、不睡眠：`sudo pmset -a sleep 0 disksleep 0 autorestart 1`。
 - 停电重启后 launchd 的用户级服务要等 `ex-user` 登录才会起：系统设置 → 用户与群组 → 自动登录选 `ex-user`（否则重启后转发不会自己恢复）。
+- macOS 13+ 的后台项目管控：系统设置 → 通用 → 登录项与扩展 →「后台 App 活动」里的 **Node.js Foundation**（转发进程是 node 跑的，按 node 的签名显示成这个名字）要开着。
+  11-06 实况：Mac mini 从 macOS 12.7.6 自动升到 27.2，升级后第一次开机转发进程没起来（launchd 显示 `not running / never exited`，`launchctl kickstart` 手动拉起正常）；确认这项开着之后再重启，开机自动起来了。
+  大版本升级后要验一次：重启 → `ssh … 'launchctl print gui/$(id -u)/com.fameex.mail-relay | grep state'` 是 running。
+- 自动登录后新系统可能停在锁屏界面（要输密码），那只是锁屏、已经登录了，不影响后台服务。
 
 ## 1. 拷代码
 
