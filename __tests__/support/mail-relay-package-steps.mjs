@@ -5,7 +5,7 @@
  * 引擎 / 路由 / 评分 / 转发的行为照旧由 __tests__/lark-mail-relay.test.mjs 覆盖（经 lib/ 薄转发）。
  */
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -174,6 +174,24 @@ export const mailRelayPackageSteps = [
         assert.match(rendered.stdout, /<string>\/abs\/config\.json<\/string>[\s\S]*<string>\/abs\/relay\.log<\/string>/)
       } else assert.match(rendered.stderr, /找不到 (node|lark-cli)/, '机器上没装 lark-cli 时如实报错')
       assert.equal(spawnSync('sh', [join(pkgDir, 'deploy', 'render-plist.sh'), 'relative.json'], { encoding: 'utf8' }).status, 1, '配置路径必须是绝对路径')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  }],
+  ['独立入口 run：常驻不自己退出（引擎计时器都 unref，靠入口撑住事件循环）；SIGTERM 正常退 0', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mail-relay-run-'))
+    try {
+      const config = join(dir, 'config.json')
+      writeFileSync(config, JSON.stringify({ enabled: true, shadow: true, pollMs: 60_000, routes: [B2B_ROUTE] }))
+      const child = spawn(process.execPath, [join(pkgDir, 'bin', 'mail-relay.mjs'), 'run', '--config', config], { env: { ...process.env, NODE_TEST_CONTEXT: 'child' }, stdio: ['ignore', 'pipe', 'pipe'] })
+      let out = ''
+      child.stdout.on('data', (chunk) => { out += chunk })
+      const exited = new Promise((resolve) => child.on('exit', (code, signal) => resolve({ code, signal })))
+      const early = await Promise.race([exited, new Promise((resolve) => setTimeout(() => resolve(null), 1500))])
+      assert.equal(early, null, `run 不该自己退出：${JSON.stringify(early)}`)
+      assert.match(out, /已启用 1 条路由.*影子模式/)
+      child.kill('SIGTERM')
+      assert.deepEqual(await exited, { code: 0, signal: null })
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

@@ -6,8 +6,13 @@
 
 ## 0. 前提
 
+> 11-06 首次部署实况：Mac mini 用户 `ex-user`、主机名 `ex-userdeMac-mini.local`（IP 是 DHCP，会变，用主机名）、macOS 12.7.6、没有 Homebrew。
+> Node 装在用户目录（`~/.local/node` → Node 22 LTS 官方包，校验 SHASUMS256；macOS 12 用不了 Node 23+ 的官方包），`~/.zprofile` 里加 PATH；lark-cli 用 `npm i -g` 装进同一个目录。
+> 不要在这台机器上调 `python3`：系统自带的是占位程序，一调就弹「安装命令行开发者工具」对话框。
+
 - 飞书应用「审批邮件助手」（`cli_aa663bfff1b89f04`）已审批发布，可用范围包含邮箱主人；机器人已拉进审批群 `oc_936db…`。
-- Mac mini 上装好 Node 20+ 和 lark-cli（`npm i -g @larksuite/cli`），并保持常开、不睡眠（系统设置 → 节能）。
+- Mac mini 上装好 Node 20+ 和 lark-cli（`npm i -g @larksuite/cli`），并保持常开、不睡眠：`sudo pmset -a sleep 0 disksleep 0 autorestart 1`。
+- 停电重启后 launchd 的用户级服务要等 `ex-user` 登录才会起：系统设置 → 用户与群组 → 自动登录选 `ex-user`（否则重启后转发不会自己恢复）。
 
 ## 1. 拷代码
 
@@ -27,6 +32,8 @@ cp ~/mail-relay/deploy/config.example.json ~/.config/mail-relay/config.json
 ```
 
 `config.example.json` 是 11-05 线上的三条路由，`shadow: true`（影子模式）。`cliConfigDir` / `stateFile` 是相对配置文件所在目录的路径。
+
+**`notifyOpenId` 要换成邮箱主人在「审批邮件助手」这个应用下的 open_id**：open_id 按应用区分，同一个人在老 bot 应用下的 id（模板里那个 `ou_9186…`）新机器人私信不到，告警会发不出去。授权完成时 `auth login` 的输出里有 `user_open_id`，填它（aven 是 `ou_645b8e6c31978904e47de5e32efb025e`）。
 
 App Secret 由邮箱主人自己输（从开发者后台「凭证与基础信息」复制，粘贴后回车，屏幕上不显示）：
 

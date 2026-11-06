@@ -75,7 +75,11 @@ if (command === 'check') {
     process.exit(1)
   }
   const relayRun = startMailRelay({ relay, baseDir, notifyOpenId: loaded.notifyOpenId || null })
+  // 引擎的定时器都 unref 了（内置在网关里时不能拦着网关退出）；独立运行时没别的东西撑着事件循环，
+  // 不留一个 ref 的计时器，进程拉完第一轮就 exit 0，launchd 每 10 秒拉起一次（11-06 Mac mini 首次部署发现）。
+  const keepAlive = setInterval(() => {}, 60 * 60_000)
   const shutdown = () => {
+    clearInterval(keepAlive)
     relayRun.stop()
     process.exit(0)
   }
