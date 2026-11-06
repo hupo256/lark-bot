@@ -31,7 +31,8 @@ mkdir -p ~/.config/mail-relay/lark-cli && chmod 700 ~/.config/mail-relay ~/.conf
 cp ~/mail-relay/deploy/config.example.json ~/.config/mail-relay/config.json
 ```
 
-`config.example.json` 是 11-05 线上的三条路由，`shadow: true`（影子模式）。`cliConfigDir` / `stateFile` 是相对配置文件所在目录的路径。
+`config.example.json` 是 11-06 Mac mini 的实际设置：三条路由、`mode: "watch"`（实时监听）+ `pollMs: 300000`（每 5 分钟拉一次收件箱兜底）、`shadow: false`。
+首次上线想先观察，可以把路由的 `chatId` 临时指到测试群（11-06 就是这么做的：「lark-bot 测试群」`oc_da69155c32afd9b0b3efe679e638ce5e`），或者开 `shadow: true` 只记台账不发。`cliConfigDir` / `stateFile` 是相对配置文件所在目录的路径。
 
 **`notifyOpenId` 要换成邮箱主人在「审批邮件助手」这个应用下的 open_id**：open_id 按应用区分，同一个人在老 bot 应用下的 id（模板里那个 `ou_9186…`）新机器人私信不到，告警会发不出去。授权完成时 `auth login` 的输出里有 `user_open_id`，填它（aven 是 `ou_645b8e6c31978904e47de5e32efb025e`）。
 

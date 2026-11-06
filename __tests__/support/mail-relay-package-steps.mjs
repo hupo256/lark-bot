@@ -167,7 +167,7 @@ export const mailRelayPackageSteps = [
       assert.equal(node(['compare', '--config', shadowConfig]).status, 2)
       // 部署模板：示例配置通过校验、是影子模式；launchd 模板占位符全被 render-plist.sh 换掉
       const example = JSON.parse(readFileSync(join(pkgDir, 'deploy', 'config.example.json'), 'utf8'))
-      assert.deepEqual([validateMailRelay(example.mailRelay), example.mailRelay.shadow, example.mailRelay.routes.map((route) => route.id)], [[], true, ['access', 'ol-release', 'b2b-prod']])
+      assert.deepEqual([validateMailRelay(example.mailRelay), example.mailRelay.shadow, example.mailRelay.mode, example.mailRelay.pollMs, example.mailRelay.routes.map((route) => route.id)], [[], false, 'watch', 300000, ['access', 'ol-release', 'b2b-prod']])
       const rendered = spawnSync('sh', [join(pkgDir, 'deploy', 'render-plist.sh'), '/abs/config.json', '/abs/relay.log'], { encoding: 'utf8' })
       if (rendered.status === 0) {
         assert.doesNotMatch(rendered.stdout, /__[A-Z_]+__/)

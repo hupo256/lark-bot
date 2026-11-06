@@ -1,29 +1,49 @@
 {
-  "notifyOpenId": "ou_91861d6da6cf6822e08045ba1868241e",
+  "notifyOpenId": "ou_645b8e6c31978904e47de5e32efb025e",
   "mailRelay": {
     "enabled": true,
-    "shadow": true,
-    "mode": "poll",
+    "shadow": false,
+    "mode": "watch",
+    "pollMs": 300000,
     "cliConfigDir": "lark-cli",
     "stateFile": "mail-relay-state.json",
-    "alert": { "afterFailures": 5 },
+    "alert": {
+      "afterFailures": 5
+    },
     "routes": [
       {
         "id": "access",
         "label": "权限 / 白名单申请",
         "chatId": "oc_936db0947fefddc46ee6ac1f30528b7b",
         "match": {
-          "subject": ["权限", "權限", "开通", "開通", "白名单", "白名單"],
-          "subjectNot": ["【\\s*(OL|ONLINE|OLINE)(环境|環境)?\\s*】"]
+          "subject": [
+            "权限",
+            "權限",
+            "开通",
+            "開通",
+            "白名单",
+            "白名單"
+          ],
+          "subjectNot": [
+            "【\\s*(OL|ONLINE|OLINE)(环境|環境)?\\s*】"
+          ]
         },
         "scorer": null
       },
-      { "id": "ol-release", "preset": "ol-release", "chatId": "oc_936db0947fefddc46ee6ac1f30528b7b" },
+      {
+        "id": "ol-release",
+        "preset": "ol-release",
+        "chatId": "oc_936db0947fefddc46ee6ac1f30528b7b"
+      },
       {
         "id": "b2b-prod",
         "label": "B2B 正式环境更新申请",
         "chatId": "oc_936db0947fefddc46ee6ac1f30528b7b",
-        "match": { "subject": ["Prod-b2b\\s*正式(环境|環境)"] },
+        "match": {
+          "subject": [
+            "Prod-b2b\\s*正式(环境|環境)"
+          ]
+        },
         "scorer": null
       }
     ]
