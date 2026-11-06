@@ -63,7 +63,6 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   assertConfigOrExit(config, 'lark-gateway')
   // 多仓 profile 注册（进程级单例）：群 → 仓路由、projectKey 放行、卡片改投都从这张表取。
   registerRepoProfiles(config)
-  const membershipMode = config.allowedChatIds === 'auto'
   // 本地 API 鉴权是硬前置：没有共享密钥时本机任一进程都能 POST 触发改代码 / commit / prune，
   // 「只绑 127.0.0.1」不构成边界。与 isWhitelisted 同一立场——缺配置就拒绝启动，而不是降级放行。
   if (!gatewaySecret) {
@@ -78,9 +77,6 @@ export async function runLarkGateway({ configPath, port = defaultGatewayPort }) 
   // 本机运行时文件权限收紧（配置含 bug 表 appToken/URL；历史文件多为 0644）。
   const tightened = hardenRuntimeFiles([configPath, ...['lark-bot.local.json', 'lark-worker-state.json', 'lark-chat-poller-state.json'].map((name) => join(larkRuntimeDir, name))])
   if (tightened.length) console.warn(`[lark-gateway] ⚠ 已收紧运行时文件权限：${tightened.join('、')}`)
-  if (!membershipMode && !config.allowedChatIds?.length && !config.allowedOpenIds?.length) {
-    console.warn('[lark-gateway] ⚠ 未配置任何白名单（allowedChatIds/allowedOpenIds），将拒绝所有事件（fail-closed）。请填 allowedChatIds:"auto"（bot 所在群）或显式群 id。')
-  }
   const store = createTaskStore({
     tasksDir: larkTasksDir,
     leaseMs: defaultTaskLeaseMs,

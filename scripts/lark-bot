@@ -7,7 +7,7 @@ set -euo pipefail
 NODE_BIN="${NODE_BIN:-$(command -v node || true)}"
 [ -n "$NODE_BIN" ] || { echo "✖ 找不到 node（需要 Node ≥ 22，见 docs/onboarding.md）"; exit 1; }
 # bot 仓库根：按脚本真实位置推导（经符号链接调用也对）；FALIVE_BOT_ROOT 可覆盖。
-SELF="$("$NODE_BIN" -e 'process.stdout.write(require("fs").realpathSync(process.argv[1]))' "${BASH_SOURCE[0]}")"
+SELF="$("$NODE_BIN" -e 'process.stdout.write(require("fs").realpathSync(process.argv[1]))' "${BASH_SOURCE[0]:-$0}")"
 LARK_BOT_ROOT="${FALIVE_BOT_ROOT:-$(cd "$(dirname "$SELF")/.." && pwd -P)}"
 RUNTIME_DIR="$LARK_BOT_ROOT/runtime"
 CONFIG_FILE="$RUNTIME_DIR/lark-bot.local.json"

@@ -76,7 +76,13 @@ lark-cli whoami                         # 记下 onBehalfOf.openId（ou_ 开头�
   export ANTHROPIC_API_KEY=<key>
   ```
 
-需要读 Figma 设计稿的话，同一个文件里再加一行 `export FIGMA_API_KEY=<Figma personal access token>`。
+同一个文件里还可以放（两种模式都会读它）：
+
+```sh
+export FIGMA_API_KEY=<Figma personal access token>   # 读 Figma 设计稿
+export VERIFY_MAIL=<测试环境测试号邮箱>                # 页面验证工具 --login 用
+export VERIFY_PWD=<测试号密码>
+```
 
 **验证**：`cd ~/github/falive-react && claude -p "回复 ok"` 输出 ok。
 
